@@ -1,6 +1,13 @@
 My findings regarding the file formats. Primarily .vi. 
 Lots of help from http://www.hmilch.net/hmilch.php/labview_source.php
 
+* [File Header](#File Header)
+* [Blocks Info](#Blocks Info)
+* [Block Header](#Block Header)
+* [Block Info](#Block Info)
+* [Block Data](#Block Data)
+
+<a name="File Header" />
 ### File Header (offset: 0)
 ```
  Length | Type    | Value
@@ -20,7 +27,8 @@ Lots of help from http://www.hmilch.net/hmilch.php/labview_source.php
       4 | uint32  | Block Size
 ```
 
-### Block Info (offset: _Block Offset_ + _RSRC Offset_)
+<a name="Blocks Info" />
+### Blocks Info (offset: _Block Offset_ + _RSRC Offset_)
 ```
  Length | Type    | Value
 --------+---------+-------
@@ -28,6 +36,7 @@ Lots of help from http://www.hmilch.net/hmilch.php/labview_source.php
         |         | Block data
 ```
 
+<a name="Block Header" />
 ### Block Header
 ``` 
  Length | Type    | Value
@@ -37,6 +46,7 @@ Lots of help from http://www.hmilch.net/hmilch.php/labview_source.php
       4 | uint32  | Info Offset
 ```
 
+<a name="Block Info" />
 ### Block Info (offset: _Info Offset_ + _Block Offset_)
 ```
  Length | Type    | Value
@@ -48,6 +58,7 @@ Lots of help from http://www.hmilch.net/hmilch.php/labview_source.php
       4 | int32   | ?
 ```
 
+<a name="Block Data" />
 ### Block Data (offset: _Offset_ + _Data Offset_)
 Max size is _Data Size_. Otherwise you can get the size by comparing the offsets. Repeat 
 _Count_ of these:
