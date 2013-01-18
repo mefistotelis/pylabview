@@ -1,10 +1,13 @@
 ## Contents
 * [BDHb, BDHc](#BDH_)
 * [BDPW](#BDPW)
+* [FTAB](#FTAB)
 * [icl8](#icl8)
 * [LIBN](#LIBN)
 * [LVSR](#LVSR)
 * [vers](#vers)
+
+***
 
 <a name="BDH_" />
 ### BDHb, BDHc
@@ -16,6 +19,8 @@ This block is compressed
       * | string  | Content
 ```
 
+***
+
 <a name="BDPW" />
 ### BDPW
 ```plain
@@ -26,9 +31,19 @@ This block is compressed
      16 | string  | Hash 2
 ```
 
+***
+
+<a name="FTAB" />
+### FTAB
+<b>F</b>ont <b>Tab</b>le, I believe.
+
+***
+
 <a name="icl8" />
 ### icl8
 See [[Icon]]
+
+***
 
 <a name="LIBN" />
 ### LIBN
@@ -39,6 +54,8 @@ See [[Icon]]
       1 | uint8   | String length
       * | string  | Content
 ```
+
+***
 
 <a name="LVSR" />
 ### LVSR
@@ -53,6 +70,8 @@ See [[Version Bits]]
 Flags:
  Protected: 0x2000
 ```
+
+***
 
 <a name="vers" />
 ### vers
