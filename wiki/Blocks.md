@@ -21,11 +21,11 @@ All guesses at the acronyms are that. Guesses.
 * [FTAB](#FTAB) - Font Table
 * [GCPR<sup>c</sup><sup>?</sup>](#GCPR)
 * [HIST](#HIST) - History
+* [icl8](#icl8) - Icon ?
 * [ICON<sup>?</sup>](#ICON)
 * [LIbd<sup>?</sup>](#LIbd)
 * [LIds<sup>c</sup><sup>?</sup>](#LIds)
 * [LIfp<sup>?</sup>](#LIfp)
-* [icl8](#icl8) - Icon ?
 * [LIBN](#LIBN)
 * [LVSR](#LVSR) - Version ?
 * [MUID<sup>?</sup>](#MUID)
@@ -187,6 +187,13 @@ Compressed
 
 ***
 
+<a name="wiki-icl8" />
+### icl8
+<b>ic</b>on ?  
+See [[Icon]]
+
+***
+
 <a name="wiki-ICON" />
 ### ICON<sup>?</sup>
 
@@ -207,13 +214,6 @@ Compressed
 <a name="wiki-LIfp" />
 ### LIfp<sup>?</sup>
 <b>L</b>abVIEW <b>I</b>nstrument ?
-
-***
-
-<a name="wiki-icl8" />
-### icl8
-<b>ic</b>on ?  
-See [[Icon]]
 
 ***
 
