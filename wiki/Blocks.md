@@ -1,6 +1,6 @@
-Blocks which only appear with compiled data have a <sup>c</sup>, blocks which only appear with uncompiled data have <sup>u</sup>
+Blocks which only appear with compiled data have a <sup>c</sup>, blocks with <sup>?</sup> are unknown.
 
-Blocks with <sup>?</sup> are unknown.
+Some have example data included.
 
 All guesses at the acronyms are that. Guesses.
 ## Contents
@@ -37,14 +37,14 @@ All guesses at the acronyms are that. Guesses.
 * [TM80<sup>c</sup><sup>?</sup>](#TM80)
 * [VCTP<sup>?</sup>](#VCTP)
 * [VICD<sup>c</sup><sup>?</sup>](#VICD)
+* [VITS<sup>?</sup>](#VITS)
 * [vers](#vers) - Version
 
 ***
 
 <a name="wiki-BDH_" />
 ### BDHb, BDHc
-<b>B</b>lock <b>D</b>ata ?
-
+<b>B</b>lock <b>D</b>ata ? </br>
 Compressed
 
 ```plain
@@ -73,11 +73,19 @@ Compressed
 ### BDSE
 4 bytes
 
+```plain
+00 00 00 07
+```
+
 ***
 
 <a name="wiki-BNID" />
 ### BNID<sup>c</sup><sup>?</sup>
 12 bytes
+
+```plain
+00 00 00 02  00 00 00 00  00 00 00 00
+```
 
 ***
 
@@ -91,11 +99,19 @@ Compressed
 ### CONP<sup>?</sup>
 2 bytes
 
+```plain
+00 01
+```
+
 ***
 
 <a name="wiki-CPC2" />
 ### CPC2<sup>?</sup>
 2 bytes
+
+```plain
+00 01
+```
 
 ***
 
@@ -111,12 +127,21 @@ Compressed
 
 <a name="wiki-DLDR" />
 ### DLDR<sup>c</sup><sup>?</sup>
+28 bytes?
+
+```plain
+00 00 00 01  00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00
+```
 
 ***
 
 <a name="wiki-DTHP" />
 ### DTHP<sup>?</sup>
 2 bytes
+
+```plain
+00 00
+```
 
 ***
 
@@ -129,11 +154,18 @@ Compressed
 ### FPSE<sup>?</sup>
 4 bytes
 
+```plain
+00 00 00 10
+```
+
 ***
 
 <a name="wiki-FPTD" />
 ### FPTD<sup>c</sup><sup>?</sup>
 2 bytes
+```plain
+00 09
+```
 
 ***
 
@@ -180,8 +212,7 @@ Compressed
 
 <a name="wiki-icl8" />
 ### icl8
-<b>ic</b>on ?
-
+<b>ic</b>on ? </br>
 See [[Icon]]
 
 ***
@@ -218,6 +249,10 @@ Flags:
 ### MUID<sup>?</sup>
 4 bytes
 
+```plain
+00 00 00 2b
+```
+
 ***
 
 <a name="wiki-NUID" />
@@ -228,12 +263,21 @@ Flags:
 
 <a name="wiki-OBSG" />
 ### OBSG<sup>c</sup><sup>?</sup>
+16 bytes
+
+```plain
+00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00
+```
 
 ***
 
 <a name="wiki-RTSG" />
 ### RTSG<sup>?</sup>
 16 bytes
+
+```plain
+00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00
+```
 
 ***
 
@@ -245,6 +289,10 @@ Flags:
 <a name="wiki-SUID" />
 ### SUID<sup>c</sup><sup>?</sup>
 12 bytes
+
+```plain
+00 00 00 02  00 00 00 00  00 00 00 00
+```
 
 ***
 
@@ -263,9 +311,15 @@ Flags:
 
 ***
 
+<a name="wiki-VITS" />
+### VITS<sup>?</sup>
+
+***
+
 <a name="wiki-vers" />
 ### vers
-<b>vers</b>ion
+<b>vers</b>ion <br/>
+12 bytes <br/>
 See [[Version Bits]]
 ```plain
  Length | Type    | Value
