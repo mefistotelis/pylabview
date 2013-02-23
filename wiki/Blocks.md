@@ -44,7 +44,7 @@ All guesses at the acronyms are that. Guesses.
 
 <a name="wiki-BDH_" />
 ### BDHb, BDHc
-<b>B</b>lock <b>D</b>ata ? </br>
+<b>B</b>lock <b>D</b>ata ?  
 Compressed
 
 ```plain
@@ -212,7 +212,7 @@ Compressed
 
 <a name="wiki-icl8" />
 ### icl8
-<b>ic</b>on ? </br>
+<b>ic</b>on ?  
 See [[Icon]]
 
 ***
@@ -318,8 +318,8 @@ Flags:
 
 <a name="wiki-vers" />
 ### vers
-<b>vers</b>ion <br/>
-12 bytes <br/>
+<b>vers</b>ion  
+12 bytes  
 See [[Version Bits]]
 ```plain
  Length | Type    | Value
