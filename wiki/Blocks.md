@@ -11,6 +11,7 @@ All guesses at the acronyms are that. Guesses.
 * [CCSG<sup>c</sup><sup>?</sup>](#CCSG)
 * [CONP<sup>?</sup>](#CONP)
 * [CPC2<sup>?</sup>](#CPC2)
+* [CPC2<sup>?</sup>](#CPC2)
 * [CPMp<sup>c</sup><sup>?</sup>](#CPMp)
 * [DFDS<sup>c</sup><sup>?</sup>](#DFDS)
 * [DLDR<sup>c</sup><sup>?</sup>](#DLDR)
@@ -27,6 +28,7 @@ All guesses at the acronyms are that. Guesses.
 * [LIds<sup>c</sup><sup>?</sup>](#LIds)
 * [LIfp<sup>?</sup>](#LIfp)
 * [LIBN](#LIBN)
+* [LIvi<sup>?</sup>](#LIvi)
 * [LVSR](#LVSR) - Version ?
 * [MUID<sup>?</sup>](#MUID)
 * [NUID<sup>c</sup><sup>?</sup>](#NUID)
@@ -182,6 +184,9 @@ Not in Polymorphic VIs or Controls
 <a name="wiki-GCPR" />
 ### GCPR<sup>c</sup><sup>?</sup>
 13 bytes?
+```plain
+00 00 00 00  00 00 00 00  00 00 00 00  00
+```
 
 ***
 
@@ -206,19 +211,18 @@ Appears to change depending on type of VI or if it's a Control
 
 <a name="wiki-LIbd" />
 ### LIbd<sup>?</sup>
-<b>L</b>abVIEW <b>I</b>nstrument ?
 
 ***
 
 <a name="wiki-LIds" />
 ### LIds<sup>c</sup><sup>?</sup>
-<b>L</b>abVIEW <b>I</b>nstrument ?
 
 ***
 
 <a name="wiki-LIfp" />
 ### LIfp<sup>?</sup>
-<b>L</b>abVIEW <b>I</b>nstrument ?
+Might be "full path"  
+Contains name of a file
 
 ***
 
@@ -231,6 +235,12 @@ Appears to change depending on type of VI or if it's a Control
       1 | uint8   | String length
       * | string  | Content
 ```
+
+***
+
+<a name="wiki-LIvi" />
+### LIvi<sup>?</sup>
+Only in polymorphic VIs. Lists VIs included.
 
 ***
 

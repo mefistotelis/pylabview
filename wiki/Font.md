@@ -34,7 +34,7 @@ Font count of the following:
       * | string  | Font name
 ```
 
-A few special fonts
+A few special fonts:
 ```plain
  Name | Value
 ------+------------------
