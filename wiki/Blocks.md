@@ -107,10 +107,12 @@ Compressed
 
 <a name="wiki-CPC2" />
 ### CPC2<sup>?</sup>
-2 bytes
+2 bytes  
+Not in Controls
 
 ```plain
-00 01
+00 01 - Normal VI
+00 08 - Polymorphic VI
 ```
 
 ***
@@ -127,7 +129,8 @@ Compressed
 
 <a name="wiki-DLDR" />
 ### DLDR<sup>c</sup><sup>?</sup>
-28 bytes?
+28 bytes?  
+Not in Polymorphic VIs or Controls
 
 ```plain
 00 00 00 01  00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00
@@ -162,7 +165,8 @@ Compressed
 
 <a name="wiki-FPTD" />
 ### FPTD<sup>c</sup><sup>?</sup>
-2 bytes
+2 bytes  
+Not in Polymorphic VIs or Controls
 ```plain
 00 09
 ```
@@ -196,7 +200,8 @@ See [[Icon]]
 
 <a name="wiki-ICON" />
 ### ICON<sup>?</sup>
-
+128 bytes  
+Appears to change depending on type of VI or if it's a Control
 ***
 
 <a name="wiki-LIbd" />
