@@ -1,45 +1,47 @@
-Blocks which only appear with compiled data have a <sup>c</sup>, blocks with <sup>?</sup> are unknown.
-
 Some have example data included.
 
 All guesses at the acronyms are that. Guesses.
 ## Contents
-* [BDHb, BDHc](#BDH_)
-* [BDPW](#BDPW) - Block Data Password
-* [BDSE](#BDSE)
-* [BNID<sup>c</sup><sup>?</sup>](#BNID)
-* [CCSG<sup>c</sup><sup>?</sup>](#CCSG)
-* [CONP<sup>?</sup>](#CONP)
-* [CPC2<sup>?</sup>](#CPC2)
-* [CPC2<sup>?</sup>](#CPC2)
-* [CPMp<sup>c</sup><sup>?</sup>](#CPMp)
-* [DFDS<sup>c</sup><sup>?</sup>](#DFDS)
-* [DLDR<sup>c</sup><sup>?</sup>](#DLDR)
-* [DTHP<sup>?</sup>](#DTHP)
-* [FPHb<sup>?</sup>](#FPHb)
-* [FPSE<sup>?</sup>](#FPSE)
-* [FPTD<sup>c</sup><sup>?</sup>](#FPTD)
+* [BDHb, BDHc](#BDH_) - Block Diagram ?
+* [BDPW](#BDPW) - Block Diagram Password
+* [BDSE](#BDSE) - Block Diagram ?
+* [BNID](#BNID)
+* [CCSG](#CCSG)
+* [CONP](#CONP)
+* [CPC4](#CPC2)
+* [CPMp](#CPMp)
+* [DFDS](#DFDS)
+* [DLDR](#DLDR)
+* [DTHP](#DTHP)
+* [FPHb](#FPHb) - Front Panel ?
+* [FPSE](#FPSE) - Front Panel ?
+* [FPTD](#FPTD) - Front Panel ?
 * [FTAB](#FTAB) - Font Table
-* [GCPR<sup>c</sup><sup>?</sup>](#GCPR)
-* [HIST](#HIST) - History
-* [icl8](#icl8) - Icon ?
-* [ICON<sup>?</sup>](#ICON)
-* [LIbd<sup>?</sup>](#LIbd)
-* [LIds<sup>c</sup><sup>?</sup>](#LIds)
-* [LIfp<sup>?</sup>](#LIfp)
+* [GCPR](#GCPR)
+* [HBUF](#HBUF) - Revision History ?
+* [HBIN](#HBIN) - Revision History ?
+* [HIST](#HIST) - History ?
+* [HLPP](#HLPP) - Help Path
+* [HLPT](#HLPT) - Help Tag
+* [icl8](#icl8) - 8-bit Icon
+* [ICON](#ICON) - 1-bit Icon
+* [LIbd](#LIbd)
+* [LIds](#LIds)
+* [LIfp](#LIfp)
 * [LIBN](#LIBN)
-* [LIvi<sup>?</sup>](#LIvi)
+* [LIvi](#LIvi)
 * [LVSR](#LVSR) - Version ?
-* [MUID<sup>?</sup>](#MUID)
-* [NUID<sup>c</sup><sup>?</sup>](#NUID)
-* [OBSG<sup>c</sup><sup>?</sup>](#OBSG)
-* [RTSG<sup>?</sup>](#RTSG)
-* [SCSR<sup>c</sup><sup>?</sup>](#SCSR)
-* [SUID<sup>c</sup><sup>?</sup>](#SUID)
-* [TM80<sup>c</sup><sup>?</sup>](#TM80)
-* [VCTP<sup>?</sup>](#VCTP)
-* [VICD<sup>c</sup><sup>?</sup>](#VICD)
-* [VITS<sup>?</sup>](#VITS)
+* [MUID](#MUID)
+* [NUID](#NUID)
+* [OBSG](#OBSG)
+* [RTSG](#RTSG)
+* [SCSR](#SCSR)
+* [STRG](#STRG) - String Description
+* [SUID](#SUID)
+* [TM80](#TM80)
+* [VCTP](#VCTP)
+* [VICD](#VICD)
+* [VITS](#VITS)
 * [vers](#vers) - Version
 
 ***
@@ -82,7 +84,7 @@ Compressed
 ***
 
 <a name="wiki-BNID" />
-### BNID<sup>c</sup><sup>?</sup>
+### BNID
 12 bytes
 
 ```plain
@@ -92,13 +94,13 @@ Compressed
 ***
 
 <a name="wiki-CCSG" />
-### CCSG<sup>c</sup><sup>?</sup>
+### CCSG
 16 bytes
 
 ***
 
 <a name="wiki-CONP" />
-### CONP<sup>?</sup>
+### CONP
 2 bytes
 
 ```plain
@@ -108,7 +110,7 @@ Compressed
 ***
 
 <a name="wiki-CPC2" />
-### CPC2<sup>?</sup>
+### CPC2
 2 bytes  
 Not in Controls
 
@@ -120,17 +122,17 @@ Not in Controls
 ***
 
 <a name="wiki-CPMp" />
-### CPMp<sup>c</sup><sup>?</sup>
+### CPMp
 
 ***
 
 <a name="wiki-DFDS" />
-### DFDS<sup>c</sup><sup>?</sup>
+### DFDS
 
 ***
 
 <a name="wiki-DLDR" />
-### DLDR<sup>c</sup><sup>?</sup>
+### DLDR
 28 bytes?  
 Not in Polymorphic VIs or Controls
 
@@ -141,7 +143,7 @@ Not in Polymorphic VIs or Controls
 ***
 
 <a name="wiki-DTHP" />
-### DTHP<sup>?</sup>
+### DTHP
 2 bytes
 
 ```plain
@@ -151,12 +153,12 @@ Not in Polymorphic VIs or Controls
 ***
 
 <a name="wiki-FPHb" />
-### FPHb<sup>?</sup>
+### FPHb
 
 ***
 
 <a name="wiki-FPSE" />
-### FPSE<sup>?</sup>
+### FPSE
 4 bytes
 
 ```plain
@@ -166,7 +168,7 @@ Not in Polymorphic VIs or Controls
 ***
 
 <a name="wiki-FPTD" />
-### FPTD<sup>c</sup><sup>?</sup>
+### FPTD
 2 bytes  
 Not in Polymorphic VIs or Controls
 ```plain
@@ -182,7 +184,7 @@ Not in Polymorphic VIs or Controls
 ***
 
 <a name="wiki-GCPR" />
-### GCPR<sup>c</sup><sup>?</sup>
+### GCPR
 13 bytes?
 ```plain
 00 00 00 00  00 00 00 00  00 00 00 00  00
@@ -198,29 +200,30 @@ Not in Polymorphic VIs or Controls
 
 <a name="wiki-icl8" />
 ### icl8
-<b>ic</b>on ?  
+<b>ic</b>on ? <b>8</b> (bit)
 See [[Icon]]
 
 ***
 
 <a name="wiki-ICON" />
-### ICON<sup>?</sup>
-128 bytes  
-Appears to change depending on type of VI or if it's a Control
+### ICON
+<b>ICON</b>  
+See [[Icon]]
+
 ***
 
 <a name="wiki-LIbd" />
-### LIbd<sup>?</sup>
+### LIbd
 
 ***
 
 <a name="wiki-LIds" />
-### LIds<sup>c</sup><sup>?</sup>
+### LIds
 
 ***
 
 <a name="wiki-LIfp" />
-### LIfp<sup>?</sup>
+### LIfp
 Might be "full path"  
 Contains name of a file
 
@@ -239,7 +242,7 @@ Contains name of a file
 ***
 
 <a name="wiki-LIvi" />
-### LIvi<sup>?</sup>
+### LIvi
 Only in polymorphic VIs. Lists VIs included.
 
 ***
@@ -261,7 +264,7 @@ Flags:
 ***
 
 <a name="wiki-MUID" />
-### MUID<sup>?</sup>
+### MUID
 4 bytes
 
 ```plain
@@ -271,13 +274,13 @@ Flags:
 ***
 
 <a name="wiki-NUID" />
-### NUID<sup>c</sup><sup>?</sup>
+### NUID
 16 bytes
 
 ***
 
 <a name="wiki-OBSG" />
-### OBSG<sup>c</sup><sup>?</sup>
+### OBSG
 16 bytes
 
 ```plain
@@ -287,7 +290,7 @@ Flags:
 ***
 
 <a name="wiki-RTSG" />
-### RTSG<sup>?</sup>
+### RTSG
 16 bytes
 
 ```plain
@@ -297,12 +300,12 @@ Flags:
 ***
 
 <a name="wiki-SCSR" />
-### SCSR<sup>c</sup><sup>?</sup>
+### SCSR
 
 ***
 
 <a name="wiki-SUID" />
-### SUID<sup>c</sup><sup>?</sup>
+### SUID
 12 bytes
 
 ```plain
@@ -312,22 +315,22 @@ Flags:
 ***
 
 <a name="wiki-TM80" />
-### TM80<sup>c</sup><sup>?</sup>
+### TM80
 
 ***
 
 <a name="wiki-VCTP" />
-### VCTP<sup>?</sup>
+### VCTP
 
 ***
 
 <a name="wiki-VICD" />
-### VICD<sup>c</sup><sup>?</sup>
+### VICD
 
 ***
 
 <a name="wiki-VITS" />
-### VITS<sup>?</sup>
+### VITS
 
 ***
 

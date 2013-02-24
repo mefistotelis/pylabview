@@ -34,13 +34,12 @@ Count of the following:
       * | string  | Name
       4 | uint32  | 00 00 00 00 ?
       2 | uint16  | 1 if subVI is nonexecutable, 2 if okay
-      4 | uint32  | 00 00 00 01 ?
+      4 | uint34  | 00 00 00 01 ?
       2 | uint16  | 00 01 ?
      24 |         | All 00s
 ```
 
 At the end:
-```
 ```plain
  Length | Type    | Value
 --------+---------+-------
