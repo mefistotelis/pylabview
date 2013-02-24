@@ -1,4 +1,11 @@
-The icon (icl8) is a 32x32 paletted image. It's 1024 bytes long, and is stored as 32 rows, each 32 bytes long.
+Icons are stored in [Apple Icon Image format](https://en.wikipedia.org/wiki/Apple_Icon_Image_format) without the header.
+
+### icl8
+32x32 8-bit image icon, using palette below
+
+### ICON
+32x32 1-bit mono icon  
+Probably a relic from the days of yore
 
 ### Default palette
 ```python
