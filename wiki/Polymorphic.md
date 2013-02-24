@@ -1,4 +1,6 @@
 * [LIvi](#LIvi) - Linked VIs?
+* [CPSP](#CPSP) - Instance VI Selector Name
+* [CPST](#CPST) - Instance VI Menu Name
 
 <a name="wiki-LIvi" />
 ### LIvi
@@ -44,4 +46,40 @@ At the end:
  Length | Type    | Value
 --------+---------+-------
       1 | uint8   | 03 ?
+```
+
+***
+
+<a name="wiki-CPSP" />
+### CPSP
+```plain
+ Length | Type    | Value
+--------+---------+-------
+      4 | uint32  | Number of Instance VIs
+```
+
+Only ones with values show up, so may not have as many as previous number suggests
+```plain
+ Length | Type    | Value
+--------+---------+-------
+      1 | uint8   | Selector Name Length
+      * | string  | Selector Name
+```
+
+***
+
+<a name="wiki-CPST" />
+### CPST
+```plain
+ Length | Type    | Value
+--------+---------+-------
+      4 | uint32  | Number of Instance VIs
+```
+
+Only ones with values show up, so may not have as many as previous number suggests
+```plain
+ Length | Type    | Value
+--------+---------+-------
+      1 | uint8   | Menu Name Length
+      * | string  | Menu Name
 ```
