@@ -209,7 +209,7 @@ See [[Icon]]
 
 <a name="wiki-ICON" />
 ### ICON
-<b>ICON</b>  
+<b>ICON</b>
 See [[Icon]]
 
 ***
@@ -226,7 +226,7 @@ See [[Icon]]
 
 <a name="wiki-LIfp" />
 ### LIfp
-Might be "full path"  
+Might be "full path"
 Contains name of a file
 
 ***

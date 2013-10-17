@@ -14,6 +14,7 @@
 ```
 
 ### Field: 10 - Section
+```plain
  Length | Type    | Value
 --------+---------+-------
       1 | uint8   | Type/ID/???
