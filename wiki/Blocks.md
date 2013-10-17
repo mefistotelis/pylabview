@@ -34,6 +34,7 @@ All guesses at the acronyms are that. Guesses.
 * [MUID](#MUID)
 * [NUID](#NUID)
 * [OBSG](#OBSG)
+* [PRT](#PRT)   - Print Settings
 * [RTSG](#RTSG)
 * [SCSR](#SCSR)
 * [STRG](#STRG) - String Description
@@ -195,6 +196,7 @@ Not in Polymorphic VIs or Controls
 <a name="wiki-HIST" />
 ### HIST
 <b>Hist</b>ory
+See [[Revision History]]
 
 ***
 
@@ -288,6 +290,10 @@ Flags:
 ```
 
 ***
+
+<a name="wiki-PRT" />
+### PRT
+See [[Print]]
 
 <a name="wiki-RTSG" />
 ### RTSG
