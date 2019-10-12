@@ -22,6 +22,8 @@ Interpreting content of specific block types within RSRC files.
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
+import enum
+
 from PIL import Image
 from hashlib import md5
 from zlib import decompress
@@ -32,6 +34,12 @@ from LVmisc import getVersion
 from LVmisc import LABVIEW_COLOR_PALETTE
 from LVmisc import RSRCStructure
 from LVmisc import eprint
+
+class BLOCK_COMPRESSION(enum.Enum):
+    NONE = 0
+    ZLIB = 1
+    TEST = 2
+
 
 class BlockStart(RSRCStructure):
     _fields_ = [('int1', c_uint32),		#0
@@ -159,14 +167,16 @@ class Block(object):
             if last_blksect_size % 4 > 0:
                 last_blksect_size += 4 - (last_blksect_size % 4)
 
-    def getData(self, section_num=0, useCompression=False):
+    def getData(self, section_num=0, useCompression=BLOCK_COMPRESSION.NONE):
         if self.size is None:
             self.setSizeFromBlocks()
         if section_num >= len(self.raw_data):
             self.readRawDataSections(section_count=section_num+1)
 
         data = BytesIO(self.raw_data[section_num])
-        if useCompression:
+        if useCompression == BLOCK_COMPRESSION.NONE:
+            pass
+        elif useCompression == BLOCK_COMPRESSION.ZLIB:
             size = len(self.raw_data[section_num]) - 4
             if size < 2:
                 raise IOError("Unable to decompress section [%s:%d]: \
@@ -177,7 +187,20 @@ class Block(object):
                             uncompress-size-error - size: %d - uncompress-size: %d"
                             % (self.name, section_num, size, usize))
             data = BytesIO(decompress(data.read(size)))
+        elif useCompression == BLOCK_COMPRESSION.TEST: # just an experiment
+            size = len(self.raw_data[section_num])
+            data = BytesIO(decompress(data.read(size)))
+        else:
+            raise ValueError("Unsupported compression type")
         return data
+
+    def __repr__(self):
+        bldata = self.getData()
+        if self.size > 32:
+            d = bldata.read(31).hex() + ".."
+        else:
+            d = bldata.read(32).hex()
+        return "<" + self.__class__.__name__ + "(" + d + ")>"
 
 class LVSR(Block):
     def __init__(self, *args):
@@ -247,13 +270,23 @@ class LIBN(Block):
         self.content = bldata.read(content_len)
         return bldata
 
+class LVzp(Block):
+    def __init__(self, *args):
+        return Block.__init__(self, *args)
+
+    def getData(self, *args):
+        Block.getData(self, *args)
+        bldata = Block.getData(self, useCompression=BLOCK_COMPRESSION.NONE) # TODO compression not supported
+        return bldata
+
+
 class BDH(Block):
     def __init__(self, *args):
         return Block.__init__(self, *args)
 
     def getData(self, *args):
         Block.getData(self, *args)
-        bldata = Block.getData(self, useCompression=True)
+        bldata = Block.getData(self, useCompression=BLOCK_COMPRESSION.ZLIB)
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.content = bldata.read(content_len)
         self.hash = md5(self.content).digest()

@@ -325,10 +325,13 @@ def main():
     subparser = parser.add_mutually_exclusive_group()
 
     subparser.add_argument("-l", "--list", action="store_true",
-            help="list content of RSRC file")
+            help="list content of input file")
 
     subparser.add_argument("-x", "--extract", action="store_true",
-            help="extract items within RSRC file")
+            help="extract items within input file")
+
+    subparser.add_argument("-p", "--password", action="store_true",
+            help="print password data from input file")
 
     subparser.add_argument("--version", action='version', version="%(prog)s {version} by {author}"
               .format(version=__version__,author=__author__),
@@ -336,26 +339,59 @@ def main():
 
     po = parser.parse_args()
 
-    #TODO react to command
-    vi = VI(po.input, po)
+    if po.list:
 
-    #t = vi.getBlockContentById(vi.getBlockIdByBlockName("BDPW"))
-    #open("dumps/" + n + ".dmp", "w").write(t.base_stream.read())
-    #vi.getIcon().save('tmp.png')
-    BDPW = vi.get('BDPW')
-    if BDPW is not None:
-        print("password md5: " + StrToHex(BDPW.password_md5))
-        print("hash_1      : " + StrToHex(BDPW.hash_1))
-        print("hash_2      : " + StrToHex(BDPW.hash_2))
+        if (po.verbose > 0):
+            print("{}: Starting file parse for listing".format(po.input.name))
+        vi = VI(po.input, po)
+
+        print("{}\t{}".format("name","content"))
+        for name, block in vi.blocks.items():
+            pretty_name = block.name.decode(encoding='UTF-8')
+            print("{}\t{}".format(pretty_name,str(block)))
+
+    elif po.extract:
+
+        if (po.verbose > 0):
+            print("{}: Starting file parse for extraction".format(po.input.name))
+        vi = VI(po.input, po)
+
+        for name, block in vi.blocks.items():
+            pretty_name = block.name.decode(encoding='UTF-8')
+            fname = "dumps/" + pretty_name + ".bin"
+            if (po.verbose > 0):
+                print("{}: Writing {}".format(po.input.name,fname))
+            bldata = block.getData()
+            open(fname, "wb").write(bldata.read(0xffffffff))
+        if vi.icon is not None:
+            pretty_name = vi.icon.name.decode(encoding='UTF-8')
+            fname = "dumps/" + pretty_name + ".bin"
+            if (po.verbose > 0):
+                print("{}: Writing {}".format(po.input.name,fname))
+            vi.icon.save(fname)
+
+    elif po.password:
+
+        if (po.verbose > 0):
+            print("{}: Starting file parse for password print".format(po.input.name))
+        vi = VI(po.input, po)
+
+        BDPW = vi.get('BDPW')
+        if BDPW is not None:
+            print("password md5: " + StrToHex(BDPW.password_md5))
+            print("hash_1      : " + StrToHex(BDPW.hash_1))
+            print("hash_2      : " + StrToHex(BDPW.hash_2))
+        else:
+            print("{:s}: password block '{:s}' not found".format(po.input.name,'BDPW'))
+
+        if vi.calcPassword(""):
+            print("password md5: " + StrToHex(vi.m_password_set['password_md5']))
+            print("hash_1      : " + StrToHex(vi.m_password_set['hash_1']))
+            print("hash_2      : " + StrToHex(vi.m_password_set['hash_2']))
+
     else:
-        print("{:s}: password block '{:s}' not found".format(po.input.name,'BDPW'))
-    if vi.calcPassword(""):
-        print("password md5: " + StrToHex(vi.m_password_set['password_md5']))
-        print("hash_1      : " + StrToHex(vi.m_password_set['hash_1']))
-        print("hash_2      : " + StrToHex(vi.m_password_set['hash_2']))
-    #print(vi.get("vers").version)
-    #print(vi.get("LVSR").version)
-    #vi.icon.save("out.png")
+
+        raise NotImplementedError('Unsupported command.')
 
 if __name__ == "__main__":
     try:
