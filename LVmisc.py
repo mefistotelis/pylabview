@@ -1,3 +1,51 @@
+# -*- coding: utf-8 -*-
+
+""" LabView RSRC file format support.
+
+Miscelanous generic utilities.
+"""
+
+# Copyright (C) 2013 Jessica Creighton <jcreigh@femtobit.org>
+# Copyright (C) 2019 Mefistotelis <mefistotelis@gmail.com>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+import sys
+from ctypes import *
+from collections import OrderedDict
+
+class RSRCStructure(BigEndianStructure):
+    _pack_ = 1
+
+    def dict_export(self):
+        class ExportDict(OrderedDict): pass
+        ExportDict.__name__ = self.__class__.__name__
+        d = ExportDict()
+        for (varkey, vartype) in self._fields_:
+            v = getattr(self, varkey)
+            if isinstance(v, Array) and v._type_ == c_ubyte:
+                d[varkey] = bytes(v)
+            else:
+                d[varkey] = v
+        return d
+
+    def __repr__(self):
+        d = self.dict_export()
+        from pprint import pformat
+        return pformat(d, indent=0, width=160)
+
+
 LABVIEW_VERSION_STAGE = ['unknown', 'development', 'alpha', 'beta', 'release']
 LABVIEW_COLOR_PALETTE = [0xF1F1F1, 0xCCFFFF, 0x99FFFF, 0x66FFFF, 0x33FFFF,
                  0xFFFF, 0xFFCCFF, 0xCCCCFF, 0x99CCFF, 0x66CCFF,
@@ -51,6 +99,9 @@ LABVIEW_COLOR_PALETTE = [0xF1F1F1, 0xCCFFFF, 0x99FFFF, 0x66FFFF, 0x33FFFF,
                  0xAAAAAA, 0x888888, 0x777777, 0x555555, 0x444444,
                  0x222222, 0x111111, 0x0]
 
+
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
 
 def getVersion(vcode):
     ver = {}
