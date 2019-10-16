@@ -30,15 +30,13 @@ from zlib import decompress
 from io import BytesIO
 from ctypes import *
 
-from LVmisc import getVersion
-from LVmisc import LABVIEW_COLOR_PALETTE
-from LVmisc import RSRCStructure
-from LVmisc import eprint
+from LVmisc import *
+
 
 class BLOCK_COMPRESSION(enum.Enum):
     NONE = 0
     ZLIB = 1
-    TEST = 2
+    XOR = 2
 
 
 class BlockStart(RSRCStructure):
@@ -187,9 +185,9 @@ class Block(object):
                             uncompress-size-error - size: %d - uncompress-size: %d"
                             % (self.name, section_num, size, usize))
             data = BytesIO(decompress(data.read(size)))
-        elif useCompression == BLOCK_COMPRESSION.TEST: # just an experiment
+        elif useCompression == BLOCK_COMPRESSION.XOR:
             size = len(self.raw_data[section_num])
-            data = BytesIO(decompress(data.read(size)))
+            data = BytesIO(crypto_xor(data.read(size)))
         else:
             raise ValueError("Unsupported compression type")
         return data
@@ -276,7 +274,7 @@ class LVzp(Block):
 
     def getData(self, *args):
         Block.getData(self, *args)
-        bldata = Block.getData(self, useCompression=BLOCK_COMPRESSION.NONE) # TODO compression not supported
+        bldata = Block.getData(self, useCompression=BLOCK_COMPRESSION.XOR)
         return bldata
 
 

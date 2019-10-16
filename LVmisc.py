@@ -118,3 +118,15 @@ def getVersion(vcode):
 
 def StrToHex(x, sep=" "):
     return str.join(sep, [("0" + hex(ord(a))[2:])[-2:] for a in x])
+
+def crypto_xor(data):
+    rol = lambda val, l_bits, max_bits: \
+      ((val & ((1<<max_bits-(l_bits%max_bits))-1)) << l_bits%max_bits) | \
+      (val >> (max_bits-(l_bits%max_bits)) & ((1<<max_bits)-1))
+    out = bytearray(data)
+    key = 0xEDB88320
+    for i in range(len(out)):
+        nval = (key ^ out[i]) & 0xff
+        out[i] = nval
+        key = nval ^ rol(key, 1, 32)
+    return out
