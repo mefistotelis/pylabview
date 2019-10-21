@@ -1,7 +1,9 @@
 Some have example data included.
 
 All guesses at the acronyms are that. Guesses.
+
 ## Contents
+
 * [BDHb, BDHc](#BDH_) - Block Diagram ?
 * [BDPW](#BDPW) - Block Diagram Password
 * [BDSE](#BDSE) - Block Diagram ?
@@ -48,7 +50,9 @@ All guesses at the acronyms are that. Guesses.
 ***
 
 <a name="wiki-BDH_" />
+
 ### BDHb, BDHc
+
 <b>B</b>lock <b>D</b>ata ?  
 Compressed
 
@@ -61,9 +65,10 @@ Compressed
 
 ***
 
-<a name="wiki-BDPW" />
 ### BDPW
+
 <b>B</b>lock <b>D</b>ata <b>P</b>ass<b>w</b>ord
+
 ```plain
  Length | Type    | Value
 --------+---------+-------
@@ -74,8 +79,8 @@ Compressed
 
 ***
 
-<a name="wiki-BDSE" />
 ### BDSE
+
 4 bytes
 
 ```plain
@@ -86,6 +91,7 @@ Compressed
 
 <a name="wiki-BNID" />
 ### BNID
+
 12 bytes
 
 ```plain
@@ -94,14 +100,14 @@ Compressed
 
 ***
 
-<a name="wiki-CCSG" />
 ### CCSG
+
 16 bytes
 
 ***
 
-<a name="wiki-CONP" />
 ### CONP
+
 2 bytes
 
 ```plain
@@ -110,8 +116,8 @@ Compressed
 
 ***
 
-<a name="wiki-CPC2" />
 ### CPC2
+
 2 bytes  
 Not in Controls
 
@@ -122,18 +128,16 @@ Not in Controls
 
 ***
 
-<a name="wiki-CPMp" />
 ### CPMp
 
 ***
 
-<a name="wiki-DFDS" />
 ### DFDS
 
 ***
 
-<a name="wiki-DLDR" />
 ### DLDR
+
 28 bytes?  
 Not in Polymorphic VIs or Controls
 
@@ -143,8 +147,8 @@ Not in Polymorphic VIs or Controls
 
 ***
 
-<a name="wiki-DTHP" />
 ### DTHP
+
 2 bytes
 
 ```plain
@@ -153,13 +157,12 @@ Not in Polymorphic VIs or Controls
 
 ***
 
-<a name="wiki-FPHb" />
 ### FPHb
 
 ***
 
-<a name="wiki-FPSE" />
 ### FPSE
+
 4 bytes
 
 ```plain
@@ -168,71 +171,71 @@ Not in Polymorphic VIs or Controls
 
 ***
 
-<a name="wiki-FPTD" />
 ### FPTD
+
 2 bytes  
 Not in Polymorphic VIs or Controls
+
 ```plain
 00 09
 ```
 
 ***
 
-<a name="wiki-FTAB" />
 ### FTAB
-<b>F</b>ont <b>Tab</b>le
+
+<b>F</b>ont <b>Tab</b>le 
 
 ***
 
-<a name="wiki-GCPR" />
 ### GCPR
+
 13 bytes?
+
 ```plain
 00 00 00 00  00 00 00 00  00 00 00 00  00
 ```
 
 ***
 
-<a name="wiki-HIST" />
 ### HIST
-<b>Hist</b>ory
+
+<b>Hist</b>ory 
 See [[Revision History]]
 
 ***
 
-<a name="wiki-icl8" />
 ### icl8
-<b>ic</b>on ? <b>8</b> (bit)
+
+<b>ic</b>on ? <b>8</b> (bit) 
 See [[Icon]]
 
 ***
 
-<a name="wiki-ICON" />
 ### ICON
-<b>ICON</b>
+
+<b>ICON</b> 
 See [[Icon]]
 
 ***
 
-<a name="wiki-LIbd" />
 ### LIbd
 
 ***
 
-<a name="wiki-LIds" />
 ### LIds
 
 ***
 
-<a name="wiki-LIfp" />
 ### LIfp
+
 Might be "full path"
 Contains name of a file
 
 ***
 
-<a name="wiki-LIBN" />
 ### LIBN
+
 ```plain
  Length | Type    | Value
 --------+---------+-------
@@ -243,15 +246,16 @@ Contains name of a file
 
 ***
 
-<a name="wiki-LIvi" />
 ### LIvi
+
 Only in polymorphic VIs. Lists VIs included.
 
 ***
 
-<a name="wiki-LVSR" />
 ### LVSR
+
 See [[Version Bits]]
+
 ```plain
  Length | Type    | Value
 --------+---------+-------
@@ -265,7 +269,6 @@ Flags:
 
 ***
 
-<a name="wiki-MUID" />
 ### MUID
 4 bytes
 
@@ -275,13 +278,11 @@ Flags:
 
 ***
 
-<a name="wiki-NUID" />
 ### NUID
 16 bytes
 
 ***
 
-<a name="wiki-OBSG" />
 ### OBSG
 16 bytes
 
@@ -291,11 +292,9 @@ Flags:
 
 ***
 
-<a name="wiki-PRT" />
 ### PRT
 See [[Print]]
 
-<a name="wiki-RTSG" />
 ### RTSG
 16 bytes
 
@@ -305,12 +304,10 @@ See [[Print]]
 
 ***
 
-<a name="wiki-SCSR" />
 ### SCSR
 
 ***
 
-<a name="wiki-SUID" />
 ### SUID
 12 bytes
 
@@ -320,31 +317,28 @@ See [[Print]]
 
 ***
 
-<a name="wiki-TM80" />
 ### TM80
 
 ***
 
-<a name="wiki-VCTP" />
 ### VCTP
 
 ***
 
-<a name="wiki-VICD" />
 ### VICD
 
 ***
 
-<a name="wiki-VITS" />
 ### VITS
 
 ***
 
-<a name="wiki-vers" />
 ### vers
+
 <b>vers</b>ion  
 12 bytes  
 See [[Version Bits]]
+
 ```plain
  Length | Type    | Value
 --------+---------+-------

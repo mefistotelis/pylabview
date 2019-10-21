@@ -29,7 +29,6 @@ offset: 0
       4 | uint32  | Block Size
 ```
 
-<a name="Blocks Info" />
 ### Blocks Info
 
 offset: _Block Offset_ + _RSRC Offset_
