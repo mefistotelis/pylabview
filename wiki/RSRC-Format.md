@@ -1,13 +1,11 @@
-My findings regarding the file formats. Primarily .vi. 
-Lots of help from http://www.hmilch.net/hmilch.php/labview_source.php
-
 ### Table of Content
 
-* [File Header](#File-Header)
-* [Blocks Info](#Blocks-Info)
-* [Block Header](#Block-Header)
-* [Block Info](#Block-Info)
-* [Block Data](#Block-Data)
+* [File Header](#File-Header) 
+* [Blocks Info](#Blocks-Info) 
+* [Block Header](#Block-Header) 
+* [Block Info](#Block-Info) 
+* [Block Data](#Block-Data) 
+* [Other sources](#Other-sources) 
 
 ### File Header
 
@@ -80,3 +78,8 @@ _Count_ of these:
       4 | uint32  | Size
    Size | data    | Contents of the block (might be compressed (zlib))
 ```
+
+### Other sources
+
+Findings in this document are based on work of @jcreigh and @tomsoftware. 
+See [VI Explorer Source](http://www.hmilch.net/hmilch.php/labview_source.php) and [Jessica's Wiki](https://github.com/jcreigh/pylabview/wiki) for more.
