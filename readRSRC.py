@@ -40,7 +40,6 @@ import LVblock
 #from Block import *
 from LVmisc import eprint
 from LVmisc import RSRCStructure
-from LVmisc import StrToHex
 
 class FILE_FMT_TYPE(enum.Enum):
     NONE = 0
@@ -263,35 +262,47 @@ class VI():
         return None
 
     def calcPassword(self, newPassword="", write=False):
-        if 'LVSR' in self.blocks:
-            LVSR = self.blocks['LVSR']
-        else:
-            LVSR = None
+        """ Calculates password
+        """
+        # get VI-versions container;
+        # 'LVSR' for Version 6,7,8,...
+        # 'LVIN' for Version 5
+        LVSR = self.get_one_of('LVSR', 'LVIN')
+        # get block-diagram container;
+        # 'BDHc' for Version 10,11,12
+        # 'BDHb' for Version 7,8
+        # 'BDHP' for Version 5,6,7beta
+        BDH = self.get_one_of('BDHc', 'BDHb', 'BDHP')
 
-        if 'BDHc' in self.blocks:
-            BDH = self.blocks['BDHc']
-        if 'BDHb' in self.blocks:
-            BDH = self.blocks['BDHb']
+        LIBN = self.get_one_of('LIBN')
+        if LIBN is not None and LIBN.count > 0:
+            LIBN_content = b':'.join(LIBN.content)
         else:
-            BDH = None
-
-        if 'LIBN' in self.blocks:
-            LIBN_content = self.blocks['LIBN'].content
-        else:
-            LIBN_content = ""
+            LIBN_content = b''
 
         if LVSR is None:
             if (self.po.verbose > 0):
-                eprint("{:s}: Block {:s} not found in parsed data".format(self.po.input.name,'LVSR'))
+                eprint("{:s}: Block {:s} not found in parsed data".format(self.po.input.name,'LVSR/LVIN'))
             return False
 
         if BDH is None:
             if (self.po.verbose > 0):
-                eprint("{:s}: Block {:s} not found in parsed data".format(self.po.input.name,'BDHb/c'))
+                eprint("{:s}: Block {:s} not found in parsed data".format(self.po.input.name,'BDHb/c/P'))
             return False
 
-        md5Password = md5(newPassword).digest()
-        md5Hash1 = md5(md5Password + LIBN_content + LVSR.raw_data[0]).digest()
+        LVSR_content = LVSR.getRawData()
+
+        salt = b''
+        vers = self.get_one_of('vers')
+
+        if vers.verMajor() >= 12:
+            print("TODO: implement salting")
+
+
+        newPassBin = newPassword.encode('utf-8')
+        md5Password = md5(newPassBin).digest()
+
+        md5Hash1 = md5(newPassBin + LIBN_content + LVSR_content + salt).digest()
         md5Hash2 = md5(md5Hash1 + BDH.hash).digest()
 
         out = {}
@@ -303,8 +314,18 @@ class VI():
         return True
 
     def get(self, name):
+        if isinstance(name, str):
+            name = name.encode('utf-8')
         if name in self.blocks:
             return self.blocks[name]
+        return None
+
+    def get_one_of(self, *namev):
+        for name in namev:
+            if isinstance(name, str):
+                name = name.encode('utf-8')
+            if name in self.blocks:
+                return self.blocks[name]
         return None
 
 def main():
@@ -378,16 +399,18 @@ def main():
 
         BDPW = vi.get('BDPW')
         if BDPW is not None:
-            print("password md5: " + StrToHex(BDPW.password_md5))
-            print("hash_1      : " + StrToHex(BDPW.hash_1))
-            print("hash_2      : " + StrToHex(BDPW.hash_2))
+            print("{:s}: Stored password data".format(po.input.name))
+            print("  password md5: {:s}".format(BDPW.password_md5.hex()))
+            print("  hash_1      : {:s}".format(BDPW.hash_1.hex()))
+            print("  hash_2      : {:s}".format(BDPW.hash_2.hex()))
         else:
             print("{:s}: password block '{:s}' not found".format(po.input.name,'BDPW'))
 
         if vi.calcPassword(""):
-            print("password md5: " + StrToHex(vi.m_password_set['password_md5']))
-            print("hash_1      : " + StrToHex(vi.m_password_set['hash_1']))
-            print("hash_2      : " + StrToHex(vi.m_password_set['hash_2']))
+            print("{:s}: How empty password would look like".format(po.input.name))
+            print("  password md5: {:s}".format(vi.m_password_set['password_md5'].hex()))
+            print("  hash_1      : {:s}".format(vi.m_password_set['hash_1'].hex()))
+            print("  hash_2      : {:s}".format(vi.m_password_set['hash_2'].hex()))
 
     else:
 

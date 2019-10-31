@@ -165,13 +165,16 @@ class Block(object):
             if last_blksect_size % 4 > 0:
                 last_blksect_size += 4 - (last_blksect_size % 4)
 
-    def getData(self, section_num=0, useCompression=BLOCK_COMPRESSION.NONE):
+    def getRawData(self, section_num=0):
         if self.size is None:
             self.setSizeFromBlocks()
         if section_num >= len(self.raw_data):
             self.readRawDataSections(section_count=section_num+1)
+        return self.raw_data[section_num]
 
-        data = BytesIO(self.raw_data[section_num])
+    def getData(self, section_num=0, useCompression=BLOCK_COMPRESSION.NONE):
+        raw_data_section = self.getRawData(section_num)
+        data = BytesIO(raw_data_section)
         if useCompression == BLOCK_COMPRESSION.NONE:
             pass
         elif useCompression == BLOCK_COMPRESSION.ZLIB:
@@ -214,20 +217,56 @@ class LVSR(Block):
         self.flags = data.flags
         self.protected = ((self.flags & 0x2000) > 0)
         self.flags = self.flags & 0xDFFF
+        bldata.seek(0)
         return bldata
 
 class vers(Block):
     def __init__(self, *args):
-        return Block.__init__(self, *args)
+        super().__init__(*args)
+        self.version = []
+        self.version_text = b''
+        self.version_info = b''
 
     def getData(self, *args):
         bldata = Block.getData(self, *args)
-        self.version = getVersion(int.from_bytes(bldata.read(4), byteorder='big', signed=False))
-        version_text_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        self.version_text = bldata.read(version_text_len)
-        version_info_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        self.version_info = bldata.read(version_info_len)
+        if len(self.version) < 4:
+            self.version = getVersion(int.from_bytes(bldata.read(4), byteorder='big', signed=False))
+            version_text_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            self.version_text = bldata.read(version_text_len)
+            version_info_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            self.version_info = bldata.read(version_info_len)
+            bldata.seek(0)
         return bldata
+
+    def verMajor(self):
+        if len(self.version) < 4:
+            self.getData()
+        return self.version['major']
+
+    def verMinor(self):
+        if len(self.version) < 4:
+            self.getData()
+        return self.version['minor']
+
+    def verBugfix(self):
+        if len(self.version) < 4:
+            self.getData()
+        return self.version['bugfix']
+
+    def verStage(self):
+        if len(self.version) < 4:
+            self.getData()
+        return self.version['stage_text']
+
+    def verFlags(self):
+        if len(self.version) < 4:
+            self.getData()
+        return self.version['flags']
+
+    def verBuild(self):
+        if len(self.version) < 4:
+            self.getData()
+        return self.version['build']
 
 class icl8(Block):
     def __init__(self, *args):
@@ -255,6 +294,7 @@ class BDPW(Block):
         self.password_md5 = bldata.read(16)
         self.hash_1 = bldata.read(16)
         self.hash_2 = bldata.read(16)
+        bldata.seek(0)
         return bldata
 
 class LIBN(Block):
@@ -264,8 +304,11 @@ class LIBN(Block):
     def getData(self, *args):
         bldata = Block.getData(self, *args)
         self.count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        content_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        self.content = bldata.read(content_len)
+        self.content = []
+        for i in range(self.count):
+            content_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            self.content.append(bldata.read(content_len))
+        bldata.seek(0)
         return bldata
 
 class LVzp(Block):
@@ -278,6 +321,19 @@ class LVzp(Block):
         return bldata
 
 
+class BDHP(Block):
+    def __init__(self, *args):
+        return Block.__init__(self, *args)
+
+    def getData(self, *args):
+        Block.getData(self, *args)
+        bldata = Block.getData(self, useCompression=BLOCK_COMPRESSION.NONE)
+        content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.content = bldata.read(content_len)
+        self.hash = md5(self.content).digest()
+        bldata.seek(0)
+        return bldata
+
 class BDH(Block):
     def __init__(self, *args):
         return Block.__init__(self, *args)
@@ -288,6 +344,7 @@ class BDH(Block):
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.content = bldata.read(content_len)
         self.hash = md5(self.content).digest()
+        bldata.seek(0)
         return bldata
 
 BDHc = BDHb = BDH

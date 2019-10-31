@@ -116,9 +116,6 @@ def getVersion(vcode):
         ver['stage_text'] = LABVIEW_VERSION_STAGE[ver['stage']]
     return ver
 
-def StrToHex(x, sep=" "):
-    return str.join(sep, [("0" + hex(ord(a))[2:])[-2:] for a in x])
-
 def crypto_xor(data):
     rol = lambda val, l_bits, max_bits: \
       ((val & ((1<<max_bits-(l_bits%max_bits))-1)) << l_bits%max_bits) | \
