@@ -26,6 +26,7 @@ import enum
 
 from hashlib import md5
 from io import BytesIO
+from types import SimpleNamespace
 from ctypes import *
 
 from LVmisc import *
@@ -125,15 +126,22 @@ class CONNECTOR_FULL_TYPE(enum.IntEnum):
 
 class ConnectorObject:
 
-    def __init__(self, po, bldata, pos, obj_len, obj_flags, obj_type):
+    def __init__(self, vi, bldata, pos, obj_len, obj_flags, obj_type, po):
+        """ Creates new Connector object, capable of handling generic Connector data.
+        """
+        self.vi = vi
         self.po = po
         self.pos = pos
         self.size = obj_len
         self.oflags = obj_flags
         self.otype = obj_type
-        self.raw_data = bldata.read(obj_len - 4)
+        self.raw_data = bldata.read(obj_len)
 
-    def check_sanity(self):
+    def getData(self):
+        data = BytesIO(self.raw_data)
+        return data
+
+    def checkSanity(self):
         ret = True
         return ret
 
@@ -141,24 +149,63 @@ class ConnectorObject:
 class ConnectorObjectNumber(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
+
+    def getData(self, *args):
+        data = Block.getData(self, *args)
     # TODO
 
 class ConnectorObjectNumberPtr(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
+
+    def getData(self, *args):
+        data = Block.getData(self, *args)
     # TODO
 
 
 class ConnectorObjectBlob(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
+
+    def getData(self, *args):
+        data = Block.getData(self, *args)
     # TODO
 
 
 class ConnectorObjectTerminal(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
-    # TODO
+
+    def getData(self, *args):
+        data = Block.getData(self, *args)
+        if True:
+            vers = self.vi.get('vers')
+            # Skip length, flags and type - these were set in constructor
+            data.read(4)
+            self.count = int.from_bytes(data.read(2), byteorder='big', signed=False)
+            self.clients = [ self.count * SimpleNamespace() ]
+            for i in range(self.count):
+                cli_idx = int.from_bytes(data.read(2), byteorder='big', signed=False)
+                self.clients[i].index = cli_idx
+            self.flags = int.from_bytes(data.read(2), byteorder='big', signed=False)
+            self.pattern = int.from_bytes(data.read(2), byteorder='big', signed=False)
+            if vers.verMajor() >= 8:
+                self.padding1 = int.from_bytes(data.read(2), byteorder='big', signed=False) # don't know/padding
+                for i in range(self.count):
+                    cli_flags = int.from_bytes(data.read(4), byteorder='big', signed=False)
+                    self.clients[i].flags = cli_flags
+            else: # vers.verMajor() < 8
+                for i in range(self.count):
+                    cli_flags = int.from_bytes(data.read(2), byteorder='big', signed=False)
+                    self.clients[i].flags = cli_flags
+            data.seek(0)
+        return bldata
+
+    def checkSanity(self):
+        ret = True
+        if (self.count > 125):
+            ret = False
+        return ret
 
 
 class ConnectorObjectTypeDef(ConnectorObject):
@@ -191,17 +238,17 @@ class ConnectorObjectCluster(ConnectorObject):
     # TODO
 
 
-def newConnectorObjectMainTerminal(po, bldata, pos, obj_len, obj_flags, obj_type):
+def newConnectorObjectMainTerminal(vi, bldata, pos, obj_len, obj_flags, obj_type, po):
     """ Creates and returns new terminal object of main type 'Terminal'
     """
     ctor = {
         CONNECTOR_FULL_TYPE.Terminal: ConnectorObjectTerminal,
         CONNECTOR_FULL_TYPE.TypeDef: ConnectorObjectTypeDef,
     }.get(obj_type, ConnectorObject) # Void is the default type in case of no match
-    return ctor(po, bldata, pos, obj_len, obj_flags, obj_type)
+    return ctor(vi, bldata, pos, obj_len, obj_flags, obj_type, po)
 
 
-def newConnectorObject(po, bldata, pos, obj_len, obj_flags, obj_type):
+def newConnectorObject(vi, bldata, pos, obj_len, obj_flags, obj_type, po):
     """ Creates and returns new terminal object with given parameters
     """
     obj_main_type = obj_type >> 4
@@ -218,5 +265,5 @@ def newConnectorObject(po, bldata, pos, obj_len, obj_flags, obj_type):
         CONNECTOR_MAIN_TYPE.Terminal: newConnectorObjectMainTerminal,
         CONNECTOR_MAIN_TYPE.Void: ConnectorObject, # No properties - basic type is enough
     }.get(obj_main_type, ConnectorObject) # Void is the default type in case of no match
-    return ctor(po, bldata, pos, obj_len, obj_flags, obj_type)
+    return ctor(vi, bldata, pos, obj_len, obj_flags, obj_type, po)
 

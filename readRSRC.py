@@ -142,7 +142,7 @@ class VI():
         self.rsrc_headers = []
         self.block_headers = []
 
-        self.readVI()
+        self.readRSRC()
 
     def readRSRCList(self):
         """ Read all RSRC headers from input file and check their sanity.
@@ -226,11 +226,14 @@ class VI():
             This function requires `self.block_headers` to be filled.
         """
         fh = self.fh
-        # Create Array of Block Factories, either generic or able to read data specific to given block type
+        # Create Array of Block; use classes defined within LVblock namespace to read data
+        # specific to given block type; when block name is unrecognized, create generic block
         blocks_arr = []
         for i, block_head in enumerate(self.block_headers):
             name = bytes(block_head.name).decode("utf-8")
             bfactory = getattr(LVblock, name, None)
+            # Block may depend on some other informational blocks (ie. version info)
+            # so give each block reference to the vi object
             if isinstance(bfactory, type):
                 if (self.po.verbose > 1):
                     print("{:s}: Block {:s} recognized".format(self.po.input.name,name))
@@ -248,7 +251,7 @@ class VI():
         self.blocks = blocks
         return (len(blocks) > 0)
 
-    def readVI(self):
+    def readRSRC(self):
         self.readRSRCList()
         self.readBlockInfos()
         self.readBlockData()
@@ -293,7 +296,7 @@ class VI():
         LVSR_content = LVSR.getRawData()
 
         salt = b''
-        vers = self.get_one_of('vers')
+        vers = self.get('vers')
 
         if vers.verMajor() >= 12:
             print("TODO: implement salting")
