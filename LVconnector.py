@@ -136,14 +136,77 @@ class ConnectorObject:
         self.oflags = obj_flags
         self.otype = obj_type
         self.raw_data = bldata.read(obj_len)
+        self.clients = []
 
     def getData(self):
-        data = BytesIO(self.raw_data)
-        return data
+        bldata = BytesIO(self.raw_data)
+        return bldata
 
     def checkSanity(self):
         ret = True
         return ret
+
+    def mainType(self):
+        return CONNECTOR_MAIN_TYPE(self.otype >> 4)
+
+    def fullType(self):
+        if self.otype not in CONNECTOR_FULL_TYPE:
+            return self.otype
+        return CONNECTOR_FULL_TYPE(self.otype)
+
+    def isNumber(self):
+        return ( \
+          (self.mainType() == CONNECTOR_MAIN_TYPE.Number) or \
+          (self.mainType() == CONNECTOR_MAIN_TYPE.Unit) or \
+          (self.fullType() == CONNECTOR_FULL_TYPE.ClusterNumFixPoint));
+
+    def isString(self):
+        return ( \
+          (self.fullType() == CONNECTOR_FULL_TYPE.String));
+
+    def isPath(self):
+        return ( \
+          (self.fullType() == CONNECTOR_FULL_TYPE.Path));
+
+    def hasClients(self):
+        return (len(self.clients) > 0)
+
+    def clientsEnumerate(self):
+        VCTP = self.vi.get('VCTP')
+        if VCTP is None:
+            raise LookupError("Block {} not found in RSRC file.".format('VCTP'))
+        out_enum = []
+        for i, client in enumerate(self.clients):
+            conn_obj = VCTP.content[client.index]
+            out_enum.append( (i, client.index, conn_obj, client.flags, ) )
+        return out_enum
+
+    def getClientConnectorsByType(self):
+        self.getData() # Make sure the block is parsed
+        out_lists = { 'number': [], 'path': [], 'string': [], 'other': [] }
+        for cli_idx, conn_idx, conn_obj, conn_flags in self.clientsEnumerate():
+            # Add connectors of this Terminal to list
+            if conn_obj.isNumber():
+                out_lists['number'].append(conn_obj)
+            elif conn_obj.isString():
+                out_lists['path'].append(conn_obj)
+            elif conn_obj.isPath():
+                out_lists['string'].append(conn_obj)
+            else:
+                out_lists['other'].append(conn_obj)
+            if (self.po.verbose > 2):
+                print("enumerating: i={} idx={} flags={:x} {} connectors: {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d}"\
+                      .format(cli_idx, conn_idx,  conn_flags, conn_obj.fullType().name if isinstance(conn_obj.fullType(), enum.IntEnum) else conn_obj.fullType(),\
+                      'number',len(out_lists['number']),\
+                      'path',len(out_lists['path']),\
+                      'string',len(out_lists['string']),\
+                      'other',len(out_lists['other'])))
+            # Add sub-connectors the terminals within this connector
+            if conn_obj.hasClients():
+                sub_lists = conn_obj.getClientConnectorsByType()
+                for k in out_lists:
+                    out_lists[k].extend(sub_lists[k])
+        return out_lists
 
 
 class ConnectorObjectNumber(ConnectorObject):
@@ -151,7 +214,7 @@ class ConnectorObjectNumber(ConnectorObject):
         super().__init__(*args)
 
     def getData(self, *args):
-        data = Block.getData(self, *args)
+        data = ConnectorObject.getData(self, *args)
     # TODO
 
 class ConnectorObjectNumberPtr(ConnectorObject):
@@ -159,7 +222,7 @@ class ConnectorObjectNumberPtr(ConnectorObject):
         super().__init__(*args)
 
     def getData(self, *args):
-        data = Block.getData(self, *args)
+        data = ConnectorObject.getData(self, *args)
     # TODO
 
 
@@ -168,7 +231,7 @@ class ConnectorObjectBlob(ConnectorObject):
         super().__init__(*args)
 
     def getData(self, *args):
-        data = Block.getData(self, *args)
+        data = ConnectorObject.getData(self, *args)
     # TODO
 
 
@@ -177,33 +240,34 @@ class ConnectorObjectTerminal(ConnectorObject):
         super().__init__(*args)
 
     def getData(self, *args):
-        data = Block.getData(self, *args)
+        bldata = ConnectorObject.getData(self, *args)
         if True:
             vers = self.vi.get('vers')
             # Skip length, flags and type - these were set in constructor
-            data.read(4)
-            self.count = int.from_bytes(data.read(2), byteorder='big', signed=False)
-            self.clients = [ self.count * SimpleNamespace() ]
-            for i in range(self.count):
-                cli_idx = int.from_bytes(data.read(2), byteorder='big', signed=False)
+            bldata.read(4)
+            count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            # Create _separate_ empty namespace for each connector
+            self.clients = [SimpleNamespace() for _ in range(count)]
+            for i in range(count):
+                cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
                 self.clients[i].index = cli_idx
-            self.flags = int.from_bytes(data.read(2), byteorder='big', signed=False)
-            self.pattern = int.from_bytes(data.read(2), byteorder='big', signed=False)
+            self.flags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            self.pattern = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
             if vers.verMajor() >= 8:
-                self.padding1 = int.from_bytes(data.read(2), byteorder='big', signed=False) # don't know/padding
-                for i in range(self.count):
-                    cli_flags = int.from_bytes(data.read(4), byteorder='big', signed=False)
+                self.padding1 = int.from_bytes(bldata.read(2), byteorder='big', signed=False) # don't know/padding
+                for i in range(count):
+                    cli_flags = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
                     self.clients[i].flags = cli_flags
             else: # vers.verMajor() < 8
-                for i in range(self.count):
-                    cli_flags = int.from_bytes(data.read(2), byteorder='big', signed=False)
+                for i in range(count):
+                    cli_flags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
                     self.clients[i].flags = cli_flags
-            data.seek(0)
+            bldata.seek(0)
         return bldata
 
     def checkSanity(self):
         ret = True
-        if (self.count > 125):
+        if (len(self.clients) > 125):
             ret = False
         return ret
 

@@ -501,7 +501,7 @@ class VCTP(Block):
             obj_flags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
             obj_type = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
             bldata.seek(pos)
-            obj = newConnectorObject(self, bldata, pos, obj_len, obj_flags, obj_type, self.po)
+            obj = newConnectorObject(self.vi, bldata, pos, obj_len, obj_flags, obj_type, self.po)
             self.content.append(obj)
             pos += obj_len
 
@@ -513,3 +513,6 @@ class VCTP(Block):
             bldata.seek(0)
         return bldata
 
+    def getClientConnectorsByType(self, conn_obj):
+        self.getData() # Make sure the block is parsed
+        return conn_obj.getClientConnectorsByType()

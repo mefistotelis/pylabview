@@ -37,7 +37,7 @@ from ctypes import *
 from hashlib import md5
 
 import LVblock
-#from Block import *
+import LVconnector
 from LVmisc import eprint
 from LVmisc import RSRCStructure
 
@@ -264,6 +264,20 @@ class VI():
                 return i
         return None
 
+    def connectorEnumerate(self, mainType=None, fullType=None):
+        VCTP = self.get('VCTP')
+        if VCTP is None:
+            raise LookupError("Block {} not found in RSRC file.".format('VCTP'))
+        VCTP.getData() # Make sure the block is parsed
+        out_list = []
+        for conn_idx, conn_obj in enumerate(VCTP.content):
+            if mainType is not None and conn_obj.mainType() != mainType:
+                continue
+            if fullType is not None and conn_obj.fullType() != fullType:
+                continue
+            out_list.append( (len(out_list), conn_idx, conn_obj,) )
+        return out_list
+
     def calcPassword(self, newPassword="", write=False):
         """ Calculates password
         """
@@ -295,51 +309,26 @@ class VI():
 
         LVSR_content = LVSR.getRawData()
 
-        salt = b''
-        vers = self.get('vers')
-
-        if vers.verMajor() >= 12:
-            print("TODO: implement salting")
-
-        '''
-      if ($this->m_VERS->getMaior() >= 12)
-      {
-	$findOK = false;
-	$interfaceCount = $this->m_VCTP->getObjectIndexForInterfaceCount();
-
-	for($i=0; $i<$interfaceCount; $i++)
-	{
-	  //- generate Salt
-	  $interface = $this->m_VCTP->getObjectIndexForInterface($i);
-
-	  $count = $this->countTerminals($interface);
-
-	  $salt = $this->getSaltString($count->numCount, $count->strCount, $count->pathCount);
-
-	  //echo 'debug:'. $count->numCount .' '. $count->strCount .' '. $count->pathCount .' - '. $this->m_lv->toHex($salt) .' <br />';
-
-	  //- test Salt
-	  if (md5($md5password . $data . $salt, true) == $this->m_file_psw['hash_1'])
-	  {
-	    $findOK=true;
-	    break;
-	  }
-        }
-
-	//- OK test if it is just {0 0 0}
-	if (!$findOK)
-	{
-	  $salt = $this->getSaltString(0, 0, 0);
-
-	  if (md5($md5password . $data . $salt, true) != $this->m_file_psw['hash_1']) return $out; //- Fail!
-	}
-      }
-        '''
-
-
-
         newPassBin = newPassword.encode('utf-8')
         md5Password = md5(newPassBin).digest()
+
+        salt = b''
+        vers = self.get('vers')
+        if vers.verMajor() >= 12:
+            interfaceEnumerate = self.connectorEnumerate(fullType=LVconnector.CONNECTOR_FULL_TYPE.Terminal)
+            for i, iface_idx, iface_obj in interfaceEnumerate:
+                iface_connectors = iface_obj.getClientConnectorsByType()
+                if (self.po.verbose > 1):
+                    print("{:s}: Interface {:d} connectors: {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d}"\
+                      .format(self.po.input.name,iface_idx,\
+                      'number',len(iface_connectors['number']),\
+                      'path',len(iface_connectors['path']),\
+                      'string',len(iface_connectors['string']),\
+                      'other',len(iface_connectors['other'])))
+                salt = len(iface_connectors['number']).to_bytes(4, byteorder='little')
+                salt += len(iface_connectors['string']).to_bytes(4, byteorder='little')
+                salt += len(iface_connectors['path']).to_bytes(4, byteorder='little')
+            print("TODO: implement salting")
 
         md5Hash1 = md5(newPassBin + LIBN_content + LVSR_content + salt).digest()
         md5Hash2 = md5(md5Hash1 + BDH.hash).digest()
