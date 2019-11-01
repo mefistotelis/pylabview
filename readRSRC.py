@@ -298,6 +298,42 @@ class VI():
         if vers.verMajor() >= 12:
             print("TODO: implement salting")
 
+        '''
+      if ($this->m_VERS->getMaior() >= 12)
+      {
+	$findOK = false;
+	$interfaceCount = $this->m_VCTP->getObjectIndexForInterfaceCount();
+
+	for($i=0; $i<$interfaceCount; $i++)
+	{
+	  //- generate Salt
+	  $interface = $this->m_VCTP->getObjectIndexForInterface($i);
+
+	  $count = $this->countTerminals($interface);
+
+	  $salt = $this->getSaltString($count->numCount, $count->strCount, $count->pathCount);
+
+	  //echo 'debug:'. $count->numCount .' '. $count->strCount .' '. $count->pathCount .' - '. $this->m_lv->toHex($salt) .' <br />';
+
+	  //- test Salt
+	  if (md5($md5password . $data . $salt, true) == $this->m_file_psw['hash_1'])
+	  {
+	    $findOK=true;
+	    break;
+	  }
+        }
+
+	//- OK test if it is just {0 0 0}
+	if (!$findOK)
+	{
+	  $salt = $this->getSaltString(0, 0, 0);
+
+	  if (md5($md5password . $data . $salt, true) != $this->m_file_psw['hash_1']) return $out; //- Fail!
+	}
+      }
+        '''
+
+
 
         newPassBin = newPassword.encode('utf-8')
         md5Password = md5(newPassBin).digest()

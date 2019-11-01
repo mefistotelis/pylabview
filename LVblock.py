@@ -31,6 +31,7 @@ from io import BytesIO
 from ctypes import *
 
 from LVmisc import *
+from LVconnector import *
 
 
 class BLOCK_COMPRESSION(enum.Enum):
@@ -204,23 +205,28 @@ class Block(object):
         return "<" + self.__class__.__name__ + "(" + d + ")>"
 
 class LVSR(Block):
+    """ LabView Source Release
+    """
     def __init__(self, *args):
-        return Block.__init__(self, *args)
+        super().__init__(*args)
 
     def getData(self, *args):
         bldata = Block.getData(self, *args)
-        data = LVSRData(self.po)
-        if bldata.readinto(data) != sizeof(data):
-            raise EOFError("Could not parse {} data.".format(self.name))
-        self.data = data
-        self.version = getVersion(data.version)
-        self.flags = data.flags
-        self.protected = ((self.flags & 0x2000) > 0)
-        self.flags = self.flags & 0xDFFF
-        bldata.seek(0)
+        if True:
+            data = LVSRData(self.po)
+            if bldata.readinto(data) != sizeof(data):
+                raise EOFError("Could not parse {} data.".format(self.name))
+            self.data = data
+            self.version = getVersion(data.version)
+            self.flags = data.flags
+            self.protected = ((self.flags & 0x2000) > 0)
+            self.flags = self.flags & 0xDFFF
+            bldata.seek(0)
         return bldata
 
 class vers(Block):
+    """ Version block
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.version = []
@@ -269,8 +275,10 @@ class vers(Block):
         return self.version['build']
 
 class icl8(Block):
+    """ Icon Large 8bpp
+    """
     def __init__(self, *args):
-        return Block.__init__(self, *args)
+        super().__init__(*args)
 
     def getData(self, *args):
         return Block.getData(self, *args)
@@ -287,33 +295,43 @@ class icl8(Block):
 
 class BDPW(Block):
     def __init__(self, *args):
-        return Block.__init__(self, *args)
+        super().__init__(*args)
 
     def getData(self, *args):
         bldata = Block.getData(self, *args)
-        self.password_md5 = bldata.read(16)
-        self.hash_1 = bldata.read(16)
-        self.hash_2 = bldata.read(16)
-        bldata.seek(0)
+        if True:
+            self.password_md5 = bldata.read(16)
+            self.hash_1 = bldata.read(16)
+            self.hash_2 = bldata.read(16)
+            bldata.seek(0)
         return bldata
 
 class LIBN(Block):
     def __init__(self, *args):
-        return Block.__init__(self, *args)
+        super().__init__(*args)
 
     def getData(self, *args):
         bldata = Block.getData(self, *args)
-        self.count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        self.content = []
-        for i in range(self.count):
-            content_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-            self.content.append(bldata.read(content_len))
-        bldata.seek(0)
+        if True:
+            self.count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            self.content = []
+            for i in range(self.count):
+                content_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+                self.content.append(bldata.read(content_len))
+            bldata.seek(0)
         return bldata
 
 class LVzp(Block):
+    """ Zipped Program tree
+
+        Used in llb-like objects created by building the project.
+        Contains the whole VIs hierarchy, stored within ZIP file.
+
+        In LV from circa 2009 and before, the ZIP was stored in plain form.
+        In newer LV versions, it is encrypted by simple xor-based algorithm.
+    """
     def __init__(self, *args):
-        return Block.__init__(self, *args)
+        super().__init__(*args)
 
     def getData(self, *args):
         Block.getData(self, *args)
@@ -322,29 +340,71 @@ class LVzp(Block):
 
 
 class BDHP(Block):
+    """ Block Diagram Heap (LV 7beta and older)
+    """
     def __init__(self, *args):
-        return Block.__init__(self, *args)
+        super().__init__(*args)
 
     def getData(self, *args):
         Block.getData(self, *args)
         bldata = Block.getData(self, useCompression=BLOCK_COMPRESSION.NONE)
-        content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        self.content = bldata.read(content_len)
-        self.hash = md5(self.content).digest()
-        bldata.seek(0)
+        if True:
+            content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            self.content = bldata.read(content_len)
+            self.hash = md5(self.content).digest()
+            bldata.seek(0)
         return bldata
 
 class BDH(Block):
+    """ Block Diagram Heap (LV 7 and newer)
+
+        Stored in "BDHx"-block. It uses a binary tree format to store hierarchy
+        structures. They use a kind of "xml-tags" to open and close objects.
+    """
     def __init__(self, *args):
-        return Block.__init__(self, *args)
+        super().__init__(*args)
 
     def getData(self, *args):
         Block.getData(self, *args)
         bldata = Block.getData(self, useCompression=BLOCK_COMPRESSION.ZLIB)
-        content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        self.content = bldata.read(content_len)
-        self.hash = md5(self.content).digest()
-        bldata.seek(0)
+        if True:
+            content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            self.content = bldata.read(content_len)
+            self.hash = md5(self.content).digest()
+            bldata.seek(0)
         return bldata
 
 BDHc = BDHb = BDH
+
+class VCTP(Block):
+    """ Virtual Connectors / Terminal Points
+
+        All terminals used by the .VI and the terminals of the .VI itself are stored
+        in this block.
+
+        The VCTP contains bottom-up objects. This means that objects can inherit
+        from previous defined objects. So to define a cluster they first define
+        every element and than add a cluster-object with a index-table containing
+        all previously defined elements used by the cluster.
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def getData(self, *args):
+        Block.getData(self, *args)
+        bldata = Block.getData(self, useCompression=BLOCK_COMPRESSION.ZLIB)
+        if True:
+            self.count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            self.content = []
+            pos = bldata.tell()
+            for i in range(self.count):
+                bldata.seek(pos)
+                obj_len = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+                obj_flags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+                obj_type = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+                obj = newConnectorObject(self.po, bldata, pos, obj_len, obj_flags, obj_type)
+                self.content.append(obj)
+                pos += obj_len
+            bldata.seek(0)
+        return bldata
+
