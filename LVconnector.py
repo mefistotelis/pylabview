@@ -124,19 +124,39 @@ class CONNECTOR_FULL_TYPE(enum.IntEnum):
     EnumValue =	-2
 
 
+class CONNECTOR_CLUSTER_FORMAT(enum.IntEnum):
+    TimeStamp =		6,
+    Digitaldata =	7,
+    Dynamicdata =	9,
+
+
 class ConnectorObject:
 
-    def __init__(self, vi, bldata, pos, obj_len, obj_flags, obj_type, po):
+    def __init__(self, vi, bldata, idx, pos, obj_len, obj_flags, obj_type, po):
         """ Creates new Connector object, capable of handling generic Connector data.
         """
         self.vi = vi
         self.po = po
+        self.index = idx
         self.pos = pos
         self.size = obj_len
         self.oflags = obj_flags
         self.otype = obj_type
         self.raw_data = bldata.read(obj_len)
         self.clients = []
+
+    def parseData(self, bldata):
+        if (self.po.verbose > 2):
+            print("{:s}: Connector %d type 0x{:02x} data format isn't known; leaving raw only".format(self.po.input.name,self.index,self.otype))
+        pass
+
+    def needParseData(self):
+        """ Returns if the connector did not had its data parsed yet
+
+            After a call to parseData(), or after filling the data manually, this should
+            return True. Otherwise, False.
+        """
+        return False
 
     def getData(self):
         bldata = BytesIO(self.raw_data)
@@ -147,7 +167,12 @@ class ConnectorObject:
         return ret
 
     def mainType(self):
-        return CONNECTOR_MAIN_TYPE(self.otype >> 4)
+        if self.otype == 0x00:
+            # Special case; if lower bits are non-zero, it is treated as int
+            # But if the whole value is 0, then its just void
+            return CONNECTOR_MAIN_TYPE.Void
+        else:
+            return CONNECTOR_MAIN_TYPE(self.otype >> 4)
 
     def fullType(self):
         if self.otype not in CONNECTOR_FULL_TYPE:
@@ -183,8 +208,10 @@ class ConnectorObject:
 
     def getClientConnectorsByType(self):
         self.getData() # Make sure the block is parsed
-        out_lists = { 'number': [], 'path': [], 'string': [], 'other': [] }
+        out_lists = { 'number': [], 'path': [], 'string': [], 'compound': [], 'other': [] }
         for cli_idx, conn_idx, conn_obj, conn_flags in self.clientsEnumerate():
+            # We will need a list of clients, so ma might as well parse the connector now
+            conn_obj.getData()
             # Add connectors of this Terminal to list
             if conn_obj.isNumber():
                 out_lists['number'].append(conn_obj)
@@ -192,14 +219,17 @@ class ConnectorObject:
                 out_lists['path'].append(conn_obj)
             elif conn_obj.isPath():
                 out_lists['string'].append(conn_obj)
+            elif conn_obj.hasClients():
+                out_lists['compound'].append(conn_obj)
             else:
                 out_lists['other'].append(conn_obj)
             if (self.po.verbose > 2):
-                print("enumerating: i={} idx={} flags={:x} {} connectors: {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d}"\
+                print("enumerating: i={} idx={} flags={:x} type={} connectors: {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d}"\
                       .format(cli_idx, conn_idx,  conn_flags, conn_obj.fullType().name if isinstance(conn_obj.fullType(), enum.IntEnum) else conn_obj.fullType(),\
                       'number',len(out_lists['number']),\
                       'path',len(out_lists['path']),\
                       'string',len(out_lists['string']),\
+                      'compound',len(out_lists['compound']),\
                       'other',len(out_lists['other'])))
             # Add sub-connectors the terminals within this connector
             if conn_obj.hasClients():
@@ -213,55 +243,92 @@ class ConnectorObjectNumber(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
 
+    def parseData(self, bldata):
+        # TODO
+        pass
+
+    def needParseData(self):
+        return True
+
     def getData(self, *args):
-        data = ConnectorObject.getData(self, *args)
-    # TODO
+        bldata = ConnectorObject.getData(self, *args)
+        if self.needParseData():
+            self.parseData(bldata)
+            bldata.seek(0)
+        return bldata
 
 class ConnectorObjectNumberPtr(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
 
+    def parseData(self, bldata):
+        # TODO
+        pass
+
+    def needParseData(self):
+        return True
+
     def getData(self, *args):
-        data = ConnectorObject.getData(self, *args)
-    # TODO
+        bldata = ConnectorObject.getData(self, *args)
+        if self.needParseData():
+            self.parseData(bldata)
+            bldata.seek(0)
+        return bldata
 
 
 class ConnectorObjectBlob(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
 
+    def parseData(self, bldata):
+        # TODO
+        pass
+
+    def needParseData(self):
+        return True
+
     def getData(self, *args):
-        data = ConnectorObject.getData(self, *args)
-    # TODO
+        bldata = ConnectorObject.getData(self, *args)
+        if self.needParseData():
+            self.parseData(bldata)
+            bldata.seek(0)
+        return bldata
 
 
 class ConnectorObjectTerminal(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
 
+    def parseData(self, bldata):
+        vers = self.vi.get('vers')
+        # Skip length, flags and type - these were set in constructor
+        bldata.read(4)
+        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        # Create _separate_ empty namespace for each connector
+        self.clients = [SimpleNamespace() for _ in range(count)]
+        for i in range(count):
+            cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            self.clients[i].index = cli_idx
+        self.flags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        self.pattern = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        if vers.verMajor() >= 8:
+            self.padding1 = int.from_bytes(bldata.read(2), byteorder='big', signed=False) # don't know/padding
+            for i in range(count):
+                cli_flags = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                self.clients[i].flags = cli_flags
+        else: # vers.verMajor() < 8
+            for i in range(count):
+                cli_flags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+                self.clients[i].flags = cli_flags
+        pass
+
+    def needParseData(self):
+        return (len(self.clients) == 0)
+
     def getData(self, *args):
         bldata = ConnectorObject.getData(self, *args)
-        if True:
-            vers = self.vi.get('vers')
-            # Skip length, flags and type - these were set in constructor
-            bldata.read(4)
-            count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            # Create _separate_ empty namespace for each connector
-            self.clients = [SimpleNamespace() for _ in range(count)]
-            for i in range(count):
-                cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-                self.clients[i].index = cli_idx
-            self.flags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            self.pattern = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            if vers.verMajor() >= 8:
-                self.padding1 = int.from_bytes(bldata.read(2), byteorder='big', signed=False) # don't know/padding
-                for i in range(count):
-                    cli_flags = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-                    self.clients[i].flags = cli_flags
-            else: # vers.verMajor() < 8
-                for i in range(count):
-                    cli_flags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-                    self.clients[i].flags = cli_flags
+        if self.needParseData():
+            self.parseData(bldata)
             bldata.seek(0)
         return bldata
 
@@ -275,44 +342,167 @@ class ConnectorObjectTerminal(ConnectorObject):
 class ConnectorObjectTypeDef(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
-    # TODO
+
+    def parseData(self, bldata):
+        # TODO
+        pass
+
+    def needParseData(self):
+        return True
+
+    def getData(self, *args):
+        bldata = ConnectorObject.getData(self, *args)
+        if self.needParseData():
+            self.parseData(bldata)
+            bldata.seek(0)
+        return bldata
 
 
 class ConnectorObjectArray(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
-    # TODO
+
+    def parseData(self, bldata):
+        # Skip length, flags and type - these were set in constructor
+        bldata.read(4)
+        ndimensions = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        self.dimensions = [SimpleNamespace() for _ in range(ndimensions)]
+        for i in range(ndimensions):
+            flags = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            if flags != 0xFFFFFFFF:
+                if ((flags & 0x80000000) != 0):
+                    # Array with fixed size
+                    self.dimensions[i].flags = tmp >> 24
+                    self.dimensions[i].fixedSize = tmp & 0x00FFFFFF
+                else:
+                    raise ValueError("Unexpected flags field in connector {:d}; fixed size flag not set in 0x{:08x}.".format(self.index,flags))
+
+        self.clients = [ SimpleNamespace() ]
+        cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        cli_flags = 0
+        self.clients[0].index = cli_idx
+        self.clients[0].flags = cli_flags
+
+    def needParseData(self):
+        return (len(self.clients) == 0)
+
+    def getData(self, *args):
+        bldata = ConnectorObject.getData(self, *args)
+        if self.needParseData():
+            self.parseData(bldata)
+            bldata.seek(0)
+        return bldata
+
+    def checkSanity(self):
+        ret = True
+        if len(self.dimensions) > 64:
+            ret = False
+        if len(self.clients) != 1:
+            ret = False
+        if (self.dimensions[0].flags & 0x80) == 0:
+            ret = False
+        if self.clients[0].index >= self.index:
+            ret = False
+        return ret
 
 
 class ConnectorObjectUnit(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
-    # TODO
+
+    def parseData(self, bldata):
+        # TODO
+        pass
+
+    def needParseData(self):
+        return True
+
+    def getData(self, *args):
+        bldata = ConnectorObject.getData(self, *args)
+        if self.needParseData():
+            self.parseData(bldata)
+            bldata.seek(0)
+        return bldata
 
 
 class ConnectorObjectRef(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
-    # TODO
+
+    def parseData(self, bldata):
+        # TODO
+        pass
+
+    def needParseData(self):
+        return True
+
+    def getData(self, *args):
+        bldata = ConnectorObject.getData(self, *args)
+        if self.needParseData():
+            self.parseData(bldata)
+            bldata.seek(0)
+        return bldata
 
 
 class ConnectorObjectCluster(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
-    # TODO
+        self.clusterFmt = None
+
+    def parseData(self, bldata):
+        # Skip length, flags and type - these were set in constructor
+        bldata.read(4)
+
+        if self.fullType() == CONNECTOR_FULL_TYPE.Cluster:
+            count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            # Create _separate_ empty namespace for each connector
+            self.clients = [SimpleNamespace() for _ in range(count)]
+            for i in range(count):
+                cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+                cli_flags = 0
+                self.clients[i].index = cli_idx
+                self.clients[i].flags = cli_flags
+
+        elif self.fullType() == CONNECTOR_FULL_TYPE.ClusterData:
+            self.clusterFmt = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+
+        else:
+            if (self.po.verbose > 2):
+                print("{:s}: Connector %d cluster type 0x{:02x} data format isn't known; leaving raw only".format(self.po.input.name,self.index,self.otype))
+        pass
+
+    def needParseData(self):
+        if self.fullType() == CONNECTOR_FULL_TYPE.Cluster:
+            if len(self.clients) > 500:
+                ret = False
+        elif self.fullType() == CONNECTOR_FULL_TYPE.ClusterData:
+            pass
+        return True
+
+    def getData(self, *args):
+        bldata = ConnectorObject.getData(self, *args)
+        if self.needParseData():
+            self.parseData(bldata)
+            bldata.seek(0)
+        return bldata
+
+    def clusterFormat(self):
+        if self.clusterFmt not in CONNECTOR_CLUSTER_FORMAT:
+            return self.clusterFmt
+        return CONNECTOR_CLUSTER_FORMAT(self.clusterFmt)
 
 
-def newConnectorObjectMainTerminal(vi, bldata, pos, obj_len, obj_flags, obj_type, po):
+def newConnectorObjectMainTerminal(vi, bldata, idx, pos, obj_len, obj_flags, obj_type, po):
     """ Creates and returns new terminal object of main type 'Terminal'
     """
     ctor = {
         CONNECTOR_FULL_TYPE.Terminal: ConnectorObjectTerminal,
         CONNECTOR_FULL_TYPE.TypeDef: ConnectorObjectTypeDef,
     }.get(obj_type, ConnectorObject) # Void is the default type in case of no match
-    return ctor(vi, bldata, pos, obj_len, obj_flags, obj_type, po)
+    return ctor(vi, bldata, idx, pos, obj_len, obj_flags, obj_type, po)
 
 
-def newConnectorObject(vi, bldata, pos, obj_len, obj_flags, obj_type, po):
+def newConnectorObject(vi, bldata, idx, pos, obj_len, obj_flags, obj_type, po):
     """ Creates and returns new terminal object with given parameters
     """
     obj_main_type = obj_type >> 4
@@ -329,5 +519,5 @@ def newConnectorObject(vi, bldata, pos, obj_len, obj_flags, obj_type, po):
         CONNECTOR_MAIN_TYPE.Terminal: newConnectorObjectMainTerminal,
         CONNECTOR_MAIN_TYPE.Void: ConnectorObject, # No properties - basic type is enough
     }.get(obj_main_type, ConnectorObject) # Void is the default type in case of no match
-    return ctor(vi, bldata, pos, obj_len, obj_flags, obj_type, po)
+    return ctor(vi, bldata, idx, pos, obj_len, obj_flags, obj_type, po)
 

@@ -197,7 +197,7 @@ class Block(object):
     def needParseData(self):
         """ Returns if the block did not had its data parsed yet
 
-            After a call to parseData(), or asfter filling the data manually, this should
+            After a call to parseData(), or after filling the data manually, this should
             return True. Otherwise, False.
         """
         return False
@@ -501,7 +501,7 @@ class VCTP(Block):
             obj_flags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
             obj_type = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
             bldata.seek(pos)
-            obj = newConnectorObject(self.vi, bldata, pos, obj_len, obj_flags, obj_type, self.po)
+            obj = newConnectorObject(self.vi, bldata, i, pos, obj_len, obj_flags, obj_type, self.po)
             self.content.append(obj)
             pos += obj_len
 
