@@ -491,18 +491,22 @@ class VCTP(Block):
     def needParseData(self):
         return (self.content is None)
 
+    def parseConnector(self, bldata, pos):
+        bldata.seek(pos)
+        obj_len = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        obj_flags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        obj_type = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        bldata.seek(pos)
+        obj = newConnectorObject(self.vi, bldata, len(self.content), pos, obj_len, obj_flags, obj_type, self.po)
+        self.content.append(obj)
+        return obj.index, obj_len
+
     def parseData(self, bldata):
         self.count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.content = []
         pos = bldata.tell()
         for i in range(self.count):
-            bldata.seek(pos)
-            obj_len = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            obj_flags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-            obj_type = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-            bldata.seek(pos)
-            obj = newConnectorObject(self.vi, bldata, i, pos, obj_len, obj_flags, obj_type, self.po)
-            self.content.append(obj)
+            obj_idx, obj_len = self.parseConnector(bldata, pos)
             pos += obj_len
 
     def getData(self, *args):

@@ -121,13 +121,34 @@ class CONNECTOR_FULL_TYPE(enum.IntEnum):
     TypeDef =	0xF1
 
     # Not official
+    Unknown = -1
     EnumValue =	-2
 
 
 class CONNECTOR_CLUSTER_FORMAT(enum.IntEnum):
-    TimeStamp =		6,
-    Digitaldata =	7,
-    Dynamicdata =	9,
+    TimeStamp =		6
+    Digitaldata =	7
+    Dynamicdata =	9
+
+
+class CONNECTOR_REF_TYPE(enum.IntEnum):
+    DataLogFile =	0x01
+    Occurrence =	0x04
+    TCPConnection =	0x05
+    ControlRefnum =	0x08
+    DataSocket =	0x0D
+    UDPConnection =	0x10
+    NotifierRefnum =	0x11
+    Queue =				0x12
+    IrDAConnection =	0x13
+    Channel =			0x14
+    SharedVariable =	0x15
+    EventRegistration =	0x17
+    UserEvent =			0x19
+    Class =				0x1E
+    BluetoothConnectn =	0x1F
+    DataValueRef =	0x20
+    FIFORefnum =	0x21
 
 
 class ConnectorObject:
@@ -147,7 +168,7 @@ class ConnectorObject:
 
     def parseData(self, bldata):
         if (self.po.verbose > 2):
-            print("{:s}: Connector %d type 0x{:02x} data format isn't known; leaving raw only".format(self.po.input.name,self.index,self.otype))
+            print("{:s}: Connector {:d} type 0x{:02x} data format isn't known; leaving raw only".format(self.po.input.name,self.index,self.otype))
         pass
 
     def needParseData(self):
@@ -171,6 +192,9 @@ class ConnectorObject:
             # Special case; if lower bits are non-zero, it is treated as int
             # But if the whole value is 0, then its just void
             return CONNECTOR_MAIN_TYPE.Void
+        elif self.otype < 0:
+            # Types internal to this parser - mapped without bitshift
+            return CONNECTOR_MAIN_TYPE(self.otype)
         else:
             return CONNECTOR_MAIN_TYPE(self.otype >> 4)
 
@@ -212,6 +236,9 @@ class ConnectorObject:
         for cli_idx, conn_idx, conn_obj, conn_flags in self.clientsEnumerate():
             # We will need a list of clients, so ma might as well parse the connector now
             conn_obj.getData()
+            if not conn_obj.checkSanity():
+                if (self.po.verbose > 0):
+                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} sanity check failed!".format(self.po.input.name,conn_obj.index,conn_obj.otype))
             # Add connectors of this Terminal to list
             if conn_obj.isNumber():
                 out_lists['number'].append(conn_obj)
@@ -224,13 +251,15 @@ class ConnectorObject:
             else:
                 out_lists['other'].append(conn_obj)
             if (self.po.verbose > 2):
-                print("enumerating: i={} idx={} flags={:x} type={} connectors: {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d}"\
+                keys = list(out_lists)
+                print("enumerating: i={} idx={} flags={:09x} type={} connectors: {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d}"\
                       .format(cli_idx, conn_idx,  conn_flags, conn_obj.fullType().name if isinstance(conn_obj.fullType(), enum.IntEnum) else conn_obj.fullType(),\
-                      'number',len(out_lists['number']),\
-                      'path',len(out_lists['path']),\
-                      'string',len(out_lists['string']),\
-                      'compound',len(out_lists['compound']),\
-                      'other',len(out_lists['other'])))
+                      keys[0],len(out_lists[keys[0]]),\
+                      keys[1],len(out_lists[keys[1]]),\
+                      keys[2],len(out_lists[keys[2]]),\
+                      keys[3],len(out_lists[keys[3]]),\
+                      keys[4],len(out_lists[keys[4]]),\
+                      ))
             # Add sub-connectors the terminals within this connector
             if conn_obj.hasClients():
                 sub_lists = conn_obj.getClientConnectorsByType()
@@ -242,13 +271,15 @@ class ConnectorObject:
 class ConnectorObjectNumber(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
+        self.prop1 = None
 
     def parseData(self, bldata):
-        # TODO
+        bldata.read(4)
+        self.prop1 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         pass
 
     def needParseData(self):
-        return True
+        return (self.prop1 is None)
 
     def getData(self, *args):
         bldata = ConnectorObject.getData(self, *args)
@@ -256,13 +287,28 @@ class ConnectorObjectNumber(ConnectorObject):
             self.parseData(bldata)
             bldata.seek(0)
         return bldata
+
+    def checkSanity(self):
+        ret = True
+        if (self.prop1 != 0):
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 {:d}, expected {:d}".format(self.po.input.name,self.index,self.otype,self.prop1,0))
+            ret = False
+        expsize = 4+1 # We do not parse the whole chunk; complete size is larger
+        if len(self.raw_data) < expsize:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}".format(self.po.input.name,self.index,self.otype,len(self.raw_data),expsize))
+            ret = False
+        return ret
+
 
 class ConnectorObjectNumberPtr(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
 
     def parseData(self, bldata):
-        # TODO
+        bldata.read(4)
+        # No more known data inside
         pass
 
     def needParseData(self):
@@ -274,18 +320,30 @@ class ConnectorObjectNumberPtr(ConnectorObject):
             self.parseData(bldata)
             bldata.seek(0)
         return bldata
+
+    def checkSanity(self):
+        ret = True
+        expsize = 4 # We do not parse the whole chunk; complete size is larger
+        if len(self.raw_data) < expsize:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}".format(self.po.input.name,self.index,self.otype,len(self.raw_data),expsize))
+            ret = False
+        return ret
 
 
 class ConnectorObjectBlob(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
+        self.prop1 = None
 
     def parseData(self, bldata):
-        # TODO
+        bldata.read(4)
+        self.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        # No more known data inside
         pass
 
     def needParseData(self):
-        return True
+        return (self.prop1 is None)
 
     def getData(self, *args):
         bldata = ConnectorObject.getData(self, *args)
@@ -293,6 +351,19 @@ class ConnectorObjectBlob(ConnectorObject):
             self.parseData(bldata)
             bldata.seek(0)
         return bldata
+
+    def checkSanity(self):
+        ret = True
+        if self.prop1 != 0xFFFFFFFF:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}".format(self.po.input.name,self.index,self.otype,self.prop1,0xFFFFFFFF))
+            ret = False
+        expsize = 4 # We do not parse the whole chunk; complete size is larger
+        if len(self.raw_data) < expsize:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}".format(self.po.input.name,self.index,self.otype,len(self.raw_data),expsize))
+            ret = False
+        return ret
 
 
 class ConnectorObjectTerminal(ConnectorObject):
@@ -334,7 +405,18 @@ class ConnectorObjectTerminal(ConnectorObject):
 
     def checkSanity(self):
         ret = True
+        vers = self.vi.get('vers')
         if (len(self.clients) > 125):
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}".format(self.po.input.name,self.index,self.otype,self.prop1,0xFFFFFFFF))
+            ret = False
+        if vers.verMajor() >= 8:
+            expsize = 4 + 2 + 2 * len(self.clients) + 4 + 2 + 4 * len(self.clients)
+        else:
+            expsize = 4 + 2 + 2 * len(self.clients) + 4 + 2 * len(self.clients)
+        if len(self.raw_data) != expsize:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}".format(self.po.input.name,self.index,self.otype,len(self.raw_data),expsize))
             ret = False
         return ret
 
@@ -342,13 +424,33 @@ class ConnectorObjectTerminal(ConnectorObject):
 class ConnectorObjectTypeDef(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
+        self.flag1 = None
+        self.labels = []
 
     def parseData(self, bldata):
-        # TODO
+        VCTP = self.vi.get('VCTP')
+        # Skip length, flags and type - these were set in constructor
+        bldata.read(4)
+        self.flag1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.labels = [b"" for _ in range(count)]
+        for i in range(count):
+            label_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            self.labels[i] = bldata.read(label_len)
+        # The underlying object is stored here directly, not as index in VCTP list
+        # Let's add it to that list anyway, as keeping one flat list is simpler
+        pos = bldata.tell()
+        self.clients = [ SimpleNamespace() ]
+        # In "Vi Explorer" code, the length value of this object is treated differently
+        # (decreased by 4); not sure if this is correct and an issue here
+        cli_idx, cli_len = VCTP.parseConnector(bldata, pos)
+        cli_flags = 0
+        self.clients[0].index = cli_idx
+        self.clients[0].flags = cli_flags
         pass
 
     def needParseData(self):
-        return True
+        return (self.flag1 is None)
 
     def getData(self, *args):
         bldata = ConnectorObject.getData(self, *args)
@@ -409,13 +511,42 @@ class ConnectorObjectArray(ConnectorObject):
 class ConnectorObjectUnit(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
+        self.values = []
+        self.prop1 = None
 
     def parseData(self, bldata):
-        # TODO
+        # Skip length, flags and type - these were set in constructor
+        bldata.read(4)
+        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False) # unit/item count
+
+        isTextEnum = False
+        if self.fullType() in [ CONNECTOR_FULL_TYPE.UnitU8, CONNECTOR_FULL_TYPE.UnitU16, CONNECTOR_FULL_TYPE.UnitU32 ]:
+            isTextEnum = True
+
+        # Create _separate_ empty namespace for each connector
+        self.values = [SimpleNamespace() for _ in range(count)]
+        for i in range(count):
+            if isTextEnum:
+                label_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+                self.values[i].label = bldata.read(label_len)
+                self.values[i].intval = None
+                self.values[i].size = label_len + 1
+            else:
+                label_val = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                self.values[i].label = "0x{:X}".format(label_val)
+                self.values[i].intval = label_val
+                self.values[i].size = 4
+            self.values[i].otype = CONNECTOR_FULL_TYPE.EnumValue
+            self.values[i].index = i
+        if (bldata.tell() % 2) != 0:
+            self.padding1 = bldata.read(1)
+        else:
+            self.padding1 = None
+        self.prop1 = int.from_bytes(bldata.read(1), byteorder='big', signed=False) # Unknown
         pass
 
     def needParseData(self):
-        return True
+        return (self.prop1 is None)
 
     def getData(self, *args):
         bldata = ConnectorObject.getData(self, *args)
@@ -423,18 +554,34 @@ class ConnectorObjectUnit(ConnectorObject):
             self.parseData(bldata)
             bldata.seek(0)
         return bldata
+
+    def checkSanity(self):
+        ret = True
+        if (self.padding1 is not None) and (self.padding1 != b'\0'):
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Unit {:d} type 0x{:02x} padding1 {}, expected zeros".format(self.po.input.name,self.index,self.otype,self.padding1))
+            ret = False
+        if self.prop1 != 0:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Unit {:d} type 0x{:02x} prop1 {:d}, expected {:d}".format(self.po.input.name,self.index,self.otype,self.prop1,0))
+            ret = False
+        if len(self.values) < 1:
+            ret = False
+        return ret
 
 
 class ConnectorObjectRef(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
+        self.reftype = None
 
     def parseData(self, bldata):
-        # TODO
+        self.reftype = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        # TODO see readObjectPropertyRef in VI Explorer
         pass
 
     def needParseData(self):
-        return True
+        return (self.reftype is None)
 
     def getData(self, *args):
         bldata = ConnectorObject.getData(self, *args)
@@ -442,6 +589,11 @@ class ConnectorObjectRef(ConnectorObject):
             self.parseData(bldata)
             bldata.seek(0)
         return bldata
+
+    def refType(self):
+        if self.reftype not in CONNECTOR_REF_TYPE:
+            return self.reftype
+        return CONNECTOR_REF_TYPE(self.otype)
 
 
 class ConnectorObjectCluster(ConnectorObject):
@@ -468,15 +620,14 @@ class ConnectorObjectCluster(ConnectorObject):
 
         else:
             if (self.po.verbose > 2):
-                print("{:s}: Connector %d cluster type 0x{:02x} data format isn't known; leaving raw only".format(self.po.input.name,self.index,self.otype))
+                print("{:s}: Connector {:d} cluster type 0x{:02x} data format isn't known; leaving raw only".format(self.po.input.name,self.index,self.otype))
         pass
 
     def needParseData(self):
         if self.fullType() == CONNECTOR_FULL_TYPE.Cluster:
-            if len(self.clients) > 500:
-                ret = False
+            return (len(self.clients) == 0)
         elif self.fullType() == CONNECTOR_FULL_TYPE.ClusterData:
-            pass
+            return (self.clusterFmt is None)
         return True
 
     def getData(self, *args):
@@ -486,10 +637,29 @@ class ConnectorObjectCluster(ConnectorObject):
             bldata.seek(0)
         return bldata
 
+    def checkSanity(self):
+        ret = True
+        if self.fullType() == CONNECTOR_FULL_TYPE.Cluster:
+            if len(self.clients) > 500:
+                ret = False
+        elif self.fullType() == CONNECTOR_FULL_TYPE.ClusterData:
+            if self.clusterFmt > 127: # Not sure how many cluster formats are there
+                ret = False
+        return ret
+
     def clusterFormat(self):
         if self.clusterFmt not in CONNECTOR_CLUSTER_FORMAT:
             return self.clusterFmt
         return CONNECTOR_CLUSTER_FORMAT(self.clusterFmt)
+
+
+def newConnectorObjectMainNumberOrVoid(vi, bldata, idx, pos, obj_len, obj_flags, obj_type, po):
+    """ Creates and returns new terminal object of main type 'Terminal'
+    """
+    ctor = {
+        CONNECTOR_FULL_TYPE.Void: ConnectorObject,
+    }.get(obj_type, ConnectorObjectNumber) # Number is the default type in case of no match
+    return ctor(vi, bldata, idx, pos, obj_len, obj_flags, obj_type, po)
 
 
 def newConnectorObjectMainTerminal(vi, bldata, idx, pos, obj_len, obj_flags, obj_type, po):
@@ -507,7 +677,7 @@ def newConnectorObject(vi, bldata, idx, pos, obj_len, obj_flags, obj_type, po):
     """
     obj_main_type = obj_type >> 4
     ctor = {
-        CONNECTOR_MAIN_TYPE.Number: ConnectorObjectNumber,
+        CONNECTOR_MAIN_TYPE.Number: newConnectorObjectMainNumberOrVoid,
         CONNECTOR_MAIN_TYPE.Unit: ConnectorObjectUnit,
         CONNECTOR_MAIN_TYPE.Bool: ConnectorObject, # No properties - basic type is enough
         CONNECTOR_MAIN_TYPE.Blob: ConnectorObjectBlob,
