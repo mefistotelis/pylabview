@@ -242,9 +242,9 @@ class ConnectorObject:
             # Add connectors of this Terminal to list
             if conn_obj.isNumber():
                 out_lists['number'].append(conn_obj)
-            elif conn_obj.isString():
-                out_lists['path'].append(conn_obj)
             elif conn_obj.isPath():
+                out_lists['path'].append(conn_obj)
+            elif conn_obj.isString():
                 out_lists['string'].append(conn_obj)
             elif conn_obj.hasClients():
                 out_lists['compound'].append(conn_obj)

@@ -374,6 +374,13 @@ class BDPW(Block):
             bldata.seek(0)
         return bldata
 
+    @staticmethod
+    def getPasswordSaltFromTerminalCounts(numberCount, stringCount, pathCount):
+        salt = int(numberCount).to_bytes(4, byteorder='little')
+        salt += int(stringCount).to_bytes(4, byteorder='little')
+        salt += int(pathCount).to_bytes(4, byteorder='little')
+        return salt
+
 class LIBN(Block):
     """ Library Names
 
@@ -425,7 +432,6 @@ class BDHP(Block):
     def __init__(self, *args):
         super().__init__(*args)
         self.content = None
-        self.hash = b''
 
     def needParseData(self):
         return (self.content is None)
@@ -433,7 +439,6 @@ class BDHP(Block):
     def parseData(self, bldata):
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.content = bldata.read(content_len)
-        self.hash = md5(self.content).digest()
 
     def getData(self, *args):
         Block.getData(self, *args)
@@ -442,6 +447,9 @@ class BDHP(Block):
             self.parseData(bldata)
             bldata.seek(0)
         return bldata
+
+    def getContentHash(self):
+        return md5(self.content).digest()
 
 class BDH(Block):
     """ Block Diagram Heap (LV 7 and newer)
@@ -452,7 +460,6 @@ class BDH(Block):
     def __init__(self, *args):
         super().__init__(*args)
         self.content = None
-        self.hash = b''
 
     def needParseData(self):
         return (self.content is None)
@@ -460,7 +467,6 @@ class BDH(Block):
     def parseData(self, bldata):
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.content = bldata.read(content_len)
-        self.hash = md5(self.content).digest()
 
     def getData(self, *args):
         Block.getData(self, *args)
@@ -469,6 +475,9 @@ class BDH(Block):
             self.parseData(bldata)
             bldata.seek(0)
         return bldata
+
+    def getContentHash(self):
+        return md5(self.content).digest()
 
 BDHc = BDHb = BDH
 
@@ -519,4 +528,13 @@ class VCTP(Block):
 
     def getClientConnectorsByType(self, conn_obj):
         self.getData() # Make sure the block is parsed
-        return conn_obj.getClientConnectorsByType()
+        type_list = conn_obj.getClientConnectorsByType()
+        if (self.po.verbose > 1):
+            print("{:s}: Terminal {:d} connectors: {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d}"\
+              .format(self.po.input.name,conn_obj.index,\
+              'number',len(type_list['number']),\
+              'path',len(type_list['path']),\
+              'string',len(type_list['string']),\
+              'compound',len(type_list['compound']),\
+              'other',len(type_list['other'])))
+        return type_list

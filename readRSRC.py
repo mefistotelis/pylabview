@@ -265,9 +265,7 @@ class VI():
         return None
 
     def connectorEnumerate(self, mainType=None, fullType=None):
-        VCTP = self.get('VCTP')
-        if VCTP is None:
-            raise LookupError("Block {} not found in RSRC file.".format('VCTP'))
+        VCTP = self.get_or_raise('VCTP')
         VCTP.getData() # Make sure the block is parsed
         out_list = []
         for conn_idx, conn_obj in enumerate(VCTP.content):
@@ -284,54 +282,68 @@ class VI():
         # get VI-versions container;
         # 'LVSR' for Version 6,7,8,...
         # 'LVIN' for Version 5
-        LVSR = self.get_one_of('LVSR', 'LVIN')
+        LVSR = self.get_one_of_or_raise('LVSR', 'LVIN')
         # get block-diagram container;
         # 'BDHc' for Version 10,11,12
         # 'BDHb' for Version 7,8
         # 'BDHP' for Version 5,6,7beta
-        BDH = self.get_one_of('BDHc', 'BDHb', 'BDHP')
+        BDH = self.get_one_of_or_raise('BDHc', 'BDHb', 'BDHP')
 
+        # If library name is missing, we don't fail, just use empty
         LIBN = self.get_one_of('LIBN')
         if LIBN is not None and LIBN.count > 0:
             LIBN_content = b':'.join(LIBN.content)
         else:
             LIBN_content = b''
 
-        if LVSR is None:
-            if (self.po.verbose > 0):
-                eprint("{:s}: Block {:s} not found in parsed data".format(self.po.input.name,'LVSR/LVIN'))
-            return False
-
-        if BDH is None:
-            if (self.po.verbose > 0):
-                eprint("{:s}: Block {:s} not found in parsed data".format(self.po.input.name,'BDHb/c/P'))
-            return False
-
         LVSR_content = LVSR.getRawData()
 
         newPassBin = newPassword.encode('utf-8')
         md5Password = md5(newPassBin).digest()
 
+        if (self.po.verbose > 2):
+            print("{:s}: LIBN_content: {}".format(self.po.input.name,LIBN_content))
+            print("{:s}: LVSR_content md5: {:s}".format(self.po.input.name,md5(LVSR_content).digest().hex()))
+
         salt = b''
         vers = self.get('vers')
         if vers.verMajor() >= 12:
+            # Figure out the salt
+            salt_iface_idx = None
+            BDPW = self.get_or_raise('BDPW')
+            VCTP = self.get_or_raise('VCTP')
             interfaceEnumerate = self.connectorEnumerate(fullType=LVconnector.CONNECTOR_FULL_TYPE.Terminal)
             for i, iface_idx, iface_obj in interfaceEnumerate:
-                iface_connectors = iface_obj.getClientConnectorsByType()
-                if (self.po.verbose > 1):
-                    print("{:s}: Interface {:d} connectors: {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d}"\
-                      .format(self.po.input.name,iface_idx,\
-                      'number',len(iface_connectors['number']),\
-                      'path',len(iface_connectors['path']),\
-                      'string',len(iface_connectors['string']),\
-                      'other',len(iface_connectors['other'])))
-                salt = len(iface_connectors['number']).to_bytes(4, byteorder='little')
-                salt += len(iface_connectors['string']).to_bytes(4, byteorder='little')
-                salt += len(iface_connectors['path']).to_bytes(4, byteorder='little')
-            print("TODO: implement salting")
+                term_connectors = VCTP.getClientConnectorsByType(iface_obj)
+                salt = LVblock.BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
+                md5Hash1 = md5(md5Password + LIBN_content + LVSR_content + salt).digest()
+                if md5Hash1 == BDPW.hash_1:
+                    if (self.po.verbose > 1):
+                        print("{:s}: Found matching salt {}, interface {:d}/{:d}".format(self.po.input.name,salt.hex(),i+1,len(interfaceEnumerate)))
+                    salt_iface_idx = iface_idx
+            if salt_iface_idx is not None:
+                term_connectors = VCTP.getClientConnectorsByType(VCTP.content[salt_iface_idx])
+                salt = LVblock.BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
+            else:
+                print("{:s}: No matching salt found by Interface scan; doing brute-force scan".format(self.po.input.name))
+                for i in range(256*256*256):
+                    numberCount = 0
+                    stringCount = 0
+                    pathCount = 0
+                    for b in range(8):
+                        numberCount |= (i & (2 ** (3*b+0))) >> (2*b+0)
+                        stringCount |= (i & (2 ** (3*b+1))) >> (2*b+1)
+                        pathCount   |= (i & (2 ** (3*b+2))) >> (2*b+2)
+                    salt = LVblock.BDPW.getPasswordSaltFromTerminalCounts(numberCount, stringCount, pathCount)
+                    md5Hash1 = md5(md5Password + LIBN_content + LVSR_content + salt).digest()
+                    if md5Hash1 == BDPW.hash_1:
+                        if (self.po.verbose > 1):
+                            print("{:s}: Found matching salt {} via brute-force".format(self.po.input.name,salt.hex()))
+                        break
 
-        md5Hash1 = md5(newPassBin + LIBN_content + LVSR_content + salt).digest()
-        md5Hash2 = md5(md5Hash1 + BDH.hash).digest()
+        md5Hash1 = md5(md5Password + LIBN_content + LVSR_content + salt).digest()
+        BDH_hash = BDH.getContentHash()
+        md5Hash2 = md5(md5Hash1 + BDH_hash).digest()
 
         out = {}
         out['password'] = newPassword
@@ -355,6 +367,23 @@ class VI():
             if name in self.blocks:
                 return self.blocks[name]
         return None
+
+    def get_or_raise(self, name):
+        if isinstance(name, str):
+            name = name.encode('utf-8')
+        if name in self.blocks:
+            return self.blocks[name]
+        raise LookupError("Block {} not found in RSRC file.".format(name))
+
+    def get_one_of_or_raise(self, *namev):
+        for name in namev:
+            if isinstance(name, str):
+                name = name.encode('utf-8')
+            if name in self.blocks:
+                return self.blocks[name]
+        raise LookupError("None of blocks {} found in RSRC file.".format(",".join(namev)))
+
+
 
 def main():
     """ Main executable function.
