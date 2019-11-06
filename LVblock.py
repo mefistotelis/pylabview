@@ -355,9 +355,12 @@ class BDPW(Block):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.password = None
         self.password_md5 = b''
         self.hash_1 = b''
         self.hash_2 = b''
+        self.salt_iface_idx = None
+        self.salt = None
 
     def needParseData(self):
         return (len(self.password_md5) < 16)
@@ -380,6 +383,150 @@ class BDPW(Block):
         salt += int(stringCount).to_bytes(4, byteorder='little')
         salt += int(pathCount).to_bytes(4, byteorder='little')
         return salt
+
+    def scanForHashSalt(self, presalt_data=b'', postsalt_data=b''):
+        salt = b''
+        vers = self.vi.get('vers')
+        if vers is None:
+            if (po.verbose > 0):
+                eprint("{:s}: Warning: Block {} not found; using empty password salt".format(self.po.input.name,'vers'))
+            self.salt = salt
+            return salt
+        if vers.verMajor() >= 12:
+            # Figure out the salt
+            salt_iface_idx = None
+            VCTP = self.vi.get_or_raise('VCTP')
+            interfaceEnumerate = self.vi.connectorEnumerate(fullType=CONNECTOR_FULL_TYPE.Terminal)
+            for i, iface_idx, iface_obj in interfaceEnumerate:
+                term_connectors = VCTP.getClientConnectorsByType(iface_obj)
+                salt = BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
+                md5_hash_1 = md5(presalt_data + salt + postsalt_data).digest()
+                if md5_hash_1 == self.hash_1:
+                    if (self.po.verbose > 1):
+                        print("{:s}: Found matching salt {}, interface {:d}/{:d}".format(self.po.input.name,salt.hex(),i+1,len(interfaceEnumerate)))
+                    salt_iface_idx = iface_idx
+
+            self.salt_iface_idx = salt_iface_idx
+
+            if salt_iface_idx is not None:
+                term_connectors = VCTP.getClientConnectorsByType(VCTP.content[salt_iface_idx])
+                salt = BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
+            else:
+                print("{:s}: No matching salt found by Interface scan; doing brute-force scan".format(self.po.input.name))
+                for i in range(256*256*256):
+                    numberCount = 0
+                    stringCount = 0
+                    pathCount = 0
+                    for b in range(8):
+                        numberCount |= (i & (2 ** (3*b+0))) >> (2*b+0)
+                        stringCount |= (i & (2 ** (3*b+1))) >> (2*b+1)
+                        pathCount   |= (i & (2 ** (3*b+2))) >> (2*b+2)
+                    salt = BDPW.getPasswordSaltFromTerminalCounts(numberCount, stringCount, pathCount)
+                    md5_hash_1 = md5(presalt_data + salt + postsalt_data).digest()
+                    if md5_hash_1 == self.hash_1:
+                        if (self.po.verbose > 1):
+                            print("{:s}: Found matching salt {} via brute-force".format(self.po.input.name,salt.hex()))
+                        break
+        self.salt = salt
+        return salt
+
+    def findHashSalt(self, password_md5, LIBN_content, LVSR_content, force_scan=False):
+        if force_scan:
+            self.salt_iface_idx = None
+            self.salt = None
+        if self.salt_iface_idx is not None:
+            # If we've previously found an interface on which the salt is based, use that interface
+            VCTP = self.vi.get_or_raise('VCTP')
+            term_connectors = VCTP.getClientConnectorsByType(VCTP.content[self.salt_iface_idx])
+            salt = BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
+        elif self.salt is not None:
+            # If we've previously brute-forced the salt, use that same salt
+            salt = self.salt
+        else:
+            # If we didn't determined the salt yet, do  a scan
+            salt = self.scanForHashSalt(presalt_data=password_md5+LIBN_content+LVSR_content)
+        return salt
+
+    def setPassword(self, password_text=None, password_md5=None, store=True):
+        """ Sets new password, without recalculating hashes
+        """
+        if password_text is not None:
+            if store:
+                self.password = password_text
+            newPassBin = password_text.encode('utf-8')
+            password_md5 = md5(newPassBin).digest()
+        else:
+            if store:
+                self.password = None
+        if password_md5 is None:
+            raise ValueError("Requested to set password, but no new password provided in text nor md5 form")
+        if store:
+            self.password_md5 = password_md5
+        return password_md5
+
+
+    def recalculateHash1(self, password_md5=None, store=True):
+        """ Calculates the value of hash_1, either stores it or only returns
+
+            Re-calculation is made using previously computed salt if available, or newly computed on first run.
+            Supplying custom password on first run will lead to inability to find salt; fortunately,
+            first run is quite early, during validation of parsed data.
+        """
+        if password_md5 is None:
+            password_md5 = self.password_md5
+        # get VI-versions container;
+        # 'LVSR' for Version 6,7,8,...
+        # 'LVIN' for Version 5
+        LVSR = self.vi.get_one_of_or_raise('LVSR', 'LVIN')
+
+        # If library name is missing, we don't fail, just use empty (verified on LV14 VIs)
+        LIBN = self.vi.get_one_of('LIBN')
+        if LIBN is not None and LIBN.count > 0:
+            LIBN_content = b':'.join(LIBN.content)
+        else:
+            LIBN_content = b''
+
+        LVSR_content = LVSR.getRawData()
+
+        if (self.po.verbose > 2):
+            print("{:s}: LIBN_content: {}".format(self.po.input.name,LIBN_content))
+            print("{:s}: LVSR_content md5: {:s}".format(self.po.input.name,md5(LVSR_content).digest().hex()))
+
+        salt = self.findHashSalt(password_md5, LIBN_content, LVSR_content)
+
+        hash1_data = password_md5 + LIBN_content + LVSR_content + salt
+
+        md5_hash_1 = md5(hash1_data).digest()
+        if store:
+            self.hash_1 = md5_hash_1
+        return md5_hash_1
+
+    def recalculateHash2(self, md5_hash_1=None, store=True):
+        """ Calculates the value of hash_2, either stores it or only returns
+
+            Re-calculation is made using previously computed hash_1
+            and BDH block if the VI file
+        """
+        if md5_hash_1 is None:
+            md5_hash_1 = self.hash_1
+
+        # get block-diagram container;
+        # 'BDHc' for LV 10,11,12
+        # 'BDHb' for LV 7,8
+        # 'BDHP' for LV 5,6,7beta
+        BDH = self.vi.get_one_of('BDHc', 'BDHb', 'BDHP')
+
+        if BDH is not None:
+            BDH_hash = BDH.getContentHash()
+            hash2_data = md5_hash_1 + BDH_hash
+        else:
+            # If there's no BDH, go with empty string (verified on LV14 VIs)
+            hash2_data = b''
+
+        md5_hash_2 = md5(hash2_data).digest()
+        if store:
+            self.hash_2 = md5_hash_2
+        return md5_hash_2
 
 class LIBN(Block):
     """ Library Names

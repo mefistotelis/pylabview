@@ -43,8 +43,18 @@ from LVmisc import RSRCStructure
 
 class FILE_FMT_TYPE(enum.Enum):
     NONE = 0
-    VI = 1
-    LLB = 2
+    Control = 1
+    DLog = 2
+    ClassLib = 3
+    Project = 4
+    Library = 5
+    LLB = 6
+    MenuPalette = 7
+    TemplateControl = 8
+    TemplateVI = 9
+    Xcontrol = 10
+    VI = 11
+
 
 class RSRCHeader(RSRCStructure):
     _fields_ = [('id1', c_ubyte * 6),		#0
@@ -66,20 +76,17 @@ class RSRCHeader(RSRCStructure):
     def check_sanity(self):
         ret = True
         if bytes(self.id1) != b'RSRC\r\n':
-            if (po.verbose > 0):
-                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(po.input.name,'id1',bytes(self.id1)))
+            if (self.po.verbose > 0):
+                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.input.name,'id1',bytes(self.id1)))
             ret = False
-        if bytes(self.file_type) == b'LVIN':
-            self.ftype = FILE_FMT_TYPE.VI
-        elif bytes(self.file_type) == b'LVAR':
-            self.ftype = FILE_FMT_TYPE.LLB
-        else:
-            if (po.verbose > 0):
-                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(po.input.name,'file_type',bytes(self.file_type)))
+        self.ftype = recognizeFileType(self, self.file_type, self.po)
+        if self.ftype == FILE_FMT_TYPE.NONE:
+            if (self.po.verbose > 0):
+                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.input.name,'file_type',bytes(self.file_type)))
             ret = False
         if bytes(self.id4) != b'LBVW':
-            if (po.verbose > 0):
-                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(po.input.name,'id4',bytes(self.id4)))
+            if (self.po.verbose > 0):
+                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.input.name,'id4',bytes(self.id4)))
             ret = False
         return ret
 
@@ -114,8 +121,8 @@ class BlockInfoHeader(RSRCStructure):
     def check_sanity(self):
         ret = True
         if self.blockinfo_count > 4096: # Arbitrary limit - hard to tell whether it makes sense
-            if (po.verbose > 0):
-                eprint("{:s}: BlockInfo Header field '{:s}' has outranged value: {:d}".format(po.input.name,'blockinfo_count',blockinfo_count))
+            if (self.po.verbose > 0):
+                eprint("{:s}: BlockInfo Header field '{:s}' has outranged value: {:d}".format(self.po.input.name,'blockinfo_count',blockinfo_count))
             ret = False
         return ret
 
@@ -133,6 +140,25 @@ class BlockHeader(RSRCStructure):
     def check_sanity(self):
         ret = True
         return ret
+
+
+def recognizeFileType(vi, file_type, po):
+    """ Creates and returns new terminal object with given parameters
+    """
+    ftype = {
+        b'LVCC': FILE_FMT_TYPE.Control,
+        b'LVDL': FILE_FMT_TYPE.DLog,
+        b'CLIB': FILE_FMT_TYPE.ClassLib,
+        b'LVPJ': FILE_FMT_TYPE.Project,
+        b'LIBR': FILE_FMT_TYPE.Library,
+        b'LVAR': FILE_FMT_TYPE.LLB,
+        b'LMNU': FILE_FMT_TYPE.MenuPalette,
+        b'sVCC': FILE_FMT_TYPE.TemplateControl,
+        b'sVIN': FILE_FMT_TYPE.TemplateVI,
+        b'LVXC': FILE_FMT_TYPE.Xcontrol,
+        b'LVIN': FILE_FMT_TYPE.VI,
+    }.get(bytes(file_type), FILE_FMT_TYPE.NONE) # None is the default type in case of no match
+    return ftype
 
 
 class VI():
@@ -276,82 +302,14 @@ class VI():
             out_list.append( (len(out_list), conn_idx, conn_obj,) )
         return out_list
 
-    def calcPassword(self, newPassword="", write=False):
+    def setNewPassword(self, password_text=None, password_md5=None):
         """ Calculates password
         """
-        # get VI-versions container;
-        # 'LVSR' for Version 6,7,8,...
-        # 'LVIN' for Version 5
-        LVSR = self.get_one_of_or_raise('LVSR', 'LVIN')
-        # get block-diagram container;
-        # 'BDHc' for Version 10,11,12
-        # 'BDHb' for Version 7,8
-        # 'BDHP' for Version 5,6,7beta
-        BDH = self.get_one_of_or_raise('BDHc', 'BDHb', 'BDHP')
-
-        # If library name is missing, we don't fail, just use empty
-        LIBN = self.get_one_of('LIBN')
-        if LIBN is not None and LIBN.count > 0:
-            LIBN_content = b':'.join(LIBN.content)
-        else:
-            LIBN_content = b''
-
-        LVSR_content = LVSR.getRawData()
-
-        newPassBin = newPassword.encode('utf-8')
-        md5Password = md5(newPassBin).digest()
-
-        if (self.po.verbose > 2):
-            print("{:s}: LIBN_content: {}".format(self.po.input.name,LIBN_content))
-            print("{:s}: LVSR_content md5: {:s}".format(self.po.input.name,md5(LVSR_content).digest().hex()))
-
-        salt = b''
-        vers = self.get('vers')
-        if vers.verMajor() >= 12:
-            # Figure out the salt
-            salt_iface_idx = None
-            BDPW = self.get_or_raise('BDPW')
-            VCTP = self.get_or_raise('VCTP')
-            interfaceEnumerate = self.connectorEnumerate(fullType=LVconnector.CONNECTOR_FULL_TYPE.Terminal)
-            for i, iface_idx, iface_obj in interfaceEnumerate:
-                term_connectors = VCTP.getClientConnectorsByType(iface_obj)
-                salt = LVblock.BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
-                md5Hash1 = md5(md5Password + LIBN_content + LVSR_content + salt).digest()
-                if md5Hash1 == BDPW.hash_1:
-                    if (self.po.verbose > 1):
-                        print("{:s}: Found matching salt {}, interface {:d}/{:d}".format(self.po.input.name,salt.hex(),i+1,len(interfaceEnumerate)))
-                    salt_iface_idx = iface_idx
-            if salt_iface_idx is not None:
-                term_connectors = VCTP.getClientConnectorsByType(VCTP.content[salt_iface_idx])
-                salt = LVblock.BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
-            else:
-                print("{:s}: No matching salt found by Interface scan; doing brute-force scan".format(self.po.input.name))
-                for i in range(256*256*256):
-                    numberCount = 0
-                    stringCount = 0
-                    pathCount = 0
-                    for b in range(8):
-                        numberCount |= (i & (2 ** (3*b+0))) >> (2*b+0)
-                        stringCount |= (i & (2 ** (3*b+1))) >> (2*b+1)
-                        pathCount   |= (i & (2 ** (3*b+2))) >> (2*b+2)
-                    salt = LVblock.BDPW.getPasswordSaltFromTerminalCounts(numberCount, stringCount, pathCount)
-                    md5Hash1 = md5(md5Password + LIBN_content + LVSR_content + salt).digest()
-                    if md5Hash1 == BDPW.hash_1:
-                        if (self.po.verbose > 1):
-                            print("{:s}: Found matching salt {} via brute-force".format(self.po.input.name,salt.hex()))
-                        break
-
-        md5Hash1 = md5(md5Password + LIBN_content + LVSR_content + salt).digest()
-        BDH_hash = BDH.getContentHash()
-        md5Hash2 = md5(md5Hash1 + BDH_hash).digest()
-
-        out = {}
-        out['password'] = newPassword
-        out['password_md5'] = md5Password
-        out['hash_1'] = md5Hash1
-        out['hash_2'] = md5Hash2
-        self.m_password_set = out
-        return True
+        BDPW = self.get_or_raise('BDPW')
+        BDPW.setPassword(password_text=password_text, password_md5=password_md5, store=True)
+        BDPW.recalculateHash1(store=True)
+        BDPW.recalculateHash2(store=True)
+        return BDPW
 
     def get(self, name):
         if isinstance(name, str):
@@ -460,14 +418,24 @@ def main():
             print("  password md5: {:s}".format(BDPW.password_md5.hex()))
             print("  hash_1      : {:s}".format(BDPW.hash_1.hex()))
             print("  hash_2      : {:s}".format(BDPW.hash_2.hex()))
+            password_md5 = BDPW.password_md5
         else:
             print("{:s}: password block '{:s}' not found".format(po.input.name,'BDPW'))
+            password_md5 = None
 
-        if vi.calcPassword(""):
-            print("{:s}: How empty password would look like".format(po.input.name))
-            print("  password md5: {:s}".format(vi.m_password_set['password_md5'].hex()))
-            print("  hash_1      : {:s}".format(vi.m_password_set['hash_1'].hex()))
-            print("  hash_2      : {:s}".format(vi.m_password_set['hash_2'].hex()))
+        if password_md5 is not None:
+            BDPW = vi.setNewPassword(password_md5=password_md5)
+            print("{:s}: How re-computed hashes look like".format(po.input.name))
+            print("  password md5: {:s}".format(BDPW.password_md5.hex()))
+            print("  hash_1      : {:s}".format(BDPW.hash_1.hex()))
+            print("  hash_2      : {:s}".format(BDPW.hash_2.hex()))
+
+        #BDPW = vi.setNewPassword(password_text="")
+        #if BDPW is not None:
+        #    print("{:s}: How empty password would look like".format(po.input.name))
+        #    print("  password md5: {:s}".format(BDPW.password_md5.hex()))
+        #    print("  hash_1      : {:s}".format(BDPW.hash_1.hex()))
+        #    print("  hash_2      : {:s}".format(BDPW.hash_2.hex()))
 
     else:
 

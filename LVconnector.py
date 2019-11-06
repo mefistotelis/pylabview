@@ -474,11 +474,14 @@ class ConnectorObjectArray(ConnectorObject):
             if flags != 0xFFFFFFFF:
                 if ((flags & 0x80000000) != 0):
                     # Array with fixed size
-                    self.dimensions[i].flags = tmp >> 24
-                    self.dimensions[i].fixedSize = tmp & 0x00FFFFFF
+                    self.dimensions[i].flags = flags >> 24
+                    self.dimensions[i].fixedSize = flags & 0x00FFFFFF
                 else:
                     raise ValueError("Unexpected flags field in connector {:d}; fixed size flag not set in 0x{:08x}.".format(self.index,flags))
-
+            else:
+                # TODO No idea what to do here... it does happen
+                self.dimensions[i].flags = flags >> 24
+                self.dimensions[i].fixedSize = flags & 0x00FFFFFF
         self.clients = [ SimpleNamespace() ]
         cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         cli_flags = 0
