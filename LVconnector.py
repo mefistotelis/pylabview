@@ -199,7 +199,7 @@ class ConnectorObject:
             return CONNECTOR_MAIN_TYPE(self.otype >> 4)
 
     def fullType(self):
-        if self.otype not in CONNECTOR_FULL_TYPE:
+        if self.otype not in set(item.value for item in CONNECTOR_FULL_TYPE):
             return self.otype
         return CONNECTOR_FULL_TYPE(self.otype)
 
@@ -212,6 +212,9 @@ class ConnectorObject:
     def isString(self):
         return ( \
           (self.fullType() == CONNECTOR_FULL_TYPE.String));
+        # looks like these are not counted as strings?
+        #  (self.fullType() == CONNECTOR_FULL_TYPE.CString) or \
+        #  (self.fullType() == CONNECTOR_FULL_TYPE.PascalString));
 
     def isPath(self):
         return ( \
@@ -252,8 +255,8 @@ class ConnectorObject:
                 out_lists['other'].append(conn_obj)
             if (self.po.verbose > 2):
                 keys = list(out_lists)
-                print("enumerating: i={} idx={} flags={:09x} type={} connectors: {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d}"\
-                      .format(cli_idx, conn_idx,  conn_flags, conn_obj.fullType().name if isinstance(conn_obj.fullType(), enum.IntEnum) else conn_obj.fullType(),\
+                print("enumerating: {}.{} idx={} flags={:09x} type={} connectors: {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d}"\
+                      .format(self.index, cli_idx, conn_idx,  conn_flags, conn_obj.fullType().name if isinstance(conn_obj.fullType(), enum.IntEnum) else conn_obj.fullType(),\
                       keys[0],len(out_lists[keys[0]]),\
                       keys[1],len(out_lists[keys[1]]),\
                       keys[2],len(out_lists[keys[2]]),\
@@ -506,8 +509,11 @@ class ConnectorObjectArray(ConnectorObject):
             ret = False
         if (self.dimensions[0].flags & 0x80) == 0:
             ret = False
-        if self.clients[0].index >= self.index:
-            ret = False
+        for client in self.clients:
+            if client.index >= self.index:
+                if (self.po.verbose > 1):
+                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} client {:d} is reference to higher index".format(self.po.input.name,self.index,self.otype,client.index))
+                ret = False
         return ret
 
 
@@ -579,8 +585,96 @@ class ConnectorObjectRef(ConnectorObject):
         self.reftype = None
 
     def parseData(self, bldata):
+        # Skip length, flags and type - these were set in constructor
+        bldata.read(4)
         self.reftype = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        # TODO see readObjectPropertyRef in VI Explorer
+        parseRefType = {
+            CONNECTOR_REF_TYPE.DataLogFile: ConnectorObjectRef.parseRefQueue,
+            CONNECTOR_REF_TYPE.Occurrence: None,
+            CONNECTOR_REF_TYPE.TCPConnection: None,
+            CONNECTOR_REF_TYPE.ControlRefnum: ConnectorObjectRef.parseRefControl,
+            CONNECTOR_REF_TYPE.DataSocket: None,
+            CONNECTOR_REF_TYPE.UDPConnection: None,
+            CONNECTOR_REF_TYPE.NotifierRefnum: ConnectorObjectRef.parse_0Pre0Post,
+            CONNECTOR_REF_TYPE.Queue: ConnectorObjectRef.parseRefQueue,
+            CONNECTOR_REF_TYPE.IrDAConnection: None,
+            CONNECTOR_REF_TYPE.Channel: None,
+            CONNECTOR_REF_TYPE.SharedVariable: None,
+            CONNECTOR_REF_TYPE.EventRegistration: ConnectorObjectRef.parseRefEventRegist,
+            CONNECTOR_REF_TYPE.UserEvent: ConnectorObjectRef.parseRefQueue,
+            CONNECTOR_REF_TYPE.Class: None,
+            CONNECTOR_REF_TYPE.BluetoothConnectn: None,
+            CONNECTOR_REF_TYPE.DataValueRef: ConnectorObjectRef.parseRefDataValue,
+            CONNECTOR_REF_TYPE.FIFORefnum: ConnectorObjectRef.parse_0Pre0Post,
+        }.get(self.refType(), None)
+        if parseRefType is not None:
+            parseRefType(self, bldata)
+        pass
+
+    def parseRefQueue(self, bldata):
+        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        # Create _separate_ empty namespace for each connector
+        self.clients = [SimpleNamespace() for _ in range(count)]
+        for i in range(count):
+            cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            cli_flags = 0
+            self.clients[i].index = cli_idx
+            self.clients[i].flags = cli_flags
+        pass
+
+    def parseRefControl(self, bldata):
+        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        # Create _separate_ empty namespace for each connector
+        self.clients = [SimpleNamespace() for _ in range(count)]
+        for i in range(count):
+            cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            cli_flags = 0
+            self.clients[i].index = cli_idx
+            self.clients[i].flags = cli_flags
+        self.ctlflags = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        pass
+
+    def parse_0Pre0Post(self, bldata):
+        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        # Create _separate_ empty namespace for each connector
+        self.clients = [SimpleNamespace() for _ in range(count)]
+        for i in range(count):
+            cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            cli_flags = 0
+            self.clients[i].index = cli_idx
+            self.clients[i].flags = cli_flags
+        pass
+
+    def parseRefEventRegist(self, bldata):
+        self.tmp1 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        # Create _separate_ empty namespace for each connector
+        self.clients = [SimpleNamespace() for _ in range(count)]
+        for i in range(count):
+            # dont know this data!
+            tmp3 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            tmp4 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            tmp5 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            cli_flags = 0
+            self.clients[i].index = cli_idx
+            self.clients[i].flags = cli_flags
+            self.clients[i].tmp3 = tmp3
+            self.clients[i].tmp4 = tmp4
+            self.clients[i].tmp5 = tmp5
+        pass
+
+    def parseRefDataValue(self, bldata):
+        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        # Create _separate_ empty namespace for each connector
+        self.clients = [SimpleNamespace() for _ in range(count)]
+        for i in range(count):
+            # dont know this data!
+            cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            cli_flags = 0
+            self.clients[i].index = cli_idx
+            self.clients[i].flags = cli_flags
+        self.valflags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         pass
 
     def needParseData(self):
@@ -593,10 +687,32 @@ class ConnectorObjectRef(ConnectorObject):
             bldata.seek(0)
         return bldata
 
+    def checkSanity(self):
+        ret = True
+        if self.refType() in [ CONNECTOR_REF_TYPE.DataLogFile, \
+           CONNECTOR_REF_TYPE.Queue, CONNECTOR_REF_TYPE.UserEvent,
+           CONNECTOR_REF_TYPE.ControlRefnum, CONNECTOR_REF_TYPE.NotifierRefnum,
+           CONNECTOR_REF_TYPE.DataValueRef, ]:
+            if len(self.clients) > 1:
+                ret = False
+        elif self.refType() in [ CONNECTOR_REF_TYPE.EventRegistration ]:
+            if self.tmp1 != 0:
+                ret = False
+            if len(self.clients) < 1:
+                ret = False
+            pass
+
+        for client in self.clients:
+            if client.index >= self.index:
+                if (self.po.verbose > 1):
+                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} client {:d} is reference to higher index".format(self.po.input.name,self.index,self.otype,client.index))
+                ret = False
+        return ret
+
     def refType(self):
-        if self.reftype not in CONNECTOR_REF_TYPE:
+        if self.reftype not in set(item.value for item in CONNECTOR_REF_TYPE):
             return self.reftype
-        return CONNECTOR_REF_TYPE(self.otype)
+        return CONNECTOR_REF_TYPE(self.reftype)
 
 
 class ConnectorObjectCluster(ConnectorObject):
@@ -651,7 +767,7 @@ class ConnectorObjectCluster(ConnectorObject):
         return ret
 
     def clusterFormat(self):
-        if self.clusterFmt not in CONNECTOR_CLUSTER_FORMAT:
+        if self.clusterFmt not in set(item.value for item in CONNECTOR_CLUSTER_FORMAT):
             return self.clusterFmt
         return CONNECTOR_CLUSTER_FORMAT(self.clusterFmt)
 
