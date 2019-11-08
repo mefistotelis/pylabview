@@ -397,7 +397,8 @@ class BDPW(Block):
             salt_iface_idx = None
             VCTP = self.vi.get_or_raise('VCTP')
             interfaceEnumerate = self.vi.connectorEnumerate(fullType=CONNECTOR_FULL_TYPE.Terminal)
-            for i, iface_idx, iface_obj in interfaceEnumerate:
+            # Connectors count if one of the interfaces is the source of salt; usually it's the last interface, so check in reverse
+            for i, iface_idx, iface_obj in reversed(interfaceEnumerate):
                 term_connectors = VCTP.getClientConnectorsByType(iface_obj)
                 salt = BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
                 md5_hash_1 = md5(presalt_data + salt + postsalt_data).digest()
@@ -405,6 +406,7 @@ class BDPW(Block):
                     if (self.po.verbose > 1):
                         print("{:s}: Found matching salt {}, interface {:d}/{:d}".format(self.po.input.name,salt.hex(),i+1,len(interfaceEnumerate)))
                     salt_iface_idx = iface_idx
+                    break
 
             self.salt_iface_idx = salt_iface_idx
 
@@ -412,6 +414,8 @@ class BDPW(Block):
                 term_connectors = VCTP.getClientConnectorsByType(VCTP.content[salt_iface_idx])
                 salt = BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
             else:
+                # For LV14, this should only be used for a low percentage of VIs which have the salt zeroed out
+                # But in case the terminal counting algorithm isn't perfect or future format changes affect it, that will also be handy
                 print("{:s}: No matching salt found by Interface scan; doing brute-force scan".format(self.po.input.name))
                 for i in range(256*256*256):
                     numberCount = 0
