@@ -168,7 +168,7 @@ class ConnectorObject:
 
     def parseData(self, bldata):
         if (self.po.verbose > 2):
-            print("{:s}: Connector {:d} type 0x{:02x} data format isn't known; leaving raw only".format(self.po.input.name,self.index,self.otype))
+            print("{:s}: Connector {:d} type 0x{:02x} data format isn't known; leaving raw only".format(self.po.rsrc,self.index,self.otype))
         pass
 
     def needParseData(self):
@@ -241,7 +241,7 @@ class ConnectorObject:
             conn_obj.getData()
             if not conn_obj.checkSanity():
                 if (self.po.verbose > 0):
-                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} sanity check failed!".format(self.po.input.name,conn_obj.index,conn_obj.otype))
+                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} sanity check failed!".format(self.po.rsrc,conn_obj.index,conn_obj.otype))
             # Add connectors of this Terminal to list
             if conn_obj.isNumber():
                 out_lists['number'].append(conn_obj)
@@ -295,12 +295,12 @@ class ConnectorObjectNumber(ConnectorObject):
         ret = True
         if (self.prop1 != 0):
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 {:d}, expected {:d}".format(self.po.input.name,self.index,self.otype,self.prop1,0))
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 {:d}, expected {:d}".format(self.po.rsrc,self.index,self.otype,self.prop1,0))
             ret = False
         expsize = 4+1 # We do not parse the whole chunk; complete size is larger
         if len(self.raw_data) < expsize:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}".format(self.po.input.name,self.index,self.otype,len(self.raw_data),expsize))
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}".format(self.po.rsrc,self.index,self.otype,len(self.raw_data),expsize))
             ret = False
         return ret
 
@@ -329,7 +329,7 @@ class ConnectorObjectNumberPtr(ConnectorObject):
         expsize = 4 # We do not parse the whole chunk; complete size is larger
         if len(self.raw_data) < expsize:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}".format(self.po.input.name,self.index,self.otype,len(self.raw_data),expsize))
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}".format(self.po.rsrc,self.index,self.otype,len(self.raw_data),expsize))
             ret = False
         return ret
 
@@ -359,12 +359,12 @@ class ConnectorObjectBlob(ConnectorObject):
         ret = True
         if self.prop1 != 0xFFFFFFFF:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}".format(self.po.input.name,self.index,self.otype,self.prop1,0xFFFFFFFF))
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}".format(self.po.rsrc,self.index,self.otype,self.prop1,0xFFFFFFFF))
             ret = False
         expsize = 4 # We do not parse the whole chunk; complete size is larger
         if len(self.raw_data) < expsize:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}".format(self.po.input.name,self.index,self.otype,len(self.raw_data),expsize))
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}".format(self.po.rsrc,self.index,self.otype,len(self.raw_data),expsize))
             ret = False
         return ret
 
@@ -411,7 +411,7 @@ class ConnectorObjectTerminal(ConnectorObject):
         vers = self.vi.get('vers')
         if (len(self.clients) > 125):
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}".format(self.po.input.name,self.index,self.otype,self.prop1,0xFFFFFFFF))
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}".format(self.po.rsrc,self.index,self.otype,self.prop1,0xFFFFFFFF))
             ret = False
         if vers.verMajor() >= 8:
             expsize = 4 + 2 + 2 * len(self.clients) + 4 + 2 + 4 * len(self.clients)
@@ -419,7 +419,7 @@ class ConnectorObjectTerminal(ConnectorObject):
             expsize = 4 + 2 + 2 * len(self.clients) + 4 + 2 * len(self.clients)
         if len(self.raw_data) != expsize:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}".format(self.po.input.name,self.index,self.otype,len(self.raw_data),expsize))
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}".format(self.po.rsrc,self.index,self.otype,len(self.raw_data),expsize))
             ret = False
         return ret
 
@@ -512,7 +512,7 @@ class ConnectorObjectArray(ConnectorObject):
         for client in self.clients:
             if client.index >= self.index:
                 if (self.po.verbose > 1):
-                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} client {:d} is reference to higher index".format(self.po.input.name,self.index,self.otype,client.index))
+                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} client {:d} is reference to higher index".format(self.po.rsrc,self.index,self.otype,client.index))
                 ret = False
         return ret
 
@@ -568,11 +568,11 @@ class ConnectorObjectUnit(ConnectorObject):
         ret = True
         if (self.padding1 is not None) and (self.padding1 != b'\0'):
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Unit {:d} type 0x{:02x} padding1 {}, expected zeros".format(self.po.input.name,self.index,self.otype,self.padding1))
+                eprint("{:s}: Warning: Unit {:d} type 0x{:02x} padding1 {}, expected zeros".format(self.po.rsrc,self.index,self.otype,self.padding1))
             ret = False
         if self.prop1 != 0:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Unit {:d} type 0x{:02x} prop1 {:d}, expected {:d}".format(self.po.input.name,self.index,self.otype,self.prop1,0))
+                eprint("{:s}: Warning: Unit {:d} type 0x{:02x} prop1 {:d}, expected {:d}".format(self.po.rsrc,self.index,self.otype,self.prop1,0))
             ret = False
         if len(self.values) < 1:
             ret = False
@@ -705,7 +705,7 @@ class ConnectorObjectRef(ConnectorObject):
         for client in self.clients:
             if client.index >= self.index:
                 if (self.po.verbose > 1):
-                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} client {:d} is reference to higher index".format(self.po.input.name,self.index,self.otype,client.index))
+                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} client {:d} is reference to higher index".format(self.po.rsrc,self.index,self.otype,client.index))
                 ret = False
         return ret
 
@@ -739,7 +739,7 @@ class ConnectorObjectCluster(ConnectorObject):
 
         else:
             if (self.po.verbose > 2):
-                print("{:s}: Connector {:d} cluster type 0x{:02x} data format isn't known; leaving raw only".format(self.po.input.name,self.index,self.otype))
+                print("{:s}: Connector {:d} cluster type 0x{:02x} data format isn't known; leaving raw only".format(self.po.rsrc,self.index,self.otype))
         pass
 
     def needParseData(self):

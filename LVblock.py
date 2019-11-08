@@ -131,7 +131,7 @@ class Block(object):
                 minSize = min(minSize, block.block_pos - self.block_pos)
         self.size = minSize
         if (self.po.verbose > 1):
-            print("{:s}: Block {} max data size set to {:d} bytes".format(self.po.input.name,self.name,self.size))
+            print("{:s}: Block {} max data size set to {:d} bytes".format(self.po.rsrc,self.name,self.size))
         return minSize
 
     def readRawDataSections(self, section_count=1):
@@ -141,7 +141,7 @@ class Block(object):
             sum_size += last_blksect_size
 
             if (self.po.verbose > 2):
-                print("{:s}: Block {} section {:d} header at pos {:d}".format(self.po.input.name,self.name,i,self.block_pos + sum_size))
+                print("{:s}: Block {} section {:d} header at pos {:d}".format(self.po.rsrc,self.name,i,self.block_pos + sum_size))
             self.vi.fh.seek(self.block_pos + sum_size)
 
             blksect = BlockSection(self.po)
@@ -191,7 +191,7 @@ class Block(object):
 
     def parseData(self, bldata):
         if (self.po.verbose > 2):
-            print("{:s}: Block {} data format isn't known; leaving raw only".format(self.po.input.name,self.name))
+            print("{:s}: Block {} data format isn't known; leaving raw only".format(self.po.rsrc,self.name))
         pass
 
     def needParseData(self):
@@ -389,7 +389,7 @@ class BDPW(Block):
         vers = self.vi.get('vers')
         if vers is None:
             if (po.verbose > 0):
-                eprint("{:s}: Warning: Block {} not found; using empty password salt".format(self.po.input.name,'vers'))
+                eprint("{:s}: Warning: Block {} not found; using empty password salt".format(self.po.rsrc,'vers'))
             self.salt = salt
             return salt
         if vers.verMajor() >= 12:
@@ -404,7 +404,7 @@ class BDPW(Block):
                 md5_hash_1 = md5(presalt_data + salt + postsalt_data).digest()
                 if md5_hash_1 == self.hash_1:
                     if (self.po.verbose > 1):
-                        print("{:s}: Found matching salt {}, interface {:d}/{:d}".format(self.po.input.name,salt.hex(),i+1,len(interfaceEnumerate)))
+                        print("{:s}: Found matching salt {}, interface {:d}/{:d}".format(self.po.rsrc,salt.hex(),i+1,len(interfaceEnumerate)))
                     salt_iface_idx = iface_idx
                     break
 
@@ -416,7 +416,7 @@ class BDPW(Block):
             else:
                 # For LV14, this should only be used for a low percentage of VIs which have the salt zeroed out
                 # But in case the terminal counting algorithm isn't perfect or future format changes affect it, that will also be handy
-                print("{:s}: No matching salt found by Interface scan; doing brute-force scan".format(self.po.input.name))
+                print("{:s}: No matching salt found by Interface scan; doing brute-force scan".format(self.po.rsrc))
                 for i in range(256*256*256):
                     numberCount = 0
                     stringCount = 0
@@ -429,7 +429,7 @@ class BDPW(Block):
                     md5_hash_1 = md5(presalt_data + salt + postsalt_data).digest()
                     if md5_hash_1 == self.hash_1:
                         if (self.po.verbose > 1):
-                            print("{:s}: Found matching salt {} via brute-force".format(self.po.input.name,salt.hex()))
+                            print("{:s}: Found matching salt {} via brute-force".format(self.po.rsrc,salt.hex()))
                         break
         self.salt = salt
         return salt
@@ -493,8 +493,8 @@ class BDPW(Block):
         LVSR_content = LVSR.getRawData()
 
         if (self.po.verbose > 2):
-            print("{:s}: LIBN_content: {}".format(self.po.input.name,LIBN_content))
-            print("{:s}: LVSR_content md5: {:s}".format(self.po.input.name,md5(LVSR_content).digest().hex()))
+            print("{:s}: LIBN_content: {}".format(self.po.rsrc,LIBN_content))
+            print("{:s}: LVSR_content md5: {:s}".format(self.po.rsrc,md5(LVSR_content).digest().hex()))
 
         salt = self.findHashSalt(password_md5, LIBN_content, LVSR_content)
 
@@ -682,7 +682,7 @@ class VCTP(Block):
         type_list = conn_obj.getClientConnectorsByType()
         if (self.po.verbose > 1):
             print("{:s}: Terminal {:d} connectors: {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d}"\
-              .format(self.po.input.name,conn_obj.index,\
+              .format(self.po.rsrc,conn_obj.index,\
               'number',len(type_list['number']),\
               'path',len(type_list['path']),\
               'string',len(type_list['string']),\

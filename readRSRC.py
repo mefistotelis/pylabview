@@ -77,16 +77,16 @@ class RSRCHeader(RSRCStructure):
         ret = True
         if bytes(self.id1) != b'RSRC\r\n':
             if (self.po.verbose > 0):
-                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.input.name,'id1',bytes(self.id1)))
+                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.rsrc,'id1',bytes(self.id1)))
             ret = False
         self.ftype = recognizeFileType(self, self.file_type, self.po)
         if self.ftype == FILE_FMT_TYPE.NONE:
             if (self.po.verbose > 0):
-                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.input.name,'file_type',bytes(self.file_type)))
+                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.rsrc,'file_type',bytes(self.file_type)))
             ret = False
         if bytes(self.id4) != b'LBVW':
             if (self.po.verbose > 0):
-                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.input.name,'id4',bytes(self.id4)))
+                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.rsrc,'id4',bytes(self.id4)))
             ret = False
         return ret
 
@@ -122,7 +122,7 @@ class BlockInfoHeader(RSRCStructure):
         ret = True
         if self.blockinfo_count > 4096: # Arbitrary limit - hard to tell whether it makes sense
             if (self.po.verbose > 0):
-                eprint("{:s}: BlockInfo Header field '{:s}' has outranged value: {:d}".format(self.po.input.name,'blockinfo_count',blockinfo_count))
+                eprint("{:s}: BlockInfo Header field '{:s}' has outranged value: {:d}".format(self.po.rsrc,'blockinfo_count',blockinfo_count))
             ret = False
         return ret
 
@@ -262,7 +262,7 @@ class VI():
             # so give each block reference to the vi object
             if isinstance(bfactory, type):
                 if (self.po.verbose > 1):
-                    print("{:s}: Block {:s} recognized".format(self.po.input.name,name))
+                    print("{:s}: Block {:s} recognized".format(self.po.rsrc,name))
                 block = bfactory(self, block_head, self.po)
             else:
                 block = LVblock.Block(self, block_head, self.po)
@@ -352,22 +352,33 @@ def main():
 
     parser = argparse.ArgumentParser(description=__doc__)
 
-    parser.add_argument('-i', '--input', required=True, type=argparse.FileType('rb'),
-            help='name of the input LabView RSRC file')
+    parser.add_argument('-i', '--rsrc', '--vi', default="", type=str,
+            help='name of the LabView RSRC file, VI or other')
+
+    parser.add_argument('-m', '--xml', default="", type=str,
+            help='name of the main XML file of extracted VI dataset')
 
     parser.add_argument("-v", "--verbose", action="count", default=0,
             help="Increases verbosity level; max level is set by -vvv")
 
-    subparser = parser.add_mutually_exclusive_group()
+    subparser = parser.add_mutually_exclusive_group(required=True)
 
     subparser.add_argument("-l", "--list", action="store_true",
-            help="list content of input file")
+            help="list content of RSRC file")
+
+    subparser.add_argument("-d", "--dump", action="store_true",
+            help="dump items from RSRC file into XML and BINs, with minimal" \
+            " parsing of the data inside")
 
     subparser.add_argument("-x", "--extract", action="store_true",
-            help="extract items within input file")
+            help="extract content of RSRC file into XMLs, parsing all blocks" \
+            " which structure is known")
 
-    subparser.add_argument("-p", "--password", action="store_true",
-            help="print password data from input file")
+    subparser.add_argument("-n", "--info", action="store_true",
+            help="print general information about RSRC file")
+
+    subparser.add_argument("-p", "--password", default=None, type=str,
+            help="change password and re-compute checksums within RSRC file")
 
     subparser.add_argument("--version", action='version', version="%(prog)s {version} by {author}"
               .format(version=__version__,author=__author__),
@@ -375,67 +386,105 @@ def main():
 
     po = parser.parse_args()
 
+    if len(po.xml) > 0:
+        po.filebase = os.path.splitext(os.path.basename(po.xml))[0]
+    elif len(po.rsrc) > 0:
+        po.filebase = os.path.splitext(os.path.basename(po.rsrc))[0]
+    else:
+        raise FileNotFoundError("Input file was not provided neither as RSRC or XML.")
+
     if po.list:
 
+        if len(po.rsrc) == 0:
+            raise FileNotFoundError("Only RSRC file listing is currently supported.")
+
         if (po.verbose > 0):
-            print("{}: Starting file parse for listing".format(po.input.name))
-        vi = VI(po.input, po)
+            print("{}: Starting file parse for listing".format(po.rsrc))
+        rsrcfile = open(po.rsrc, "rb")
+        vi = VI(rsrcfile, po)
 
         print("{}\t{}".format("name","content"))
         for name, block in vi.blocks.items():
             pretty_name = block.name.decode(encoding='UTF-8')
             print("{}\t{}".format(pretty_name,str(block)))
 
+    elif po.dump:
+
+        if len(po.xml) == 0:
+            po.xml = po.filebase + ".xml"
+        # TODO find any existing
+        if len(po.rsrc) == 0:
+            po.rsrc = po.filebase + ".rsrc"
+
+        if (po.verbose > 0):
+            print("{}: Starting file parse for dumping".format(po.rsrc))
+        rsrcfile = open(po.rsrc, "rb")
+        vi = VI(rsrcfile, po)
+
+        for name, block in vi.blocks.items():
+            pretty_name = block.name.decode(encoding='UTF-8')
+            pretty_name = re.sub('[^a-zA-Z0-9_-]+', '', pretty_name)
+            fname = "dumps/" + pretty_name + ".bin"
+            if (po.verbose > 0):
+                print("{}: Writing {}".format(po.rsrc,fname))
+            bldata = block.getData()
+            open(fname, "wb").write(bldata.read(0xffffffff))
+
     elif po.extract:
 
         if (po.verbose > 0):
-            print("{}: Starting file parse for extraction".format(po.input.name))
-        vi = VI(po.input, po)
+            print("{}: Starting file parse for extraction".format(po.rsrc))
+        rsrcfile = open(po.rsrc, "rb")
+        vi = VI(rsrcfile, po)
 
         for name, block in vi.blocks.items():
             pretty_name = block.name.decode(encoding='UTF-8')
             fname = "dumps/" + pretty_name + ".bin"
             if (po.verbose > 0):
-                print("{}: Writing {}".format(po.input.name,fname))
+                print("{}: Writing {}".format(po.rsrc,fname))
             bldata = block.getData()
             open(fname, "wb").write(bldata.read(0xffffffff))
         if vi.icon is not None:
             pretty_name = vi.icon.name.decode(encoding='UTF-8')
             fname = "dumps/" + pretty_name + ".bin"
             if (po.verbose > 0):
-                print("{}: Writing {}".format(po.input.name,fname))
+                print("{}: Writing {}".format(po.rsrc,fname))
             vi.icon.save(fname)
 
-    elif po.password:
+    elif po.password is not None:
+
+        if len(po.rsrc) == 0:
+            raise FileNotFoundError("Only RSRC file listing is currently supported.")
 
         if (po.verbose > 0):
-            print("{}: Starting file parse for password print".format(po.input.name))
-        vi = VI(po.input, po)
+            print("{}: Starting file parse for password print".format(po.rsrc))
+        rsrcfile = open(po.rsrc, "rb")
+        vi = VI(rsrcfile, po)
 
         BDPW = vi.get('BDPW')
         if BDPW is not None:
-            print("{:s}: Stored password data".format(po.input.name))
+            print("{:s}: Stored password data".format(po.rsrc))
             print("  password md5: {:s}".format(BDPW.password_md5.hex()))
             print("  hash_1      : {:s}".format(BDPW.hash_1.hex()))
             print("  hash_2      : {:s}".format(BDPW.hash_2.hex()))
             password_md5 = BDPW.password_md5
         else:
-            print("{:s}: password block '{:s}' not found".format(po.input.name,'BDPW'))
+            print("{:s}: password block '{:s}' not found".format(po.rsrc,'BDPW'))
             password_md5 = None
 
         if password_md5 is not None:
             BDPW = vi.setNewPassword(password_md5=password_md5)
-            print("{:s}: How re-computed hashes look like".format(po.input.name))
+            print("{:s}: How re-computed hashes look like".format(po.rsrc))
             print("  password md5: {:s}".format(BDPW.password_md5.hex()))
             print("  hash_1      : {:s}".format(BDPW.hash_1.hex()))
             print("  hash_2      : {:s}".format(BDPW.hash_2.hex()))
 
-        #BDPW = vi.setNewPassword(password_text="")
-        #if BDPW is not None:
-        #    print("{:s}: How empty password would look like".format(po.input.name))
-        #    print("  password md5: {:s}".format(BDPW.password_md5.hex()))
-        #    print("  hash_1      : {:s}".format(BDPW.hash_1.hex()))
-        #    print("  hash_2      : {:s}".format(BDPW.hash_2.hex()))
+        BDPW = vi.setNewPassword(password_text=po.password)
+        if BDPW is not None:
+            print("{:s}: How given password would look like".format(po.rsrc))
+            print("  password md5: {:s}".format(BDPW.password_md5.hex()))
+            print("  hash_1      : {:s}".format(BDPW.hash_1.hex()))
+            print("  hash_2      : {:s}".format(BDPW.hash_2.hex()))
 
     else:
 
