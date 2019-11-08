@@ -162,8 +162,8 @@ def recognizeFileType(vi, file_type, po):
 
 
 class VI():
-    def __init__(self, fh, po):
-        self.fh = fh
+    def __init__(self, rsrc_fh, po):
+        self.rsrc_fh = rsrc_fh
         self.po = po
         self.rsrc_headers = []
         self.block_headers = []
@@ -174,7 +174,7 @@ class VI():
         """ Read all RSRC headers from input file and check their sanity.
             After this function, `self.rsrc_headers` is filled with a list of RSRC Headers.
         """
-        fh = self.fh
+        fh = self.rsrc_fh
         rsrc_headers = []
         curr_rsrc_pos = -1
         next_rsrc_pos = 0
@@ -203,7 +203,7 @@ class VI():
             This function requires `self.rsrc_headers` to be filled.
             After this function, `self.block_headers` is filled with a list of Block Headers.
         """
-        fh = self.fh
+        fh = self.rsrc_fh
         blkinf_rsrchead = self.rsrc_headers[-1]
 
         # Set file position just after Block-Infos RSRC header
@@ -251,7 +251,7 @@ class VI():
         """ Read data sections for all Blocks from the input file.
             This function requires `self.block_headers` to be filled.
         """
-        fh = self.fh
+        fh = self.rsrc_fh
         # Create Array of Block; use classes defined within LVblock namespace to read data
         # specific to given block type; when block name is unrecognized, create generic block
         blocks_arr = []
@@ -353,36 +353,38 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
 
     parser.add_argument('-i', '--rsrc', '--vi', default="", type=str,
-            help='name of the LabView RSRC file, VI or other')
+            help="name of the LabView RSRC file, VI or other")
 
     parser.add_argument('-m', '--xml', default="", type=str,
-            help='name of the main XML file of extracted VI dataset')
+            help="name of the main XML file of extracted VI dataset;" \
+            "default is RSRC file name with extension changed to xml")
 
-    parser.add_argument("-v", "--verbose", action="count", default=0,
-            help="Increases verbosity level; max level is set by -vvv")
+    parser.add_argument('-v', '--verbose', action='count', default=0,
+            help="increases verbosity level; max level is set by -vvv")
 
     subparser = parser.add_mutually_exclusive_group(required=True)
 
-    subparser.add_argument("-l", "--list", action="store_true",
+    subparser.add_argument('-l', '--list', action='store_true',
             help="list content of RSRC file")
 
-    subparser.add_argument("-d", "--dump", action="store_true",
+    subparser.add_argument('-d', '--dump', action='store_true',
             help="dump items from RSRC file into XML and BINs, with minimal" \
             " parsing of the data inside")
 
-    subparser.add_argument("-x", "--extract", action="store_true",
+    subparser.add_argument('-x', '--extract', action='store_true',
             help="extract content of RSRC file into XMLs, parsing all blocks" \
             " which structure is known")
 
-    subparser.add_argument("-n", "--info", action="store_true",
+    subparser.add_argument('-n', '--info', action='store_true',
             help="print general information about RSRC file")
 
-    subparser.add_argument("-p", "--password", default=None, type=str,
-            help="change password and re-compute checksums within RSRC file")
+    subparser.add_argument('-p', '--password', default=None, type=str,
+            help="change password and re-compute checksums within RSRC file;" \
+            " save changes in-place, to the RSRC file")
 
-    subparser.add_argument("--version", action='version', version="%(prog)s {version} by {author}"
+    subparser.add_argument('--version', action='version', version="%(prog)s {version} by {author}"
               .format(version=__version__,author=__author__),
-            help="Display version information and exit")
+            help="display version information and exit")
 
     po = parser.parse_args()
 

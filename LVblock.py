@@ -104,10 +104,11 @@ class Block(object):
             self.vi.rsrc_headers[-1].rsrc_offset + \
             self.vi.binflsthead.blockinfo_offset + \
             self.header.offset
-        self.vi.fh.seek(start_pos)
+        fh = self.vi.rsrc_fh
+        fh.seek(start_pos)
 
         blkstart = BlockStart(self.po)
-        if self.vi.fh.readinto(blkstart) != sizeof(blkstart):
+        if fh.readinto(blkstart) != sizeof(blkstart):
             raise EOFError("Could not read BlockStart data.")
         if not blkstart.checkSanity():
             raise IOError("BlockStart data sanity check failed.")
@@ -137,15 +138,16 @@ class Block(object):
     def readRawDataSections(self, section_count=1):
         last_blksect_size = sum_size = 0
         prev_section_count = len(self.raw_data)
+        fh = self.vi.rsrc_fh
         for i in range(0, section_count):
             sum_size += last_blksect_size
 
             if (self.po.verbose > 2):
                 print("{:s}: Block {} section {:d} header at pos {:d}".format(self.po.rsrc,self.name,i,self.block_pos + sum_size))
-            self.vi.fh.seek(self.block_pos + sum_size)
+            fh.seek(self.block_pos + sum_size)
 
             blksect = BlockSection(self.po)
-            if self.vi.fh.readinto(blksect) != sizeof(blksect):
+            if fh.readinto(blksect) != sizeof(blksect):
                 raise EOFError("Could not read BlockSection data for block {} at {:d}.".format(self.name,self.block_pos+sum_size))
             if not blksect.checkSanity():
                 raise IOError("BlockSection data for block {} sanity check failed.".format(self.name))
@@ -159,7 +161,7 @@ class Block(object):
                     raise IOError("Out of block/container data in {} ({:d} + {:d}) > {:d}"\
                       .format(self.name, sum_size, blksect.size, self.size))
 
-                data = self.vi.fh.read(blksect.size)
+                data = fh.read(blksect.size)
                 self.raw_data.append(data)
             # Set last size, padded to multiplicity of 4 bytes
             last_blksect_size = blksect.size
