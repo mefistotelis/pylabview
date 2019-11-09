@@ -143,23 +143,34 @@ class BlockHeader(RSRCStructure):
         return ret
 
 
+def getIdForFileType(ftype):
+    """ Gives 4-byte file identifier from FILE_FMT_TYPE member
+    """
+    file_type = {
+        FILE_FMT_TYPE.Control: b'LVCC',
+        FILE_FMT_TYPE.DLog: b'LVDL',
+        FILE_FMT_TYPE.ClassLib: b'CLIB',
+        FILE_FMT_TYPE.Project: b'LVPJ',
+        FILE_FMT_TYPE.Library: b'LIBR',
+        FILE_FMT_TYPE.LLB: b'LVAR',
+        FILE_FMT_TYPE.MenuPalette: b'LMNU',
+        FILE_FMT_TYPE.TemplateControl: b'sVCC',
+        FILE_FMT_TYPE.TemplateVI: b'sVIN',
+        FILE_FMT_TYPE.Xcontrol: b'LVXC',
+        FILE_FMT_TYPE.VI: b'LVIN',
+    }.get(ftype, b'')
+    return file_type
+
+
 def recognizeFileType(file_type):
     """ Gives FILE_FMT_TYPE member from given 4-byte file identifier
     """
-    ftype = {
-        b'LVCC': FILE_FMT_TYPE.Control,
-        b'LVDL': FILE_FMT_TYPE.DLog,
-        b'CLIB': FILE_FMT_TYPE.ClassLib,
-        b'LVPJ': FILE_FMT_TYPE.Project,
-        b'LIBR': FILE_FMT_TYPE.Library,
-        b'LVAR': FILE_FMT_TYPE.LLB,
-        b'LMNU': FILE_FMT_TYPE.MenuPalette,
-        b'sVCC': FILE_FMT_TYPE.TemplateControl,
-        b'sVIN': FILE_FMT_TYPE.TemplateVI,
-        b'LVXC': FILE_FMT_TYPE.Xcontrol,
-        b'LVIN': FILE_FMT_TYPE.VI,
-    }.get(bytes(file_type), FILE_FMT_TYPE.NONE) # None is the default type in case of no match
-    return ftype
+    file_type_id = bytes(file_type)
+    for ftype in FILE_FMT_TYPE:
+        curr_file_type_id = getIdForFileType(ftype)
+        if len(curr_file_type_id) > 0 and (curr_file_type_id == file_type_id):
+            return ftype
+    return FILE_FMT_TYPE.NONE
 
 
 def getFileExtByType(ftype):
@@ -191,13 +202,18 @@ def getExistingRSRCFileWithBase(filebase):
     return ""
 
 class VI():
-    def __init__(self, rsrc_fh, po):
+    def __init__(self, po, rsrc_fh=None, xml_root=None):
         self.rsrc_fh = rsrc_fh
+        self.xml_root = xml_root
         self.po = po
         self.rsrc_headers = []
         self.block_headers = []
+        self.ftype = FILE_FMT_TYPE.NONE
 
-        self.readRSRC()
+        if rsrc_fh is not None:
+            self.readRSRC()
+        elif xml_root is not None:
+            self.readXML()
 
     def readRSRCList(self):
         """ Read all RSRC headers from input file and check their sanity.
@@ -234,6 +250,9 @@ class VI():
         """
         fh = self.rsrc_fh
         blkinf_rsrchead = self.rsrc_headers[-1]
+        # We expect two rsrc_headers in the RSRC file
+        # File type should be identical in both headers
+        self.ftype = blkinf_rsrchead.ftype
 
         # Set file position just after Block-Infos RSRC header
         fh.seek(blkinf_rsrchead.rsrc_offset + sizeof(blkinf_rsrchead))
@@ -313,6 +332,10 @@ class VI():
         self.readBlockData()
 
         self.icon = self.blocks['icl8'].loadIcon() if 'icl8' in self.blocks else None
+
+    def readXML(self):
+        raise NotImplementedError('Unfinished.')
+        pass
 
     def exportBinBlocksXMLTree(self):
         """ Export the file data into BIN files with XML glue
@@ -433,6 +456,9 @@ def main():
             help="extract content of RSRC file into XMLs, parsing all blocks" \
             " which structure is known")
 
+    subparser.add_argument('-c', '--create', action='store_true',
+            help="create RSRC file using information from XMLs")
+
     subparser.add_argument('-n', '--info', action='store_true',
             help="print general information about RSRC file")
 
@@ -459,9 +485,9 @@ def main():
             raise FileNotFoundError("Only RSRC file listing is currently supported.")
 
         if (po.verbose > 0):
-            print("{}: Starting file parse for listing".format(po.rsrc))
-        rsrcfile = open(po.rsrc, "rb")
-        vi = VI(rsrcfile, po)
+            print("{}: Starting file parse for RSRC listing".format(po.rsrc))
+        with open(po.rsrc, "rb") as rsrc_fh:
+            vi = VI(po, rsrc_fh=rsrc_fh)
 
         print("{}\t{}".format("name","content"))
         for name, block in vi.blocks.items():
@@ -478,16 +504,17 @@ def main():
             raise FileNotFoundError("No supported RSRC file was found despite checking all extensions.")
 
         if (po.verbose > 0):
-            print("{}: Starting file parse for dumping".format(po.rsrc))
-        rsrcfile = open(po.rsrc, "rb")
-        vi = VI(rsrcfile, po)
+            print("{}: Starting file parse for RSRC dumping".format(po.rsrc))
+        with open(po.rsrc, "rb") as rsrc_fh:
+            vi = VI(po, rsrc_fh=rsrc_fh)
+
         root = vi.exportBinBlocksXMLTree()
 
         if (po.verbose > 0):
             print("{}: Writing binding XML".format(po.xml))
         tree = ET.ElementTree(root)
-        with open(po.xml, "wb") as xml_fd:
-            tree.write(xml_fd, encoding='utf-8', xml_declaration=True)
+        with open(po.xml, "wb") as xml_fh:
+            tree.write(xml_fh, encoding='utf-8', xml_declaration=True)
 
     elif po.extract:
 
@@ -499,27 +526,42 @@ def main():
             raise FileNotFoundError("No supported RSRC file was found despite checking all extensions.")
 
         if (po.verbose > 0):
-            print("{}: Starting file parse for extraction".format(po.rsrc))
-        rsrcfile = open(po.rsrc, "rb")
-        vi = VI(rsrcfile, po)
+            print("{}: Starting file parse for RSRC extraction".format(po.rsrc))
+        with open(po.rsrc, "rb") as rsrc_fh:
+            vi = VI(po, rsrc_fh=rsrc_fh)
+
         root = vi.exportXMLTree()
 
         if (po.verbose > 0):
             print("{}: Writing binding XML".format(po.xml))
         tree = ET.ElementTree(root)
-        with open(po.xml, "wb") as xml_fd:
-            tree.write(xml_fd, encoding='utf-8', xml_declaration=True)
+        with open(po.xml, "wb") as xml_fh:
+            tree.write(xml_fh, encoding='utf-8', xml_declaration=True)
+
+    elif po.create:
+
+        if len(po.xml) == 0:
+            po.xml = po.filebase + ".xml"
+
+        if (po.verbose > 0):
+            print("{}: Starting file parse for RSRC creation".format(po.rsrc))
+        with ET.parse(po.xml) as tree:
+            vi = VI(po, xml_root=tree.getroot())
+
+        if len(po.rsrc) == 0:
+            po.rsrc = po.filebase + "." + getFileExtByType(vi.ftype)
+
+        raise NotImplementedError('Unfinished.')
 
     elif po.password is not None:
 
-        # getFileExtByType(ftype)
         if len(po.rsrc) == 0:
             raise FileNotFoundError("Only RSRC file listing is currently supported.")
 
         if (po.verbose > 0):
             print("{}: Starting file parse for password print".format(po.rsrc))
-        rsrcfile = open(po.rsrc, "rb")
-        vi = VI(rsrcfile, po)
+        with open(po.rsrc, "rb") as rsrc_fh:
+            vi = VI(po, rsrc_fh=rsrc_fh)
 
         BDPW = vi.get('BDPW')
         if BDPW is not None:
