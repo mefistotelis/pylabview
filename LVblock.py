@@ -23,11 +23,13 @@ Interpreting content of specific block types within RSRC files.
 
 
 import enum
+import re
 
 from PIL import Image
 from hashlib import md5
 from zlib import decompress
 from io import BytesIO
+import xml.etree.ElementTree as ET
 from ctypes import *
 
 from LVmisc import *
@@ -226,6 +228,21 @@ class Block(object):
         else:
             raise ValueError("Unsupported compression type")
         return data
+
+    def exportXMLTree(self):
+        """ Export the file data into XML tree
+        """
+        pretty_name = self.name.decode(encoding='UTF-8')
+        pretty_name = re.sub('[^a-zA-Z0-9_-]+', '', pretty_name)
+        block_fname = self.po.filebase + "_" + pretty_name + ".bin"
+        bldata = self.getData()
+        with open(block_fname, "wb") as block_fd:
+            block_fd.write(bldata.read(0xffffffff))
+        elem = ET.Element(pretty_name)
+        elem.tail = "\n"
+        elem.set("Format", "bin")
+        elem.set("File", block_fname)
+        return elem
 
     def __repr__(self):
         bldata = self.getData()
