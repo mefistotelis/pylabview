@@ -36,10 +36,25 @@ from LVmisc import *
 from LVconnector import *
 
 
-class BLOCK_COMPRESSION(enum.Enum):
+class BLOCK_CODING(enum.Enum):
     NONE = 0
     ZLIB = 1
     XOR = 2
+
+
+class BlockHeader(RSRCStructure):
+    _fields_ = [('name', c_ubyte * 4),	#0
+                ('count', c_uint32),	#4
+                ('offset', c_uint32),	#8
+    ]
+
+    def __init__(self, po):
+        self.po = po
+        pass
+
+    def check_sanity(self):
+        ret = True
+        return ret
 
 
 class BlockStart(RSRCStructure):
@@ -71,6 +86,7 @@ class BlockSection(RSRCStructure):
         ret = True
         return ret
 
+
 class LVSRData(RSRCStructure):
     _fields_ = [('version', c_uint32),	#0
                 ('int2', c_uint16),		#4
@@ -80,6 +96,7 @@ class LVSRData(RSRCStructure):
     def __init__(self, po):
         self.po = po
         pass
+
 
 class versData(RSRCStructure):
     _fields_ = [('version', c_uint32),		#0
@@ -93,19 +110,36 @@ class versData(RSRCStructure):
 
 
 class Block(object):
-    def __init__(self, vi, header, po):
+    def __init__(self, vi, po):
         """ Creates new Block object, capable of retrieving Block data.
         """
         self.vi = vi
-        self.header = header
         self.po = po
+        # set by initWith*()
+        self.header = None
+        self.name = None
+        self.sections = []
+        self.section_loaded = -1
+        self.section_requested = 0
+        self.start = None
+        self.block_pos = None
+        # set by getRawData()
+        self.size = None
+
+    def initWithRSRC(self, header):
+        self.header = header
         self.name = bytes(header.name)
-        self.count = header.count + 1
-        self.raw_data = []
+
+        self.sections = [SimpleNamespace() for _ in range(header.count + 1)]
+        for section in self.sections:
+            section.raw_data = None
+        self.section_loaded = -1
+
         start_pos = \
             self.vi.rsrc_headers[-1].rsrc_offset + \
             self.vi.binflsthead.blockinfo_offset + \
             self.header.offset
+
         fh = self.vi.rsrc_fh
         fh.seek(start_pos)
 
@@ -121,7 +155,24 @@ class Block(object):
         self.block_pos = \
             self.vi.binflsthead.dataset_offset + \
             self.start.offset
-        self.size = None
+
+        if (self.po.verbose > 2):
+            print("{:s}: Block {} has {:d} sections".format(self.po.rsrc,self.name,len(self.sections)))
+
+    def initWithXML(self, block_elem):
+        self.name = block_elem.tag.encode("utf-8")
+        self.header = BlockHeader(self.po)
+        self.header.name = (c_ubyte * 4).from_buffer_copy(self.header)
+        self.start = BlockStart(self.po)
+
+        self.sections = [SimpleNamespace() for _ in range(len(block_elem))]
+        for section in self.sections:
+            section.raw_data = None
+        self.section_loaded = -1
+
+        self.header.count = len(self.sections) - 1
+
+        raise NotImplementedError('Unfinished.')
 
     def setSizeFromBlocks(self):
         """ Set data size of this block
@@ -139,16 +190,20 @@ class Block(object):
 
     def readRawDataSections(self, section_count=1):
         last_blksect_size = sum_size = 0
-        prev_section_count = len(self.raw_data)
+
         fh = self.vi.rsrc_fh
         for i in range(0, section_count):
             sum_size += last_blksect_size
+            section = self.sections[i]
 
             if (self.po.verbose > 2):
                 print("{:s}: Block {} section {:d} header at pos {:d}".format(self.po.rsrc,self.name,i,self.block_pos + sum_size))
             fh.seek(self.block_pos + sum_size)
 
             blksect = BlockSection(self.po)
+            if sum_size + sizeof(blksect) > self.size:
+                raise IOError("Requested {} section count too large; no data for secion {:d} header."\
+                      .format(self.name, i))
             if fh.readinto(blksect) != sizeof(blksect):
                 raise EOFError("Could not read BlockSection data for block {} at {:d}.".format(self.name,self.block_pos+sum_size))
             if not blksect.checkSanity():
@@ -158,13 +213,13 @@ class Block(object):
 
             sum_size += sizeof(blksect)
             # Some section data could've been already loaded; read only once
-            if i >= prev_section_count:
+            if section.raw_data is None:
                 if (sum_size + blksect.size) > self.size:
                     raise IOError("Out of block/container data in {} ({:d} + {:d}) > {:d}"\
                       .format(self.name, sum_size, blksect.size, self.size))
 
                 data = fh.read(blksect.size)
-                self.raw_data.append(data)
+                section.raw_data = data
             # Set last size, padded to multiplicity of 4 bytes
             last_blksect_size = blksect.size
             if last_blksect_size % 4 > 0:
@@ -177,9 +232,9 @@ class Block(object):
         """
         if self.size is None:
             self.setSizeFromBlocks()
-        if section_num >= len(self.raw_data):
+        if section_num >= len(self.sections) or self.sections[section_num].raw_data is None:
             self.readRawDataSections(section_count=section_num+1)
-        return self.raw_data[section_num]
+        return self.sections[section_num].raw_data
 
     def setRawData(self, raw_data_buf, section_num=0):
         """ Sets given bytes object as section raw data
@@ -188,31 +243,47 @@ class Block(object):
         """
         self.size  = len(raw_data_buf)
         # Insert empty bytes in any missing sections
-        if section_num >= len(self.raw_data_buf):
-            self.raw_data.extend([ (section_num - len(self.raw_data) + 1) * b'' ])
+        while section_num >= len(self.sections):
+            section = SimpleNamespace()
+            section.raw_data = b''
+            self.sections.append(section)
         # Replace the target section
-        self.raw_data[section_num] = raw_data_buf
+        self.sections[section_num].raw_data = raw_data_buf
 
-    def parseData(self, bldata):
+    def parseRSRCData(self, bldata):
+        """ Implements setting block properties from Byte Stream of a section
+
+            Called by parseSection() to set the specific section as loaded.
+        """
         if (self.po.verbose > 2):
             print("{:s}: Block {} data format isn't known; leaving raw only".format(self.po.rsrc,self.name))
         pass
 
+    def parseData(self, section_num=-1):
+        if section_num == -1:
+            section_num = self.section_requested
+        else:
+            self.section_requested = section_num
+        if self.needParseData():
+            bldata = self.getData(section_num=section_num, use_coding=BLOCK_CODING.NONE)
+            self.parseRSRCData(bldata)
+        self.section_loaded = self.section_requested
+
     def needParseData(self):
-        """ Returns if the block did not had its data parsed yet
+        """ Returns if the block needs its data to be parsed
 
             After a call to parseData(), or after filling the data manually, this should
             return True. Otherwise, False.
         """
-        return False
+        return (len(self.sections) > 0) and (self.section_loaded != self.section_requested)
 
-    def getData(self, section_num=0, useCompression=BLOCK_COMPRESSION.NONE):
+    def getData(self, section_num=0, use_coding=BLOCK_CODING.NONE):
         raw_data_section = self.getRawData(section_num)
         data = BytesIO(raw_data_section)
-        if useCompression == BLOCK_COMPRESSION.NONE:
+        if use_coding == BLOCK_CODING.NONE:
             pass
-        elif useCompression == BLOCK_COMPRESSION.ZLIB:
-            size = len(self.raw_data[section_num]) - 4
+        elif use_coding == BLOCK_CODING.ZLIB:
+            size = len(raw_data_section) - 4
             if size < 2:
                 raise IOError("Unable to decompress section [%s:%d]: \
                             block-size-error - size: %d" % (self.name, section_num, size))
@@ -222,8 +293,8 @@ class Block(object):
                             uncompress-size-error - size: %d - uncompress-size: %d"
                             % (self.name, section_num, size, usize))
             data = BytesIO(decompress(data.read(size)))
-        elif useCompression == BLOCK_COMPRESSION.XOR:
-            size = len(self.raw_data[section_num])
+        elif use_coding == BLOCK_CODING.XOR:
+            size = len(raw_data_section)
             data = BytesIO(crypto_xor(data.read(size)))
         else:
             raise ValueError("Unsupported compression type")
@@ -234,14 +305,22 @@ class Block(object):
         """
         pretty_name = self.name.decode(encoding='UTF-8')
         pretty_name = re.sub('[^a-zA-Z0-9_-]+', '', pretty_name)
-        block_fname = self.po.filebase + "_" + pretty_name + ".bin"
-        bldata = self.getData()
-        with open(block_fname, "wb") as block_fd:
-            block_fd.write(bldata.read(0xffffffff))
         elem = ET.Element(pretty_name)
+        elem.text = "\n"
         elem.tail = "\n"
-        elem.set("Format", "bin")
-        elem.set("File", block_fname)
+        for snum, section in enumerate(self.sections):
+            if len(self.sections) == 1:
+                block_fname = "{:s}_{:s}.bin".format(self.po.filebase, pretty_name)
+            else:
+                block_fname = "{:s}_{:s}{:d}.bin".format(self.po.filebase, pretty_name, snum)
+            bldata = self.getData(section_num=snum)
+            with open(block_fname, "wb") as block_fd:
+                block_fd.write(bldata.read(0xffffffff))
+            subelem = ET.SubElement(elem,"Section")
+            subelem.tail = "\n"
+            subelem.set("Index", str(snum))
+            subelem.set("Format", "bin")
+            subelem.set("File", block_fname)
         return elem
 
     def __repr__(self):
@@ -251,6 +330,7 @@ class Block(object):
         else:
             d = bldata.read(32).hex()
         return "<" + self.__class__.__name__ + "(" + d + ")>"
+
 
 class LVSR(Block):
     """ LabView Source Release
@@ -262,10 +342,7 @@ class LVSR(Block):
         self.flags = 0
         self.protected = False
 
-    def needParseData(self):
-        return (len(self.version) < 4)
-
-    def parseData(self, bldata):
+    def parseRSRCData(self, bldata):
         data = LVSRData(self.po)
         if bldata.readinto(data) != sizeof(data):
             raise EOFError("Data block too short for parsing {} data.".format(self.name))
@@ -275,12 +352,10 @@ class LVSR(Block):
         self.protected = ((self.flags & 0x2000) > 0)
         self.flags = self.flags & 0xDFFF
 
-    def getData(self, *args):
-        bldata = Block.getData(self, *args)
-        if self.needParseData():
-            self.parseData(bldata)
-            bldata.seek(0)
+    def getData(self, section_num=0, use_coding=BLOCK_CODING.NONE):
+        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
+
 
 class vers(Block):
     """ Version block
@@ -291,21 +366,15 @@ class vers(Block):
         self.version_text = b''
         self.version_info = b''
 
-    def needParseData(self):
-        return (len(self.version) < 4)
-
-    def parseData(self, bldata):
+    def parseRSRCData(self, bldata):
         self.version = getVersion(int.from_bytes(bldata.read(4), byteorder='big', signed=False))
         version_text_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         self.version_text = bldata.read(version_text_len)
         version_info_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         self.version_info = bldata.read(version_info_len)
 
-    def getData(self, *args):
-        bldata = Block.getData(self, *args)
-        if self.needParseData():
-            self.parseData(bldata)
-            bldata.seek(0)
+    def getData(self, section_num=0, use_coding=BLOCK_CODING.NONE):
+        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
     def verMajor(self):
@@ -338,6 +407,7 @@ class vers(Block):
             self.getData()
         return self.version['build']
 
+
 class icl8(Block):
     """ Icon Large 8bpp
     """
@@ -345,29 +415,22 @@ class icl8(Block):
         super().__init__(*args)
         self.icon = None
 
-    def needParseData(self):
-        return (self.icon is None)
-
-    def parseData(self, bldata):
+    def parseRSRCData(self, bldata):
         icon = Image.new("RGB", (32, 32))
         for y in range(0, 32):
             for x in range(0, 32):
-                idx = bldata.read(1)
+                idx = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
                 icon.putpixel((x, y), LABVIEW_COLOR_PALETTE[idx])
         self.icon = icon
 
-    def getData(self, *args):
-        """ Gets the data, without loading icon into image
-
-            Converting icon into image is done on separate request, by loadIcon() call.
-        """
-        return Block.getData(self, *args)
+    def getData(self, section_num=0, use_coding=BLOCK_CODING.NONE):
+        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        return bldata
 
     def loadIcon(self, bitsPerPixel=8):
-        bldata = self.getData()
-        if self.needParseData():
-            self.parseData(bldata)
+        self.parseData()
         return self.icon
+
 
 class BDPW(Block):
     """ Block Diagram Password
@@ -381,19 +444,13 @@ class BDPW(Block):
         self.salt_iface_idx = None
         self.salt = None
 
-    def needParseData(self):
-        return (len(self.password_md5) < 16)
-
-    def parseData(self, bldata):
+    def parseRSRCData(self, bldata):
         self.password_md5 = bldata.read(16)
         self.hash_1 = bldata.read(16)
         self.hash_2 = bldata.read(16)
 
-    def getData(self, *args):
-        bldata = Block.getData(self, *args)
-        if self.needParseData():
-            self.parseData(bldata)
-            bldata.seek(0)
+    def getData(self, section_num=0, use_coding=BLOCK_CODING.NONE):
+        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
     @staticmethod
@@ -551,6 +608,7 @@ class BDPW(Block):
             self.hash_2 = md5_hash_2
         return md5_hash_2
 
+
 class LIBN(Block):
     """ Library Names
 
@@ -561,22 +619,17 @@ class LIBN(Block):
         self.count = 0
         self.content = None
 
-    def needParseData(self):
-        return (self.content is None)
-
-    def parseData(self, bldata):
+    def parseRSRCData(self, bldata):
         self.count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.content = []
         for i in range(self.count):
             content_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
             self.content.append(bldata.read(content_len))
 
-    def getData(self, *args):
-        bldata = Block.getData(self, *args)
-        if self.needParseData():
-            self.parseData(bldata)
-            bldata.seek(0)
+    def getData(self, section_num=0, use_coding=BLOCK_CODING.NONE):
+        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
+
 
 class LVzp(Block):
     """ Zipped Program tree
@@ -590,9 +643,8 @@ class LVzp(Block):
     def __init__(self, *args):
         super().__init__(*args)
 
-    def getData(self, *args):
-        Block.getData(self, *args)
-        bldata = Block.getData(self, useCompression=BLOCK_COMPRESSION.XOR)
+    def getData(self, section_num=0, use_coding=BLOCK_CODING.XOR):
+        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
 
@@ -603,19 +655,12 @@ class BDHP(Block):
         super().__init__(*args)
         self.content = None
 
-    def needParseData(self):
-        return (self.content is None)
-
-    def parseData(self, bldata):
+    def parseRSRCData(self, bldata):
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.content = bldata.read(content_len)
 
-    def getData(self, *args):
-        Block.getData(self, *args)
-        bldata = Block.getData(self, useCompression=BLOCK_COMPRESSION.NONE)
-        if self.needParseData():
-            self.parseData(bldata)
-            bldata.seek(0)
+    def getData(self, section_num=0, use_coding=BLOCK_CODING.NONE):
+        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
     def getContentHash(self):
@@ -631,25 +676,19 @@ class BDH(Block):
         super().__init__(*args)
         self.content = None
 
-    def needParseData(self):
-        return (self.content is None)
-
-    def parseData(self, bldata):
+    def parseRSRCData(self, bldata):
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.content = bldata.read(content_len)
 
-    def getData(self, *args):
-        Block.getData(self, *args)
-        bldata = Block.getData(self, useCompression=BLOCK_COMPRESSION.ZLIB)
-        if self.needParseData():
-            self.parseData(bldata)
-            bldata.seek(0)
+    def getData(self, section_num=0, use_coding=BLOCK_CODING.ZLIB):
+        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
     def getContentHash(self):
         return md5(self.content).digest()
 
 BDHc = BDHb = BDH
+
 
 class VCTP(Block):
     """ Virtual Connectors / Terminal Points
@@ -667,9 +706,6 @@ class VCTP(Block):
         self.count = 0
         self.content = None
 
-    def needParseData(self):
-        return (self.content is None)
-
     def parseConnector(self, bldata, pos):
         bldata.seek(pos)
         obj_len = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
@@ -680,7 +716,7 @@ class VCTP(Block):
         self.content.append(obj)
         return obj.index, obj_len
 
-    def parseData(self, bldata):
+    def parseRSRCData(self, bldata):
         self.count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.content = []
         pos = bldata.tell()
@@ -688,12 +724,8 @@ class VCTP(Block):
             obj_idx, obj_len = self.parseConnector(bldata, pos)
             pos += obj_len
 
-    def getData(self, *args):
-        Block.getData(self, *args)
-        bldata = Block.getData(self, useCompression=BLOCK_COMPRESSION.ZLIB)
-        if self.needParseData():
-            self.parseData(bldata)
-            bldata.seek(0)
+    def getData(self, section_num=0, use_coding=BLOCK_CODING.ZLIB):
+        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
     def getClientConnectorsByType(self, conn_obj):

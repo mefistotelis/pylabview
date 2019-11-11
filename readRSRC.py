@@ -128,21 +128,6 @@ class BlockInfoHeader(RSRCStructure):
         return ret
 
 
-class BlockHeader(RSRCStructure):
-    _fields_ = [('name', c_ubyte * 4),	#0
-                ('count', c_uint32),	#4
-                ('offset', c_uint32),	#8
-    ]
-
-    def __init__(self, po):
-        self.po = po
-        pass
-
-    def check_sanity(self):
-        ret = True
-        return ret
-
-
 def getIdForFileType(ftype):
     """ Gives 4-byte file identifier from FILE_FMT_TYPE member
     """
@@ -242,7 +227,7 @@ class VI():
         self.rsrc_headers = rsrc_headers
         return (len(rsrc_headers) > 0)
 
-    def readBlockInfos(self):
+    def readRSRCBlockInfos(self):
         """ Read all Block-Infos from the input file.
             The Block-Infos are within last RSRC inside the file.
             This function requires `self.rsrc_headers` to be filled.
@@ -282,7 +267,7 @@ class VI():
         # Read Block Headers
         block_headers = []
         for i in range(0, tot_blockinfo_count):
-            block_head = BlockHeader(self.po)
+            block_head = LVblock.BlockHeader(self.po)
             if fh.readinto(block_head) != sizeof(block_head):
                 raise EOFError("Could not read BlockInfo header.")
             if (self.po.verbose > 2):
@@ -295,7 +280,7 @@ class VI():
         self.block_headers = block_headers
         return (len(block_headers) > 0)
 
-    def readBlockData(self):
+    def readRSRCBlockData(self):
         """ Read data sections for all Blocks from the input file.
             This function requires `self.block_headers` to be filled.
             After this function, `self.blocks` is filled.
@@ -311,29 +296,67 @@ class VI():
             # so give each block reference to the vi object
             if isinstance(bfactory, type):
                 if (self.po.verbose > 1):
-                    print("{:s}: Block {:s} recognized".format(self.po.rsrc,name))
-                block = bfactory(self, block_head, self.po)
+                    print("{:s}: Block '{:s}' index {:d} recognized".format(self.po.rsrc,name,i))
+                block = bfactory(self, self.po)
             else:
-                block = LVblock.Block(self, block_head, self.po)
+                block = LVblock.Block(self, self.po)
+            block.initWithRSRC(block_head)
             blocks_arr.append(block)
         self.blocks_arr = blocks_arr
 
         # Create Array of Block Data
         blocks = {}
         for i, block in enumerate(self.blocks_arr):
-            block.getData()
+            block.parseData()
             blocks[block.name] = block
         self.blocks = blocks
         return (len(blocks) > 0)
 
     def readRSRC(self):
         self.readRSRCList()
-        self.readBlockInfos()
-        self.readBlockData()
+        self.readRSRCBlockInfos()
+        self.readRSRCBlockData()
 
         self.icon = self.blocks['icl8'].loadIcon() if 'icl8' in self.blocks else None
 
+    def readXMLBlockData(self):
+        """ Read data sections for all Blocks from the input file.
+            This function requires `self.block_headers` to be filled.
+            After this function, `self.blocks` is filled.
+        """
+        blocks_arr = []
+        for i, block_elem in enumerate(self.xml_root):
+            name = block_elem.tag
+            bfactory = getattr(LVblock, name, None)
+            # Block may depend on some other informational blocks (ie. version info)
+            # so give each block reference to the vi object
+            if isinstance(bfactory, type):
+                if (self.po.verbose > 1):
+                    print("{:s}: Block {:s} recognized".format(self.po.rsrc,name))
+                block = bfactory(self, self.po)
+            else:
+                block = LVblock.Block(self, self.po)
+            block.initWithXML(block_elem)
+            blocks_arr.append(block)
+        self.blocks_arr = blocks_arr
+
+        # Create Array of Block Data
+        blocks = {}
+        for i, block in enumerate(self.blocks_arr):
+            block.parseData() #TODO make this support XML
+            blocks[block.name] = block
+        self.blocks = blocks
+        return (len(blocks) > 0)
+
     def readXML(self):
+        if self.xml_root.tag != 'RSRC':
+            raise AttributeError("Root tag of the XML is not 'RSRC'")
+
+        file_type_id = self.xml_root.get("Type")
+        self.ftype = recognizeFileType(file_type_id.encode("utf-8"))
+
+        self.readXMLBlockData()
+
         raise NotImplementedError('Unfinished.')
         pass
 
@@ -357,6 +380,9 @@ class VI():
         """
         elem = ET.Element('RSRC')
         elem.text = "\n"
+        elem.tail = "\n"
+        file_type_id = getIdForFileType(self.ftype)
+        elem.set("Type", file_type_id.decode("utf-8"))
 
         for name, block in self.blocks.items():
             if (self.po.verbose > 0):
@@ -374,7 +400,7 @@ class VI():
 
     def connectorEnumerate(self, mainType=None, fullType=None):
         VCTP = self.get_or_raise('VCTP')
-        VCTP.getData() # Make sure the block is parsed
+        VCTP.parseData() # Make sure the block is parsed
         out_list = []
         for conn_idx, conn_obj in enumerate(VCTP.content):
             if mainType is not None and conn_obj.mainType() != mainType:
@@ -508,7 +534,7 @@ def main():
         with open(po.rsrc, "rb") as rsrc_fh:
             vi = VI(po, rsrc_fh=rsrc_fh)
 
-        root = vi.exportBinBlocksXMLTree()
+            root = vi.exportBinBlocksXMLTree()
 
         if (po.verbose > 0):
             print("{}: Writing binding XML".format(po.xml))
@@ -530,7 +556,7 @@ def main():
         with open(po.rsrc, "rb") as rsrc_fh:
             vi = VI(po, rsrc_fh=rsrc_fh)
 
-        root = vi.exportXMLTree()
+            root = vi.exportXMLTree()
 
         if (po.verbose > 0):
             print("{}: Writing binding XML".format(po.xml))
@@ -545,8 +571,8 @@ def main():
 
         if (po.verbose > 0):
             print("{}: Starting file parse for RSRC creation".format(po.rsrc))
-        with ET.parse(po.xml) as tree:
-            vi = VI(po, xml_root=tree.getroot())
+        tree = ET.parse(po.xml)
+        vi = VI(po, xml_root=tree.getroot())
 
         if len(po.rsrc) == 0:
             po.rsrc = po.filebase + "." + getFileExtByType(vi.ftype)
