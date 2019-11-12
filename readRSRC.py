@@ -22,7 +22,7 @@ Experimental tool.
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 __author__ = "Jessica Creighton, Mefistotelis"
 __license__ = "GPL"
 
@@ -64,6 +64,8 @@ class RSRCHeader(RSRCStructure):
                 ('id4', c_ubyte * 4),		#12
                 ('rsrc_offset', c_uint32),	#16
                 ('rsrc_size', c_uint32),	#20
+                ('dataset_offset', c_uint32),#24
+                ('dataset_size', c_uint32),	#28, sizeof is 32
     ]
 
     def __init__(self, po):
@@ -73,6 +75,7 @@ class RSRCHeader(RSRCStructure):
         self.file_type = (c_ubyte * sizeof(self.file_type)).from_buffer_copy(b'LVIN')
         self.id4 = (c_ubyte * sizeof(self.id4)).from_buffer_copy(b'LBVW')
         self.ftype = FILE_FMT_TYPE.NONE
+        self.dataset_offset = sizeof(self)
 
     def check_sanity(self):
         ret = True
@@ -89,17 +92,19 @@ class RSRCHeader(RSRCStructure):
             if (self.po.verbose > 0):
                 eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.rsrc,'id4',bytes(self.id4)))
             ret = False
+        if self.dataset_offset < sizeof(self):
+            if (self.po.verbose > 0):
+                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.rsrc,'dataset_offset',dataset_offset))
+            ret = False
         return ret
 
 
 class BlockInfoListHeader(RSRCStructure):
-    _fields_ = [('dataset_offset', c_uint32),	#0
-                ('dataset_size', c_uint32),		#4
-                ('dataset_int1', c_uint32),		#8
-                ('dataset_int2', c_uint32),		#12
-                ('dataset_int3', c_uint32),		#16
-                ('blockinfo_offset', c_uint32),	#20
-                ('blockinfo_size', c_uint32),	#24
+    _fields_ = [('dataset_int1', c_uint32),		#0
+                ('dataset_int2', c_uint32),		#4
+                ('dataset_int3', c_uint32),		#8
+                ('blockinfo_offset', c_uint32),	#12
+                ('blockinfo_size', c_uint32),	#16
     ]
 
     def __init__(self, po):
@@ -188,23 +193,23 @@ def getExistingRSRCFileWithBase(filebase):
 
 class VI():
     def __init__(self, po, rsrc_fh=None, xml_root=None):
-        self.rsrc_fh = rsrc_fh
-        self.xml_root = xml_root
+        self.rsrc_fh = None
+        self.src_fname = ""
+        self.xml_root = None
         self.po = po
         self.rsrc_headers = []
         self.block_headers = []
         self.ftype = FILE_FMT_TYPE.NONE
 
         if rsrc_fh is not None:
-            self.readRSRC()
+            self.readRSRC(rsrc_fh)
         elif xml_root is not None:
-            self.readXML()
+            self.readXML(xml_root, po.xml)
 
-    def readRSRCList(self):
+    def readRSRCList(self, fh):
         """ Read all RSRC headers from input file and check their sanity.
             After this function, `self.rsrc_headers` is filled with a list of RSRC Headers.
         """
-        fh = self.rsrc_fh
         rsrc_headers = []
         curr_rsrc_pos = -1
         next_rsrc_pos = 0
@@ -227,13 +232,12 @@ class VI():
         self.rsrc_headers = rsrc_headers
         return (len(rsrc_headers) > 0)
 
-    def readRSRCBlockInfos(self):
+    def readRSRCBlockInfos(self, fh):
         """ Read all Block-Infos from the input file.
             The Block-Infos are within last RSRC inside the file.
             This function requires `self.rsrc_headers` to be filled.
             After this function, `self.block_headers` is filled with a list of Block Headers.
         """
-        fh = self.rsrc_fh
         blkinf_rsrchead = self.rsrc_headers[-1]
         # We expect two rsrc_headers in the RSRC file
         # File type should be identical in both headers
@@ -280,12 +284,11 @@ class VI():
         self.block_headers = block_headers
         return (len(block_headers) > 0)
 
-    def readRSRCBlockData(self):
+    def readRSRCBlockData(self, fh):
         """ Read data sections for all Blocks from the input file.
             This function requires `self.block_headers` to be filled.
             After this function, `self.blocks` is filled.
         """
-        fh = self.rsrc_fh
         # Create Array of Block; use classes defined within LVblock namespace to read data
         # specific to given block type; when block name is unrecognized, create generic block
         blocks_arr = []
@@ -296,7 +299,7 @@ class VI():
             # so give each block reference to the vi object
             if isinstance(bfactory, type):
                 if (self.po.verbose > 1):
-                    print("{:s}: Block '{:s}' index {:d} recognized".format(self.po.rsrc,name,i))
+                    print("{:s}: Block '{:s}' index {:d} recognized".format(self.src_fname,name,i))
                 block = bfactory(self, self.po)
             else:
                 block = LVblock.Block(self, self.po)
@@ -312,10 +315,12 @@ class VI():
         self.blocks = blocks
         return (len(blocks) > 0)
 
-    def readRSRC(self):
-        self.readRSRCList()
-        self.readRSRCBlockInfos()
-        self.readRSRCBlockData()
+    def readRSRC(self, fh):
+        self.rsrc_fh = fh
+        self.src_fname = fh.name
+        self.readRSRCList(fh)
+        self.readRSRCBlockInfos(fh)
+        self.readRSRCBlockData(fh)
 
         self.icon = self.blocks['icl8'].loadIcon() if 'icl8' in self.blocks else None
 
@@ -332,7 +337,7 @@ class VI():
             # so give each block reference to the vi object
             if isinstance(bfactory, type):
                 if (self.po.verbose > 1):
-                    print("{:s}: Block {:s} recognized".format(self.po.rsrc,name))
+                    print("{:s}: Block {:s} recognized".format(self.src_fname,name))
                 block = bfactory(self, self.po)
             else:
                 block = LVblock.Block(self, self.po)
@@ -348,16 +353,50 @@ class VI():
         self.blocks = blocks
         return (len(blocks) > 0)
 
-    def readXML(self):
+    def readXML(self, xml_root, xml_fname):
+        self.xml_root = xml_root
+        self.src_fname = xml_fname
         if self.xml_root.tag != 'RSRC':
             raise AttributeError("Root tag of the XML is not 'RSRC'")
 
-        file_type_id = self.xml_root.get("Type")
-        self.ftype = recognizeFileType(file_type_id.encode("utf-8"))
+        file_type_str = self.xml_root.get("Type")
+        # TODO we will need better string-to-bytes ID conversion at some point
+        # (when we have implementation of a block with space or other non-alphanum chars)
+        file_type_id = file_type_str.encode("utf-8")
+        self.ftype = recognizeFileType(file_type_id)
+
+        self.rsrc_headers = []
+        rsrchead = RSRCHeader(self.po)
+        rsrchead.file_type = (c_ubyte * sizeof(rsrchead.file_type)).from_buffer_copy(file_type_id)
+        self.rsrc_headers.append(rsrchead)
+        rsrchead = RSRCHeader(self.po)
+        rsrchead.file_type = (c_ubyte * sizeof(rsrchead.file_type)).from_buffer_copy(file_type_id)
+        self.rsrc_headers.append(rsrchead)
 
         self.readXMLBlockData()
 
+        pass
+
+    def saveRSRCData(self, fh):
+        # Write header, though it is not completely filled yet
+        rsrchead = self.rsrc_headers[0]
+        fh.write((c_ubyte * sizeof(rsrchead)).from_buffer_copy(rsrchead))
+
+        for name, block in self.blocks.items():
+            if (self.po.verbose > 0):
+                print("{}: Writing RSRC block {}".format(self.src_fname,name))
+            block.saveRSRCData(fh)
+
+        pass
+
+    def saveRSRCIndex(self, fh):
         raise NotImplementedError('Unfinished.')
+        pass
+
+    def saveRSRC(self, fh):
+        self.src_fname = fh.name
+        self.saveRSRCData(fh)
+        self.saveRSRCIndex(fh)
         pass
 
     def exportBinBlocksXMLTree(self):
@@ -368,7 +407,7 @@ class VI():
 
         for name, block in self.blocks.items():
             if (self.po.verbose > 0):
-                print("{}: Writing BIN block {}".format(self.po.xml,name))
+                print("{}: Writing BIN block {}".format(self.src_fname,name))
             # Call base function, not the overloaded version for specific block
             subelem = LVblock.Block.exportXMLTree(block)
             elem.append(subelem)
@@ -386,7 +425,7 @@ class VI():
 
         for name, block in self.blocks.items():
             if (self.po.verbose > 0):
-                print("{}: Writing block {}".format(self.po.xml,name))
+                print("{}: Writing block {}".format(self.src_fname,name))
             subelem = block.exportXMLTree()
             elem.append(subelem)
 
@@ -577,7 +616,8 @@ def main():
         if len(po.rsrc) == 0:
             po.rsrc = po.filebase + "." + getFileExtByType(vi.ftype)
 
-        raise NotImplementedError('Unfinished.')
+        with open(po.rsrc, "wb") as rsrc_fh:
+            vi.saveRSRC(rsrc_fh)
 
     elif po.password is not None:
 

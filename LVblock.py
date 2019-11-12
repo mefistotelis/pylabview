@@ -24,10 +24,11 @@ Interpreting content of specific block types within RSRC files.
 
 import enum
 import re
+import os
 
 from PIL import Image
 from hashlib import md5
-from zlib import decompress
+from zlib import compress, decompress
 from io import BytesIO
 import xml.etree.ElementTree as ET
 from ctypes import *
@@ -153,11 +154,11 @@ class Block(object):
         self.start = blkstart
 
         self.block_pos = \
-            self.vi.binflsthead.dataset_offset + \
+            self.vi.rsrc_headers[-1].dataset_offset + \
             self.start.offset
 
         if (self.po.verbose > 2):
-            print("{:s}: Block {} has {:d} sections".format(self.po.rsrc,self.name,len(self.sections)))
+            print("{:s}: Block {} has {:d} sections".format(self.vi.src_fname,self.name,len(self.sections)))
 
     def initWithXML(self, block_elem):
         self.name = block_elem.tag.encode("utf-8")
@@ -172,20 +173,44 @@ class Block(object):
 
         self.header.count = len(self.sections) - 1
 
-        raise NotImplementedError('Unfinished.')
+        for i, section_elem in enumerate(block_elem):
+            if (section_elem.tag != "Section"):
+                raise AttributeError("Block contains something else than 'Section'")
+            idx = int(section_elem.get("Index"))
+            section = self.sections[idx]
+            self.section_requested = idx
+            fmt = section_elem.get("Format")
+            if fmt == "bin":
+                if (self.po.verbose > 2):
+                    print("{:s}: For Block {} section {:d}, reading BIN file '{}'"\
+                      .format(self.vi.src_fname,self.name,idx,section_elem.get("File")))
+                bin_path = os.path.dirname(self.vi.src_fname)
+                if len(bin_path) > 0:
+                    bin_fname = bin_path + '/' + section_elem.get("File")
+                else:
+                    bin_fname = section_elem.get("File")
+                with open(bin_fname, "rb") as bin_fh:
+                    data_buf = bin_fh.read()
+                    self.setData(data_buf, section_num=idx)
+            # TODO add support of XML section data
+            else:
+                raise NotImplementedError("Unsupported Block {} Section {:d} Format '{}'.".format(self.name,idx,fmt))
+        self.section_requested = 0
+        self.section_loaded = -1
+        pass
 
     def setSizeFromBlocks(self):
         """ Set data size of this block
          To do that, first get total dataset_size, and then decrease it to
          minimum distance between this block and all other blocks
         """
-        minSize = self.vi.binflsthead.dataset_size
+        minSize = self.vi.rsrc_headers[-1].dataset_size
         for block in self.vi.blocks_arr:
             if self != block and block.block_pos > self.block_pos:
                 minSize = min(minSize, block.block_pos - self.block_pos)
         self.size = minSize
         if (self.po.verbose > 1):
-            print("{:s}: Block {} max data size set to {:d} bytes".format(self.po.rsrc,self.name,self.size))
+            print("{:s}: Block {} max data size set to {:d} bytes".format(self.vi.src_fname,self.name,self.size))
         return minSize
 
     def readRawDataSections(self, section_count=1):
@@ -197,7 +222,7 @@ class Block(object):
             section = self.sections[i]
 
             if (self.po.verbose > 2):
-                print("{:s}: Block {} section {:d} header at pos {:d}".format(self.po.rsrc,self.name,i,self.block_pos + sum_size))
+                print("{:s}: Block {} section {:d} header at pos {:d}".format(self.vi.src_fname,self.name,i,self.block_pos + sum_size))
             fh.seek(self.block_pos + sum_size)
 
             blksect = BlockSection(self.po)
@@ -256,7 +281,7 @@ class Block(object):
             Called by parseSection() to set the specific section as loaded.
         """
         if (self.po.verbose > 2):
-            print("{:s}: Block {} data format isn't known; leaving raw only".format(self.po.rsrc,self.name))
+            print("{:s}: Block {} data format is not known; leaving raw only".format(self.vi.src_fname,self.name))
         pass
 
     def parseData(self, section_num=-1):
@@ -300,6 +325,33 @@ class Block(object):
             raise ValueError("Unsupported compression type")
         return data
 
+    def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.NONE):
+        if use_coding == BLOCK_CODING.NONE:
+            raw_data_section = data_buf
+            pass
+        elif use_coding == BLOCK_CODING.ZLIB:
+            size = len(data_buf)
+            raw_data_section = int(size).to_bytes(4, byteorder='big')
+            raw_data_section += compress(data_buf)
+        elif use_coding == BLOCK_CODING.XOR:
+            raw_data_section = crypto_xor(data_buf) # TODO make proper encrypt algorithm; this one is decrypt
+        else:
+            raise ValueError("Unsupported compression type")
+        self.setRawData(raw_data_section, section_num=section_num)
+
+    def saveRSRCData(self, fh):
+        #blkstart = self.start
+        #fh.write((c_ubyte * sizeof(blkstart)).from_buffer_copy(blkstart))
+
+        for snum, section in enumerate(self.sections):
+            blksect = BlockSection(self.po)
+            blksect.size = len(section.raw_data)
+            fh.write((c_ubyte * sizeof(blksect)).from_buffer_copy(blksect))
+            fh.write(section.raw_data)
+            if blksect.size % 4 > 0:
+                padding_len = 4 - (blksect.size % 4)
+                fh.write((b'\0' * padding_len))
+
     def exportXMLTree(self):
         """ Export the file data into XML tree
         """
@@ -315,7 +367,7 @@ class Block(object):
                 block_fname = "{:s}_{:s}{:d}.bin".format(self.po.filebase, pretty_name, snum)
             bldata = self.getData(section_num=snum)
             with open(block_fname, "wb") as block_fd:
-                block_fd.write(bldata.read(0xffffffff))
+                block_fd.write(bldata.read())
             subelem = ET.SubElement(elem,"Section")
             subelem.tail = "\n"
             subelem.set("Index", str(snum))
@@ -356,6 +408,9 @@ class LVSR(Block):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
+    def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.NONE):
+        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+
 
 class vers(Block):
     """ Version block
@@ -376,6 +431,9 @@ class vers(Block):
     def getData(self, section_num=0, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
+
+    def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.NONE):
+        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
 
     def verMajor(self):
         if len(self.version) < 4:
@@ -427,6 +485,9 @@ class icl8(Block):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
+    def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.NONE):
+        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+
     def loadIcon(self, bitsPerPixel=8):
         self.parseData()
         return self.icon
@@ -453,6 +514,9 @@ class BDPW(Block):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
+    def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.NONE):
+        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+
     @staticmethod
     def getPasswordSaltFromTerminalCounts(numberCount, stringCount, pathCount):
         salt = int(numberCount).to_bytes(4, byteorder='little')
@@ -465,7 +529,7 @@ class BDPW(Block):
         vers = self.vi.get('vers')
         if vers is None:
             if (po.verbose > 0):
-                eprint("{:s}: Warning: Block {} not found; using empty password salt".format(self.po.rsrc,'vers'))
+                eprint("{:s}: Warning: Block {} not found; using empty password salt".format(self.vi.src_fname,'vers'))
             self.salt = salt
             return salt
         if vers.verMajor() >= 12:
@@ -480,7 +544,7 @@ class BDPW(Block):
                 md5_hash_1 = md5(presalt_data + salt + postsalt_data).digest()
                 if md5_hash_1 == self.hash_1:
                     if (self.po.verbose > 1):
-                        print("{:s}: Found matching salt {}, interface {:d}/{:d}".format(self.po.rsrc,salt.hex(),i+1,len(interfaceEnumerate)))
+                        print("{:s}: Found matching salt {}, interface {:d}/{:d}".format(self.vi.src_fname,salt.hex(),i+1,len(interfaceEnumerate)))
                     salt_iface_idx = iface_idx
                     break
 
@@ -492,7 +556,7 @@ class BDPW(Block):
             else:
                 # For LV14, this should only be used for a low percentage of VIs which have the salt zeroed out
                 # But in case the terminal counting algorithm isn't perfect or future format changes affect it, that will also be handy
-                print("{:s}: No matching salt found by Interface scan; doing brute-force scan".format(self.po.rsrc))
+                print("{:s}: No matching salt found by Interface scan; doing brute-force scan".format(self.vi.src_fname))
                 for i in range(256*256*256):
                     numberCount = 0
                     stringCount = 0
@@ -505,7 +569,7 @@ class BDPW(Block):
                     md5_hash_1 = md5(presalt_data + salt + postsalt_data).digest()
                     if md5_hash_1 == self.hash_1:
                         if (self.po.verbose > 1):
-                            print("{:s}: Found matching salt {} via brute-force".format(self.po.rsrc,salt.hex()))
+                            print("{:s}: Found matching salt {} via brute-force".format(self.vi.src_fname,salt.hex()))
                         break
         self.salt = salt
         return salt
@@ -569,8 +633,8 @@ class BDPW(Block):
         LVSR_content = LVSR.getRawData()
 
         if (self.po.verbose > 2):
-            print("{:s}: LIBN_content: {}".format(self.po.rsrc,LIBN_content))
-            print("{:s}: LVSR_content md5: {:s}".format(self.po.rsrc,md5(LVSR_content).digest().hex()))
+            print("{:s}: LIBN_content: {}".format(self.vi.src_fname,LIBN_content))
+            print("{:s}: LVSR_content md5: {:s}".format(self.vi.src_fname,md5(LVSR_content).digest().hex()))
 
         salt = self.findHashSalt(password_md5, LIBN_content, LVSR_content)
 
@@ -630,6 +694,9 @@ class LIBN(Block):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
+    def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.NONE):
+        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+
 
 class LVzp(Block):
     """ Zipped Program tree
@@ -647,6 +714,9 @@ class LVzp(Block):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
+    def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.XOR):
+        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+
 
 class BDHP(Block):
     """ Block Diagram Heap (LV 7beta and older)
@@ -662,6 +732,9 @@ class BDHP(Block):
     def getData(self, section_num=0, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
+
+    def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.NONE):
+        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
 
     def getContentHash(self):
         return md5(self.content).digest()
@@ -683,6 +756,9 @@ class BDH(Block):
     def getData(self, section_num=0, use_coding=BLOCK_CODING.ZLIB):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
+
+    def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.ZLIB):
+        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
 
     def getContentHash(self):
         return md5(self.content).digest()
@@ -728,12 +804,15 @@ class VCTP(Block):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
+    def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.ZLIB):
+        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+
     def getClientConnectorsByType(self, conn_obj):
         self.getData() # Make sure the block is parsed
         type_list = conn_obj.getClientConnectorsByType()
         if (self.po.verbose > 1):
             print("{:s}: Terminal {:d} connectors: {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d}"\
-              .format(self.po.rsrc,conn_obj.index,\
+              .format(self.vi.src_fname,conn_obj.index,\
               'number',len(type_list['number']),\
               'path',len(type_list['path']),\
               'string',len(type_list['string']),\
