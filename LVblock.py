@@ -343,15 +343,16 @@ class Block(object):
         self.setRawData(raw_data_section, section_num=section_num)
 
     def saveRSRCData(self, fh):
+        #!!!!!!!!!!!!!!
         self.header.count = len(self.sections) - 1
-        self.header.offset = fh.tell() - \
-            self.vi.rsrc_headers[-1].rsrc_offset - \
-            self.vi.binflsthead.blockinfo_offset
+        #self.header.offset = fh.tell() - \
+        #    self.vi.rsrc_headers[-1].rsrc_offset - \
+        #    self.vi.binflsthead.blockinfo_offset
 
         sect_starts = []
         for snum, section in enumerate(self.sections):
 
-            # Store the dataset ffset in proper structure
+            # Store the dataset offset in proper structure
             section.start.offset = fh.tell() - \
             self.vi.rsrc_headers[-1].dataset_offset
 

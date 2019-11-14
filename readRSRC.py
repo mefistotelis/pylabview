@@ -410,12 +410,16 @@ class VI():
         for name, block in self.blocks.items():
             block_headers.append(block.header)
 
-        # Compute size of the block to be written
+        # Compute sizes and offsets within the block to be written
+        start_offs = sizeof(BlockInfoHeader) + sum(sizeof(block_head) for block_head in block_headers)
+        for block_head in block_headers:
+            # the below means the same ase block_head.count = len(self.sections) - 1
+            block_head.count = len(block_head.starts) - 1
+            block_head.offset = start_offs
+            start_offs += sum(sizeof(sect_start) for sect_start in block_head.starts)
+
         binflsthead = self.binflsthead
-        binflsthead.blockinfo_size = binflsthead.blockinfo_offset + sizeof(BlockInfoHeader)
-        for i, block_head in enumerate(block_headers):
-            binflsthead.blockinfo_size += sum(sizeof(sect_start) for sect_start in block_head.starts)
-            binflsthead.blockinfo_size += sizeof(block_head)
+        binflsthead.blockinfo_size = binflsthead.blockinfo_offset + start_offs
         if (self.po.verbose > 2):
             print(binflsthead)
         fh.write((c_ubyte * sizeof(binflsthead)).from_buffer_copy(binflsthead))
@@ -425,6 +429,12 @@ class VI():
         fh.write((c_ubyte * sizeof(binfhead)).from_buffer_copy(binfhead))
 
         for i, block_head in enumerate(block_headers):
+            if (self.po.verbose > 0):
+                print("{}: Writing RSRC block {} info".format(self.src_fname,bytes(block_head.name)))
+            if (self.po.verbose > 2):
+                print(block_head)
+            if not block_head.check_sanity():
+                raise IOError("Block Header sanity check failed.")
             fh.write((c_ubyte * sizeof(block_head)).from_buffer_copy(block_head))
 
         for i, block_head in enumerate(block_headers):
@@ -432,15 +442,6 @@ class VI():
                 print("{}: Writing RSRC block {} starts".format(self.src_fname,bytes(block_head.name)))
             for s, sect_start in enumerate(block_head.starts):
                 fh.write((c_ubyte * sizeof(sect_start)).from_buffer_copy(sect_start))
-
-        #for i, block_head in enumerate(block_headers):
-        #    if (self.po.verbose > 0):
-        #        print("{}: Writing RSRC block {} info".format(self.src_fname,bytes(block_head.name)))
-        #    if (self.po.verbose > 2):
-        #        print(block.header)
-        #    if not block.header.check_sanity():
-        #        raise IOError("Block Header sanity check failed.")
-        #    fh.write((c_ubyte * sizeof(block_head)).from_buffer_copy(block_head))
 
         # Footer - len and filename
         if (self.po.verbose > 0):
