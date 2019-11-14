@@ -351,6 +351,7 @@ class Block(object):
         sect_starts = []
         for snum, section in enumerate(self.sections):
 
+            # Store the dataset ffset in proper structure
             section.start.offset = fh.tell() - \
             self.vi.rsrc_headers[-1].dataset_offset
 

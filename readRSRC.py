@@ -404,8 +404,18 @@ class VI():
         rsrchead = self.rsrc_headers[-1]
         fh.write((c_ubyte * sizeof(rsrchead)).from_buffer_copy(rsrchead))
 
+        # Prepare list of headers; this also sets blocks order which we will use
+        # The data section may be in different order - but that doesn't matter
+        block_headers = []
+        for name, block in self.blocks.items():
+            block_headers.append(block.header)
+
+        # Compute size of the block to be written
         binflsthead = self.binflsthead
-        binflsthead.blockinfo_size = sum(sizeof(block.header) for name, block in self.blocks.items())#TODO FIX
+        binflsthead.blockinfo_size = binflsthead.blockinfo_offset + sizeof(BlockInfoHeader)
+        for i, block_head in enumerate(block_headers):
+            binflsthead.blockinfo_size += sum(sizeof(sect_start) for sect_start in block_head.starts)
+            binflsthead.blockinfo_size += sizeof(block_head)
         if (self.po.verbose > 2):
             print(binflsthead)
         fh.write((c_ubyte * sizeof(binflsthead)).from_buffer_copy(binflsthead))
@@ -414,11 +424,8 @@ class VI():
         binfhead.blockinfo_count = len(self.blocks) - 1
         fh.write((c_ubyte * sizeof(binfhead)).from_buffer_copy(binfhead))
 
-        block_headers = []
-        for name, block in self.blocks.items():
-            block_head = block.header
+        for i, block_head in enumerate(block_headers):
             fh.write((c_ubyte * sizeof(block_head)).from_buffer_copy(block_head))
-            block_headers.append(block_head)
 
         for i, block_head in enumerate(block_headers):
             if (self.po.verbose > 0):
