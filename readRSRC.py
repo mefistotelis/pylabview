@@ -76,6 +76,7 @@ class RSRCHeader(RSRCStructure):
         self.id4 = (c_ubyte * sizeof(self.id4)).from_buffer_copy(b'LBVW')
         self.ftype = FILE_FMT_TYPE.NONE
         self.dataset_offset = sizeof(self)
+        self.starts = []
 
     def check_sanity(self):
         ret = True
@@ -109,10 +110,20 @@ class BlockInfoListHeader(RSRCStructure):
 
     def __init__(self, po):
         self.po = po
+        self.dataset_int3 = sizeof(RSRCHeader) # 32; assuming it's size
+        self.blockinfo_offset = sizeof(RSRCHeader) + sizeof(self)
         pass
 
     def check_sanity(self):
         ret = True
+        if self.dataset_int3 != sizeof(RSRCHeader):
+            if (self.po.verbose > 0):
+                eprint("{:s}: BlockInfo List Header field '{:s}' has outranged value: {:d}".format(self.po.rsrc,'dataset_int3',self.dataset_int3))
+            ret = False
+        if self.blockinfo_offset != sizeof(RSRCHeader) + sizeof(self):
+            if (self.po.verbose > 0):
+                eprint("{:s}: BlockInfo List Header field '{:s}' has outranged value: {:d}".format(self.po.rsrc,'blockinfo_offset',self.blockinfo_offset))
+            ret = False
         return ret
 
 
@@ -128,7 +139,7 @@ class BlockInfoHeader(RSRCStructure):
         ret = True
         if self.blockinfo_count > 4096: # Arbitrary limit - hard to tell whether it makes sense
             if (self.po.verbose > 0):
-                eprint("{:s}: BlockInfo Header field '{:s}' has outranged value: {:d}".format(self.po.rsrc,'blockinfo_count',blockinfo_count))
+                eprint("{:s}: BlockInfo Header field '{:s}' has outranged value: {:d}".format(self.po.rsrc,'blockinfo_count',self.blockinfo_count))
             ret = False
         return ret
 
@@ -198,7 +209,6 @@ class VI():
         self.xml_root = None
         self.po = po
         self.rsrc_headers = []
-        self.block_headers = []
         self.ftype = FILE_FMT_TYPE.NONE
 
         if rsrc_fh is not None:
@@ -232,11 +242,11 @@ class VI():
         self.rsrc_headers = rsrc_headers
         return (len(rsrc_headers) > 0)
 
-    def readRSRCBlockInfos(self, fh):
+    def readRSRCBlockInfo(self, fh):
         """ Read all Block-Infos from the input file.
             The Block-Infos are within last RSRC inside the file.
             This function requires `self.rsrc_headers` to be filled.
-            After this function, `self.block_headers` is filled with a list of Block Headers.
+            The function returns a list of Block Headers.
         """
         blkinf_rsrchead = self.rsrc_headers[-1]
         # We expect two rsrc_headers in the RSRC file
@@ -250,10 +260,10 @@ class VI():
         binflsthead = BlockInfoListHeader(self.po)
         if fh.readinto(binflsthead) != sizeof(binflsthead):
             raise EOFError("Could not read BlockInfoList header.")
-        if not binflsthead.check_sanity():
-            raise IOError("BlockInfoList Header sanity check failed.")
         if (self.po.verbose > 2):
             print(binflsthead)
+        if not binflsthead.check_sanity():
+            raise IOError("BlockInfoList Header sanity check failed.")
         self.binflsthead = binflsthead
 
         fh.seek(blkinf_rsrchead.rsrc_offset + binflsthead.blockinfo_offset)
@@ -281,18 +291,17 @@ class VI():
             #t['Count'] = reader.readUInt32() + 1
             #t['Offset'] = blkinf_rsrchead.rsrc_offset + binflsthead.blockinfo_offset + reader.readUInt32()
             block_headers.append(block_head)
-        self.block_headers = block_headers
-        return (len(block_headers) > 0)
+        return block_headers
 
-    def readRSRCBlockData(self, fh):
+    def readRSRCBlockData(self, fh, block_headers):
         """ Read data sections for all Blocks from the input file.
-            This function requires `self.block_headers` to be filled.
+            This function requires `block_headers` to be passed.
             After this function, `self.blocks` is filled.
         """
         # Create Array of Block; use classes defined within LVblock namespace to read data
         # specific to given block type; when block name is unrecognized, create generic block
         blocks_arr = []
-        for i, block_head in enumerate(self.block_headers):
+        for i, block_head in enumerate(block_headers):
             name = bytes(block_head.name).decode("utf-8")
             bfactory = getattr(LVblock, name, None)
             # Block may depend on some other informational blocks (ie. version info)
@@ -319,14 +328,13 @@ class VI():
         self.rsrc_fh = fh
         self.src_fname = fh.name
         self.readRSRCList(fh)
-        self.readRSRCBlockInfos(fh)
-        self.readRSRCBlockData(fh)
+        block_headers = self.readRSRCBlockInfo(fh)
+        self.readRSRCBlockData(fh, block_headers)
 
         self.icon = self.blocks['icl8'].loadIcon() if 'icl8' in self.blocks else None
 
     def readXMLBlockData(self):
         """ Read data sections for all Blocks from the input file.
-            This function requires `self.block_headers` to be filled.
             After this function, `self.blocks` is filled.
         """
         blocks_arr = []
@@ -344,6 +352,8 @@ class VI():
             block.initWithXML(block_elem)
             blocks_arr.append(block)
         self.blocks_arr = blocks_arr
+
+        self.binflsthead = BlockInfoListHeader(self.po)
 
         # Create Array of Block Data
         blocks = {}
@@ -382,21 +392,58 @@ class VI():
         rsrchead = self.rsrc_headers[0]
         fh.write((c_ubyte * sizeof(rsrchead)).from_buffer_copy(rsrchead))
 
+        # TODO block_headers are not to be filled here? Instead fill them in saveRSRCInfo, when section headers are baing written.
+        block_headers = []
         for name, block in self.blocks.items():
             if (self.po.verbose > 0):
-                print("{}: Writing RSRC block {}".format(self.src_fname,name))
-            block.saveRSRCData(fh)
+                print("{}: Writing RSRC block {} data".format(self.src_fname,name))
+            block.header.starts = block.saveRSRCData(fh)
+            if (self.po.verbose > 2):
+                print(block.header)
+            if not block.header.check_sanity():
+                raise IOError("Block Header sanity check failed.")
+            block_headers.append(block.header)
 
-        pass
+        return block_headers
 
-    def saveRSRCIndex(self, fh):
-        raise NotImplementedError('Unfinished.')
+    def saveRSRCInfo(self, fh, block_headers):
+        rsrchead = self.rsrc_headers[-1]
+        fh.write((c_ubyte * sizeof(rsrchead)).from_buffer_copy(rsrchead))
+
+        binflsthead = self.binflsthead
+        binflsthead.blockinfo_size = sum(sizeof(bh) for bh in block_headers)#TODO FIX
+        if (self.po.verbose > 2):
+            print(binflsthead)
+        fh.write((c_ubyte * sizeof(binflsthead)).from_buffer_copy(binflsthead))
+
+        binfhead = BlockInfoHeader(self.po)
+        binfhead.blockinfo_count = len(block_headers) - 1
+        fh.write((c_ubyte * sizeof(binfhead)).from_buffer_copy(binfhead))
+
+        for i, block_head in enumerate(block_headers):
+            if (self.po.verbose > 0):
+                print("{}: Writing RSRC block {} info".format(self.src_fname,bytes(block_head.name)))
+            fh.write((c_ubyte * sizeof(block_head)).from_buffer_copy(block_head))
+
+        for i, block_head in enumerate(block_headers):
+            if (self.po.verbose > 0):
+                print("{}: Writing RSRC block {} starts".format(self.src_fname,bytes(block_head.name)))
+            for s, sect_start in enumerate(block_head.starts):
+                fh.write((c_ubyte * sizeof(sect_start)).from_buffer_copy(sect_start))
+
+        # Footer - len and filename
+        if (self.po.verbose > 0):
+            print("{}: Writing RSRC footer".format(self.src_fname))
+        fname = os.path.basename(self.src_fname)
+        footer = int(len(fname)).to_bytes(1, byteorder='big')
+        footer += fname.encode("utf-8")
+        fh.write(footer)
         pass
 
     def saveRSRC(self, fh):
         self.src_fname = fh.name
-        self.saveRSRCData(fh)
-        self.saveRSRCIndex(fh)
+        block_headers = self.saveRSRCData(fh)
+        self.saveRSRCInfo(fh, block_headers)
         pass
 
     def exportBinBlocksXMLTree(self):

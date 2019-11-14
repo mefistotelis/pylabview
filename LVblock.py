@@ -58,7 +58,7 @@ class BlockHeader(RSRCStructure):
         return ret
 
 
-class BlockStart(RSRCStructure):
+class BlockSectionStart(RSRCStructure):
     _fields_ = [('int1', c_uint32),		#0
                 ('int2', c_uint32),		#4
                 ('int3', c_uint32),		#8
@@ -68,6 +68,7 @@ class BlockStart(RSRCStructure):
 
     def __init__(self, po):
         self.po = po
+        self.int2 = 0xFFFFFFFF
         pass
 
     def checkSanity(self):
@@ -122,7 +123,6 @@ class Block(object):
         self.sections = []
         self.section_loaded = -1
         self.section_requested = 0
-        self.start = None
         self.block_pos = None
         # set by getRawData()
         self.size = None
@@ -133,6 +133,7 @@ class Block(object):
 
         self.sections = [SimpleNamespace() for _ in range(header.count + 1)]
         for section in self.sections:
+            section.start = BlockSectionStart(self.po)
             section.raw_data = None
         self.section_loaded = -1
 
@@ -144,30 +145,31 @@ class Block(object):
         fh = self.vi.rsrc_fh
         fh.seek(start_pos)
 
-        blkstart = BlockStart(self.po)
-        if fh.readinto(blkstart) != sizeof(blkstart):
-            raise EOFError("Could not read BlockStart data.")
-        if not blkstart.checkSanity():
-            raise IOError("BlockStart data sanity check failed.")
-        if (self.po.verbose > 2):
-            print(blkstart)
-        self.start = blkstart
+        for section in self.sections:
+            if fh.readinto(section.start) != sizeof(section.start):
+                raise EOFError("Could not read BlockSectionStart data.")
+            if not section.start.checkSanity():
+                raise IOError("BlockSectionStart data sanity check failed.")
+            if (self.po.verbose > 2):
+                print(section.start)
 
+        # TODO block_pos is per-section
         self.block_pos = \
             self.vi.rsrc_headers[-1].dataset_offset + \
-            self.start.offset
+            self.sections[0].start.offset
 
         if (self.po.verbose > 2):
             print("{:s}: Block {} has {:d} sections".format(self.vi.src_fname,self.name,len(self.sections)))
 
     def initWithXML(self, block_elem):
         self.name = block_elem.tag.encode("utf-8")
+        while len(self.name) < 4: self.name += b' '
         self.header = BlockHeader(self.po)
-        self.header.name = (c_ubyte * 4).from_buffer_copy(self.header)
-        self.start = BlockStart(self.po)
+        self.header.name = (c_ubyte * 4).from_buffer_copy(self.name)
 
         self.sections = [SimpleNamespace() for _ in range(len(block_elem))]
         for section in self.sections:
+            section.start = BlockSectionStart(self.po)
             section.raw_data = None
         self.section_loaded = -1
 
@@ -270,6 +272,7 @@ class Block(object):
         # Insert empty bytes in any missing sections
         while section_num >= len(self.sections):
             section = SimpleNamespace()
+            section.start = BlockSectionStart(self.po)
             section.raw_data = b''
             self.sections.append(section)
         # Replace the target section
@@ -340,10 +343,22 @@ class Block(object):
         self.setRawData(raw_data_section, section_num=section_num)
 
     def saveRSRCData(self, fh):
-        #blkstart = self.start
-        #fh.write((c_ubyte * sizeof(blkstart)).from_buffer_copy(blkstart))
+        self.header.count = len(self.sections) - 1
+        self.header.offset = fh.tell() - \
+            self.vi.rsrc_headers[-1].rsrc_offset - \
+            self.vi.binflsthead.blockinfo_offset
 
+        sect_starts = []
         for snum, section in enumerate(self.sections):
+
+            section.start.offset = fh.tell() - \
+            self.vi.rsrc_headers[-1].rsrc_offset
+
+            if not section.start.checkSanity():
+                raise IOError("BlockSectionStart data sanity check failed.")
+            if (self.po.verbose > 2):
+                print(section.start)
+
             blksect = BlockSection(self.po)
             blksect.size = len(section.raw_data)
             fh.write((c_ubyte * sizeof(blksect)).from_buffer_copy(blksect))
@@ -351,6 +366,9 @@ class Block(object):
             if blksect.size % 4 > 0:
                 padding_len = 4 - (blksect.size % 4)
                 fh.write((b'\0' * padding_len))
+            sect_starts.append(section.start)
+
+        return sect_starts
 
     def exportXMLTree(self):
         """ Export the file data into XML tree
@@ -529,7 +547,7 @@ class BDPW(Block):
         vers = self.vi.get('vers')
         if vers is None:
             if (po.verbose > 0):
-                eprint("{:s}: Warning: Block {} not found; using empty password salt".format(self.vi.src_fname,'vers'))
+                eprint("{:s}: Warning: Block '{}' not found; using empty password salt".format(self.vi.src_fname,'vers'))
             self.salt = salt
             return salt
         if vers.verMajor() >= 12:
