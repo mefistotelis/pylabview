@@ -343,11 +343,8 @@ class Block(object):
         self.setRawData(raw_data_section, section_num=section_num)
 
     def saveRSRCData(self, fh):
-        #!!!!!!!!!!!!!!
+        # Header is to be filled while saving Info part, so the value below is overwritten
         self.header.count = len(self.sections) - 1
-        #self.header.offset = fh.tell() - \
-        #    self.vi.rsrc_headers[-1].rsrc_offset - \
-        #    self.vi.binflsthead.blockinfo_offset
 
         sect_starts = []
         for snum, section in enumerate(self.sections):
@@ -430,6 +427,13 @@ class LVSR(Block):
 
     def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.NONE):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+
+    def saveRSRCData(self, fh):
+        # Unlike other sections, this one has int2 zeroed out
+        for snum, section in enumerate(self.sections):
+            section.start.int2 = 0
+
+        return Block.saveRSRCData(self, fh)
 
 
 class vers(Block):
