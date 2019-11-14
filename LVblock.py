@@ -352,7 +352,7 @@ class Block(object):
         for snum, section in enumerate(self.sections):
 
             section.start.offset = fh.tell() - \
-            self.vi.rsrc_headers[-1].rsrc_offset
+            self.vi.rsrc_headers[-1].dataset_offset
 
             if not section.start.checkSanity():
                 raise IOError("BlockSectionStart data sanity check failed.")
