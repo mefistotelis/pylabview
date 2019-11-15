@@ -120,21 +120,15 @@ class Block(object):
         # set by initWith*()
         self.header = None
         self.name = None
-        self.sections = []
+        self.sections = {}
         self.section_loaded = -1
         self.section_requested = 0
-        self.block_pos = None
-        # set by getRawData()
+        # set by getRawData(); size of cummulative data for all sections in the block
         self.size = None
 
     def initWithRSRC(self, header):
         self.header = header
         self.name = bytes(header.name)
-
-        self.sections = [SimpleNamespace() for _ in range(header.count + 1)]
-        for section in self.sections:
-            section.start = BlockSectionStart(self.po)
-            section.raw_data = None
         self.section_loaded = -1
 
         start_pos = \
@@ -145,18 +139,26 @@ class Block(object):
         fh = self.vi.rsrc_fh
         fh.seek(start_pos)
 
-        for section in self.sections:
+        self.sections = {}
+        for i in range(header.count + 1):
+            section = SimpleNamespace()
+            section.start = BlockSectionStart(self.po)
+            section.raw_data = None
+            section.block_pos = None
             if fh.readinto(section.start) != sizeof(section.start):
                 raise EOFError("Could not read BlockSectionStart data.")
-            if not section.start.checkSanity():
-                raise IOError("BlockSectionStart data sanity check failed.")
             if (self.po.verbose > 2):
                 print(section.start)
+            if not section.start.checkSanity():
+                raise IOError("BlockSectionStart data sanity check failed.")
+            if section.start.int1 in self.sections:
+                raise IOError("BlockSectionStart of given int1 exists twice.")
+            section.block_pos = \
+                self.vi.rsrc_headers[-1].dataset_offset + \
+                section.start.offset
+            self.sections[section.start.int1] = section
 
-        # TODO block_pos is per-section
-        self.block_pos = \
-            self.vi.rsrc_headers[-1].dataset_offset + \
-            self.sections[0].start.offset
+        self.section_requested = min(self.sections.keys())
 
         if (self.po.verbose > 2):
             print("{:s}: Block {} has {:d} sections".format(self.vi.src_fname,self.name,len(self.sections)))
@@ -166,20 +168,23 @@ class Block(object):
         while len(self.name) < 4: self.name += b' '
         self.header = BlockHeader(self.po)
         self.header.name = (c_ubyte * 4).from_buffer_copy(self.name)
-
-        self.sections = [SimpleNamespace() for _ in range(len(block_elem))]
-        for section in self.sections:
-            section.start = BlockSectionStart(self.po)
-            section.raw_data = None
         self.section_loaded = -1
 
-        self.header.count = len(self.sections) - 1
-
+        self.sections = {}
         for i, section_elem in enumerate(block_elem):
             if (section_elem.tag != "Section"):
                 raise AttributeError("Block contains something else than 'Section'")
             idx = int(section_elem.get("Index"))
-            section = self.sections[idx]
+
+            section = SimpleNamespace()
+            section.start = BlockSectionStart(self.po)
+            section.raw_data = None
+            section.block_pos = None
+            section.start.int1 = idx
+            if section.start.int1 in self.sections:
+                raise IOError("BlockSectionStart of given int1 exists twice.")
+            self.sections[section.start.int1] = section
+
             self.section_requested = idx
             fmt = section_elem.get("Format")
             if fmt == "bin":
@@ -197,42 +202,58 @@ class Block(object):
             # TODO add support of XML section data
             else:
                 raise NotImplementedError("Unsupported Block {} Section {:d} Format '{}'.".format(self.name,idx,fmt))
-        self.section_requested = 0
+
+        self.header.count = len(self.sections) - 1
+        self.section_requested = min(self.sections.keys())
         self.section_loaded = -1
         pass
 
     def setSizeFromBlocks(self):
         """ Set data size of this block
+
          To do that, first get total dataset_size, and then decrease it to
-         minimum distance between this block and all other blocks
+         minimum distance between this block and all other blocks.
+         This assumes that blocks are stored as a whole, with all sections
+         after each other, without interleaving with sections from other blocks.
+         Blocks and sections don't have to be ordered though.
         """
         minSize = self.vi.rsrc_headers[-1].dataset_size
-        for block in self.vi.blocks_arr:
-            if self != block and block.block_pos > self.block_pos:
-                minSize = min(minSize, block.block_pos - self.block_pos)
+        # Do the minimalizing job only if all section have the position set
+        if None not in [ section.block_pos for section in self.sections.values() ]:
+            self_min_section_block_pos = min(section.block_pos for section in self.sections.values())
+            for block in self.vi.blocks_arr:
+                block_min_section_block_pos = min(section.block_pos for section in block.sections.values())
+                if (self != block) and (block_min_section_block_pos > self_min_section_block_pos):
+                    minSize = min(minSize, block_min_section_block_pos - self_min_section_block_pos)
         self.size = minSize
         if (self.po.verbose > 1):
             print("{:s}: Block {} max data size set to {:d} bytes".format(self.vi.src_fname,self.name,self.size))
         return minSize
 
-    def readRawDataSections(self, section_count=1):
+    def readRawDataSections(self, section_count=None):
         last_blksect_size = sum_size = 0
+        if section_count is None:
+            section_count = min(self.sections.keys()) + 1
+        # Get minimal starting offset of a section
+        first_section_start_offset = min(section.start.offset for section in self.sections.values())
 
         fh = self.vi.rsrc_fh
-        for i in range(0, section_count):
+        for i, section in sorted(self.sections.items()):
+            if i >= section_count: break
             sum_size += last_blksect_size
-            section = self.sections[i]
 
             if (self.po.verbose > 2):
-                print("{:s}: Block {} section {:d} header at pos {:d}".format(self.vi.src_fname,self.name,i,self.block_pos + sum_size))
-            fh.seek(self.block_pos + sum_size)
+                print("{:s}: Block {} section {:d} header at pos {:d}".format(self.vi.src_fname,self.name,i,section.block_pos))
+            fh.seek(section.block_pos)
 
             blksect = BlockSection(self.po)
-            if sum_size + sizeof(blksect) > self.size:
-                raise IOError("Requested {} section count too large; no data for secion {:d} header."\
-                      .format(self.name, i))
+            # This check assumes that all sections are written after each other in an array
+            # It seem to be always the case, though file format does not mandate that
+            if (section.start.offset - first_section_start_offset) + sizeof(blksect) > self.size:
+                raise IOError("Requested {} section count too large; no data for secion {:d} header ({} > {})."\
+                      .format(self.name, i, section.start.offset + sizeof(blksect), self.size))
             if fh.readinto(blksect) != sizeof(blksect):
-                raise EOFError("Could not read BlockSection data for block {} at {:d}.".format(self.name,self.block_pos+sum_size))
+                raise EOFError("Could not read BlockSection data for block {} at {:d}.".format(self.name,section.block_pos))
             if not blksect.checkSanity():
                 raise IOError("BlockSection data for block {} sanity check failed.".format(self.name))
             if (self.po.verbose > 2):
@@ -252,31 +273,54 @@ class Block(object):
             if last_blksect_size % 4 > 0:
                 last_blksect_size += 4 - (last_blksect_size % 4)
 
-    def getRawData(self, section_num=0):
+    def getRawData(self, section_num=None):
         """ Retrieves bytes object with raw data of given section
 
             Reads the section from input stream if neccessary
         """
+        if section_num is None:
+            section_num = min(self.sections.keys())
         if self.size is None:
             self.setSizeFromBlocks()
-        if section_num >= len(self.sections) or self.sections[section_num].raw_data is None:
+
+        if section_num not in self.sections:
+                    raise IOError("Within block {} there is no section number {:d}"\
+                      .format(self.name, section_num))
+        if self.sections[section_num].raw_data is None:
             self.readRawDataSections(section_count=section_num+1)
         return self.sections[section_num].raw_data
 
-    def setRawData(self, raw_data_buf, section_num=0):
+    def setRawData(self, raw_data_buf, section_num=None):
         """ Sets given bytes object as section raw data
 
             Extends the amount of sections if neccessary
         """
-        self.size  = len(raw_data_buf)
+        if section_num is None:
+            section_num = min(self.sections.keys())
+        # If changing currently loaded section, mark it as not loaded anymore
+        if self.section_loaded == section_num:
+            self.section_loaded = -1
         # Insert empty bytes in any missing sections
-        while section_num >= len(self.sections):
+        if section_num not in self.sections:
             section = SimpleNamespace()
             section.start = BlockSectionStart(self.po)
+            section.start.int1 = section_num
             section.raw_data = b''
-            self.sections.append(section)
+            self.sections[section_num] = section
         # Replace the target section
         self.sections[section_num].raw_data = raw_data_buf
+
+    def getSection(self, section_num=None):
+        """ Retrieves section of given number, or first one
+
+            Does not force data read
+        """
+        if section_num is None:
+            section_num = min(self.sections.keys())
+        if section_num not in self.sections:
+                    raise IOError("Within block {} there is no section number {:d}"\
+                      .format(self.name, section_num))
+        return self.sections[section_num]
 
     def parseRSRCData(self, bldata):
         """ Implements setting block properties from Byte Stream of a section
@@ -347,16 +391,17 @@ class Block(object):
         self.header.count = len(self.sections) - 1
 
         sect_starts = []
-        for snum, section in enumerate(self.sections):
+        for snum, section in self.sections.items():
 
             # Store the dataset offset in proper structure
             section.start.offset = fh.tell() - \
             self.vi.rsrc_headers[-1].dataset_offset
+            section.start.int1 = snum
 
-            if not section.start.checkSanity():
-                raise IOError("BlockSectionStart data sanity check failed.")
             if (self.po.verbose > 2):
                 print(section.start)
+            if not section.start.checkSanity():
+                raise IOError("BlockSectionStart data sanity check failed.")
 
             blksect = BlockSection(self.po)
             blksect.size = len(section.raw_data)
@@ -377,7 +422,7 @@ class Block(object):
         elem = ET.Element(pretty_name)
         elem.text = "\n"
         elem.tail = "\n"
-        for snum, section in enumerate(self.sections):
+        for snum, section in self.sections.items():
             if len(self.sections) == 1:
                 block_fname = "{:s}_{:s}.bin".format(self.po.filebase, pretty_name)
             else:
@@ -430,7 +475,7 @@ class LVSR(Block):
 
     def saveRSRCData(self, fh):
         # Unlike other sections, this one has int2 zeroed out
-        for snum, section in enumerate(self.sections):
+        for snum, section in self.sections.items():
             section.start.int2 = 0
 
         return Block.saveRSRCData(self, fh)
