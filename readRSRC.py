@@ -58,44 +58,44 @@ class FILE_FMT_TYPE(enum.Enum):
 
 
 class RSRCHeader(RSRCStructure):
-    _fields_ = [('id1', c_ubyte * 6),		#0
-                ('id2', c_ushort),			#6
-                ('file_type', c_ubyte * 4),	#8
-                ('id4', c_ubyte * 4),		#12
-                ('rsrc_offset', c_uint32),	#16
-                ('rsrc_size', c_uint32),	#20
-                ('dataset_offset', c_uint32),#24
-                ('dataset_size', c_uint32),	#28, sizeof is 32
+    _fields_ = [('rsrc_id1', c_ubyte * 6),		#0
+                ('rsrc_id2', c_ushort),			#6
+                ('rsrc_type', c_ubyte * 4),		#8 4-byte identifier of file type
+                ('rsrc_id4', c_ubyte * 4),		#12
+                ('rsrc_info_offset', c_uint32),	#16 Offset from beginning of the file to RSRC header before the Info part
+                ('rsrc_info_size', c_uint32),	#20
+                ('rsrc_data_offset', c_uint32),#24 Offset from beginning of the file to RSRC header before the Data part
+                ('rsrc_data_size', c_uint32),	#28, sizeof is 32
     ]
 
     def __init__(self, po):
         self.po = po
-        self.id1 = (c_ubyte * sizeof(self.id1)).from_buffer_copy(b'RSRC\r\n')
-        self.id2 = 3
-        self.file_type = (c_ubyte * sizeof(self.file_type)).from_buffer_copy(b'LVIN')
-        self.id4 = (c_ubyte * sizeof(self.id4)).from_buffer_copy(b'LBVW')
+        self.rsrc_id1 = (c_ubyte * sizeof(self.rsrc_id1)).from_buffer_copy(b'RSRC\r\n')
+        self.rsrc_id2 = 3
+        self.rsrc_type = (c_ubyte * sizeof(self.rsrc_type)).from_buffer_copy(b'LVIN')
+        self.rsrc_id4 = (c_ubyte * sizeof(self.rsrc_id4)).from_buffer_copy(b'LBVW')
         self.ftype = FILE_FMT_TYPE.NONE
-        self.dataset_offset = sizeof(self)
+        self.rsrc_data_offset = sizeof(self)
         self.starts = []
 
     def check_sanity(self):
         ret = True
-        if bytes(self.id1) != b'RSRC\r\n':
+        if bytes(self.rsrc_id1) != b'RSRC\r\n':
             if (self.po.verbose > 0):
-                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.rsrc,'id1',bytes(self.id1)))
+                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.rsrc,'id1',bytes(self.rsrc_id1)))
             ret = False
-        self.ftype = recognizeFileType(self.file_type)
+        self.ftype = recognizeFileTypeFromRsrcType(self.rsrc_type)
         if self.ftype == FILE_FMT_TYPE.NONE:
             if (self.po.verbose > 0):
-                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.rsrc,'file_type',bytes(self.file_type)))
+                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.rsrc,'rsrc_type',bytes(self.rsrc_type)))
             ret = False
-        if bytes(self.id4) != b'LBVW':
+        if bytes(self.rsrc_id4) != b'LBVW':
             if (self.po.verbose > 0):
-                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.rsrc,'id4',bytes(self.id4)))
+                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.rsrc,'id4',bytes(self.rsrc_id4)))
             ret = False
-        if self.dataset_offset < sizeof(self):
+        if self.rsrc_data_offset < sizeof(self):
             if (self.po.verbose > 0):
-                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.rsrc,'dataset_offset',dataset_offset))
+                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.rsrc,'rsrc_data_offset',rsrc_data_offset))
             ret = False
         return ret
 
@@ -144,7 +144,7 @@ class BlockInfoHeader(RSRCStructure):
         return ret
 
 
-def getIdForFileType(ftype):
+def getRsrcTypeForFileType(ftype):
     """ Gives 4-byte file identifier from FILE_FMT_TYPE member
     """
     file_type = {
@@ -163,13 +163,13 @@ def getIdForFileType(ftype):
     return file_type
 
 
-def recognizeFileType(file_type):
+def recognizeFileTypeFromRsrcType(rsrc_type):
     """ Gives FILE_FMT_TYPE member from given 4-byte file identifier
     """
-    file_type_id = bytes(file_type)
+    rsrc_type_id = bytes(rsrc_type)
     for ftype in FILE_FMT_TYPE:
-        curr_file_type_id = getIdForFileType(ftype)
-        if len(curr_file_type_id) > 0 and (curr_file_type_id == file_type_id):
+        curr_rsrc_type_id = getRsrcTypeForFileType(ftype)
+        if len(curr_rsrc_type_id) > 0 and (curr_rsrc_type_id == rsrc_type_id):
             return ftype
     return FILE_FMT_TYPE.NONE
 
@@ -234,10 +234,10 @@ class VI():
             if not rsrchead.check_sanity():
                 raise IOError("RSRC {:d} Header sanity check failed.",format(len(rsrc_headers)))
             # The last header has offset equal to its start
-            if rsrchead.rsrc_offset >= curr_rsrc_pos:
-                next_rsrc_pos = rsrchead.rsrc_offset
+            if rsrchead.rsrc_info_offset >= curr_rsrc_pos:
+                next_rsrc_pos = rsrchead.rsrc_info_offset
             else:
-                raise IOError("Invalid position of next item after parsing RSRC {:d} Header: {:d}".format(len(rsrc_headers),rsrchead.rsrc_offset))
+                raise IOError("Invalid position of next item after parsing RSRC {:d} Header: {:d}".format(len(rsrc_headers),rsrchead.rsrc_info_offset))
             rsrc_headers.append(rsrchead)
         self.rsrc_headers = rsrc_headers
         return (len(rsrc_headers) > 0)
@@ -254,7 +254,7 @@ class VI():
         self.ftype = blkinf_rsrchead.ftype
 
         # Set file position just after Block-Infos RSRC header
-        fh.seek(blkinf_rsrchead.rsrc_offset + sizeof(blkinf_rsrchead))
+        fh.seek(blkinf_rsrchead.rsrc_info_offset + sizeof(blkinf_rsrchead))
 
         # Read Block-Infos List Header located after last RSRC header
         binflsthead = BlockInfoListHeader(self.po)
@@ -266,7 +266,7 @@ class VI():
             raise IOError("BlockInfoList Header sanity check failed.")
         self.binflsthead = binflsthead
 
-        fh.seek(blkinf_rsrchead.rsrc_offset + binflsthead.blockinfo_offset)
+        fh.seek(blkinf_rsrchead.rsrc_info_offset + binflsthead.blockinfo_offset)
 
         binfhead = BlockInfoHeader(self.po)
         if fh.readinto(binfhead) != sizeof(binfhead):
@@ -289,8 +289,9 @@ class VI():
             if not block_head.check_sanity():
                 raise IOError("Block Header sanity check failed.")
             #t['Count'] = reader.readUInt32() + 1
-            #t['Offset'] = blkinf_rsrchead.rsrc_offset + binflsthead.blockinfo_offset + reader.readUInt32()
+            #t['Offset'] = blkinf_rsrchead.rsrc_info_offset + binflsthead.blockinfo_offset + reader.readUInt32()
             block_headers.append(block_head)
+
         return block_headers
 
     def readRSRCBlockData(self, fh, block_headers):
@@ -299,29 +300,36 @@ class VI():
             After this function, `self.blocks` is filled.
         """
         # Create Array of Block; use classes defined within LVblock namespace to read data
-        # specific to given block type; when block name is unrecognized, create generic block
+        # specific to given block type; when block ident is unrecognized, create generic block
         blocks_arr = []
         for i, block_head in enumerate(block_headers):
-            name = bytes(block_head.name).decode("utf-8")
-            bfactory = getattr(LVblock, name, None)
+            ident = bytes(block_head.ident).decode("utf-8")
+            bfactory = getattr(LVblock, ident, None)
             # Block may depend on some other informational blocks (ie. version info)
             # so give each block reference to the vi object
             if isinstance(bfactory, type):
                 if (self.po.verbose > 1):
-                    print("{:s}: Block '{:s}' index {:d} recognized".format(self.src_fname,name,i))
+                    print("{:s}: Block '{:s}' index {:d} recognized".format(self.src_fname,ident,i))
                 block = bfactory(self, self.po)
             else:
                 block = LVblock.Block(self, self.po)
-            block.initWithRSRC(block_head)
+            block.initWithRSRCEarly(block_head)
             blocks_arr.append(block)
-        self.blocks_arr = blocks_arr
 
         # Create Array of Block Data
         blocks = {}
-        for i, block in enumerate(self.blocks_arr):
-            block.parseData()
-            blocks[block.name] = block
+        for i, block in enumerate(blocks_arr):
+            blocks[block.ident] = block
         self.blocks = blocks
+
+        # Late part of initialization, which requires all blocks to be already present
+        for block in self.blocks.values():
+            block.initWithRSRCLate()
+
+        # Now when everything is ready, parse the blocks data
+        for block in self.blocks.values():
+            block.parseData()
+
         return (len(blocks) > 0)
 
     def readRSRC(self, fh):
@@ -339,13 +347,13 @@ class VI():
         """
         blocks_arr = []
         for i, block_elem in enumerate(self.xml_root):
-            name = block_elem.tag
-            bfactory = getattr(LVblock, name, None)
+            ident = block_elem.tag
+            bfactory = getattr(LVblock, ident, None)
             # Block may depend on some other informational blocks (ie. version info)
             # so give each block reference to the vi object
             if isinstance(bfactory, type):
                 if (self.po.verbose > 1):
-                    print("{:s}: Block {:s} recognized".format(self.src_fname,name))
+                    print("{:s}: Block {:s} recognized".format(self.src_fname,ident))
                 block = bfactory(self, self.po)
             else:
                 block = LVblock.Block(self, self.po)
@@ -359,7 +367,7 @@ class VI():
         blocks = {}
         for i, block in enumerate(self.blocks_arr):
             block.parseData() #TODO make this support XML
-            blocks[block.name] = block
+            blocks[block.ident] = block
         self.blocks = blocks
         return (len(blocks) > 0)
 
@@ -369,18 +377,18 @@ class VI():
         if self.xml_root.tag != 'RSRC':
             raise AttributeError("Root tag of the XML is not 'RSRC'")
 
-        file_type_str = self.xml_root.get("Type")
+        rsrc_type_str = self.xml_root.get("Type")
         # TODO we will need better string-to-bytes ID conversion at some point
         # (when we have implementation of a block with space or other non-alphanum chars)
-        file_type_id = file_type_str.encode("utf-8")
-        self.ftype = recognizeFileType(file_type_id)
+        rsrc_type_id = rsrc_type_str.encode("utf-8")
+        self.ftype = recognizeFileTypeFromRsrcType(rsrc_type_id)
 
         self.rsrc_headers = []
         rsrchead = RSRCHeader(self.po)
-        rsrchead.file_type = (c_ubyte * sizeof(rsrchead.file_type)).from_buffer_copy(file_type_id)
+        rsrchead.rsrc_type = (c_ubyte * sizeof(rsrchead.rsrc_type)).from_buffer_copy(rsrc_type_id)
         self.rsrc_headers.append(rsrchead)
         rsrchead = RSRCHeader(self.po)
-        rsrchead.file_type = (c_ubyte * sizeof(rsrchead.file_type)).from_buffer_copy(file_type_id)
+        rsrchead.rsrc_type = (c_ubyte * sizeof(rsrchead.rsrc_type)).from_buffer_copy(rsrc_type_id)
         self.rsrc_headers.append(rsrchead)
 
         self.readXMLBlockData()
@@ -392,13 +400,13 @@ class VI():
         rsrchead = self.rsrc_headers[0]
         fh.write((c_ubyte * sizeof(rsrchead)).from_buffer_copy(rsrchead))
 
-        for name, block in self.blocks.items():
+        for ident, block in self.blocks.items():
             if (self.po.verbose > 0):
-                print("{}: Writing RSRC block {} data".format(self.src_fname,name))
+                print("{}: Writing RSRC block {} data".format(self.src_fname,ident))
             block.header.starts = block.saveRSRCData(fh)
 
-        rsrchead.rsrc_offset = fh.tell()
-        rsrchead.dataset_size = rsrchead.rsrc_offset - rsrchead.dataset_offset
+        rsrchead.rsrc_info_offset = fh.tell()
+        rsrchead.rsrc_data_size = rsrchead.rsrc_info_offset - rsrchead.rsrc_data_offset
 
     def saveRSRCInfo(self, fh):
         rsrchead = self.rsrc_headers[-1]
@@ -407,7 +415,7 @@ class VI():
         # Prepare list of headers; this also sets blocks order which we will use
         # The data section may be in different order - but that doesn't matter
         block_headers = []
-        for name, block in self.blocks.items():
+        for block in self.blocks.values():
             block_headers.append(block.header)
 
         # Compute sizes and offsets within the block to be written
@@ -430,7 +438,7 @@ class VI():
 
         for i, block_head in enumerate(block_headers):
             if (self.po.verbose > 0):
-                print("{}: Writing RSRC block {} info".format(self.src_fname,bytes(block_head.name)))
+                print("{}: Writing RSRC block {} info".format(self.src_fname,bytes(block_head.ident)))
             if (self.po.verbose > 2):
                 print(block_head)
             if not block_head.check_sanity():
@@ -439,7 +447,7 @@ class VI():
 
         for i, block_head in enumerate(block_headers):
             if (self.po.verbose > 0):
-                print("{}: Writing RSRC block {} starts".format(self.src_fname,bytes(block_head.name)))
+                print("{}: Writing RSRC block {} starts".format(self.src_fname,bytes(block_head.ident)))
             for s, sect_start in enumerate(block_head.starts):
                 fh.write((c_ubyte * sizeof(sect_start)).from_buffer_copy(sect_start))
 
@@ -451,10 +459,10 @@ class VI():
         footer += fname.encode("utf-8")
         fh.write(footer)
 
-        rsrchead.rsrc_offset = self.rsrc_headers[0].rsrc_offset
-        rsrchead.rsrc_size = fh.tell() - rsrchead.rsrc_offset
-        self.rsrc_headers[0].rsrc_size = rsrchead.rsrc_size
-        rsrchead.dataset_size = self.rsrc_headers[0].dataset_size
+        rsrchead.rsrc_info_offset = self.rsrc_headers[0].rsrc_info_offset
+        rsrchead.rsrc_info_size = fh.tell() - rsrchead.rsrc_info_offset
+        self.rsrc_headers[0].rsrc_info_size = rsrchead.rsrc_info_size
+        rsrchead.rsrc_data_size = self.rsrc_headers[0].rsrc_data_size
         pass
 
     def resaveRSRCHeaders(self, fh):
@@ -466,7 +474,7 @@ class VI():
         rsrchead = self.rsrc_headers[-1]
         if (self.po.verbose > 2):
             print(rsrchead)
-        fh.seek(rsrchead.rsrc_offset)
+        fh.seek(rsrchead.rsrc_info_offset)
         fh.write((c_ubyte * sizeof(rsrchead)).from_buffer_copy(rsrchead))
         pass
 
@@ -483,9 +491,9 @@ class VI():
         elem = ET.Element('RSRC')
         elem.text = "\n"
 
-        for name, block in self.blocks.items():
+        for ident, block in self.blocks.items():
             if (self.po.verbose > 0):
-                print("{}: Writing BIN block {}".format(self.src_fname,name))
+                print("{}: Writing BIN block {}".format(self.src_fname,ident))
             # Call base function, not the overloaded version for specific block
             subelem = LVblock.Block.exportXMLTree(block)
             elem.append(subelem)
@@ -498,22 +506,52 @@ class VI():
         elem = ET.Element('RSRC')
         elem.text = "\n"
         elem.tail = "\n"
-        file_type_id = getIdForFileType(self.ftype)
-        elem.set("Type", file_type_id.decode("utf-8"))
+        rsrc_type_id = getRsrcTypeForFileType(self.ftype)
+        elem.set("Type", rsrc_type_id.decode("utf-8"))
 
-        for name, block in self.blocks.items():
+        for ident, block in self.blocks.items():
             if (self.po.verbose > 0):
-                print("{}: Writing block {}".format(self.src_fname,name))
+                print("{}: Writing block {}".format(self.src_fname,ident))
             subelem = block.exportXMLTree()
             elem.append(subelem)
 
         return elem
 
-    def getBlockIdByBlockName(self, name):
+    def getBlockIdByBlockName(self, ident):
         for i in range(0, len(self.blockInfo)):
-            if self.blockInfo[i]['BlockName'] == name:
+            if self.blockInfo[i]['BlockName'] == ident:
                 return i
         return None
+
+    def getPositionOfBlockInfoHeader(self):
+        """ Gives file position at which BlockInfoHeader is located within the Info Resource
+
+            The BlockInfoHeader is then followed by array of BlockHeader structs.
+        """
+        blkinf_rsrchead = self.rsrc_headers[-1]
+        return blkinf_rsrchead.rsrc_info_offset + self.binflsthead.blockinfo_offset
+
+    def getPositionOfBlockSectionStart(self):
+        """ Gives file position at which BlockSectionStart structs are placed within the Info Resource
+
+            Offsets to groups of BlockSectionStart elements are inside BlockHeader structs; this
+            function can be used to validate them.
+        """
+        return self.getPositionOfBlockInfoHeader() + sizeof(BlockInfoHeader) + sizeof(LVblock.BlockHeader) * len(self.blocks)
+
+    def getPositionOfBlockSectionNames(self):
+        """ Gives file position at which Section Names are placed within the Info Resource
+        """
+        tot_sections_count = 0
+        for block in self.blocks.values():
+            tot_sections_count += len(block.sections)
+        return self.getPositionOfBlockSectionStart() + sizeof(LVblock.BlockSectionStart) * tot_sections_count
+
+    def getPositionOfBlockInfoEnd(self):
+        """ Gives file position at which the Info Resource ends
+        """
+        blkinf_rsrchead = self.rsrc_headers[-1]
+        return blkinf_rsrchead.rsrc_info_offset + blkinf_rsrchead.rsrc_info_size
 
     def connectorEnumerate(self, mainType=None, fullType=None):
         VCTP = self.get_or_raise('VCTP')
@@ -536,35 +574,35 @@ class VI():
         BDPW.recalculateHash2(store=True)
         return BDPW
 
-    def get(self, name):
-        if isinstance(name, str):
-            name = name.encode('utf-8')
-        if name in self.blocks:
-            return self.blocks[name]
+    def get(self, ident):
+        if isinstance(ident, str):
+            ident = ident.encode('utf-8')
+        if ident in self.blocks:
+            return self.blocks[ident]
         return None
 
-    def get_one_of(self, *namev):
-        for name in namev:
-            if isinstance(name, str):
-                name = name.encode('utf-8')
-            if name in self.blocks:
-                return self.blocks[name]
+    def get_one_of(self, *identv):
+        for ident in identv:
+            if isinstance(ident, str):
+                ident = ident.encode('utf-8')
+            if ident in self.blocks:
+                return self.blocks[ident]
         return None
 
-    def get_or_raise(self, name):
-        if isinstance(name, str):
-            name = name.encode('utf-8')
-        if name in self.blocks:
-            return self.blocks[name]
-        raise LookupError("Block {} not found in RSRC file.".format(name))
+    def get_or_raise(self, ident):
+        if isinstance(ident, str):
+            ident = ident.encode('utf-8')
+        if ident in self.blocks:
+            return self.blocks[ident]
+        raise LookupError("Block {} not found in RSRC file.".format(ident))
 
-    def get_one_of_or_raise(self, *namev):
-        for name in namev:
-            if isinstance(name, str):
-                name = name.encode('utf-8')
-            if name in self.blocks:
-                return self.blocks[name]
-        raise LookupError("None of blocks {} found in RSRC file.".format(",".join(namev)))
+    def get_one_of_or_raise(self, *identv):
+        for ident in identv:
+            if isinstance(ident, str):
+                ident = ident.encode('utf-8')
+            if ident in self.blocks:
+                return self.blocks[ident]
+        raise LookupError("None of blocks {} found in RSRC file.".format(",".join(identv)))
 
 
 def main():
@@ -633,10 +671,10 @@ def main():
         with open(po.rsrc, "rb") as rsrc_fh:
             vi = VI(po, rsrc_fh=rsrc_fh)
 
-        print("{}\t{}".format("name","content"))
-        for name, block in vi.blocks.items():
-            pretty_name = block.name.decode(encoding='UTF-8')
-            print("{}\t{}".format(pretty_name,str(block)))
+        print("{}\t{}".format("ident","content"))
+        for ident, block in vi.blocks.items():
+            pretty_ident = block.ident.decode(encoding='UTF-8')
+            print("{}\t{}".format(pretty_ident,str(block)))
 
     elif po.dump:
 
