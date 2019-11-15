@@ -1,13 +1,57 @@
 ### Table of Content
 
-* [File Header](#File-Header) 
+* [General structure](#General-structure) 
+* [RSRC Header](#RSRC-Header) 
 * [Blocks Info](#Blocks-Info) 
 * [Block Header](#Block-Header) 
-* [Block Info](#Block-Info) 
-* [Block Data](#Block-Data) 
+* [Block Section Info](#Block-Section-Info) 
+* [Block Section Data](#Block-Section-Data) 
 * [Other sources](#Other-sources) 
 
-### File Header
+### General structure
+
+The RSRC file contains two identical RSRC headers. Data for sections of each block follow the first RSRC header. Second RSRC header is followed by Blocks Info and then an array of Block Headers. Following these is an array of Block Section Info. The file ends with its filename stored as Pascal string.
+
+```
++---------------------+
+|    RSRC header 1    |
+|+-------------------+|
+||  Section 1 Data   ||
+|+-------------------+|
+||       ....        ||
+|+-------------------+|
+||  Section M Data   ||
+|+-------------------+|
++---------------------+
++---------------------+
+|    RSRC header 2    |
+|+-------------------+|
+||    Blocks Info    ||
+|+-------------------+|
+||  Block 1 Header   ||
+|+-------------------+|
+||       ....        ||
+|+-------------------+|
+||  Block N Header   ||
+|+-------------------+|
+||  Section 1 Info   ||
+|+-------------------+|
+||       ....        ||
+|+-------------------+|
+||  Section M Info   ||
+|+-------------------+|
+|+-------------------+|
+||     File Name     ||
+|+-------------------+|
++---------------------+
+```
+
+Reading the file starts with finding second RSRC header (pointed to by size in 1st RSRC Header). Then reading Block Info and Block Headers. The Block Headers contain offset to list of Section Infos for each block, and the count of sections within each block. Then Section Info structures can then be parsed, and these contain offsets, within the first RSRC, to the Block Section Data. There, the real data is stored.
+
+It is not fully known why there is the division to sections. Each section of a block seem to contain alternative data for that block. The idea seem to be that a loading program selects the section which matches its environment, and ignores other sections in specific block.
+
+
+### RSRC Header
 
 offset: 0
 
@@ -50,7 +94,7 @@ offset: _Block Offset_ + _RSRC Offset_
       4 | uint32  | Info Offset
 ```
 
-### Block Info
+### Block Section Info
 
 offset: _Info Offset_ + _Block Offset_
 
@@ -64,7 +108,7 @@ offset: _Info Offset_ + _Block Offset_
       4 | int32   | ?
 ```
 
-### Block Data
+### Block Section Data
 
 offset: _Offset_ + _Data Offset_
 
