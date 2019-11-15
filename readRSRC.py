@@ -615,6 +615,7 @@ def main():
 
     po = parser.parse_args()
 
+    # Store base name - without path and extension
     if len(po.xml) > 0:
         po.filebase = os.path.splitext(os.path.basename(po.xml))[0]
     elif len(po.rsrc) > 0:

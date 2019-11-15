@@ -357,12 +357,13 @@ class Block(object):
         elif use_coding == BLOCK_CODING.ZLIB:
             size = len(raw_data_section) - 4
             if size < 2:
-                raise IOError("Unable to decompress section [%s:%d]: \
-                            block-size-error - size: %d" % (self.name, section_num, size))
+                raise IOError("Unable to decompress section [%s:%d]: " \
+                            "block-size-error - size: %d" % (self.name, section_num, size))
             usize = int.from_bytes(data.read(4), byteorder='big', signed=False)
-            if (usize < size) or usize > size * 10:
-                raise IOError("Unable to decompress section [%s:%d]: \
-                            uncompress-size-error - size: %d - uncompress-size: %d"
+            # Acording to zlib docs, max theoretical compression ration is 1032:1
+            if (usize < size) or usize > size * 1032:
+                raise IOError("Unable to decompress section [%s:%d]: " \
+                            "uncompress-size-error - size: %d - uncompress-size: %d"
                             % (self.name, section_num, size, usize))
             data = BytesIO(decompress(data.read(size)))
         elif use_coding == BLOCK_CODING.XOR:
@@ -419,6 +420,7 @@ class Block(object):
         """
         pretty_name = self.name.decode(encoding='UTF-8')
         pretty_name = re.sub('[^a-zA-Z0-9_-]+', '', pretty_name)
+        block_fpath = os.path.dirname(self.po.xml)
         elem = ET.Element(pretty_name)
         elem.text = "\n"
         elem.tail = "\n"
@@ -428,7 +430,7 @@ class Block(object):
             else:
                 block_fname = "{:s}_{:s}{:d}.bin".format(self.po.filebase, pretty_name, snum)
             bldata = self.getData(section_num=snum)
-            with open(block_fname, "wb") as block_fd:
+            with open(block_fpath + '/' + block_fname, "wb") as block_fd:
                 block_fd.write(bldata.read())
             subelem = ET.SubElement(elem,"Section")
             subelem.tail = "\n"
