@@ -2,7 +2,7 @@
 
 """ LabView RSRC file format blocks.
 
-Interpreting content of specific block types within RSRC files.
+Classes for interpreting content of specific block types within RSRC files.
 """
 
 # Copyright (C) 2013 Jessica Creighton <jcreigh@femtobit.org>
@@ -35,7 +35,7 @@ from ctypes import *
 
 from LVmisc import *
 from LVconnector import *
-
+from LVresource import *
 
 class BLOCK_CODING(enum.Enum):
     NONE = 0
@@ -63,7 +63,7 @@ class BlockSectionStart(RSRCStructure):
 
         Stores location of its data, but also name offset and index
     """
-    _fields_ = [('section_idx', c_uint32),	#0
+    _fields_ = [('section_idx', c_int32),	#0
                 ('name_offset', c_uint32),	#4 Offset to the text name of this section; only some sections have text names
                 ('int3', c_uint32),		#8
                 ('data_offset', c_uint32),	#12 Offset to BlockSectionData (and the raw data which follows it) of this section
@@ -175,7 +175,7 @@ class Block(object):
                 section.start.data_offset
             self.sections[section.start.section_idx] = section
 
-        self.section_requested = min(self.sections.keys())
+        self.section_requested = min(self.sections.keys(), key=abs)
 
         if (self.po.verbose > 2):
             print("{:s}: Block {} has {:d} sections".format(self.vi.src_fname,self.ident,len(self.sections)))
@@ -206,10 +206,14 @@ class Block(object):
             if (section_elem.tag != "Section"):
                 raise AttributeError("Block contains something else than 'Section'")
             idx = int(section_elem.get("Index"))
+            block_int5 = section_elem.get("Int5")
             name_text = section_elem.get("Name")
 
             section = Section(self.vi, self.po)
             section.start.section_idx = idx
+            if block_int5 is not None:
+                section.start.int5 = int(block_int5, 0)
+
             if name_text is not None:
                 section.name_text = name_text.encode("utf-8")
             if section.start.section_idx in self.sections:
@@ -235,7 +239,7 @@ class Block(object):
                 raise NotImplementedError("Unsupported Block {} Section {:d} Format '{}'.".format(self.ident,idx,fmt))
 
         self.header.count = len(self.sections) - 1
-        self.section_requested = min(self.sections.keys())
+        self.section_requested = min(self.sections.keys(), key=abs)
         self.section_loaded = -1
         pass
 
@@ -264,7 +268,7 @@ class Block(object):
     def readRawDataSections(self, section_count=None):
         last_blksect_size = sum_size = 0
         if section_count is None:
-            section_count = min(self.sections.keys()) + 1
+            section_count = min(self.sections.keys(), key=abs) + 1
         rsrc_data_size = self.vi.rsrc_headers[-1].rsrc_data_size
 
         fh = self.vi.rsrc_fh
@@ -309,7 +313,7 @@ class Block(object):
             Reads the section from input stream if neccessary
         """
         if section_num is None:
-            section_num = min(self.sections.keys())
+            section_num = min(self.sections.keys(), key=abs)
         if self.size is None:
             self.setSizeFromBlocks()
 
@@ -326,7 +330,7 @@ class Block(object):
             Extends the amount of sections if neccessary
         """
         if section_num is None:
-            section_num = min(self.sections.keys())
+            section_num = min(self.sections.keys(), key=abs)
         # If changing currently loaded section, mark it as not loaded anymore
         if self.section_loaded == section_num:
             self.section_loaded = -1
@@ -344,7 +348,7 @@ class Block(object):
             Does not force data read
         """
         if section_num is None:
-            section_num = min(self.sections.keys())
+            section_num = min(self.sections.keys(), key=abs)
         if section_num not in self.sections:
                     raise IOError("Within block {} there is no section number {:d}"\
                       .format(self.ident, section_num))
@@ -462,11 +466,19 @@ class Block(object):
             if len(self.sections) == 1:
                 block_fname = "{:s}_{:s}.bin".format(self.po.filebase, pretty_ident)
             else:
-                block_fname = "{:s}_{:s}{:d}.bin".format(self.po.filebase, pretty_ident, snum)
+                if snum >= 0:
+                    snum_str = str(snum)
+                else:
+                    snum_str = 'm' + str(-snum)
+                block_fname = "{:s}_{:s}{:s}.bin".format(self.po.filebase, pretty_ident, snum_str)
             if len(block_fpath) > 0:
                 block_full_fname = block_fpath + '/' + block_fname
             else:
                 block_full_fname = block_fname
+            if self.vi.ftype == FILE_FMT_TYPE.LLB:
+                block_int5 = section.start.int5
+            else:
+                block_int5 = None
             bldata = self.getData(section_num=snum)
             with open(block_full_fname, "wb") as block_fd:
                 block_fd.write(bldata.read())
@@ -477,6 +489,8 @@ class Block(object):
             subelem.set("File", block_fname)
             if section.name_text is not None:
                 subelem.set("Name", section.name_text.decode("utf-8"))
+            if block_int5 is not None:
+                subelem.set("Int5", "0x{:08X}".format(block_int5))
 
         return elem
 

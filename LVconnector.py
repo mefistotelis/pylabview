@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
-""" LabView RSRC file format - Connector objects inside VCTP block.
+""" LabView RSRC file format connectors.
 
-
+    Virtual Connectors and Terminal Points are stored inside VCTP block.
 """
 
 # Copyright (C) 2013 Jessica Creighton <jcreigh@femtobit.org>
