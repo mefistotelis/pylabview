@@ -400,31 +400,32 @@ class VI():
         rsrchead = self.rsrc_headers[0]
         fh.write((c_ubyte * sizeof(rsrchead)).from_buffer_copy(rsrchead))
 
-        for ident, block in self.blocks.items():
+        # Prepare list of blocks; this sets blocks order which we will use
+        all_blocks = self.blocks.values()
+        # Also create mutable array which will become the names block
+        section_names = bytearray()
+
+        for block in all_blocks:
             if (self.po.verbose > 0):
-                print("{}: Writing RSRC block {} data".format(self.src_fname,ident))
-            block.header.starts = block.saveRSRCData(fh)
+                print("{}: Writing RSRC block {} data".format(self.src_fname,block.ident))
+            block.header.starts = block.saveRSRCData(fh, section_names)
 
         rsrchead.rsrc_info_offset = fh.tell()
         rsrchead.rsrc_data_size = rsrchead.rsrc_info_offset - rsrchead.rsrc_data_offset
 
-    def saveRSRCInfo(self, fh):
+        return all_blocks, section_names
+
+    def saveRSRCInfo(self, fh, all_blocks, section_names):
         rsrchead = self.rsrc_headers[-1]
         fh.write((c_ubyte * sizeof(rsrchead)).from_buffer_copy(rsrchead))
 
-        # Prepare list of headers; this also sets blocks order which we will use
-        # The data section may be in different order - but that doesn't matter
-        block_headers = []
-        for block in self.blocks.values():
-            block_headers.append(block.header)
-
         # Compute sizes and offsets within the block to be written
-        start_offs = sizeof(BlockInfoHeader) + sum(sizeof(block_head) for block_head in block_headers)
-        for block_head in block_headers:
+        start_offs = sizeof(BlockInfoHeader) + sum(sizeof(block.header) for block in all_blocks)
+        for block in all_blocks:
             # the below means the same ase block_head.count = len(self.sections) - 1
-            block_head.count = len(block_head.starts) - 1
-            block_head.offset = start_offs
-            start_offs += sum(sizeof(sect_start) for sect_start in block_head.starts)
+            block.header.count = len(block.header.starts) - 1
+            block.header.offset = start_offs
+            start_offs += sum(sizeof(sect_start) for sect_start in block.header.starts)
 
         binflsthead = self.binflsthead
         binflsthead.blockinfo_size = binflsthead.blockinfo_offset + start_offs
@@ -436,28 +437,25 @@ class VI():
         binfhead.blockinfo_count = len(self.blocks) - 1
         fh.write((c_ubyte * sizeof(binfhead)).from_buffer_copy(binfhead))
 
-        for i, block_head in enumerate(block_headers):
+        for block in all_blocks:
             if (self.po.verbose > 0):
-                print("{}: Writing RSRC block {} info".format(self.src_fname,bytes(block_head.ident)))
+                print("{}: Writing RSRC Info block {} header".format(self.src_fname,bytes(block.header.ident)))
             if (self.po.verbose > 2):
-                print(block_head)
-            if not block_head.check_sanity():
+                print(block.header)
+            if not block.header.check_sanity():
                 raise IOError("Block Header sanity check failed.")
-            fh.write((c_ubyte * sizeof(block_head)).from_buffer_copy(block_head))
+            fh.write((c_ubyte * sizeof(block.header)).from_buffer_copy(block.header))
 
-        for i, block_head in enumerate(block_headers):
+        for block in all_blocks:
             if (self.po.verbose > 0):
-                print("{}: Writing RSRC block {} starts".format(self.src_fname,bytes(block_head.ident)))
-            for s, sect_start in enumerate(block_head.starts):
+                print("{}: Writing RSRC Info block {} section starts".format(self.src_fname,bytes(block.header.ident)))
+            for s, sect_start in enumerate(block.header.starts):
                 fh.write((c_ubyte * sizeof(sect_start)).from_buffer_copy(sect_start))
 
-        # Footer - len and filename
+        # Section names as Pascal strings
         if (self.po.verbose > 0):
-            print("{}: Writing RSRC footer".format(self.src_fname))
-        fname = os.path.basename(self.src_fname)
-        footer = int(len(fname)).to_bytes(1, byteorder='big')
-        footer += fname.encode("utf-8")
-        fh.write(footer)
+            print("{}: Writing RSRC Info section names".format(self.src_fname))
+        fh.write(section_names)
 
         rsrchead.rsrc_info_offset = self.rsrc_headers[0].rsrc_info_offset
         rsrchead.rsrc_info_size = fh.tell() - rsrchead.rsrc_info_offset
@@ -480,8 +478,8 @@ class VI():
 
     def saveRSRC(self, fh):
         self.src_fname = fh.name
-        self.saveRSRCData(fh)
-        self.saveRSRCInfo(fh)
+        all_blocks, section_names = self.saveRSRCData(fh)
+        self.saveRSRCInfo(fh, all_blocks, section_names)
         self.resaveRSRCHeaders(fh)
         pass
 
@@ -490,6 +488,9 @@ class VI():
         """
         elem = ET.Element('RSRC')
         elem.text = "\n"
+        elem.tail = "\n"
+        rsrc_type_id = getRsrcTypeForFileType(self.ftype)
+        elem.set("Type", rsrc_type_id.decode("utf-8"))
 
         for ident, block in self.blocks.items():
             if (self.po.verbose > 0):

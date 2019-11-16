@@ -72,7 +72,6 @@ class BlockSectionStart(RSRCStructure):
 
     def __init__(self, po):
         self.po = po
-        self.name_text = None
         self.name_offset = 0xFFFFFFFF
         pass
 
@@ -120,6 +119,18 @@ class versData(RSRCStructure):
         pass
 
 
+class Section(object):
+    def __init__(self, vi, po):
+        """ Creates new Section object, represention one of possible contents of a Block.
+        """
+        self.vi = vi
+        self.po = po
+        self.start = BlockSectionStart(self.po)
+        self.raw_data = None
+        self.block_pos = None
+        self.name_text = None
+
+
 class Block(object):
     def __init__(self, vi, po):
         """ Creates new Block object, capable of retrieving Block data.
@@ -150,10 +161,7 @@ class Block(object):
 
         self.sections = {}
         for i in range(header.count + 1):
-            section = SimpleNamespace()
-            section.start = BlockSectionStart(self.po)
-            section.raw_data = None
-            section.block_pos = None
+            section = Section(self.vi, self.po)
             if fh.readinto(section.start) != sizeof(section.start):
                 raise EOFError("Could not read BlockSectionStart data.")
             if (self.po.verbose > 2):
@@ -199,12 +207,12 @@ class Block(object):
             if (section_elem.tag != "Section"):
                 raise AttributeError("Block contains something else than 'Section'")
             idx = int(section_elem.get("Index"))
+            name_text = section_elem.get("Name")
 
-            section = SimpleNamespace()
-            section.start = BlockSectionStart(self.po)
-            section.raw_data = None
-            section.block_pos = None
+            section = Section(self.vi, self.po)
             section.start.section_idx = idx
+            if name_text is not None:
+                section.name_text = name_text.encode("utf-8")
             if section.start.section_idx in self.sections:
                 raise IOError("BlockSectionStart of given section_idx exists twice.")
             self.sections[section.start.section_idx] = section
@@ -326,10 +334,8 @@ class Block(object):
             self.section_loaded = -1
         # Insert empty bytes in any missing sections
         if section_num not in self.sections:
-            section = SimpleNamespace()
-            section.start = BlockSectionStart(self.po)
+            section = Section(self.vi, self.po)
             section.start.section_idx = section_num
-            section.raw_data = b''
             self.sections[section_num] = section
         # Replace the target section
         self.sections[section_num].raw_data = raw_data_buf
@@ -411,7 +417,7 @@ class Block(object):
             raise ValueError("Unsupported compression type")
         self.setRawData(raw_data_section, section_num=section_num)
 
-    def saveRSRCData(self, fh):
+    def saveRSRCData(self, fh, section_names):
         # Header is to be filled while saving Info part, so the value below is overwritten
         self.header.count = len(self.sections) - 1
 
@@ -422,6 +428,13 @@ class Block(object):
             section.start.data_offset = fh.tell() - \
             self.vi.rsrc_headers[-1].rsrc_data_offset
             section.start.section_idx = snum
+
+            if section.name_text is not None:
+                section.start.name_offset = len(section_names)
+                section_names.extend(int(len(section.name_text)).to_bytes(1, byteorder='big'))
+                section_names.extend(section.name_text)
+            else:
+                section.start.name_offset = 0xFFFFFFFF
 
             if (self.po.verbose > 2):
                 print(section.start)
@@ -463,6 +476,9 @@ class Block(object):
             subelem.set("Index", str(snum))
             subelem.set("Format", "bin")
             subelem.set("File", block_fname)
+            if section.name_text is not None:
+                subelem.set("Name", section.name_text.decode("utf-8"))
+
         return elem
 
     def __repr__(self):
@@ -500,13 +516,6 @@ class LVSR(Block):
 
     def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.NONE):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
-
-    def saveRSRCData(self, fh):
-        # Unlike other sections, this one has name_offset zeroed out
-        for snum, section in self.sections.items():
-            section.start.name_offset = 0
-
-        return Block.saveRSRCData(self, fh)
 
 
 class vers(Block):
