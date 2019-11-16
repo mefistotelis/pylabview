@@ -41,6 +41,7 @@ import LVblock
 import LVconnector
 from LVmisc import eprint
 from LVmisc import RSRCStructure
+from LVmisc import getPrettyStrFromRsrcType, getRsrcTypeFromPrettyStr
 
 class FILE_FMT_TYPE(enum.Enum):
     NONE = 0
@@ -303,13 +304,13 @@ class VI():
         # specific to given block type; when block ident is unrecognized, create generic block
         blocks_arr = []
         for i, block_head in enumerate(block_headers):
-            ident = bytes(block_head.ident).decode("utf-8")
-            bfactory = getattr(LVblock, ident, None)
+            pretty_ident = getPrettyStrFromRsrcType(block_head.ident)
+            bfactory = getattr(LVblock, pretty_ident, None)
             # Block may depend on some other informational blocks (ie. version info)
             # so give each block reference to the vi object
             if isinstance(bfactory, type):
                 if (self.po.verbose > 1):
-                    print("{:s}: Block '{:s}' index {:d} recognized".format(self.src_fname,ident,i))
+                    print("{:s}: Block '{:s}' index {:d} recognized".format(self.src_fname,pretty_ident,i))
                 block = bfactory(self, self.po)
             else:
                 block = LVblock.Block(self, self.po)
@@ -377,10 +378,8 @@ class VI():
         if self.xml_root.tag != 'RSRC':
             raise AttributeError("Root tag of the XML is not 'RSRC'")
 
-        rsrc_type_str = self.xml_root.get("Type")
-        # TODO we will need better string-to-bytes ID conversion at some point
-        # (when we have implementation of a block with space or other non-alphanum chars)
-        rsrc_type_id = rsrc_type_str.encode("utf-8")
+        pretty_type_str = self.xml_root.get("Type")
+        rsrc_type_id = getRsrcTypeFromPrettyStr(pretty_type_str)
         self.ftype = recognizeFileTypeFromRsrcType(rsrc_type_id)
 
         self.rsrc_headers = []
@@ -577,7 +576,7 @@ class VI():
 
     def get(self, ident):
         if isinstance(ident, str):
-            ident = ident.encode('utf-8')
+            ident = getRsrcTypeFromPrettyStr(ident)
         if ident in self.blocks:
             return self.blocks[ident]
         return None
@@ -585,14 +584,14 @@ class VI():
     def get_one_of(self, *identv):
         for ident in identv:
             if isinstance(ident, str):
-                ident = ident.encode('utf-8')
+                ident = getRsrcTypeFromPrettyStr(ident)
             if ident in self.blocks:
                 return self.blocks[ident]
         return None
 
     def get_or_raise(self, ident):
         if isinstance(ident, str):
-            ident = ident.encode('utf-8')
+            ident = getRsrcTypeFromPrettyStr(ident)
         if ident in self.blocks:
             return self.blocks[ident]
         raise LookupError("Block {} not found in RSRC file.".format(ident))
@@ -600,7 +599,7 @@ class VI():
     def get_one_of_or_raise(self, *identv):
         for ident in identv:
             if isinstance(ident, str):
-                ident = ident.encode('utf-8')
+                ident = getRsrcTypeFromPrettyStr(ident)
             if ident in self.blocks:
                 return self.blocks[ident]
         raise LookupError("None of blocks {} found in RSRC file.".format(",".join(identv)))

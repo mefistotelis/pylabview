@@ -21,6 +21,7 @@ Miscelanous generic utilities.
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import re
 import sys
 from ctypes import *
 from collections import OrderedDict
@@ -102,6 +103,29 @@ LABVIEW_COLOR_PALETTE = [0xF1F1F1, 0xCCFFFF, 0x99FFFF, 0x66FFFF, 0x33FFFF,
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
+
+def getPrettyStrFromRsrcType(rsrc_ident):
+    """ Gives alphanumeric string representation of a 4-byte identifier, like block ident
+    """
+    pretty_ident = bytes(rsrc_ident).decode(encoding='utf-8')
+    pretty_ident = re.sub('#', 'sh', pretty_ident)
+    pretty_ident = re.sub('[^a-zA-Z0-9_-]+', '', pretty_ident)
+    if len(pretty_ident) < 3:
+        eprint("Warning: Identifier has more than one special character.")
+        pretty_ident += 'spec'
+    return pretty_ident
+
+def getRsrcTypeFromPrettyStr(pretty_ident):
+    """ Gives 4-byte identifier from alphanumeric string representation
+    """
+    rsrc_ident = str(pretty_ident).encode(encoding='utf-8')
+    if len(rsrc_ident) > 4:
+        rsrc_ident = re.sub(b'sh', b'#', rsrc_ident)
+    if len(rsrc_ident) > 4:
+        rsrc_ident = re.sub(b'spec', b'?', rsrc_ident)
+    while len(rsrc_ident) < 4: rsrc_ident += b' '
+    rsrc_ident = rsrc_ident[:4]
+    return rsrc_ident
 
 def getVersion(vcode):
     ver = {}

@@ -196,8 +196,7 @@ class Block(object):
 
 
     def initWithXML(self, block_elem):
-        self.ident = block_elem.tag.encode("utf-8")
-        while len(self.ident) < 4: self.ident += b' '
+        self.ident = getRsrcTypeFromPrettyStr(block_elem.tag)
         self.header = BlockHeader(self.po)
         self.header.ident = (c_ubyte * 4).from_buffer_copy(self.ident)
         self.section_loaded = -1
@@ -454,8 +453,7 @@ class Block(object):
     def exportXMLTree(self):
         """ Export the file data into XML tree
         """
-        pretty_ident = self.ident.decode(encoding='UTF-8')
-        pretty_ident = re.sub('[^a-zA-Z0-9_-]+', '', pretty_ident)
+        pretty_ident = getPrettyStrFromRsrcType(self.ident)
         block_fpath = os.path.dirname(self.po.xml)
         elem = ET.Element(pretty_ident)
         elem.text = "\n"
