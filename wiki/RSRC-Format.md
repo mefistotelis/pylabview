@@ -2,6 +2,7 @@
 
 * [General structure](#General-structure) 
 * [RSRC Header](#RSRC-Header) 
+* [Block Info List Header](#Block-Info-List-Header) 
 * [Blocks Info](#Blocks-Info) 
 * [Block Header](#Block-Header) 
 * [Block Section Info](#Block-Section-Info) 
@@ -10,40 +11,43 @@
 
 ### General structure
 
-The RSRC file contains two identical RSRC headers. Data for sections of each block follow the first RSRC header. Second RSRC header is followed by Blocks Info and then an array of Block Headers. Following these is an array of Block Section Info. The file ends with its filename stored as Pascal string.
+The RSRC file contains two identical RSRC headers. Data for sections of each block follow the first RSRC header. Second RSRC header is followed by Blocks Info and then an array of Block Headers. Following these is an array of Block Section Info. The file ends with some section names stored as Pascal string (there is often only one name).
 
 ```
-+---------------------+
-|    RSRC header 1    |
-|+-------------------+|
-||  Section 1 Data   ||
-|+-------------------+|
-||       ....        ||
-|+-------------------+|
-||  Section M Data   ||
-|+-------------------+|
-+---------------------+
-+---------------------+
-|    RSRC header 2    |
-|+-------------------+|
-||    Blocks Info    ||
-|+-------------------+|
-||  Block 1 Header   ||
-|+-------------------+|
-||       ....        ||
-|+-------------------+|
-||  Block N Header   ||
-|+-------------------+|
-||  Section 1 Info   ||
-|+-------------------+|
-||       ....        ||
-|+-------------------+|
-||  Section M Info   ||
-|+-------------------+|
-|+-------------------+|
-||     File Name     ||
-|+-------------------+|
-+---------------------+
++-----------------------------+
+|        RSRC header 1        |
+|+---------------------------+|
+||      Section 1 Data       ||
+|+---------------------------+|
+||           ....            ||
+|+---------------------------+|
+||      Section M Data       ||
+|+---------------------------+|
++-----------------------------+
++-----------------------------+
+|        RSRC header 2        |
+|+---------------------------+|
+||  Block Info List Header   ||
+|+---------------------------+|
+||        Blocks Info        ||
+||+-------------------------+||
+|||     Block 1 Header      |||
+||+-------------------------+||
+|||          ....           |||
+||+-------------------------+||
+|||     Block N Header      |||
+||+-------------------------+||
+|+---------------------------+|
+||      Section 1 Info       ||
+|+---------------------------+|
+||           ....            ||
+|+---------------------------+|
+||      Section M Info       ||
+|+---------------------------+|
+|+---------------------------+|
+||       Section Names       ||
+|+---------------------------+|
++-----------------------------+
 ```
 
 Reading the file starts with finding second RSRC header (pointed to by size in 1st RSRC Header). Then reading Block Info and Block Headers. The Block Headers contain offset to list of Section Infos for each block, and the count of sections within each block. Then Section Info structures can then be parsed, and these contain offsets, within the first RSRC, to the Block Section Data. There, the real data is stored.
@@ -53,7 +57,8 @@ It is not fully known why there is the division to sections. Each section of a b
 
 ### RSRC Header
 
-offset: 0
+offset1: 0
+offset2: _RSRC Data Offset_ + _RSRC Data Size_
 
 ```
  Length | Type    | Value
@@ -62,20 +67,29 @@ offset: 0
       2 |         | ?
       4 | string  | "LVIN" (LabVIEW Instrument?)
       4 | string  | "LBVW" (LabVIEW?)
-      4 | uint32  | RSRC Offset
-      4 | uint32  | RSRC Size
-      4 | uint32  | Data Offset
-      4 | uint32  | Data Size
+      4 | uint32  | RSRC Info Offset
+      4 | uint32  | RSRC Info Size
+      4 | uint32  | RSRC Data Offset
+      4 | uint32  | RSRC Data Size
+```
+
+### Block Info List Header
+
+offset: _RSRC Info Offset_
+
+```
+ Length | Type    | Value
+--------+---------+-------
       4 |         | ?
       4 |         | ?
       4 |         | ?
-      4 | uint32  | Block Offset
-      4 | uint32  | Block Size
+      4 | uint32  | Block Info Offset
+      4 | uint32  | Block Info Size
 ```
 
 ### Blocks Info
 
-offset: _Block Offset_ + _RSRC Offset_
+offset: _RSRC Info Offset_ + _Block Info Offset_
 
 ```
  Length | Type    | Value
@@ -101,10 +115,10 @@ offset: _Info Offset_ + _Block Offset_
 ```
  Length | Type    | Value
 --------+---------+-------
-      4 | int32?  | ?
-      4 | int32?  | ?
-      4 | int32?  | ?
-      4 | uint32  | Offset
+      4 | uint32  | Section Index
+      4 | uint32  | Section Name Offset
+      4 | uint32  | ?
+      4 | uint32  | Section Data Offset
       4 | int32   | ?
 ```
 
