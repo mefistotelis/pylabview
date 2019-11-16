@@ -467,9 +467,11 @@ class Block(object):
             else:
                 block_fname = "{:s}_{:s}{:d}.bin".format(self.po.filebase, pretty_ident, snum)
             if len(block_fpath) > 0:
-                block_fname = block_fpath + '/' + block_fname
+                block_full_fname = block_fpath + '/' + block_fname
+            else:
+                block_full_fname = block_fname
             bldata = self.getData(section_num=snum)
-            with open(block_fname, "wb") as block_fd:
+            with open(block_full_fname, "wb") as block_fd:
                 block_fd.write(bldata.read())
             subelem = ET.SubElement(elem,"Section")
             subelem.tail = "\n"
