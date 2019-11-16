@@ -266,8 +266,7 @@ class Block(object):
         last_blksect_size = sum_size = 0
         if section_count is None:
             section_count = min(self.sections.keys()) + 1
-        # Get minimal starting offset of a section
-        first_section_start_offset = min(section.start.data_offset for section in self.sections.values())
+        rsrc_data_size = self.vi.rsrc_headers[-1].rsrc_data_size
 
         fh = self.vi.rsrc_fh
         for i, section in sorted(self.sections.items()):
@@ -281,9 +280,9 @@ class Block(object):
             blksect = BlockSectionData(self.po)
             # This check assumes that all sections are written after each other in an array
             # It seem to be always the case, though file format does not mandate that
-            if (section.start.data_offset - first_section_start_offset) + sizeof(blksect) > self.size:
-                raise IOError("Requested {} section count too large; no data for secion {:d} header ({} > {})."\
-                      .format(self.ident, i, section.start.data_offset + sizeof(blksect), self.size))
+            if section.start.data_offset + sizeof(BlockSectionData) > rsrc_data_size:
+                raise IOError("Requested {} section {:d} data offset exceeds size of data block ({} > {})."\
+                      .format(self.ident, i, section.start.data_offset + sizeof(BlockSectionData), rsrc_data_size))
             if fh.readinto(blksect) != sizeof(blksect):
                 raise EOFError("Could not read BlockSectionData struct for block {} at {:d}.".format(self.ident,section.block_pos))
             if not blksect.checkSanity():
@@ -292,9 +291,9 @@ class Block(object):
                 print(blksect)
 
             sum_size += sizeof(blksect)
-            # Some section data could've been already loaded; read only once
+            # Some section data could have been already loaded; read only once
             if section.raw_data is None:
-                if (sum_size + blksect.size) > self.size:
+                if (sum_size + blksect.size) > rsrc_data_size:
                     raise IOError("Out of block/container data in {} ({:d} + {:d}) > {:d}"\
                       .format(self.ident, sum_size, blksect.size, self.size))
 
