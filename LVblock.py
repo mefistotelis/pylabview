@@ -195,6 +195,31 @@ class Block(object):
             section.name_text = fh.read(name_text_len)
 
 
+    def initWithXMLSection(self, section, section_elem):
+        """ Imports section data from XML
+
+            Generic code, used when section is stored as raw data.
+            This can be overloaded to support actually parsed section formats.
+        """
+        idx = section.start.section_idx
+        fmt = section_elem.get("Format")
+        if fmt == "bin":
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading BIN file '{}'"\
+                  .format(self.vi.src_fname,self.ident,idx,section_elem.get("File")))
+            bin_path = os.path.dirname(self.vi.src_fname)
+            if len(bin_path) > 0:
+                bin_fname = bin_path + '/' + section_elem.get("File")
+            else:
+                bin_fname = section_elem.get("File")
+            with open(bin_fname, "rb") as bin_fh:
+                data_buf = bin_fh.read()
+                self.setData(data_buf, section_num=idx)
+        else:
+            raise NotImplementedError("Unsupported Block {} Section {:d} Format '{}'.".format(self.ident,idx,fmt))
+        pass
+
+
     def initWithXML(self, block_elem):
         self.ident = getRsrcTypeFromPrettyStr(block_elem.tag)
         self.header = BlockHeader(self.po)
@@ -221,22 +246,7 @@ class Block(object):
             self.sections[section.start.section_idx] = section
 
             self.section_requested = idx
-            fmt = section_elem.get("Format")
-            if fmt == "bin":
-                if (self.po.verbose > 2):
-                    print("{:s}: For Block {} section {:d}, reading BIN file '{}'"\
-                      .format(self.vi.src_fname,self.ident,idx,section_elem.get("File")))
-                bin_path = os.path.dirname(self.vi.src_fname)
-                if len(bin_path) > 0:
-                    bin_fname = bin_path + '/' + section_elem.get("File")
-                else:
-                    bin_fname = section_elem.get("File")
-                with open(bin_fname, "rb") as bin_fh:
-                    data_buf = bin_fh.read()
-                    self.setData(data_buf, section_num=idx)
-            # TODO add support of XML section data
-            else:
-                raise NotImplementedError("Unsupported Block {} Section {:d} Format '{}'.".format(self.ident,idx,fmt))
+            self.initWithXMLSection(section, section_elem)
 
         self.header.count = len(self.sections) - 1
         self.section_requested = self.defaultSectionNumber()
@@ -674,6 +684,30 @@ class ICON(Block):
 
         subelem.set("Format", "png")
         subelem.set("File", os.path.basename(block_fname))
+
+    def initWithXMLSection(self, section, section_elem):
+        idx = section.start.section_idx
+        fmt = section_elem.get("Format")
+        if fmt == "png":
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading PNG file '{}'"\
+                  .format(self.vi.src_fname,self.ident,idx,section_elem.get("File")))
+            bin_path = os.path.dirname(self.vi.src_fname)
+            if len(bin_path) > 0:
+                bin_fname = bin_path + '/' + section_elem.get("File")
+            else:
+                bin_fname = section_elem.get("File")
+            with open(bin_fname, "rb") as png_fh:
+                icon = Image.open(png_fh)
+                self.icon = icon
+                data_buf = bytes(icon.getdata())
+            data_len = int(self.width * self.height * self.bpp / 8)
+            if len(data_buf) < data_len:
+                data_buf += b'\0' * (data_len - len(data_buf))
+            self.setData(data_buf, section_num=idx)
+        else:
+            Block.initWithXMLSection(self, section, section_elem)
+        pass
 
 
 class icl8(ICON):
