@@ -483,26 +483,8 @@ class VI():
         self.resaveRSRCHeaders(fh)
         pass
 
-    def exportBinBlocksXMLTree(self):
-        """ Export the file data into BIN files with XML glue
-        """
-        elem = ET.Element('RSRC')
-        elem.text = "\n"
-        elem.tail = "\n"
-        rsrc_type_id = getRsrcTypeForFileType(self.ftype)
-        elem.set("Type", rsrc_type_id.decode("utf-8"))
-
-        for ident, block in self.blocks.items():
-            if (self.po.verbose > 0):
-                print("{}: Writing BIN block {}".format(self.src_fname,ident))
-            # Call base function, not the overloaded version for specific block
-            subelem = LVblock.Block.exportXMLTree(block)
-            elem.append(subelem)
-
-        return elem
-
-    def exportXMLTree(self):
-        """ Export the file data into XML tree
+    def exportXMLRoot(self):
+        """ Creates root of the XML export tree
         """
         elem = ET.Element('RSRC')
         elem.text = "\n"
@@ -523,6 +505,26 @@ class VI():
             dataset_int2 = None
         if dataset_int2 is not None:
             elem.set("Int2", "0x{:08X}".format(dataset_int2))
+
+        return elem
+
+    def exportBinBlocksXMLTree(self):
+        """ Export the file data into BIN files with XML glue
+        """
+        elem = self.exportXMLRoot()
+
+        for ident, block in self.blocks.items():
+            if (self.po.verbose > 0):
+                print("{}: Writing BIN block {}".format(self.src_fname,ident))
+            subelem = block.exportXMLTree(simple_bin=True)
+            elem.append(subelem)
+
+        return elem
+
+    def exportXMLTree(self):
+        """ Export the file data into XML tree
+        """
+        elem = self.exportXMLRoot()
 
         for ident, block in self.blocks.items():
             if (self.po.verbose > 0):
