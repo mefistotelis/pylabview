@@ -261,6 +261,14 @@ class Block(object):
             self.initWithXMLSection(section, section_elem)
 
         self.header.count = len(self.sections) - 1
+        pass
+
+    def initWithXMLLate(self):
+        """ Late part of block loading from XML file
+
+        Can access some basic data from other blocks and sections.
+        Not really needed, but kept for symmetry with RSRC loading functions.
+        """
         self.section_requested = self.defaultSectionNumber()
         self.section_loaded = None
         pass

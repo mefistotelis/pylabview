@@ -359,9 +359,17 @@ class VI():
         # Create Array of Block Data
         blocks = {}
         for i, block in enumerate(self.blocks_arr):
-            block.parseData() #TODO make this support XML
             blocks[block.ident] = block
         self.blocks = blocks
+
+        # Late part of initialization, which requires all blocks to be already present
+        for block in self.blocks.values():
+            block.initWithXMLLate()
+
+        # Now when everything is ready, parse the blocks data
+        for block in self.blocks.values():
+            block.parseData()
+
         return (len(blocks) > 0)
 
     def readXML(self, xml_root, xml_fname):
