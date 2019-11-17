@@ -73,7 +73,7 @@ class RSRCHeader(RSRCStructure):
         self.rsrc_data_offset = sizeof(self)
         self.starts = []
 
-    def check_sanity(self):
+    def checkSanity(self):
         ret = True
         if bytes(self.rsrc_id1) != b'RSRC\r\n':
             if (self.po.verbose > 0):
@@ -109,7 +109,7 @@ class BlockInfoListHeader(RSRCStructure):
         self.blockinfo_offset = sizeof(RSRCHeader) + sizeof(self)
         pass
 
-    def check_sanity(self):
+    def checkSanity(self):
         ret = True
         if self.dataset_int3 != sizeof(RSRCHeader):
             if (self.po.verbose > 0):
@@ -130,7 +130,7 @@ class BlockInfoHeader(RSRCStructure):
         self.po = po
         pass
 
-    def check_sanity(self):
+    def checkSanity(self):
         ret = True
         if self.blockinfo_count > 4096: # Arbitrary limit - hard to tell whether it makes sense
             if (self.po.verbose > 0):
@@ -226,7 +226,7 @@ class VI():
                 raise EOFError("Could not read RSRC {:d} Header.".format(len(rsrc_headers)))
             if (self.po.verbose > 2):
                 print(rsrchead)
-            if not rsrchead.check_sanity():
+            if not rsrchead.checkSanity():
                 raise IOError("RSRC {:d} Header sanity check failed.",format(len(rsrc_headers)))
             # The last header has offset equal to its start
             if rsrchead.rsrc_info_offset >= curr_rsrc_pos:
@@ -257,7 +257,7 @@ class VI():
             raise EOFError("Could not read BlockInfoList header.")
         if (self.po.verbose > 2):
             print(binflsthead)
-        if not binflsthead.check_sanity():
+        if not binflsthead.checkSanity():
             raise IOError("BlockInfoList Header sanity check failed.")
         self.binflsthead = binflsthead
 
@@ -266,7 +266,7 @@ class VI():
         binfhead = BlockInfoHeader(self.po)
         if fh.readinto(binfhead) != sizeof(binfhead):
             raise EOFError("Could not read BlockInfo header.")
-        if not binfhead.check_sanity():
+        if not binfhead.checkSanity():
             raise IOError("BlockInfo Header sanity check failed.")
         if (self.po.verbose > 2):
             print(binfhead)
@@ -281,7 +281,7 @@ class VI():
                 raise EOFError("Could not read BlockInfo header.")
             if (self.po.verbose > 2):
                 print(block_head)
-            if not block_head.check_sanity():
+            if not block_head.checkSanity():
                 raise IOError("Block Header sanity check failed.")
             #t['Count'] = reader.readUInt32() + 1
             #t['Offset'] = blkinf_rsrchead.rsrc_info_offset + binflsthead.blockinfo_offset + reader.readUInt32()
@@ -442,7 +442,7 @@ class VI():
                 print("{}: Writing RSRC Info block {} header".format(self.src_fname,bytes(block.header.ident)))
             if (self.po.verbose > 2):
                 print(block.header)
-            if not block.header.check_sanity():
+            if not block.header.checkSanity():
                 raise IOError("Block Header sanity check failed.")
             fh.write((c_ubyte * sizeof(block.header)).from_buffer_copy(block.header))
 

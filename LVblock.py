@@ -53,7 +53,7 @@ class BlockHeader(RSRCStructure):
         self.po = po
         pass
 
-    def check_sanity(self):
+    def checkSanity(self):
         ret = True
         return ret
 
@@ -203,7 +203,7 @@ class Block(object):
         """
         idx = section.start.section_idx
         fmt = section_elem.get("Format")
-        if fmt == "bin":
+        if fmt == "bin":# Format="bin" - the content is stored separately as raw binary data
             if (self.po.verbose > 2):
                 print("{:s}: For Block {} section {:d}, reading BIN file '{}'"\
                   .format(self.vi.src_fname,self.ident,idx,section_elem.get("File")))
@@ -625,7 +625,7 @@ class vers(Block):
 
 
 class ICON(Block):
-    """ Icon Small 4bpp
+    """ Icon 1bpp
     """
     def __init__(self, *args):
         super().__init__(*args)
@@ -707,7 +707,7 @@ class ICON(Block):
     def initWithXMLSection(self, section, section_elem):
         idx = section.start.section_idx
         fmt = section_elem.get("Format")
-        if fmt == "png":
+        if fmt == "png": # Format="png" - the content is stored separately as image file
             if (self.po.verbose > 2):
                 print("{:s}: For Block {} section {:d}, reading PNG file '{}'"\
                   .format(self.vi.src_fname,self.ident,idx,section_elem.get("File")))
