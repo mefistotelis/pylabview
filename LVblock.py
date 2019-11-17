@@ -141,7 +141,7 @@ class Block(object):
         self.header = None
         self.ident = None
         self.sections = {}
-        self.section_loaded = -1
+        self.section_loaded = None
         self.section_requested = 0
         # set by getRawData(); size of cummulative data for all sections in the block
         self.size = None
@@ -149,7 +149,7 @@ class Block(object):
     def initWithRSRCEarly(self, header):
         self.header = header
         self.ident = bytes(header.ident)
-        self.section_loaded = -1
+        self.section_loaded = None
 
         start_pos = \
             self.vi.rsrc_headers[-1].rsrc_info_offset + \
@@ -175,7 +175,7 @@ class Block(object):
                 section.start.data_offset
             self.sections[section.start.section_idx] = section
 
-        self.section_requested = min(self.sections.keys(), key=abs)
+        self.section_requested = self.defaultSectionNumber()
 
         if (self.po.verbose > 2):
             print("{:s}: Block {} has {:d} sections".format(self.vi.src_fname,self.ident,len(self.sections)))
@@ -199,7 +199,7 @@ class Block(object):
         self.ident = getRsrcTypeFromPrettyStr(block_elem.tag)
         self.header = BlockHeader(self.po)
         self.header.ident = (c_ubyte * 4).from_buffer_copy(self.ident)
-        self.section_loaded = -1
+        self.section_loaded = None
 
         self.sections = {}
         for i, section_elem in enumerate(block_elem):
@@ -239,8 +239,8 @@ class Block(object):
                 raise NotImplementedError("Unsupported Block {} Section {:d} Format '{}'.".format(self.ident,idx,fmt))
 
         self.header.count = len(self.sections) - 1
-        self.section_requested = min(self.sections.keys(), key=abs)
-        self.section_loaded = -1
+        self.section_requested = self.defaultSectionNumber()
+        self.section_loaded = None
         pass
 
     def setSizeFromBlocks(self):
@@ -268,7 +268,7 @@ class Block(object):
     def readRawDataSections(self, section_count=None):
         last_blksect_size = sum_size = 0
         if section_count is None:
-            section_count = min(self.sections.keys(), key=abs) + 1
+            section_count = self.defaultSectionNumber() + 1
         rsrc_data_size = self.vi.rsrc_headers[-1].rsrc_data_size
 
         fh = self.vi.rsrc_fh
@@ -313,7 +313,7 @@ class Block(object):
             Reads the section from input stream if neccessary
         """
         if section_num is None:
-            section_num = min(self.sections.keys(), key=abs)
+            section_num = self.defaultSectionNumber()
         if self.size is None:
             self.setSizeFromBlocks()
 
@@ -330,10 +330,10 @@ class Block(object):
             Extends the amount of sections if neccessary
         """
         if section_num is None:
-            section_num = min(self.sections.keys(), key=abs)
+            section_num = self.defaultSectionNumber()
         # If changing currently loaded section, mark it as not loaded anymore
         if self.section_loaded == section_num:
-            self.section_loaded = -1
+            self.section_loaded = None
         # Insert empty bytes in any missing sections
         if section_num not in self.sections:
             section = Section(self.vi, self.po)
@@ -348,7 +348,7 @@ class Block(object):
             Does not force data read
         """
         if section_num is None:
-            section_num = min(self.sections.keys(), key=abs)
+            section_num = self.self.defaultSectionNumber()
         if section_num not in self.sections:
                     raise IOError("Within block {} there is no section number {:d}"\
                       .format(self.ident, section_num))
@@ -460,45 +460,68 @@ class Block(object):
 
         return sect_starts
 
-    def exportXMLTree(self):
+    def exportXMLSection(self, subelem, snum, section, fname_base):
+        block_fname = "{:s}.{:s}".format(fname_base,"bin")
+        bldata = self.getData(section_num=snum)
+        with open(block_fname, "wb") as block_fd:
+            block_fd.write(bldata.read())
+
+        subelem.set("Format", "bin")
+        subelem.set("File", os.path.basename(block_fname))
+
+    def exportXMLTree(self, simple_bin=False):
         """ Export the file data into XML tree
         """
         pretty_ident = getPrettyStrFromRsrcType(self.ident)
         block_fpath = os.path.dirname(self.po.xml)
+
         elem = ET.Element(pretty_ident)
         elem.text = "\n"
         elem.tail = "\n"
         for snum, section in self.sections.items():
-            if len(self.sections) == 1:
-                block_fname = "{:s}_{:s}.bin".format(self.po.filebase, pretty_ident)
-            else:
-                if snum >= 0:
-                    snum_str = str(snum)
-                else:
-                    snum_str = 'm' + str(-snum)
-                block_fname = "{:s}_{:s}{:s}.bin".format(self.po.filebase, pretty_ident, snum_str)
-            if len(block_fpath) > 0:
-                block_full_fname = block_fpath + '/' + block_fname
-            else:
-                block_full_fname = block_fname
+            subelem = ET.SubElement(elem,"Section")
+            subelem.tail = "\n"
+            subelem.set("Index", str(snum))
+
             if self.vi.ftype == FILE_FMT_TYPE.LLB:
                 block_int5 = section.start.int5
             else:
                 block_int5 = None
-            bldata = self.getData(section_num=snum)
-            with open(block_full_fname, "wb") as block_fd:
-                block_fd.write(bldata.read())
-            subelem = ET.SubElement(elem,"Section")
-            subelem.tail = "\n"
-            subelem.set("Index", str(snum))
-            subelem.set("Format", "bin")
-            subelem.set("File", block_fname)
+
             if section.name_text is not None:
                 subelem.set("Name", section.name_text.decode("utf-8"))
             if block_int5 is not None:
                 subelem.set("Int5", "0x{:08X}".format(block_int5))
 
+            # Prepare a base for file names of any files created by the export
+            if len(self.sections) == 1:
+                fname_base = "{:s}_{:s}".format(self.po.filebase, pretty_ident)
+            else:
+                if snum >= 0:
+                    snum_str = str(snum)
+                else:
+                    snum_str = 'm' + str(-snum)
+                fname_base = "{:s}_{:s}{:s}".format(self.po.filebase, pretty_ident, snum_str)
+            if len(block_fpath) > 0:
+                fname_base = block_fpath + '/' + fname_base
+
+            if not simple_bin:
+                # The rest of the data may be set by a block-specific (overloaded) method
+                self.exportXMLSection(subelem, snum, section, fname_base)
+            else:
+                # Call base function, not the overloaded version for specific block
+                Block.exportXMLSection(self, subelem, snum, section, fname_base)
+
         return elem
+
+    def defaultSectionNumber(self):
+        """ Gives section index of a default section.
+
+        Default section is the one with lowest index (its absolute value).
+        That section is set as active, and its data is used to set properties
+        of this block.
+        """
+        return min(self.sections.keys(), key=abs)
 
     def __repr__(self):
         bldata = self.getData()
