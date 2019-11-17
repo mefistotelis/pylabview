@@ -720,18 +720,18 @@ class ICON(Block):
                 icon = Image.open(png_fh)
                 self.icon = icon
                 data_buf = bytes(icon.getdata())
-            data_len = int(self.width * self.height * self.bpp / 8)
+            data_len = (self.width * self.height * self.bpp) // 8
 
             if self.bpp == 8:
                 pass
             elif self.bpp == 4:
-                data_buf8 = bytearray(self.width * self.height)
-                for i in range(len(data_buf)//2):
+                data_buf8 = bytearray(data_len)
+                for i in range(data_len):
                     data_buf8[i] = (data_buf[2*i+0] << 4) | (data_buf[2*i+1] << 0)
                 data_buf = data_buf8
             elif self.bpp == 1:
-                data_buf8 = bytearray(self.width * self.height)
-                for i in range(len(data_buf)//8):
+                data_buf8 = bytearray(data_len)
+                for i in range(data_len):
                     data_buf8[i] = (data_buf[8*i+0] << 7) | (data_buf[8*i+1] << 6) | \
                         (data_buf[8*i+2] << 5) | (data_buf[8*i+3] << 4) | \
                         (data_buf[8*i+4] << 3) | (data_buf[8*i+5] << 2) | \
