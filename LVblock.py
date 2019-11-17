@@ -629,9 +629,9 @@ class ICON(Block):
     """
     def __init__(self, *args):
         super().__init__(*args)
-        self.width = 16
-        self.height = 16
-        self.bpp = 4
+        self.width = 32
+        self.height = 32
+        self.bpp = 1
         self.icon = None
 
     def parseRSRCData(self, bldata):
@@ -641,22 +641,41 @@ class ICON(Block):
         """
         icon = Image.new("P", (self.width, self.height))
         img_palette = [ 0 ] * (3*256)
-        if self.bpp == 4:
+        if self.bpp == 8:
+            lv_color_palette = LABVIEW_COLOR_PALETTE_256
+        elif self.bpp == 4:
             lv_color_palette = LABVIEW_COLOR_PALETTE_16
         else:
-            lv_color_palette = LABVIEW_COLOR_PALETTE_256
+            lv_color_palette = LABVIEW_COLOR_PALETTE_2
         for i, rgb in enumerate(lv_color_palette):
             img_palette[3*i+0] = (rgb >> 16) & 0xFF
             img_palette[3*i+1] = (rgb >>  8) & 0xFF
             img_palette[3*i+2] = (rgb >>  0) & 0xFF
         icon.putpalette(img_palette, rawmode='RGB')
         img_data = bldata.read(int(self.width * self.height * self.bpp / 8))
-        if self.bpp == 4:
+        if self.bpp == 8:
+            pass
+        elif self.bpp == 4:
             img_data8 = bytearray(self.width * self.height)
             for i, px in enumerate(img_data):
                 img_data8[2*i+0] = (px >> 4) & 0xF
                 img_data8[2*i+1] = (px >> 0) & 0xF
             img_data = img_data8
+        elif self.bpp == 1:
+            img_data8 = bytearray(self.width * self.height)
+            for i, px in enumerate(img_data):
+                img_data8[8*i+0] = (px >> 7) & 0x1
+                img_data8[8*i+1] = (px >> 6) & 0x1
+                img_data8[8*i+2] = (px >> 5) & 0x1
+                img_data8[8*i+3] = (px >> 4) & 0x1
+                img_data8[8*i+4] = (px >> 3) & 0x1
+                img_data8[8*i+5] = (px >> 2) & 0x1
+                img_data8[8*i+6] = (px >> 1) & 0x1
+                img_data8[8*i+7] = (px >> 0) & 0x1
+            img_data = img_data8
+        else:
+            raise ValueError("Unsupported icon BPP")
+
         icon.putdata(img_data)
         # Pixel-by-pixel method, for reference (slower than all-at-once)
         #for y in range(0, self.height):
@@ -702,6 +721,25 @@ class ICON(Block):
                 self.icon = icon
                 data_buf = bytes(icon.getdata())
             data_len = int(self.width * self.height * self.bpp / 8)
+
+            if self.bpp == 8:
+                pass
+            elif self.bpp == 4:
+                data_buf8 = bytearray(self.width * self.height)
+                for i in range(len(data_buf)//2):
+                    data_buf8[i] = (data_buf[2*i+0] << 4) | (data_buf[2*i+1] << 0)
+                data_buf = data_buf8
+            elif self.bpp == 1:
+                data_buf8 = bytearray(self.width * self.height)
+                for i in range(len(data_buf)//8):
+                    data_buf8[i] = (data_buf[8*i+0] << 7) | (data_buf[8*i+1] << 6) | \
+                        (data_buf[8*i+2] << 5) | (data_buf[8*i+3] << 4) | \
+                        (data_buf[8*i+4] << 3) | (data_buf[8*i+5] << 2) | \
+                        (data_buf[8*i+6] << 1) | (data_buf[8*i+7] << 0)
+                data_buf = data_buf8
+            else:
+                raise ValueError("Unsupported icon BPP")
+
             if len(data_buf) < data_len:
                 data_buf += b'\0' * (data_len - len(data_buf))
             self.setData(data_buf, section_num=idx)

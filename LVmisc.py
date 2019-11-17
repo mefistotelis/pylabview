@@ -90,6 +90,9 @@ LABVIEW_COLOR_PALETTE_16 = [
     0x00FF00, 0x008000, 0x800000, 0x808000, 0xC0C0C0, 0x808080, 0x008080, 0x000000,
 ]
 
+LABVIEW_COLOR_PALETTE_2 = [
+    0xFFFFFF, 0x000000,
+]
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
