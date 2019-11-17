@@ -337,6 +337,13 @@ class Block(object):
             if last_blksect_size % 4 > 0:
                 last_blksect_size += 4 - (last_blksect_size % 4)
 
+    def hasRawData(self, section_num=None):
+        """ Returns whether given section has raw data set
+        """
+        if section_num is None:
+            section_num = self.defaultSectionNumber()
+        return (self.sections[section_num].raw_data is not None)
+
     def getRawData(self, section_num=None):
         """ Retrieves bytes object with raw data of given section
 
@@ -387,10 +394,17 @@ class Block(object):
     def parseRSRCData(self, bldata):
         """ Implements setting block properties from Byte Stream of a section
 
-            Called by parseSection() to set the specific section as loaded.
+        Called by parseData() to set the specific section as loaded.
         """
         if (self.po.verbose > 2):
             print("{:s}: Block {} data format is not known; leaving raw only".format(self.vi.src_fname,self.ident))
+        pass
+
+    def parseXMLData(self):
+        """ Implements setting block properties from properties of a section, set from XML
+
+            Called by parseData() to set the specific section as loaded.
+        """
         pass
 
     def parseData(self, section_num=-1):
@@ -398,9 +412,14 @@ class Block(object):
             section_num = self.section_requested
         else:
             self.section_requested = section_num
+
         if self.needParseData():
-            bldata = self.getData(section_num=section_num, use_coding=BLOCK_CODING.NONE)
-            self.parseRSRCData(bldata)
+            if self.vi.dataSource == "rsrc" or self.hasRawData():
+                bldata = self.getData(section_num=section_num, use_coding=BLOCK_CODING.NONE)
+                self.parseRSRCData(bldata)
+            elif self.vi.dataSource == "xml":
+                self.parseXMLData()
+
         self.section_loaded = self.section_requested
 
     def needParseData(self):
@@ -704,6 +723,32 @@ class ICON(Block):
         #        icon.putpixel((x, y), bldata.read(1))
         self.icon = icon
 
+    def parseXMLData(self):
+        data_buf = bytes(self.icon.getdata())
+        data_len = (self.width * self.height * self.bpp) // 8
+
+        if self.bpp == 8:
+            pass
+        elif self.bpp == 4:
+            data_buf8 = bytearray(data_len)
+            for i in range(data_len):
+                data_buf8[i] = (data_buf[2*i+0] << 4) | (data_buf[2*i+1] << 0)
+            data_buf = data_buf8
+        elif self.bpp == 1:
+            data_buf8 = bytearray(data_len)
+            for i in range(data_len):
+                data_buf8[i] = (data_buf[8*i+0] << 7) | (data_buf[8*i+1] << 6) | \
+                    (data_buf[8*i+2] << 5) | (data_buf[8*i+3] << 4) | \
+                    (data_buf[8*i+4] << 3) | (data_buf[8*i+5] << 2) | \
+                    (data_buf[8*i+6] << 1) | (data_buf[8*i+7] << 0)
+            data_buf = data_buf8
+        else:
+            raise ValueError("Unsupported icon BPP")
+
+        if len(data_buf) < data_len:
+            data_buf += b'\0' * (data_len - len(data_buf))
+        self.setData(data_buf, section_num=self.section_requested)
+
     def getData(self, section_num=0, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
@@ -740,30 +785,7 @@ class ICON(Block):
             with open(bin_fname, "rb") as png_fh:
                 icon = Image.open(png_fh)
                 self.icon = icon
-                data_buf = bytes(icon.getdata())
-            data_len = (self.width * self.height * self.bpp) // 8
-
-            if self.bpp == 8:
-                pass
-            elif self.bpp == 4:
-                data_buf8 = bytearray(data_len)
-                for i in range(data_len):
-                    data_buf8[i] = (data_buf[2*i+0] << 4) | (data_buf[2*i+1] << 0)
-                data_buf = data_buf8
-            elif self.bpp == 1:
-                data_buf8 = bytearray(data_len)
-                for i in range(data_len):
-                    data_buf8[i] = (data_buf[8*i+0] << 7) | (data_buf[8*i+1] << 6) | \
-                        (data_buf[8*i+2] << 5) | (data_buf[8*i+3] << 4) | \
-                        (data_buf[8*i+4] << 3) | (data_buf[8*i+5] << 2) | \
-                        (data_buf[8*i+6] << 1) | (data_buf[8*i+7] << 0)
-                data_buf = data_buf8
-            else:
-                raise ValueError("Unsupported icon BPP")
-
-            if len(data_buf) < data_len:
-                data_buf += b'\0' * (data_len - len(data_buf))
-            self.setData(data_buf, section_num=idx)
+                icon.getdata() # to make sure the file gets loaded
         else:
             Block.initWithXMLSection(self, section, section_elem)
         pass
@@ -1033,6 +1055,7 @@ class BDHP(Block):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
 
     def getContentHash(self):
+        self.parseData()
         return md5(self.content).digest()
 
 class BDH(Block):
@@ -1057,6 +1080,7 @@ class BDH(Block):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
 
     def getContentHash(self):
+        self.parseData()
         return md5(self.content).digest()
 
 BDHc = BDHb = BDH

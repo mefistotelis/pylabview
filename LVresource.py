@@ -207,9 +207,13 @@ class VI():
         self.ftype = FILE_FMT_TYPE.NONE
 
         if rsrc_fh is not None:
+            self.dataSource = "rsrc"
             self.readRSRC(rsrc_fh)
         elif xml_root is not None:
+            self.dataSource = "xml"
             self.readXML(xml_root, po.xml)
+        else:
+            self.dataSource = "new"
 
     def readRSRCList(self, fh):
         """ Read all RSRC headers from input file and check their sanity.
