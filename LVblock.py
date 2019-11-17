@@ -147,6 +147,10 @@ class Block(object):
         self.size = None
 
     def initWithRSRCEarly(self, header):
+        """ Early part of block loading from RSRC file
+
+        At the pint it is executed, other sections are inaccessible.
+        """
         self.header = header
         self.ident = bytes(header.ident)
         self.section_loaded = None
@@ -181,6 +185,10 @@ class Block(object):
             print("{:s}: Block {} has {:d} sections".format(self.vi.src_fname,self.ident,len(self.sections)))
 
     def initWithRSRCLate(self):
+        """ Late part of block loading from RSRC file
+
+        Can access some basic data from other sections.
+        """
         fh = self.vi.rsrc_fh
         # After BlockSectionStart list, there is Block Section Names list; only some sections have a name
         names_start = self.vi.getPositionOfBlockSectionNames()
@@ -470,14 +478,19 @@ class Block(object):
 
         return sect_starts
 
-    def exportXMLSection(self, subelem, snum, section, fname_base):
+    def exportXMLSection(self, section_elem, snum, section, fname_base):
+        """ Export one section into XML tree
+
+        This should be overloaded by specific blocks implementation to store data
+        in a parsed form, instead of the raw binary which the base function stores.
+        """
         block_fname = "{:s}.{:s}".format(fname_base,"bin")
         bldata = self.getData(section_num=snum)
         with open(block_fname, "wb") as block_fd:
             block_fd.write(bldata.read())
 
-        subelem.set("Format", "bin")
-        subelem.set("File", os.path.basename(block_fname))
+        section_elem.set("Format", "bin")
+        section_elem.set("File", os.path.basename(block_fname))
 
     def exportXMLTree(self, simple_bin=False):
         """ Export the file data into XML tree
@@ -489,9 +502,9 @@ class Block(object):
         elem.text = "\n"
         elem.tail = "\n"
         for snum, section in self.sections.items():
-            subelem = ET.SubElement(elem,"Section")
-            subelem.tail = "\n"
-            subelem.set("Index", str(snum))
+            section_elem = ET.SubElement(elem,"Section")
+            section_elem.tail = "\n"
+            section_elem.set("Index", str(snum))
 
             if self.vi.ftype == FILE_FMT_TYPE.LLB:
                 block_int5 = section.start.int5
@@ -499,9 +512,9 @@ class Block(object):
                 block_int5 = None
 
             if section.name_text is not None:
-                subelem.set("Name", section.name_text.decode("utf-8"))
+                section_elem.set("Name", section.name_text.decode("utf-8"))
             if block_int5 is not None:
-                subelem.set("Int5", "0x{:08X}".format(block_int5))
+                section_elem.set("Int5", "0x{:08X}".format(block_int5))
 
             # Prepare a base for file names of any files created by the export
             if len(self.sections) == 1:
@@ -517,10 +530,10 @@ class Block(object):
 
             if not simple_bin:
                 # The rest of the data may be set by a block-specific (overloaded) method
-                self.exportXMLSection(subelem, snum, section, fname_base)
+                self.exportXMLSection(section_elem, snum, section, fname_base)
             else:
                 # Call base function, not the overloaded version for specific block
-                Block.exportXMLSection(self, subelem, snum, section, fname_base)
+                Block.exportXMLSection(self, section_elem, snum, section, fname_base)
 
         return elem
 
@@ -635,10 +648,6 @@ class ICON(Block):
         self.icon = None
 
     def parseRSRCData(self, bldata):
-        """ Implements setting block properties from Byte Stream of a section
-
-            Called by parseSection() to set the specific section as loaded.
-        """
         icon = Image.new("P", (self.width, self.height))
         img_palette = [ 0 ] * (3*256)
         if self.bpp == 8:
@@ -694,15 +703,15 @@ class ICON(Block):
         self.parseData()
         return self.icon
 
-    def exportXMLSection(self, subelem, snum, section, fname_base):
+    def exportXMLSection(self, section_elem, snum, section, fname_base):
         block_fname = "{:s}.{:s}".format(fname_base,"png")
 
         self.parseData()
         with open(block_fname, "wb") as block_fd:
             self.icon.save(block_fd, format="PNG")
 
-        subelem.set("Format", "png")
-        subelem.set("File", os.path.basename(block_fname))
+        section_elem.set("Format", "png")
+        section_elem.set("File", os.path.basename(block_fname))
 
     def initWithXMLSection(self, section, section_elem):
         idx = section.start.section_idx
