@@ -614,19 +614,44 @@ class vers(Block):
         return self.version['build']
 
 
-class icl8(Block):
-    """ Icon Large 8bpp
+class ICON(Block):
+    """ Icon Small 4bpp
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.width = 16
+        self.height = 16
+        self.bpp = 4
         self.icon = None
 
     def parseRSRCData(self, bldata):
-        icon = Image.new("RGB", (32, 32))
-        for y in range(0, 32):
-            for x in range(0, 32):
-                idx = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-                icon.putpixel((x, y), LABVIEW_COLOR_PALETTE[idx])
+        """ Implements setting block properties from Byte Stream of a section
+
+            Called by parseSection() to set the specific section as loaded.
+        """
+        icon = Image.new("P", (self.width, self.height))
+        img_palette = [ 0 ] * (3*256)
+        if self.bpp == 4:
+            lv_color_palette = LABVIEW_COLOR_PALETTE_16
+        else:
+            lv_color_palette = LABVIEW_COLOR_PALETTE_256
+        for i, rgb in enumerate(lv_color_palette):
+            img_palette[3*i+0] = (rgb >> 16) & 0xFF
+            img_palette[3*i+1] = (rgb >>  8) & 0xFF
+            img_palette[3*i+2] = (rgb >>  0) & 0xFF
+        icon.putpalette(img_palette, rawmode='RGB')
+        img_data = bldata.read(int(self.width * self.height * self.bpp / 8))
+        if self.bpp == 4:
+            img_data8 = bytearray(self.width * self.height)
+            for i, px in enumerate(img_data):
+                img_data8[2*i+0] = (px >> 4) & 0xF
+                img_data8[2*i+1] = (px >> 0) & 0xF
+            img_data = img_data8
+        icon.putdata(img_data)
+        # Pixel-by-pixel method, for reference (slower than all-at-once)
+        #for y in range(0, self.height):
+        #    for x in range(0, self.width):
+        #        icon.putpixel((x, y), bldata.read(1))
         self.icon = icon
 
     def getData(self, section_num=0, use_coding=BLOCK_CODING.NONE):
@@ -636,9 +661,39 @@ class icl8(Block):
     def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.NONE):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
 
-    def loadIcon(self, bitsPerPixel=8):
+    def loadIcon(self):
         self.parseData()
         return self.icon
+
+    def exportXMLSection(self, subelem, snum, section, fname_base):
+        block_fname = "{:s}.{:s}".format(fname_base,"png")
+
+        self.parseData()
+        with open(block_fname, "wb") as block_fd:
+            self.icon.save(block_fd, format="PNG")
+
+        subelem.set("Format", "png")
+        subelem.set("File", os.path.basename(block_fname))
+
+
+class icl8(ICON):
+    """ Icon Large 8bpp
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.width = 32
+        self.height = 32
+        self.bpp = 8
+
+
+class icl4(ICON):
+    """ Icon Large 4bpp
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.width = 32
+        self.height = 32
+        self.bpp = 4
 
 
 class BDPW(Block):
