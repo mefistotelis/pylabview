@@ -352,7 +352,7 @@ class VI():
                 block = bfactory(self, self.po)
             else:
                 block = LVblock.Block(self, self.po)
-            block.initWithXML(block_elem)
+            block.initWithXMLEarly(block_elem)
             blocks_arr.append(block)
         self.blocks_arr = blocks_arr
 

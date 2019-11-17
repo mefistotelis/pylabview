@@ -228,7 +228,11 @@ class Block(object):
         pass
 
 
-    def initWithXML(self, block_elem):
+    def initWithXMLEarly(self, block_elem):
+        """ Early part of block loading from XML file
+
+        At the pint it is executed, other blocks and sections are inaccessible.
+        """
         self.ident = getRsrcTypeFromPrettyStr(block_elem.tag)
         self.header = BlockHeader(self.po)
         self.header.ident = (c_ubyte * 4).from_buffer_copy(self.ident)
