@@ -415,7 +415,7 @@ class Block(object):
 
         if self.needParseData():
             if self.vi.dataSource == "rsrc" or self.hasRawData():
-                bldata = self.getData(section_num=section_num, use_coding=BLOCK_CODING.NONE)
+                bldata = self.getData(section_num=section_num)
                 self.parseRSRCData(bldata)
             elif self.vi.dataSource == "xml":
                 self.parseXMLData()
