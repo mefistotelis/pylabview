@@ -734,7 +734,7 @@ class ICON(Block):
         #        icon.putpixel((x, y), bldata.read(1))
         self.icon = icon
 
-    def parseXMLData(self):
+    def updateData(self):
         data_buf = bytes(self.icon.getdata())
         data_len = (self.width * self.height * self.bpp) // 8
 
@@ -759,6 +759,9 @@ class ICON(Block):
         if len(data_buf) < data_len:
             data_buf += b'\0' * (data_len - len(data_buf))
         self.setData(data_buf, section_num=self.section_requested)
+
+    def parseXMLData(self):
+        self.updateData()
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
@@ -843,8 +846,6 @@ class BDPW(Block):
         self.updateData()
 
     def updateData(self):
-        """ Updates RAW data stored in the block to any changes in properties
-        """
         self.recalculateHash1()
         self.recalculateHash2()
 
