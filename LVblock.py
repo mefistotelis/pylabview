@@ -407,8 +407,8 @@ class Block(object):
         """
         pass
 
-    def parseData(self, section_num=-1):
-        if section_num == -1:
+    def parseData(self, section_num=None):
+        if section_num == None:
             section_num = self.section_requested
         else:
             self.section_requested = section_num
@@ -435,7 +435,9 @@ class Block(object):
         """
         return (len(self.sections) > 0) and (self.section_loaded != self.section_requested)
 
-    def getData(self, section_num=0, use_coding=BLOCK_CODING.NONE):
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
+        if section_num is None:
+            section_num = self.section_requested
         raw_data_section = self.getRawData(section_num)
         data = BytesIO(raw_data_section)
         if use_coding == BLOCK_CODING.NONE:
@@ -459,7 +461,10 @@ class Block(object):
             raise ValueError("Unsupported compression type")
         return data
 
-    def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.NONE):
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        if section_num is None:
+            section_num = self.section_requested
+
         if use_coding == BLOCK_CODING.NONE:
             raw_data_section = data_buf
             pass
@@ -471,6 +476,7 @@ class Block(object):
             raw_data_section = crypto_xor(data_buf) # TODO make proper encrypt algorithm; this one is decrypt
         else:
             raise ValueError("Unsupported compression type")
+
         self.setRawData(raw_data_section, section_num=section_num)
 
     def saveRSRCData(self, fh, section_names):
@@ -611,11 +617,11 @@ class LVSR(Block):
         self.protected = ((self.flags & 0x2000) > 0)
         self.flags = self.flags & 0xDFFF
 
-    def getData(self, section_num=0, use_coding=BLOCK_CODING.NONE):
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.NONE):
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
 
 
@@ -635,11 +641,11 @@ class vers(Block):
         version_info_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         self.version_info = bldata.read(version_info_len)
 
-    def getData(self, section_num=0, use_coding=BLOCK_CODING.NONE):
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.NONE):
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
 
     def verMajor(self):
@@ -754,11 +760,11 @@ class ICON(Block):
             data_buf += b'\0' * (data_len - len(data_buf))
         self.setData(data_buf, section_num=self.section_requested)
 
-    def getData(self, section_num=0, use_coding=BLOCK_CODING.NONE):
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.NONE):
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
 
     def loadIcon(self):
@@ -848,7 +854,7 @@ class BDPW(Block):
 
         self.setData(data_buf, section_num=self.section_requested)
 
-    def getData(self, section_num=0, use_coding=BLOCK_CODING.NONE):
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
@@ -901,7 +907,7 @@ class BDPW(Block):
             Block.initWithXMLSection(self, section, section_elem)
         pass
 
-    def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.NONE):
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
 
     @staticmethod
@@ -1095,11 +1101,11 @@ class LIBN(Block):
             content_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
             self.content.append(bldata.read(content_len))
 
-    def getData(self, section_num=0, use_coding=BLOCK_CODING.NONE):
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.NONE):
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
 
 
@@ -1115,11 +1121,11 @@ class LVzp(Block):
     def __init__(self, *args):
         super().__init__(*args)
 
-    def getData(self, section_num=0, use_coding=BLOCK_CODING.XOR):
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.XOR):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.XOR):
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.XOR):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
 
 
@@ -1134,11 +1140,11 @@ class BDHP(Block):
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.content = bldata.read(content_len)
 
-    def getData(self, section_num=0, use_coding=BLOCK_CODING.NONE):
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.NONE):
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
 
     def getContent(self):
@@ -1163,11 +1169,11 @@ class BDH(Block):
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.content = bldata.read(content_len)
 
-    def getData(self, section_num=0, use_coding=BLOCK_CODING.ZLIB):
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.ZLIB):
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
 
     def getContent(self):
@@ -1215,11 +1221,11 @@ class VCTP(Block):
             obj_idx, obj_len = self.parseConnector(bldata, pos)
             pos += obj_len
 
-    def getData(self, section_num=0, use_coding=BLOCK_CODING.ZLIB):
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.ZLIB):
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
 
     def getContent(self):
