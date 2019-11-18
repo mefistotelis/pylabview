@@ -126,8 +126,11 @@ class Section(object):
         self.vi = vi
         self.po = po
         self.start = BlockSectionStart(self.po)
+        # Raw data of the section, from just after BlockSectionData struct; not decrypted nor decompressed
         self.raw_data = None
+        # Position of BlockSectionData for this section within RSRC file
         self.block_pos = None
+        # Section name text string, from Info section
         self.name_text = None
 
 
@@ -302,12 +305,15 @@ class Block(object):
         rsrc_data_size = self.vi.rsrc_headers[-1].rsrc_data_size
 
         fh = self.vi.rsrc_fh
-        for i, section in sorted(self.sections.items()):
-            if i >= section_count: break
+        for snum, section in sorted(self.sections.items()):
+            if snum >= section_count: break
             sum_size += last_blksect_size
 
+            if section.block_pos is None:
+                raise RuntimeError("Block {} section {} have no block position computed".format(self.ident,snum))
             if (self.po.verbose > 2):
-                print("{:s}: Block {} section {:d} header at pos {:d}".format(self.vi.src_fname,self.ident,i,section.block_pos))
+                print("{:s}: Block {} section {} header at pos {:d}".format(self.vi.src_fname,self.ident,snum,section.block_pos))
+
             fh.seek(section.block_pos)
 
             blksect = BlockSectionData(self.po)
@@ -400,31 +406,60 @@ class Block(object):
             print("{:s}: Block {} data format is not known; leaving raw only".format(self.vi.src_fname,self.ident))
         pass
 
-    def parseXMLData(self):
+    def parseXMLData(self, section_num=None):
         """ Implements setting block properties from properties of a section, set from XML
 
             Called by parseData() to set the specific section as loaded.
         """
+        if section_num == None:
+            section_num = self.section_requested
+
+        self.updateSectionData(section_num=section_num)
         pass
 
     def parseData(self, section_num=None):
+        """ Parse data of specific section and place it as Block properties
+
+        The given section will be set as both requested and loaded.
+        """
         if section_num == None:
             section_num = self.section_requested
         else:
             self.section_requested = section_num
 
         if self.needParseData():
-            if self.vi.dataSource == "rsrc" or self.hasRawData():
+            if self.vi.dataSource == "rsrc" or self.hasRawData(section_num=section_num):
                 bldata = self.getData(section_num=section_num)
                 self.parseRSRCData(bldata)
             elif self.vi.dataSource == "xml":
-                self.parseXMLData()
+                self.parseXMLData(section_num=section_num)
 
         self.section_loaded = self.section_requested
 
+    def updateSectionData(self, section_num=None):
+        """ Updates RAW data stored in given section to any changes in properties
+        """
+        pass
+
     def updateData(self):
         """ Updates RAW data stored in the block to any changes in properties
+
+        Updates raw data for all sections. Though current change in properties
+        are only kept for current section.
         """
+        skip_sections = []
+        # If we already had a properly parsed section, store its data first
+        if not self.needParseData():
+            self.updateSectionData()
+            skip_sections.append(self.section_requested)
+        prev_section_num = self.section_requested
+
+        for section_num in self.sections:
+            if section_num in skip_sections: continue
+            self.parseData(section_num=section_num)
+            self.updateSectionData(section_num=section_num)
+
+        self.section_requested = prev_section_num
         pass
 
     def needParseData(self):
@@ -489,6 +524,8 @@ class Block(object):
 
         sect_starts = []
         for snum, section in self.sections.items():
+            if section.raw_data is None:
+                raise RuntimeError("No raw data set in block {} section {}".format(self.ident,snum))
 
             # Store the dataset offset in proper structure
             section.start.data_offset = fh.tell() - rsrc_head.rsrc_data_offset
@@ -734,7 +771,9 @@ class ICON(Block):
         #        icon.putpixel((x, y), bldata.read(1))
         self.icon = icon
 
-    def updateData(self):
+    def updateSectionData(self, section_num=None):
+        if section_num is None:
+            section_num = self.section_loaded
         data_buf = bytes(self.icon.getdata())
         data_len = (self.width * self.height * self.bpp) // 8
 
@@ -758,10 +797,7 @@ class ICON(Block):
 
         if len(data_buf) < data_len:
             data_buf += b'\0' * (data_len - len(data_buf))
-        self.setData(data_buf, section_num=self.section_requested)
-
-    def parseXMLData(self):
-        self.updateData()
+        self.setData(data_buf, section_num=section_num)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
@@ -842,10 +878,9 @@ class BDPW(Block):
         self.hash_1 = bldata.read(16)
         self.hash_2 = bldata.read(16)
 
-    def parseXMLData(self):
-        self.updateData()
-
-    def updateData(self):
+    def updateSectionData(self, section_num=None):
+        if section_num is None:
+            section_num = self.section_loaded
         self.recalculateHash1()
         self.recalculateHash2()
 
@@ -853,7 +888,7 @@ class BDPW(Block):
         data_buf += self.hash_1
         data_buf += self.hash_2
 
-        self.setData(data_buf, section_num=self.section_requested)
+        self.setData(data_buf, section_num=section_num)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
