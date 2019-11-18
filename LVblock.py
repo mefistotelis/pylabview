@@ -1109,6 +1109,10 @@ class LIBN(Block):
     def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
 
+    def getContent(self):
+        self.parseData()
+        return self.content
+
 
 class LVzp(Block):
     """ Zipped Program tree
