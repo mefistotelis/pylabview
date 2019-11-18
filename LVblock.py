@@ -813,7 +813,7 @@ class ICON(Block):
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         block_fname = "{:s}.{:s}".format(fname_base,"png")
 
-        self.parseData()
+        self.parseData(section_num=snum)
         with open(block_fname, "wb") as block_fd:
             self.icon.save(block_fd, format="PNG")
 
@@ -895,7 +895,7 @@ class BDPW(Block):
         return bldata
 
     def exportXMLSection(self, section_elem, snum, section, fname_base):
-        self.parseData()
+        self.parseData(section_num=snum)
         self.recalculateHash1(store=False) # this is needed to find salt
         self.recognizePassword()
 
