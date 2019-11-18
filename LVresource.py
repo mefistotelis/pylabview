@@ -407,6 +407,12 @@ class VI():
 
         pass
 
+    def updateRSRCData(self):
+        """ Updates RAW data stored in each block to changes in properties
+        """
+        for block in self.blocks.values():
+            block.updateData()
+
     def saveRSRCData(self, fh):
         # Write header, though it is not completely filled yet
         rsrchead = self.rsrc_headers[0]
@@ -490,6 +496,7 @@ class VI():
 
     def saveRSRC(self, fh):
         self.src_fname = fh.name
+        self.updateRSRCData()
         all_blocks, section_names = self.saveRSRCData(fh)
         self.saveRSRCInfo(fh, all_blocks, section_names)
         self.resaveRSRCHeaders(fh)

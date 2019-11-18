@@ -422,6 +422,11 @@ class Block(object):
 
         self.section_loaded = self.section_requested
 
+    def updateData(self):
+        """ Updates RAW data stored in the block to any changes in properties
+        """
+        pass
+
     def needParseData(self):
         """ Returns if the block needs its data to be parsed
 
@@ -828,9 +833,73 @@ class BDPW(Block):
         self.hash_1 = bldata.read(16)
         self.hash_2 = bldata.read(16)
 
+    def parseXMLData(self):
+        self.updateData()
+
+    def updateData(self):
+        """ Updates RAW data stored in the block to any changes in properties
+        """
+        self.recalculateHash1()
+        self.recalculateHash2()
+
+        data_buf = self.password_md5
+        data_buf += self.hash_1
+        data_buf += self.hash_2
+
+        self.setData(data_buf, section_num=self.section_requested)
+
     def getData(self, section_num=0, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
+
+    def exportXMLSection(self, section_elem, snum, section, fname_base):
+        self.parseData()
+        self.recalculateHash1(store=False) # this is needed to find salt
+        self.recognizePassword()
+
+        section_elem.text = "\n"
+        subelem = ET.SubElement(section_elem,"Password")
+        subelem.tail = "\n"
+
+        if self.password is not None:
+            subelem.set("Text", self.password)
+        else:
+            subelem.set("Hash", self.password_md5.hex())
+            subelem.set("HashType", "MD5")
+        if self.salt_iface_idx is not None:
+            subelem.set("SaltSource", str(self.salt_iface_idx))
+        else:
+            subelem.set("SaltData", self.salt.hex())
+
+        section_elem.set("Format", "inline")
+
+    def initWithXMLSection(self, section, section_elem):
+        idx = section.start.section_idx
+        fmt = section_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.ident,idx))
+            for i, subelem in enumerate(section_elem):
+                if (subelem.tag != "Password"):
+                    raise AttributeError("Section contains something else than 'Password'")
+
+                pass_text = subelem.get("Text")
+                pass_hash = subelem.get("Hash")
+                if pass_text is not None:
+                    self.setPassword(password_text=pass_text)
+                else:
+                    self.setPassword(password_md5=bytes.fromhex(pass_hash))
+
+                salt_iface_idx = subelem.get("SaltSource")
+                salt_data = subelem.get("SaltData")
+                if salt_iface_idx is not None:
+                    self.salt_iface_idx = int(salt_iface_idx, 0)
+                else:
+                    self.salt = bytes.fromhex(salt_data)
+        else:
+            Block.initWithXMLSection(self, section, section_elem)
+        pass
 
     def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.NONE):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
@@ -899,7 +968,8 @@ class BDPW(Block):
         if self.salt_iface_idx is not None:
             # If we've previously found an interface on which the salt is based, use that interface
             VCTP = self.vi.get_or_raise('VCTP')
-            term_connectors = VCTP.getClientConnectorsByType(VCTP.content[self.salt_iface_idx])
+            VCTP_content = VCTP.getContent()
+            term_connectors = VCTP.getClientConnectorsByType(VCTP_content[self.salt_iface_idx])
             salt = BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
         elif self.salt is not None:
             # If we've previously brute-forced the salt, use that same salt
@@ -927,6 +997,23 @@ class BDPW(Block):
         return password_md5
 
 
+    def recognizePassword(self, password_md5=None, store=True):
+        """ Gets password from MD5 hash, if the password is a common one
+        """
+        if password_md5 is None:
+            password_md5 = self.password_md5
+        found_pass = None
+        for test_pass in ['', 'qwerty', 'password', '111111', '12345678', 'abc123', '1234567', 'password1', '12345', '123']:
+            test_pass_bin = test_pass.encode('utf-8')
+            test_md5 = md5(test_pass_bin).digest()
+            if password_md5 == test_md5:
+                found_pass = test_pass
+                break
+        if (store):
+            self.password = found_pass
+        return found_pass
+
+
     def recalculateHash1(self, password_md5=None, store=True):
         """ Calculates the value of hash_1, either stores it or only returns
 
@@ -944,7 +1031,7 @@ class BDPW(Block):
         # If library name is missing, we don't fail, just use empty (verified on LV14 VIs)
         LIBN = self.vi.get_one_of('LIBN')
         if LIBN is not None and LIBN.count > 0:
-            LIBN_content = b':'.join(LIBN.content)
+            LIBN_content = b':'.join(LIBN.getContent())
         else:
             LIBN_content = b''
 
@@ -1054,6 +1141,10 @@ class BDHP(Block):
     def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.NONE):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
 
+    def getContent(self):
+        self.parseData()
+        return self.content
+
     def getContentHash(self):
         self.parseData()
         return md5(self.content).digest()
@@ -1078,6 +1169,10 @@ class BDH(Block):
 
     def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.ZLIB):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+
+    def getContent(self):
+        self.parseData()
+        return self.content
 
     def getContentHash(self):
         self.parseData()
@@ -1127,8 +1222,12 @@ class VCTP(Block):
     def setData(self, data_buf, section_num=0, use_coding=BLOCK_CODING.ZLIB):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
 
+    def getContent(self):
+        self.parseData()
+        return self.content
+
     def getClientConnectorsByType(self, conn_obj):
-        self.getData() # Make sure the block is parsed
+        self.parseData() # Make sure the block is parsed
         type_list = conn_obj.getClientConnectorsByType()
         if (self.po.verbose > 1):
             print("{:s}: Terminal {:d} connectors: {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d}"\
