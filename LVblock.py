@@ -401,7 +401,7 @@ class Block(object):
                       .format(self.ident, section_num))
         return self.sections[section_num]
 
-    def parseRSRCData(self, bldata):
+    def parseRSRCData(self, section_num, bldata):
         """ Implements setting block properties from Byte Stream of a section
 
         Called by parseData() to set the specific section as loaded.
@@ -434,7 +434,7 @@ class Block(object):
         if self.needParseData():
             if self.vi.dataSource == "rsrc" or self.hasRawData(section_num=section_num):
                 bldata = self.getData(section_num=section_num)
-                self.parseRSRCData(bldata)
+                self.parseRSRCData(section_num, bldata)
             elif self.vi.dataSource == "xml":
                 self.parseXMLData(section_num=section_num)
 
@@ -658,7 +658,7 @@ class LVSR(Block):
         self.flags = 0
         self.protected = False
 
-    def parseRSRCData(self, bldata):
+    def parseRSRCData(self, section_num, bldata):
         data = LVSRData(self.po)
         if bldata.readinto(data) != sizeof(data):
             raise EOFError("Data block too short for parsing {} data.".format(self.ident))
@@ -685,7 +685,7 @@ class vers(Block):
         self.version_text = b''
         self.version_info = b''
 
-    def parseRSRCData(self, bldata):
+    def parseRSRCData(self, section_num, bldata):
         self.version = getVersion(int.from_bytes(bldata.read(4), byteorder='big', signed=False))
         version_text_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         self.version_text = bldata.read(version_text_len)
@@ -740,7 +740,7 @@ class ICON(Block):
         self.bpp = 1
         self.icon = None
 
-    def parseRSRCData(self, bldata):
+    def parseRSRCData(self, section_num, bldata):
         icon = Image.new("P", (self.width, self.height))
         img_palette = [ 0 ] * (3*256)
         if self.bpp == 8:
@@ -889,10 +889,16 @@ class BDPW(Block):
         self.salt_iface_idx = None
         self.salt = None
 
-    def parseRSRCData(self, bldata):
+    def parseRSRCData(self, section_num, bldata):
         self.password_md5 = bldata.read(16)
         self.hash_1 = bldata.read(16)
         self.hash_2 = bldata.read(16)
+
+        # In this block, sections have some additional properties besides the raw data
+        section = self.sections[section_num]
+        self.password = section.password
+        self.salt_iface_idx = section.salt_iface_idx
+        self.salt = section.salt
 
     def updateSectionData(self, section_num=None, avoid_recompute=False):
         if section_num is None:
@@ -913,19 +919,17 @@ class BDPW(Block):
 
         # In this block, sections have some additional properties besides the raw data
         section = self.sections[section_num]
-        if self.password is not None:
-            section.password = self.password
-        else:
+        section.password = self.password
+        section.salt_iface_idx = self.salt_iface_idx
+        section.salt = self.salt
+
+    def initWithRSRCEarly(self, header):
+        Block.initWithRSRCEarly(self, header)
+        # In this block, sections have some additional properties besides the raw data
+        for section in self.sections.values():
             section.password = None
-        if self.salt_iface_idx is not None:
-            section.salt_iface_idx = self.salt_iface_idx
-        else:
             section.salt_iface_idx = None
-        if self.salt is not None:
-            section.salt = self.salt
-        else:
             section.salt = None
-        pass
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
@@ -1169,7 +1173,7 @@ class LIBN(Block):
         self.count = 0
         self.content = None
 
-    def parseRSRCData(self, bldata):
+    def parseRSRCData(self, section_num, bldata):
         self.count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.content = []
         for i in range(self.count):
@@ -1215,7 +1219,7 @@ class BDHP(Block):
         super().__init__(*args)
         self.content = None
 
-    def parseRSRCData(self, bldata):
+    def parseRSRCData(self, section_num, bldata):
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.content = bldata.read(content_len)
 
@@ -1244,7 +1248,7 @@ class BDH(Block):
         super().__init__(*args)
         self.content = None
 
-    def parseRSRCData(self, bldata):
+    def parseRSRCData(self, section_num, bldata):
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.content = bldata.read(content_len)
 
@@ -1292,7 +1296,7 @@ class VCTP(Block):
         self.content.append(obj)
         return obj.index, obj_len
 
-    def parseRSRCData(self, bldata):
+    def parseRSRCData(self, section_num, bldata):
         self.count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.content = []
         pos = bldata.tell()
