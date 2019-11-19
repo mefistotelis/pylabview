@@ -30,7 +30,7 @@ All guesses at the acronyms are that. Guesses.
 * [LIbd](#LIbd)
 * [LIds](#LIds)
 * [LIfp](#LIfp)
-* [LIBN](#LIBN)
+* [LIBN](#LIBN) - Library Names
 * [LIvi](#LIvi)
 * [LVSR](#LVSR) - Version ?
 * [MUID](#MUID)
@@ -241,10 +241,12 @@ Contains name of a file
 
 ### LIBN
 
+<b>Lib</b>rary <b>N</b>ames  
+
 ```plain
  Length | Type    | Value
 --------+---------+-------
-      4 | uint32  | Count?
+      4 | uint32  | Count
       1 | uint8   | String length
       * | string  | Content
 ```
