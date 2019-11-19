@@ -47,7 +47,7 @@ class RSRCStructure(BigEndianStructure):
         return pformat(d, indent=0, width=160)
 
 
-LABVIEW_VERSION_STAGE = ['unknown', 'development', 'alpha', 'beta', 'release']
+LABVIEW_VERSION_STAGE_TEXT = ['unknown', 'development', 'alpha', 'beta', 'release']
 
 LABVIEW_COLOR_PALETTE_256 = [
     0xF1F1F1, 0xFFFFCC, 0xFFFF99, 0xFFFF66, 0xFFFF33, 0xFFFF00, 0xFFCCFF, 0xFFCCCC,
@@ -120,7 +120,7 @@ def getRsrcTypeFromPrettyStr(pretty_ident):
     rsrc_ident = rsrc_ident[:4]
     return rsrc_ident
 
-def getVersion(vcode):
+def decodeVersion(vcode):
     ver = {}
     ver['major'] = ((vcode >> 28) & 0x0F) * 10 + ((vcode >> 24) & 0x0F)
     ver['minor'] = (vcode >> 20) & 0x0F
@@ -128,10 +128,32 @@ def getVersion(vcode):
     ver['stage'] = (vcode >> 13) & 0x07
     ver['flags'] = (vcode >> 8) & 0x1F  # 5 bit??
     ver['build'] = ((vcode >> 4) & 0x0F) * 10 + ((vcode >> 0) & 0x0F)
-    ver['stage_text'] = LABVIEW_VERSION_STAGE[0]
-    if ver['stage'] < len(LABVIEW_VERSION_STAGE):
-        ver['stage_text'] = LABVIEW_VERSION_STAGE[ver['stage']]
+    ver['stage_text'] = LABVIEW_VERSION_STAGE_TEXT[0]
+    if ver['stage'] < len(LABVIEW_VERSION_STAGE_TEXT):
+        ver['stage_text'] = LABVIEW_VERSION_STAGE_TEXT[ver['stage']]
     return ver
+
+def encodeVersion(ver):
+    vcode = 0
+    if 'stage_text' in ver:
+        for IDX, STAGE_TEXT in enumerate(LABVIEW_VERSION_STAGE_TEXT):
+            # If value is in array, and it is not "unknown", then update the numeric stage
+            if ver['stage_text'] == STAGE_TEXT and IDX > 0:
+                ver['stage'] = IDX
+                break
+    # If somehow still no numeric stage, then set it to zero
+    if 'stage' not in ver:
+        ver['stage'] = 0
+
+    vcode |= ((ver['major'] // 10) & 0x0F) << 28
+    vcode |= ((ver['major'] % 10) & 0x0F) << 24
+    vcode |= (ver['minor']  & 0x0F) << 20
+    vcode |= (ver['bugfix']  & 0x0F) << 16
+    vcode |= (ver['stage']  & 0x07) << 13
+    vcode |= (ver['flags']  & 0x1F) << 8
+    vcode |= ((ver['build'] // 10) & 0x0F) << 4
+    vcode |= ((ver['build'] % 10) & 0x0F) << 0
+    return vcode
 
 def crypto_xor(data):
     rol = lambda val, l_bits, max_bits: \

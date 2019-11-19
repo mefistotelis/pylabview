@@ -775,7 +775,7 @@ class LVSR(Block):
         if bldata.readinto(data) != sizeof(data):
             raise EOFError("Data block too short for parsing {} data.".format(self.ident))
         self.data = data
-        self.version = getVersion(data.version)
+        self.version = decodeVersion(data.version)
         self.flags = data.flags
         self.protected = ((self.flags & 0x2000) > 0)
         self.flags = self.flags & 0xDFFF
@@ -798,11 +798,34 @@ class vers(Block):
         self.version_info = b''
 
     def parseRSRCData(self, section_num, bldata):
-        self.version = getVersion(int.from_bytes(bldata.read(4), byteorder='big', signed=False))
+        self.version = decodeVersion(int.from_bytes(bldata.read(4), byteorder='big', signed=False))
         version_text_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         self.version_text = bldata.read(version_text_len)
+        # TODO Is the string null-terminated? or that's length of another string?
+        version_unk_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        if version_unk_len != 0:
+            raise AttributeError("Always zero value 1 is not zero")
         version_info_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         self.version_info = bldata.read(version_info_len)
+        # TODO Is the string null-terminated? or that's length of another string?
+        version_unk_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        if version_unk_len != 0:
+            raise AttributeError("Always zero value 2 is not zero")
+
+    def updateSectionData(self, section_num=None, avoid_recompute=False):
+        if section_num is None:
+            section_num = self.section_loaded
+
+        data_buf = int(encodeVersion(self.version)).to_bytes(4, byteorder='big')
+        data_buf += int(len(self.version_text)).to_bytes(1, byteorder='big')
+        data_buf += self.version_text + b'\0'
+        data_buf += int(len(self.version_info)).to_bytes(1, byteorder='big')
+        data_buf += self.version_info + b'\0'
+
+        if (len(data_buf) != 4 + 2+len(self.version_text) + 2+len(self.version_info)) and not avoid_recompute:
+            raise RuntimeError("Block {} section {} generated binary data of invalid size".format(self.ident,snum))
+
+        self.setData(data_buf, section_num=section_num)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
@@ -811,35 +834,84 @@ class vers(Block):
     def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
 
+    def initWithXMLSection(self, section, section_elem):
+        snum = section.start.section_idx
+        fmt = section_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.ident,snum))
+
+            # We really expect only one "Password" sub-element
+            for i, subelem in enumerate(section_elem):
+                if (subelem.tag != "Version"):
+                    raise AttributeError("Section contains something else than 'Version'")
+
+                ver = {}
+                ver['major'] = int(subelem.get("Major"), 0)
+                ver['minor'] = int(subelem.get("Minor"), 0)
+                ver['bugfix'] = int(subelem.get("Bugfix"), 0)
+                ver['stage_text'] = subelem.get("Stage")
+                ver['build'] = int(subelem.get("Build"), 0)
+                ver['flags'] = int(subelem.get("Flags"), 0)
+                self.version_text = subelem.get("Text").encode("utf-8")
+                self.version_info = subelem.get("Info").encode("utf-8")
+                self.version = ver
+
+            self.updateSectionData(section_num=snum,avoid_recompute=True)
+        else:
+            Block.initWithXMLSection(self, section, section_elem)
+        pass
+
+    def exportXMLSection(self, section_elem, snum, section, fname_base):
+        self.parseData(section_num=snum)
+
+        section_elem.text = "\n"
+        subelem = ET.SubElement(section_elem,"Version")
+        subelem.tail = "\n"
+
+        subelem.set("Major", "{:d}".format(self.version['major']))
+        subelem.set("Minor", "{:d}".format(self.version['minor']))
+        subelem.set("Bugfix", "{:d}".format(self.version['bugfix']))
+        subelem.set("Stage", "{:s}".format(self.version['stage_text']))
+        subelem.set("Build", "{:d}".format(self.version['build']))
+        subelem.set("Flags", "0x{:X}".format(self.version['flags']))
+        subelem.set("Text", "{:s}".format(self.version_text.decode("utf-8")))
+        subelem.set("Info", "{:s}".format(self.version_info.decode("utf-8")))
+
+        section_elem.set("Format", "inline")
+
     def verMajor(self):
-        if len(self.version) < 4:
-            self.getData()
+        self.parseData()
         return self.version['major']
 
     def verMinor(self):
-        if len(self.version) < 4:
-            self.getData()
+        self.parseData()
         return self.version['minor']
 
     def verBugfix(self):
-        if len(self.version) < 4:
-            self.getData()
+        self.parseData()
         return self.version['bugfix']
 
     def verStage(self):
-        if len(self.version) < 4:
-            self.getData()
+        self.parseData()
         return self.version['stage_text']
 
     def verFlags(self):
-        if len(self.version) < 4:
-            self.getData()
+        self.parseData()
         return self.version['flags']
 
     def verBuild(self):
-        if len(self.version) < 4:
-            self.getData()
+        self.parseData()
         return self.version['build']
+
+    def verText(self):
+        self.parseData()
+        return self.version_text
+
+    def verInfi(self):
+        self.parseData()
+        return self.version_info
 
 
 class ICON(Block):
