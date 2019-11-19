@@ -211,13 +211,17 @@ class Block(object):
 
             Generic code, used when section is stored as raw data.
             This can be overloaded to support actually parsed section formats.
+
+            After this call, and then a call to initWithXMLLate(), raw_data for
+            this cection should be set. Since the 'late' method will be in most
+            cases useless for XML, it is good to set that data at end of this function.
         """
-        idx = section.start.section_idx
+        snum = section.start.section_idx
         fmt = section_elem.get("Format")
         if fmt == "bin":# Format="bin" - the content is stored separately as raw binary data
             if (self.po.verbose > 2):
                 print("{:s}: For Block {} section {:d}, reading BIN file '{}'"\
-                  .format(self.vi.src_fname,self.ident,idx,section_elem.get("File")))
+                  .format(self.vi.src_fname,self.ident,snum,section_elem.get("File")))
             bin_path = os.path.dirname(self.vi.src_fname)
             if len(bin_path) > 0:
                 bin_fname = bin_path + '/' + section_elem.get("File")
@@ -225,9 +229,9 @@ class Block(object):
                 bin_fname = section_elem.get("File")
             with open(bin_fname, "rb") as bin_fh:
                 data_buf = bin_fh.read()
-                self.setData(data_buf, section_num=idx)
+            self.setData(data_buf, section_num=snum)
         else:
-            raise NotImplementedError("Unsupported Block {} Section {:d} Format '{}'.".format(self.ident,idx,fmt))
+            raise NotImplementedError("Unsupported Block {} Section {:d} Format '{}'.".format(self.ident,snum,fmt))
         pass
 
 
@@ -245,12 +249,12 @@ class Block(object):
         for i, section_elem in enumerate(block_elem):
             if (section_elem.tag != "Section"):
                 raise AttributeError("Block contains something else than 'Section'")
-            idx = int(section_elem.get("Index"))
+            snum = int(section_elem.get("Index"))
             block_int5 = section_elem.get("Int5")
             name_text = section_elem.get("Name")
 
             section = Section(self.vi, self.po)
-            section.start.section_idx = idx
+            section.start.section_idx = snum
             if block_int5 is not None:
                 section.start.int5 = int(block_int5, 0)
 
@@ -260,7 +264,7 @@ class Block(object):
                 raise IOError("BlockSectionStart of given section_idx exists twice.")
             self.sections[section.start.section_idx] = section
 
-            self.section_requested = idx
+            self.section_requested = snum
             self.initWithXMLSection(section, section_elem)
 
         self.header.count = len(self.sections) - 1
@@ -411,8 +415,8 @@ class Block(object):
 
             Called by parseData() to set the specific section as loaded.
         """
-        if section_num == None:
-            section_num = self.section_requested
+        if section_num is None:
+            section_num = self.section_loaded
 
         self.updateSectionData(section_num=section_num)
         pass
@@ -422,7 +426,7 @@ class Block(object):
 
         The given section will be set as both requested and loaded.
         """
-        if section_num == None:
+        if section_num is None:
             section_num = self.section_requested
         else:
             self.section_requested = section_num
@@ -436,9 +440,19 @@ class Block(object):
 
         self.section_loaded = self.section_requested
 
-    def updateSectionData(self, section_num=None):
+    def updateSectionData(self, section_num=None, avoid_recompute=False):
         """ Updates RAW data stored in given section to any changes in properties
+
+        The avoid_recompute flag should be implemented to allow doing partial update,
+        without using data outside of the block. If this flag is used, then it is expected
+        that the data will be re-saved later, when other blocks will be accessible
+        and any externally dependdent values can be re-computed.
         """
+        if section_num is None:
+            section_num = self.section_loaded
+
+        if self.sections[section_num].raw_data is None:
+            raise RuntimeError("Block {} section {} has no raw data generation method".format(self.ident,snum))
         pass
 
     def updateData(self):
@@ -771,9 +785,10 @@ class ICON(Block):
         #        icon.putpixel((x, y), bldata.read(1))
         self.icon = icon
 
-    def updateSectionData(self, section_num=None):
+    def updateSectionData(self, section_num=None, avoid_recompute=False):
         if section_num is None:
             section_num = self.section_loaded
+
         data_buf = bytes(self.icon.getdata())
         data_len = (self.width * self.height * self.bpp) // 8
 
@@ -821,12 +836,12 @@ class ICON(Block):
         section_elem.set("File", os.path.basename(block_fname))
 
     def initWithXMLSection(self, section, section_elem):
-        idx = section.start.section_idx
+        snum = section.start.section_idx
         fmt = section_elem.get("Format")
         if fmt == "png": # Format="png" - the content is stored separately as image file
             if (self.po.verbose > 2):
                 print("{:s}: For Block {} section {:d}, reading PNG file '{}'"\
-                  .format(self.vi.src_fname,self.ident,idx,section_elem.get("File")))
+                  .format(self.vi.src_fname,self.ident,snum,section_elem.get("File")))
             bin_path = os.path.dirname(self.vi.src_fname)
             if len(bin_path) > 0:
                 bin_fname = bin_path + '/' + section_elem.get("File")
@@ -836,6 +851,7 @@ class ICON(Block):
                 icon = Image.open(png_fh)
                 self.icon = icon
                 icon.getdata() # to make sure the file gets loaded
+            self.updateSectionData(section_num=snum,avoid_recompute=True)
         else:
             Block.initWithXMLSection(self, section, section_elem)
         pass
@@ -878,17 +894,38 @@ class BDPW(Block):
         self.hash_1 = bldata.read(16)
         self.hash_2 = bldata.read(16)
 
-    def updateSectionData(self, section_num=None):
+    def updateSectionData(self, section_num=None, avoid_recompute=False):
         if section_num is None:
             section_num = self.section_loaded
-        self.recalculateHash1()
-        self.recalculateHash2()
+
+        if not avoid_recompute:
+            self.recalculateHash1()
+            self.recalculateHash2()
 
         data_buf = self.password_md5
         data_buf += self.hash_1
         data_buf += self.hash_2
 
+        if (len(data_buf) != 48) and not avoid_recompute:
+            raise RuntimeError("Block {} section {} generated binary data of invalid size".format(self.ident,snum))
+
         self.setData(data_buf, section_num=section_num)
+
+        # In this block, sections have some additional properties besides the raw data
+        section = self.sections[section_num]
+        if self.password is not None:
+            section.password = self.password
+        else:
+            section.password = None
+        if self.salt_iface_idx is not None:
+            section.salt_iface_idx = self.salt_iface_idx
+        else:
+            section.salt_iface_idx = None
+        if self.salt is not None:
+            section.salt = self.salt
+        else:
+            section.salt = None
+        pass
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
@@ -916,12 +953,13 @@ class BDPW(Block):
         section_elem.set("Format", "inline")
 
     def initWithXMLSection(self, section, section_elem):
-        idx = section.start.section_idx
+        snum = section.start.section_idx
         fmt = section_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
                 print("{:s}: For Block {} section {:d}, reading inline XML data"\
-                  .format(self.vi.src_fname,self.ident,idx))
+                  .format(self.vi.src_fname,self.ident,snum))
+            # We really expect only one "Password" sub-element
             for i, subelem in enumerate(section_elem):
                 if (subelem.tag != "Password"):
                     raise AttributeError("Section contains something else than 'Password'")
@@ -939,6 +977,7 @@ class BDPW(Block):
                     self.salt_iface_idx = int(salt_iface_idx, 0)
                 else:
                     self.salt = bytes.fromhex(salt_data)
+            self.updateSectionData(section_num=snum,avoid_recompute=True)
         else:
             Block.initWithXMLSection(self, section, section_elem)
         pass
