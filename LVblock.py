@@ -742,6 +742,24 @@ class BDSE(SingleIntBlock):
         self.signed = False
 
 
+class CONP(SingleIntBlock):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.byteorder = 'big'
+        self.size = 2
+        self.base = 10
+        self.signed = False
+
+
+class CPC2(SingleIntBlock):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.byteorder = 'big'
+        self.size = 2
+        self.base = 10
+        self.signed = False
+
+
 class LVSR(Block):
     """ LabView Source Release
     """
@@ -1407,6 +1425,33 @@ class BDH(Block):
         return md5(self.content).digest()
 
 BDHc = BDHb = BDH
+
+
+class FPH(Block):
+    """ Front Panel Heap (LV 7 and newer)
+
+        Stored in "FPHx"-block.
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.content = None
+
+    def parseRSRCData(self, section_num, bldata):
+        content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.content = bldata.read(content_len)
+
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
+        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        return bldata
+
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
+        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+
+    def getContent(self):
+        self.parseData()
+        return self.content
+
+FPHc = FPHb = FPH
 
 
 class VCTP(Block):
