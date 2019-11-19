@@ -652,6 +652,96 @@ class Block(object):
         return "<" + self.__class__.__name__ + "(" + d + ")>"
 
 
+class SingleIntBlock(Block):
+    """ Block with raw data representing single integer value
+
+        To be used as parser for several blocks.
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.value = None
+        self.byteorder = 'big'
+        self.size = 4
+        self.base = 10
+        self.signed = False
+
+    def parseRSRCData(self, section_num, bldata):
+        self.value = int.from_bytes(bldata.read(self.size), byteorder=self.byteorder, signed=self.signed)
+
+    def updateSectionData(self, section_num=None, avoid_recompute=False):
+        if section_num is None:
+            section_num = self.section_loaded
+
+        data_buf = int(self.value).to_bytes(self.size, byteorder=self.byteorder)
+
+        if (len(data_buf) != self.size) and not avoid_recompute:
+            raise RuntimeError("Block {} section {} generated binary data of invalid size".format(self.ident,snum))
+
+        self.setData(data_buf, section_num=section_num)
+
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
+        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        return bldata
+
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+
+    def initWithXMLSection(self, section, section_elem):
+        snum = section.start.section_idx
+        fmt = section_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.ident,snum))
+            self.value = section_elem.get("Value")
+
+            self.updateSectionData(section_num=snum,avoid_recompute=True)
+        else:
+            Block.initWithXMLSection(self, section, section_elem)
+        pass
+
+    def exportXMLSection(self, section_elem, snum, section, fname_base):
+        self.parseData(section_num=snum)
+
+        if self.base == 16:
+            section_elem.set("Value", "0x{:x}".format(self.value))
+        else:
+            section_elem.set("Value", "{:d}".format(self.value))
+
+        section_elem.set("Format", "inline")
+
+    def getValue(self):
+        self.parseData()
+        return self.value
+
+
+class MUID(SingleIntBlock):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.byteorder = 'big'
+        self.size = 4
+        self.base = 10
+        self.signed = False
+
+
+class FPSE(SingleIntBlock):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.byteorder = 'big'
+        self.size = 4
+        self.base = 10
+        self.signed = False
+
+
+class BDSE(SingleIntBlock):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.byteorder = 'big'
+        self.size = 4
+        self.base = 10
+        self.signed = False
+
+
 class LVSR(Block):
     """ LabView Source Release
     """
@@ -935,10 +1025,6 @@ class BDPW(Block):
         section.salt_iface_idx = self.salt_iface_idx
         section.salt = self.salt
 
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
-        return bldata
-
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         self.parseData(section_num=snum)
         self.recalculateHash1(store=False) # this is needed to find salt
@@ -989,6 +1075,10 @@ class BDPW(Block):
         else:
             Block.initWithXMLSection(self, section, section_elem)
         pass
+
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
+        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        return bldata
 
     def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
