@@ -1119,7 +1119,7 @@ class BDPW(Block):
 
         # If library name is missing, we don't fail, just use empty (verified on LV14 VIs)
         LIBN = self.vi.get_one_of('LIBN')
-        if LIBN is not None and LIBN.count > 0:
+        if LIBN is not None:
             LIBN_content = b':'.join(LIBN.getContent())
         else:
             LIBN_content = b''
@@ -1174,15 +1174,28 @@ class LIBN(Block):
     """
     def __init__(self, *args):
         super().__init__(*args)
-        self.count = 0
         self.content = None
 
     def parseRSRCData(self, section_num, bldata):
-        self.count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.content = []
-        for i in range(self.count):
+        for i in range(count):
             content_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
             self.content.append(bldata.read(content_len))
+
+    def updateSectionData(self, section_num=None, avoid_recompute=False):
+        if section_num is None:
+            section_num = self.section_loaded
+
+        data_buf = int(len(self.content)).to_bytes(4, byteorder='big')
+        for name in self.content:
+            data_buf += int(len(name)).to_bytes(1, byteorder='big')
+            data_buf += name
+
+        if (len(data_buf) < 5) and not avoid_recompute:
+            raise RuntimeError("Block {} section {} generated binary data of invalid size".format(self.ident,snum))
+
+        self.setData(data_buf, section_num=section_num)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
@@ -1190,6 +1203,38 @@ class LIBN(Block):
 
     def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+
+    def initWithXMLSection(self, section, section_elem):
+        snum = section.start.section_idx
+        fmt = section_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.ident,snum))
+            self.content = []
+            # There can be multiple "Library" sub-elements
+            for i, subelem in enumerate(section_elem):
+                if (subelem.tag != "Library"):
+                    raise AttributeError("Section contains something else than 'Library'")
+
+                name_text = subelem.get("Name")
+                self.content.append(name_text.encode("utf-8"))
+
+            self.updateSectionData(section_num=snum,avoid_recompute=True)
+        else:
+            Block.initWithXMLSection(self, section, section_elem)
+        pass
+
+    def exportXMLSection(self, section_elem, snum, section, fname_base):
+        self.parseData(section_num=snum)
+
+        section_elem.text = "\n"
+        for name in self.content:
+            subelem = ET.SubElement(section_elem,"Library")
+            subelem.tail = "\n"
+            subelem.set("Name", name.decode("utf-8"))
+
+        section_elem.set("Format", "inline")
 
     def getContent(self):
         self.parseData()
@@ -1287,7 +1332,6 @@ class VCTP(Block):
     """
     def __init__(self, *args):
         super().__init__(*args)
-        self.count = 0
         self.content = None
 
     def parseConnector(self, bldata, pos):
@@ -1301,10 +1345,10 @@ class VCTP(Block):
         return obj.index, obj_len
 
     def parseRSRCData(self, section_num, bldata):
-        self.count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.content = []
         pos = bldata.tell()
-        for i in range(self.count):
+        for i in range(count):
             obj_idx, obj_len = self.parseConnector(bldata, pos)
             pos += obj_len
 
