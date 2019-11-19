@@ -149,6 +149,10 @@ class Block(object):
         # set by getRawData(); size of cummulative data for all sections in the block
         self.size = None
 
+    def createSection(self):
+        section = Section(self.vi, self.po)
+        return section
+
     def initWithRSRCEarly(self, header):
         """ Early part of block loading from RSRC file
 
@@ -168,7 +172,7 @@ class Block(object):
 
         self.sections = {}
         for i in range(header.count + 1):
-            section = Section(self.vi, self.po)
+            section = self.createSection()
             if fh.readinto(section.start) != sizeof(section.start):
                 raise EOFError("Could not read BlockSectionStart data.")
             if (self.po.verbose > 2):
@@ -253,7 +257,7 @@ class Block(object):
             block_int5 = section_elem.get("Int5")
             name_text = section_elem.get("Name")
 
-            section = Section(self.vi, self.po)
+            section = self.createSection()
             section.start.section_idx = snum
             if block_int5 is not None:
                 section.start.int5 = int(block_int5, 0)
@@ -383,7 +387,7 @@ class Block(object):
             self.section_loaded = None
         # Insert empty bytes in any missing sections
         if section_num not in self.sections:
-            section = Section(self.vi, self.po)
+            section = self.createSection()
             section.start.section_idx = section_num
             self.sections[section_num] = section
         # Replace the target section
@@ -889,6 +893,14 @@ class BDPW(Block):
         self.salt_iface_idx = None
         self.salt = None
 
+    def createSection(self):
+        section = Section(self.vi, self.po)
+        # In this block, sections have some additional properties besides the raw data
+        section.password = None
+        section.salt_iface_idx = None
+        section.salt = None
+        return section
+
     def parseRSRCData(self, section_num, bldata):
         self.password_md5 = bldata.read(16)
         self.hash_1 = bldata.read(16)
@@ -922,14 +934,6 @@ class BDPW(Block):
         section.password = self.password
         section.salt_iface_idx = self.salt_iface_idx
         section.salt = self.salt
-
-    def initWithRSRCEarly(self, header):
-        Block.initWithRSRCEarly(self, header)
-        # In this block, sections have some additional properties besides the raw data
-        for section in self.sections.values():
-            section.password = None
-            section.salt_iface_idx = None
-            section.salt = None
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
