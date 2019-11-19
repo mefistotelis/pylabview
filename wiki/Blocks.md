@@ -15,7 +15,7 @@ All guesses at the acronyms are that. Guesses.
 * [DFDS](#DFDS)
 * [DLDR](#DLDR)
 * [DTHP](#DTHP)
-* [FPHb](#FPHb) - Front Panel ?
+* [FPHb](#FPHb) - Front Panel Heap
 * [FPSE](#FPSE) - Front Panel ?
 * [FPTD](#FPTD) - Front Panel ?
 * [FTAB](#FTAB) - Font Table
@@ -158,6 +158,11 @@ Not in Polymorphic VIs or Controls
 ***
 
 ### FPHb
+
+<b>F</b>ront <b>P</b>anel <b>H</b>eap  
+Compressed
+
+Stores the actual Front Panel data
 
 ***
 
