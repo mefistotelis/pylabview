@@ -4,7 +4,7 @@ All guesses at the acronyms are that. Guesses.
 
 ## Contents
 
-* [BDHb, BDHc](#BDH_) - Block Diagram ?
+* [BDHb, BDHc](#BDH_) - Block Diagram
 * [BDPW](#BDPW) - Block Diagram Password
 * [BDSE](#BDSE) - Block Diagram ?
 * [BNID](#BNID)
@@ -53,7 +53,7 @@ All guesses at the acronyms are that. Guesses.
 
 ### BDHb, BDHc
 
-<b>B</b>lock <b>D</b>ata ?  
+<b>B</b>lock <b>D</b>iagram <b>H</b>eap
 Compressed
 
 ```plain
@@ -67,7 +67,7 @@ Compressed
 
 ### BDPW
 
-<b>B</b>lock <b>D</b>ata <b>P</b>ass<b>w</b>ord
+<b>B</b>lock <b>D</b>iagram <b>P</b>ass<b>w</b>ord
 
 ```plain
  Length | Type    | Value
