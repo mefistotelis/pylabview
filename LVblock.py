@@ -99,11 +99,16 @@ class BlockSectionData(RSRCStructure):
 
 class LVSRData(RSRCStructure):
     _fields_ = [('version', c_uint32),	#0
-                ('int2', c_uint16),		#4
+                ('field04', c_uint16),		#4
                 ('flags', c_uint16),	#6
-                ('unknown08', c_ubyte * 88),	#8
+                ('field08', c_ubyte * 44),	#8
+                ('field34_md5', c_ubyte * 16),	#52
+                ('field44', c_uint32),	#68
+                ('field48', c_uint32),	#72
+                ('field4C', c_uint32),	#76
+                ('field50_md5', c_ubyte * 16),	#80
                 ('libpass_md5', c_ubyte * 16),	#96
-                ('unknown70', c_ubyte * 8),	#112
+                ('field70', c_ubyte * 8),	#112
     ]
 
     def __init__(self, po):
@@ -772,12 +777,17 @@ class LVSR(Block):
         self.version = []
         self.flags = 0
         self.protected = False
-        self.int2 = 0
-        self.unknown08 = b''
+        self.field04 = 0
+        self.field08 = b''
+        self.field34_md5 = b''
+        self.field44 = 0
+        self.field48 = 0
+        self.field4C = 0
+        self.field50_md5 = b''
         self.libpass_text = None
         self.libpass_md5 = b''
-        self.unknown70 = b''
-        self.unknown78 = b''
+        self.field70 = b''
+        self.field78 = b''
 
     def parseRSRCData(self, section_num, bldata):
         # Size of the data seem to be 120, 136 or 137
@@ -789,25 +799,35 @@ class LVSR(Block):
         self.version = decodeVersion(data.version)
         self.protected = ((data.flags & 0x2000) > 0)
         self.flags = data.flags & 0xDFFF
-        self.int2 = int(data.int2)
-        self.unknown08 = bytes(data.unknown08)
+        self.field04 = int(data.field04)
+        self.field08 = bytes(data.field08)
+        self.field34_md5 = bytes(data.field34_md5)
+        self.field44 = int(data.field44)
+        self.field48 = int(data.field48)
+        self.field4C = int(data.field4C)
+        self.field50_md5 = bytes(data.field50_md5)
         self.libpass_md5 = bytes(data.libpass_md5)
-        self.unknown70 = bytes(data.unknown70)
+        self.field70 = bytes(data.field70)
         # Additional data, of uncertain size
-        self.unknown78 = bldata.read(17)
+        self.field78 = bldata.read(17)
 
     def updateSectionData(self, section_num=None, avoid_recompute=False):
         if section_num is None:
             section_num = self.section_loaded
 
         data_buf = int(encodeVersion(self.version)).to_bytes(4, byteorder='big')
-        data_buf += int(self.int2).to_bytes(2, byteorder='big')
+        data_buf += int(self.field04).to_bytes(2, byteorder='big')
         data_flags = (self.flags & 0xDFFF) | (0x2000 if self.protected else 0)
         data_buf += int(data_flags).to_bytes(2, byteorder='big')
-        data_buf += self.unknown08
+        data_buf += self.field08
+        data_buf += self.field34_md5
+        data_buf += int(self.field44).to_bytes(4, byteorder='big')
+        data_buf += int(self.field48).to_bytes(4, byteorder='big')
+        data_buf += int(self.field4C).to_bytes(4, byteorder='big')
+        data_buf += self.field50_md5
         data_buf += self.libpass_md5
-        data_buf += self.unknown70
-        data_buf += self.unknown78
+        data_buf += self.field70
+        data_buf += self.field78
 
         if len(data_buf) not in [120, 136, 137] and not avoid_recompute:
             raise RuntimeError("Block {} section {} generated binary data of invalid size".format(self.ident,snum))
@@ -851,33 +871,44 @@ class LVSR(Block):
                     else:
                         self.libpass_md5 = bytes.fromhex(password_hash)
                     pass
-                elif (subelem.tag == "Fields"):
+                elif (subelem.tag == "Unknown"):
                     self.flags = int(subelem.get("Flags"), 0)
-                    self.int2 = int(subelem.get("Int2"), 0)
-                elif (subelem.tag == "Unknown08"):
+                    self.field04 = int(subelem.get("Field04"), 0)
+
+                    field34_hash = subelem.get("Field34Hash")
+                    self.field34_md5 = bytes.fromhex(field34_hash)
+
+                    self.field44 = int(subelem.get("Field44"), 0)
+                    self.field48 = int(subelem.get("Field48"), 0)
+                    self.field4C = int(subelem.get("Field4C"), 0)
+
+                    field50_hash = subelem.get("Field50Hash")
+                    self.field50_md5 = bytes.fromhex(field50_hash)
+
+                elif (subelem.tag == "Field08"):
                     bin_path = os.path.dirname(self.vi.src_fname)
                     if len(bin_path) > 0:
                         bin_fname = bin_path + '/' + subelem.get("File")
                     else:
                         bin_fname = subelem.get("File")
                     with open(bin_fname, "rb") as part_fh:
-                        self.unknown08 = part_fh.read()
-                elif (subelem.tag == "Unknown70"):
+                        self.field08 = part_fh.read()
+                elif (subelem.tag == "Field70"):
                     bin_path = os.path.dirname(self.vi.src_fname)
                     if len(bin_path) > 0:
                         bin_fname = bin_path + '/' + subelem.get("File")
                     else:
                         bin_fname = subelem.get("File")
                     with open(bin_fname, "rb") as part_fh:
-                        self.unknown70 = part_fh.read()
-                elif (subelem.tag == "Unknown78"):
+                        self.field70 = part_fh.read()
+                elif (subelem.tag == "Field78"):
                     bin_path = os.path.dirname(self.vi.src_fname)
                     if len(bin_path) > 0:
                         bin_fname = bin_path + '/' + subelem.get("File")
                     else:
                         bin_fname = subelem.get("File")
                     with open(bin_fname, "rb") as part_fh:
-                        self.unknown78 = part_fh.read()
+                        self.field78 = part_fh.read()
                 else:
                     raise AttributeError("Section contains something else than 'Version'")
 
@@ -907,36 +938,41 @@ class LVSR(Block):
         subelem.set("PasswordHash", self.libpass_md5.hex())
         subelem.set("HashType", "MD5")
 
-        subelem = ET.SubElement(section_elem,"Fields")
+        subelem = ET.SubElement(section_elem,"Unknown")
         subelem.tail = "\n"
 
-        subelem.set("Int2", "{:d}".format(self.int2))
-        subelem.set("Flags", "{:d}".format(self.flags))
+        subelem.set("Field04", "{:d}".format(self.field04))
+        subelem.set("Flags", "0x{:X}".format(self.flags))
+        subelem.set("Field34Hash", self.field34_md5.hex())
+        subelem.set("Field44", "{:d}".format(self.field44))
+        subelem.set("Field48", "{:d}".format(self.field48))
+        subelem.set("Field4C", "{:d}".format(self.field4C))
+        subelem.set("Field50Hash", self.field50_md5.hex())
 
-        subelem = ET.SubElement(section_elem,"Unknown08")
+        subelem = ET.SubElement(section_elem,"Field08")
         subelem.tail = "\n"
 
         part_fname = "{:s}_{:s}.{:s}".format(fname_base,subelem.tag,"bin")
         with open(part_fname, "wb") as part_fd:
-            part_fd.write(self.unknown08)
+            part_fd.write(self.field08)
         subelem.set("Format", "bin")
         subelem.set("File", os.path.basename(part_fname))
 
-        subelem = ET.SubElement(section_elem,"Unknown70")
+        subelem = ET.SubElement(section_elem,"Field70")
         subelem.tail = "\n"
 
         part_fname = "{:s}_{:s}.{:s}".format(fname_base,subelem.tag,"bin")
         with open(part_fname, "wb") as part_fd:
-            part_fd.write(self.unknown70)
+            part_fd.write(self.field70)
         subelem.set("Format", "bin")
         subelem.set("File", os.path.basename(part_fname))
 
-        subelem = ET.SubElement(section_elem,"Unknown78")
+        subelem = ET.SubElement(section_elem,"Field78")
         subelem.tail = "\n"
 
         part_fname = "{:s}_{:s}.{:s}".format(fname_base,subelem.tag,"bin")
         with open(part_fname, "wb") as part_fd:
-            part_fd.write(self.unknown78)
+            part_fd.write(self.field78)
         subelem.set("Format", "bin")
         subelem.set("File", os.path.basename(part_fname))
 
