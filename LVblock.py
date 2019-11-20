@@ -101,6 +101,9 @@ class LVSRData(RSRCStructure):
     _fields_ = [('version', c_uint32),	#0
                 ('int2', c_uint16),		#4
                 ('flags', c_uint16),	#6
+                ('unknown08', c_ubyte * 88),	#8
+                ('libpass_md5', c_ubyte * 16),	#96
+                ('unknown70', c_ubyte * 8),	#112
     ]
 
     def __init__(self, po):
@@ -769,16 +772,47 @@ class LVSR(Block):
         self.version = []
         self.flags = 0
         self.protected = False
+        self.int2 = 0
+        self.unknown08 = b''
+        self.libpass_text = None
+        self.libpass_md5 = b''
+        self.unknown70 = b''
+        self.unknown78 = b''
 
     def parseRSRCData(self, section_num, bldata):
+        # Size of the data seem to be 120, 136 or 137
+        # Data before byte 120 does not move - so it's always safe to read
         data = LVSRData(self.po)
         if bldata.readinto(data) != sizeof(data):
             raise EOFError("Data block too short for parsing {} data.".format(self.ident))
-        self.data = data
+
         self.version = decodeVersion(data.version)
-        self.flags = data.flags
-        self.protected = ((self.flags & 0x2000) > 0)
-        self.flags = self.flags & 0xDFFF
+        self.protected = ((data.flags & 0x2000) > 0)
+        self.flags = data.flags & 0xDFFF
+        self.int2 = int(data.int2)
+        self.unknown08 = bytes(data.unknown08)
+        self.libpass_md5 = bytes(data.libpass_md5)
+        self.unknown70 = bytes(data.unknown70)
+        # Additional data, of uncertain size
+        self.unknown78 = bldata.read(17)
+
+    def updateSectionData(self, section_num=None, avoid_recompute=False):
+        if section_num is None:
+            section_num = self.section_loaded
+
+        data_buf = int(encodeVersion(self.version)).to_bytes(4, byteorder='big')
+        data_buf += int(self.int2).to_bytes(2, byteorder='big')
+        data_flags = (self.flags & 0xDFFF) | (0x2000 if self.protected else 0)
+        data_buf += int(data_flags).to_bytes(2, byteorder='big')
+        data_buf += self.unknown08
+        data_buf += self.libpass_md5
+        data_buf += self.unknown70
+        data_buf += self.unknown78
+
+        if len(data_buf) not in [120, 136, 137] and not avoid_recompute:
+            raise RuntimeError("Block {} section {} generated binary data of invalid size".format(self.ident,snum))
+
+        self.setData(data_buf, section_num=section_num)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
@@ -786,6 +820,127 @@ class LVSR(Block):
 
     def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+
+    def initWithXMLSection(self, section, section_elem):
+        snum = section.start.section_idx
+        fmt = section_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.ident,snum))
+
+            # We really expect only one "Password" sub-element
+            for i, subelem in enumerate(section_elem):
+                if (subelem.tag == "Version"):
+                    ver = {}
+                    ver['major'] = int(subelem.get("Major"), 0)
+                    ver['minor'] = int(subelem.get("Minor"), 0)
+                    ver['bugfix'] = int(subelem.get("Bugfix"), 0)
+                    ver['stage_text'] = subelem.get("Stage")
+                    ver['build'] = int(subelem.get("Build"), 0)
+                    ver['flags'] = int(subelem.get("Flags"), 0)
+                    self.version = ver
+                elif (subelem.tag == "Library"):
+                    self.protected = int(subelem.get("Protected"), 0)
+                    password_text = subelem.get("Password")
+                    password_hash = subelem.get("PasswordHash")
+                    if password_text is not None:
+                        password_bin = password_text.encode('utf-8')
+                        self.libpass_text = password_text
+                        self.libpass_md5 = md5(password_bin).digest()
+                    else:
+                        self.libpass_md5 = bytes.fromhex(password_hash)
+                    pass
+                elif (subelem.tag == "Fields"):
+                    self.flags = int(subelem.get("Flags"), 0)
+                    self.int2 = int(subelem.get("Int2"), 0)
+                elif (subelem.tag == "Unknown08"):
+                    bin_path = os.path.dirname(self.vi.src_fname)
+                    if len(bin_path) > 0:
+                        bin_fname = bin_path + '/' + subelem.get("File")
+                    else:
+                        bin_fname = subelem.get("File")
+                    with open(bin_fname, "rb") as part_fh:
+                        self.unknown08 = part_fh.read()
+                elif (subelem.tag == "Unknown70"):
+                    bin_path = os.path.dirname(self.vi.src_fname)
+                    if len(bin_path) > 0:
+                        bin_fname = bin_path + '/' + subelem.get("File")
+                    else:
+                        bin_fname = subelem.get("File")
+                    with open(bin_fname, "rb") as part_fh:
+                        self.unknown70 = part_fh.read()
+                elif (subelem.tag == "Unknown78"):
+                    bin_path = os.path.dirname(self.vi.src_fname)
+                    if len(bin_path) > 0:
+                        bin_fname = bin_path + '/' + subelem.get("File")
+                    else:
+                        bin_fname = subelem.get("File")
+                    with open(bin_fname, "rb") as part_fh:
+                        self.unknown78 = part_fh.read()
+                else:
+                    raise AttributeError("Section contains something else than 'Version'")
+
+            self.updateSectionData(section_num=snum,avoid_recompute=True)
+        else:
+            Block.initWithXMLSection(self, section, section_elem)
+        pass
+
+    def exportXMLSection(self, section_elem, snum, section, fname_base):
+        self.parseData(section_num=snum)
+
+        section_elem.text = "\n"
+        subelem = ET.SubElement(section_elem,"Version")
+        subelem.tail = "\n"
+
+        subelem.set("Major", "{:d}".format(self.version['major']))
+        subelem.set("Minor", "{:d}".format(self.version['minor']))
+        subelem.set("Bugfix", "{:d}".format(self.version['bugfix']))
+        subelem.set("Stage", "{:s}".format(self.version['stage_text']))
+        subelem.set("Build", "{:d}".format(self.version['build']))
+        subelem.set("Flags", "0x{:X}".format(self.version['flags']))
+
+        subelem = ET.SubElement(section_elem,"Library")
+        subelem.tail = "\n"
+
+        subelem.set("Protected", "{:d}".format(self.protected))
+        subelem.set("PasswordHash", self.libpass_md5.hex())
+        subelem.set("HashType", "MD5")
+
+        subelem = ET.SubElement(section_elem,"Fields")
+        subelem.tail = "\n"
+
+        subelem.set("Int2", "{:d}".format(self.int2))
+        subelem.set("Flags", "{:d}".format(self.flags))
+
+        subelem = ET.SubElement(section_elem,"Unknown08")
+        subelem.tail = "\n"
+
+        part_fname = "{:s}_{:s}.{:s}".format(fname_base,subelem.tag,"bin")
+        with open(part_fname, "wb") as part_fd:
+            part_fd.write(self.unknown08)
+        subelem.set("Format", "bin")
+        subelem.set("File", os.path.basename(part_fname))
+
+        subelem = ET.SubElement(section_elem,"Unknown70")
+        subelem.tail = "\n"
+
+        part_fname = "{:s}_{:s}.{:s}".format(fname_base,subelem.tag,"bin")
+        with open(part_fname, "wb") as part_fd:
+            part_fd.write(self.unknown70)
+        subelem.set("Format", "bin")
+        subelem.set("File", os.path.basename(part_fname))
+
+        subelem = ET.SubElement(section_elem,"Unknown78")
+        subelem.tail = "\n"
+
+        part_fname = "{:s}_{:s}.{:s}".format(fname_base,subelem.tag,"bin")
+        with open(part_fname, "wb") as part_fd:
+            part_fd.write(self.unknown78)
+        subelem.set("Format", "bin")
+        subelem.set("File", os.path.basename(part_fname))
+
+        section_elem.set("Format", "inline")
 
 
 class vers(Block):
