@@ -98,17 +98,35 @@ class BlockSectionData(RSRCStructure):
 
 
 class LVSRData(RSRCStructure):
+    # sizes mostly confirmed in lvrt
     _fields_ = [('version', c_uint32),	#0
-                ('field04', c_uint16),		#4
-                ('flags', c_uint16),	#6
-                ('field08', c_ubyte * 44),	#8
+                ('flags04', c_uint32),	#4 
+                ('field08', c_uint32),	#8
+                ('field0C', c_uint32),	#12
+                ('flags10', c_uint16),	#16
+                ('field12', c_uint16),	#18
+                ('field14', c_uint32),	#20
+                ('instrState', c_uint32),	#24 flag 0x200 = viDebugCapable
+                ('field1C', c_uint32),	#28
+                ('field20', c_uint16),	#32
+                ('field22', c_uint16),	#34
+                ('field24', c_uint32),	#36
+                ('field28', c_uint32),	#40 linked value 1/3
+                ('field2C', c_uint32),	#44 linked value 2/3
+                ('field30', c_uint32),	#48 linked value 3/3
                 ('field34_md5', c_ubyte * 16),	#52
                 ('field44', c_uint32),	#68
                 ('field48', c_uint32),	#72
-                ('field4C', c_uint32),	#76
+                ('field4C', c_uint16),	#76
+                ('field4E', c_uint16),	#78
                 ('field50_md5', c_ubyte * 16),	#80
                 ('libpass_md5', c_ubyte * 16),	#96
-                ('field70', c_ubyte * 8),	#112
+                ('field70', c_uint32),	#112
+                ('field74', c_uint32),	#116
+                ('field78_md5', c_ubyte * 16),	#120
+                ('inlineStg', c_ubyte),	#136 inline setting, valid value 0..2
+                ('inline_padding', c_ubyte * 3),	#137 
+                ('field8C', c_uint32),	#140 
     ]
 
     def __init__(self, po):
@@ -773,63 +791,121 @@ class LVSR(Block):
     """
     def __init__(self, *args):
         super().__init__(*args)
-        self.data = b''
         self.version = []
-        self.flags = 0
+        self.flags04 = 0
         self.protected = False
-        self.field04 = 0
-        self.field08 = b''
+        self.field08 = 0
+        self.field0C = 0
+        self.flags10 = 0
+        self.field12 = 0
+        self.field14 = 0
+        self.instrState = 0
+        self.field1C = 0
+        self.field20 = 0
+        self.field22 = 0
+        self.field24 = 0
+        self.field28 = 0
+        self.field2C = 0
+        self.field30 = 0
         self.field34_md5 = b''
         self.field44 = 0
         self.field48 = 0
         self.field4C = 0
+        self.field4E = 0
         self.field50_md5 = b''
         self.libpass_text = None
         self.libpass_md5 = b''
-        self.field70 = b''
-        self.field78 = b''
+        self.field70 = 0
+        self.field74 = 0
+        self.field78_md5 = b''
+        self.inlineStg = 0
+        self.field8C = 0
+        self.field90 = b''
 
     def parseRSRCData(self, section_num, bldata):
         # Size of the data seem to be 120, 136 or 137
         # Data before byte 120 does not move - so it's always safe to read
         data = LVSRData(self.po)
-        if bldata.readinto(data) != sizeof(data):
+        if bldata.readinto(data) not in [120, 136, 137, sizeof(LVSRData)]:
             raise EOFError("Data block too short for parsing {} data.".format(self.ident))
 
         self.version = decodeVersion(data.version)
-        self.protected = ((data.flags & 0x2000) > 0)
-        self.flags = data.flags & 0xDFFF
-        self.field04 = int(data.field04)
-        self.field08 = bytes(data.field08)
+        self.protected = ((data.flags04 & 0x2000) != 0)
+        self.flags04 = data.flags04 & (~0x2000)
+        self.field08 = int(data.field08)
+        self.field0C = int(data.field0C)
+        self.flags10 = int(data.flags10)
+        self.field12 = int(data.field12)
+        self.field14 = int(data.field14)
+        self.instrState = int(data.instrState)
+        self.field1C = int(data.field1C)
+        self.field20 = int(data.field20)
+        self.field22 = int(data.field22)
+        self.field24 = int(data.field24)
+        self.field28 = int(data.field28)
+        self.field2C = int(data.field2C)
+        self.field30 = int(data.field30)
         self.field34_md5 = bytes(data.field34_md5)
         self.field44 = int(data.field44)
         self.field48 = int(data.field48)
         self.field4C = int(data.field4C)
+        self.field4E = int(data.field4E)
         self.field50_md5 = bytes(data.field50_md5)
         self.libpass_md5 = bytes(data.libpass_md5)
-        self.field70 = bytes(data.field70)
-        # Additional data, of uncertain size
-        self.field78 = bldata.read(17)
+        self.libpass_text = None
+        self.field70 = int(data.field70)
+        self.field74 = int(data.field74)
+        # Additional data, exists only in newer versions
+        if self.version['major'] >= 10:
+            self.field78_md5 = bytes(data.field78_md5)
+        if self.version['major'] >= 12:
+            self.inlineStg = int(data.inlineStg)
+        if self.version['major'] >= 14:
+            self.field8C = int(data.field8C)
+        # Any data added in future versions
+        self.field90 = bldata.read()
 
     def updateSectionData(self, section_num=None, avoid_recompute=False):
         if section_num is None:
             section_num = self.section_loaded
 
         data_buf = int(encodeVersion(self.version)).to_bytes(4, byteorder='big')
-        data_buf += int(self.field04).to_bytes(2, byteorder='big')
-        data_flags = (self.flags & 0xDFFF) | (0x2000 if self.protected else 0)
-        data_buf += int(data_flags).to_bytes(2, byteorder='big')
-        data_buf += self.field08
+        data_flags04 = (self.flags04 & (~0x2000)) | (0x2000 if self.protected else 0)
+        data_buf += int(data_flags04).to_bytes(4, byteorder='big')
+        data_buf += int(self.field08).to_bytes(4, byteorder='big')
+        data_buf += int(self.field0C).to_bytes(4, byteorder='big')
+        data_buf += int(self.flags10).to_bytes(2, byteorder='big')
+        data_buf += int(self.field12).to_bytes(2, byteorder='big')
+        data_buf += int(self.field14).to_bytes(4, byteorder='big')
+        data_buf += int(self.instrState).to_bytes(4, byteorder='big')
+        data_buf += int(self.field1C).to_bytes(4, byteorder='big')
+        data_buf += int(self.field20).to_bytes(2, byteorder='big')
+        data_buf += int(self.field22).to_bytes(2, byteorder='big')
+        data_buf += int(self.field24).to_bytes(4, byteorder='big')
+        data_buf += int(self.field28).to_bytes(4, byteorder='big')
+        data_buf += int(self.field2C).to_bytes(4, byteorder='big')
+        data_buf += int(self.field30).to_bytes(4, byteorder='big')
         data_buf += self.field34_md5
         data_buf += int(self.field44).to_bytes(4, byteorder='big')
         data_buf += int(self.field48).to_bytes(4, byteorder='big')
-        data_buf += int(self.field4C).to_bytes(4, byteorder='big')
+        data_buf += int(self.field4C).to_bytes(2, byteorder='big')
+        data_buf += int(self.field4E).to_bytes(2, byteorder='big')
         data_buf += self.field50_md5
+        if self.libpass_text is not None:
+            pass #TODO re-compute md5 from pass
         data_buf += self.libpass_md5
-        data_buf += self.field70
-        data_buf += self.field78
+        data_buf += int(self.field70).to_bytes(4, byteorder='big')
+        data_buf += int(self.field74).to_bytes(4, byteorder='big')
+        if self.version['major'] >= 10:
+            data_buf += self.field78_md5
+        if self.version['major'] >= 12:
+            data_buf += int(self.inlineStg).to_bytes(1, byteorder='big')
+        if self.version['major'] >= 15:
+            data_buf += b'\0' * 3
+            data_buf += int(self.field8C).to_bytes(4, byteorder='big')
+        data_buf += self.field90
 
-        if len(data_buf) not in [120, 136, 137] and not avoid_recompute:
+        if len(data_buf) not in [120, 136, 137, sizeof(LVSRData)+len(self.field90)] and not avoid_recompute:
             raise RuntimeError("Block {} section {} generated binary data of invalid size".format(self.ident,snum))
 
         self.setData(data_buf, section_num=section_num)
@@ -848,8 +924,9 @@ class LVSR(Block):
             if (self.po.verbose > 2):
                 print("{:s}: For Block {} section {:d}, reading inline XML data"\
                   .format(self.vi.src_fname,self.ident,snum))
+            self.field90 = b''
 
-            # We really expect only one "Password" sub-element
+            # We really expect only one of each sub-elements
             for i, subelem in enumerate(section_elem):
                 if (subelem.tag == "Version"):
                     ver = {}
@@ -872,43 +949,49 @@ class LVSR(Block):
                         self.libpass_md5 = bytes.fromhex(password_hash)
                     pass
                 elif (subelem.tag == "Unknown"):
-                    self.flags = int(subelem.get("Flags"), 0)
-                    self.field04 = int(subelem.get("Field04"), 0)
-
+                    self.flags04 = int(subelem.get("Flags04"), 0)
+                    self.field08 = int(subelem.get("Field08"), 0)
+                    self.field0C = int(subelem.get("Field0C"), 0)
+                    self.flags10 = int(subelem.get("Flags10"), 0)
+                    self.field12 = int(subelem.get("Field12"), 0)
+                    self.field14 = int(subelem.get("Field14"), 0)
+                    self.instrState = int(subelem.get("InstrState"), 0)
+                    self.field1C = int(subelem.get("Field1C"), 0)
+                    self.field20 = int(subelem.get("Field20"), 0)
+                    self.field22 = int(subelem.get("Field22"), 0)
+                    self.field24 = int(subelem.get("Field24"), 0)
+                    self.field28 = int(subelem.get("Field28"), 0)
+                    self.field2C = int(subelem.get("Field2C"), 0)
+                    self.field30 = int(subelem.get("Field30"), 0)
                     field34_hash = subelem.get("Field34Hash")
                     self.field34_md5 = bytes.fromhex(field34_hash)
-
                     self.field44 = int(subelem.get("Field44"), 0)
                     self.field48 = int(subelem.get("Field48"), 0)
                     self.field4C = int(subelem.get("Field4C"), 0)
-
+                    self.field4E = int(subelem.get("Field4E"), 0)
                     field50_hash = subelem.get("Field50Hash")
                     self.field50_md5 = bytes.fromhex(field50_hash)
+                    self.field70 = int(subelem.get("Field70"), 0)
+                    self.field74 = int(subelem.get("Field74"), 0)
+                    # Additional data, exists only in some versions
+                    field78_hash = subelem.get("Field78Hash")
+                    if field78_hash is not None:
+                        self.field78_md5 = bytes.fromhex(field78_hash)
+                    inlineStg = subelem.get("InlineStg")
+                    if inlineStg is not None:
+                        self.inlineStg = int(inlineStg, 0)
+                    field8C = subelem.get("Field8C")
+                    if field8C is not None:
+                        self.field8C = int(field8C, 0)
 
-                elif (subelem.tag == "Field08"):
+                elif (subelem.tag == "Field90"):
                     bin_path = os.path.dirname(self.vi.src_fname)
                     if len(bin_path) > 0:
                         bin_fname = bin_path + '/' + subelem.get("File")
                     else:
                         bin_fname = subelem.get("File")
                     with open(bin_fname, "rb") as part_fh:
-                        self.field08 = part_fh.read()
-                elif (subelem.tag == "Field70"):
-                    bin_path = os.path.dirname(self.vi.src_fname)
-                    if len(bin_path) > 0:
-                        bin_fname = bin_path + '/' + subelem.get("File")
-                    else:
-                        bin_fname = subelem.get("File")
-                    with open(bin_fname, "rb") as part_fh:
-                        self.field70 = part_fh.read()
-                elif (subelem.tag == "Field78"):
-                    bin_path = os.path.dirname(self.vi.src_fname)
-                    if len(bin_path) > 0:
-                        bin_fname = bin_path + '/' + subelem.get("File")
-                    else:
-                        bin_fname = subelem.get("File")
-                    with open(bin_fname, "rb") as part_fh:
-                        self.field78 = part_fh.read()
+                        self.field90 = part_fh.read()
                 else:
                     raise AttributeError("Section contains something else than 'Version'")
 
@@ -941,40 +1024,43 @@ class LVSR(Block):
         subelem = ET.SubElement(section_elem,"Unknown")
         subelem.tail = "\n"
 
-        subelem.set("Field04", "{:d}".format(self.field04))
-        subelem.set("Flags", "0x{:X}".format(self.flags))
+        subelem.set("Flags04", "0x{:X}".format(self.flags04))
+        subelem.set("Field08", "{:d}".format(self.field08))
+        subelem.set("Field0C", "{:d}".format(self.field0C))
+        subelem.set("Flags10", "{:d}".format(self.flags10))
+        subelem.set("Field12", "{:d}".format(self.field12))
+        subelem.set("Field14", "{:d}".format(self.field14))
+        subelem.set("InstrState", "0x{:X}".format(self.instrState))
+        subelem.set("Field1C", "{:d}".format(self.field1C))
+        subelem.set("Field20", "{:d}".format(self.field20))
+        subelem.set("Field22", "{:d}".format(self.field22))
+        subelem.set("Field24", "{:d}".format(self.field24))
+        subelem.set("Field28", "{:d}".format(self.field28))
+        subelem.set("Field2C", "{:d}".format(self.field2C))
+        subelem.set("Field30", "{:d}".format(self.field30))
         subelem.set("Field34Hash", self.field34_md5.hex())
         subelem.set("Field44", "{:d}".format(self.field44))
         subelem.set("Field48", "{:d}".format(self.field48))
         subelem.set("Field4C", "{:d}".format(self.field4C))
+        subelem.set("Field4E", "{:d}".format(self.field4E))
         subelem.set("Field50Hash", self.field50_md5.hex())
+        subelem.set("Field70", "{:d}".format(self.field70))
+        subelem.set("Field74", "{:d}".format(self.field74))
+        # Additional data, exists only in some versions
+        subelem.set("Field78Hash", self.field78_md5.hex())
+        # Additional data, exists only in some versions
+        subelem.set("InlineStg", "{:d}".format(self.inlineStg))
+        subelem.set("Field8C", "{:d}".format(self.field8C))
 
-        subelem = ET.SubElement(section_elem,"Field08")
-        subelem.tail = "\n"
+        if len(self.field90) > 0:
+            subelem = ET.SubElement(section_elem,"Field90")
+            subelem.tail = "\n"
 
-        part_fname = "{:s}_{:s}.{:s}".format(fname_base,subelem.tag,"bin")
-        with open(part_fname, "wb") as part_fd:
-            part_fd.write(self.field08)
-        subelem.set("Format", "bin")
-        subelem.set("File", os.path.basename(part_fname))
-
-        subelem = ET.SubElement(section_elem,"Field70")
-        subelem.tail = "\n"
-
-        part_fname = "{:s}_{:s}.{:s}".format(fname_base,subelem.tag,"bin")
-        with open(part_fname, "wb") as part_fd:
-            part_fd.write(self.field70)
-        subelem.set("Format", "bin")
-        subelem.set("File", os.path.basename(part_fname))
-
-        subelem = ET.SubElement(section_elem,"Field78")
-        subelem.tail = "\n"
-
-        part_fname = "{:s}_{:s}.{:s}".format(fname_base,subelem.tag,"bin")
-        with open(part_fname, "wb") as part_fd:
-            part_fd.write(self.field78)
-        subelem.set("Format", "bin")
-        subelem.set("File", os.path.basename(part_fname))
+            part_fname = "{:s}_{:s}.{:s}".format(fname_base,subelem.tag,"bin")
+            with open(part_fname, "wb") as part_fd:
+                part_fd.write(self.field90)
+            subelem.set("Format", "bin")
+            subelem.set("File", os.path.basename(part_fname))
 
         section_elem.set("Format", "inline")
 
