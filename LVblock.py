@@ -801,6 +801,88 @@ class CPC2(SingleIntBlock):
         self.signed = False
 
 
+class SingleStringBlock(Block):
+    """ Block with raw data representing single string value
+
+    To be used as parser for several blocks.
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+        # Amount of bytes the size of this string uses
+        self.size_len = 1
+        self.content = b""
+
+    def parseRSRCData(self, section_num, bldata):
+        string_len = int.from_bytes(bldata.read(self.size_len), byteorder='big', signed=False)
+        self.content = bldata.read(string_len)
+
+    def updateSectionData(self, section_num=None, avoid_recompute=False):
+        if section_num is None:
+            section_num = self.section_loaded
+
+        data_buf = int(len(self.content)).to_bytes(self.size_len, byteorder='big')
+        data_buf += self.content
+
+        if (len(data_buf) != self.size_len+len(self.content)) and not avoid_recompute:
+            raise RuntimeError("Block {} section {} generated binary data of invalid size".format(self.ident,snum))
+
+        self.setData(data_buf, section_num=section_num)
+
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
+        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        return bldata
+
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+
+    def initWithXMLSection(self, section, section_elem):
+        snum = section.start.section_idx
+        fmt = section_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.ident,snum))
+            self.content = b''
+
+            for i, subelem in enumerate(section_elem):
+                if (subelem.tag == "String"):
+                    self.content = subelem.text.encode("utf-8")
+                else:
+                    raise AttributeError("Section contains unexpected tag")
+
+            self.updateSectionData(section_num=snum,avoid_recompute=True)
+        else:
+            Block.initWithXMLSection(self, section, section_elem)
+        pass
+
+    def exportXMLSection(self, section_elem, snum, section, fname_base):
+        self.parseData(section_num=snum)
+
+        section_elem.text = "\n"
+        subelem = ET.SubElement(section_elem,"String")
+        subelem.tail = "\n"
+
+        pretty_string = self.content.decode("utf-8")
+        subelem.text = pretty_string
+
+        section_elem.set("Format", "inline")
+
+class TITL(SingleStringBlock):
+    """ Title
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.size_len = 1
+
+
+class STRG(SingleStringBlock):
+    """ String description
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.size_len = 4
+
+
 class LVSR(Block):
     """ LabView Security
     """
@@ -1008,7 +1090,7 @@ class LVSR(Block):
                     with open(bin_fname, "rb") as part_fh:
                         self.field90 = part_fh.read()
                 else:
-                    raise AttributeError("Section contains something else than 'Version'")
+                    raise AttributeError("Section contains unexpected tag")
 
             self.updateSectionData(section_num=snum,avoid_recompute=True)
         else:
