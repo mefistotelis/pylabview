@@ -962,9 +962,10 @@ class LVSR(Block):
         self.field70 = int(data.field70)
         self.field74 = int(data.field74)
         # Additional data, exists only in newer versions
+        # sizeof(LVSR) per version: 8.6b7->120 9.0b25->120 9.0->120 11.0.1->136 12.0->136 14.0->137
         if self.version['major'] >= 10:
             self.field78_md5 = bytes(data.field78_md5)
-        if self.version['major'] >= 12:
+        if self.version['major'] >= 13:
             self.inlineStg = int(data.inlineStg)
         if self.version['major'] >= 14:
             self.field8C = int(data.field8C)
@@ -1004,7 +1005,7 @@ class LVSR(Block):
         data_buf += int(self.field74).to_bytes(4, byteorder='big')
         if self.version['major'] >= 10:
             data_buf += self.field78_md5
-        if self.version['major'] >= 12:
+        if self.version['major'] >= 13:
             data_buf += int(self.inlineStg).to_bytes(1, byteorder='big')
         if self.version['major'] >= 15:
             data_buf += b'\0' * 3
