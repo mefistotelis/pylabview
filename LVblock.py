@@ -712,7 +712,7 @@ class SingleIntBlock(Block):
         data_buf = int(self.value).to_bytes(self.size, byteorder=self.byteorder)
 
         if (len(data_buf) != self.size) and not avoid_recompute:
-            raise RuntimeError("Block {} section {} generated binary data of invalid size".format(self.ident,snum))
+            raise RuntimeError("Block {} section {} generated binary data of invalid size".format(self.ident,section_num))
 
         self.setData(data_buf, section_num=section_num)
 
@@ -810,21 +810,25 @@ class SingleStringBlock(Block):
         super().__init__(*args)
         # Amount of bytes the size of this string uses
         self.size_len = 1
-        self.content = b""
+        self.content = []
 
     def parseRSRCData(self, section_num, bldata):
         string_len = int.from_bytes(bldata.read(self.size_len), byteorder='big', signed=False)
-        self.content = bldata.read(string_len)
+        content = bldata.read(string_len)
+        self.content = content.split(b'\r\n')
 
     def updateSectionData(self, section_num=None, avoid_recompute=False):
         if section_num is None:
             section_num = self.section_loaded
 
-        data_buf = int(len(self.content)).to_bytes(self.size_len, byteorder='big')
-        data_buf += self.content
+        content_bytes = b'\r\n'.join(self.content)
+        data_buf = int(len(content_bytes)).to_bytes(self.size_len, byteorder='big')
+        data_buf += content_bytes
 
-        if (len(data_buf) != self.size_len+len(self.content)) and not avoid_recompute:
-            raise RuntimeError("Block {} section {} generated binary data of invalid size".format(self.ident,snum))
+        expect_str_len = sum(len(line) for line in self.content)
+        expect_eoln_len = 2*max(len(self.content)-1,0)
+        if (len(data_buf) != self.size_len+expect_str_len+expect_eoln_len) and not avoid_recompute:
+            raise RuntimeError("Block {} section {} generated binary data of invalid size".format(self.ident,section_num))
 
         self.setData(data_buf, section_num=section_num)
 
@@ -842,11 +846,14 @@ class SingleStringBlock(Block):
             if (self.po.verbose > 2):
                 print("{:s}: For Block {} section {:d}, reading inline XML data"\
                   .format(self.vi.src_fname,self.ident,snum))
-            self.content = b''
+            self.content = []
 
             for i, subelem in enumerate(section_elem):
                 if (subelem.tag == "String"):
-                    self.content = subelem.text.encode("utf-8")
+                    if subelem.text is not None:
+                        self.content.append(subelem.text.encode("utf-8"))
+                    else:
+                        self.content.append(b'')
                 else:
                     raise AttributeError("Section contains unexpected tag")
 
@@ -859,11 +866,13 @@ class SingleStringBlock(Block):
         self.parseData(section_num=snum)
 
         section_elem.text = "\n"
-        subelem = ET.SubElement(section_elem,"String")
-        subelem.tail = "\n"
 
-        pretty_string = self.content.decode("utf-8")
-        subelem.text = pretty_string
+        for line in self.content:
+            subelem = ET.SubElement(section_elem,"String")
+            subelem.tail = "\n"
+
+            pretty_string = line.decode("utf-8")
+            subelem.text = pretty_string
 
         section_elem.set("Format", "inline")
 
@@ -1003,7 +1012,7 @@ class LVSR(Block):
         data_buf += self.field90
 
         if len(data_buf) not in [120, 136, 137, sizeof(LVSRData)+len(self.field90)] and not avoid_recompute:
-            raise RuntimeError("Block {} section {} generated binary data of invalid size".format(self.ident,snum))
+            raise RuntimeError("Block {} section {} generated binary data of invalid size".format(self.ident,section_num))
 
         self.setData(data_buf, section_num=section_num)
 
@@ -1197,7 +1206,7 @@ class vers(Block):
         data_buf += self.version_info + b'\0'
 
         if (len(data_buf) != 4 + 2+len(self.version_text) + 2+len(self.version_info)) and not avoid_recompute:
-            raise RuntimeError("Block {} section {} generated binary data of invalid size".format(self.ident,snum))
+            raise RuntimeError("Block {} section {} generated binary data of invalid size".format(self.ident,section_num))
 
         self.setData(data_buf, section_num=section_num)
 
@@ -1479,7 +1488,7 @@ class BDPW(Block):
         data_buf += self.hash_2
 
         if (len(data_buf) != 48) and not avoid_recompute:
-            raise RuntimeError("Block {} section {} generated binary data of invalid size".format(self.ident,snum))
+            raise RuntimeError("Block {} section {} generated binary data of invalid size".format(self.ident,section_num))
 
         self.setData(data_buf, section_num=section_num)
 
@@ -1747,7 +1756,7 @@ class LIBN(Block):
             data_buf += name
 
         if (len(data_buf) < 5) and not avoid_recompute:
-            raise RuntimeError("Block {} section {} generated binary data of invalid size".format(self.ident,snum))
+            raise RuntimeError("Block {} section {} generated binary data of invalid size".format(self.ident,section_num))
 
         self.setData(data_buf, section_num=section_num)
 
