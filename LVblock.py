@@ -161,6 +161,8 @@ class Section(object):
 
 
 class Block(object):
+    """ Generic block
+    """
     def __init__(self, vi, po):
         """ Creates new Block object, capable of retrieving Block data.
         """
@@ -174,6 +176,10 @@ class Block(object):
         self.section_requested = 0
         # set by getRawData(); size of cummulative data for all sections in the block
         self.size = None
+        if self.__doc__:
+            self.full_name = " {:s} ".format(self.__doc__.split('\n')[0].strip())
+        else:
+            self.full_name = ""
 
     def createSection(self):
         section = Section(self.vi, self.po)
@@ -622,7 +628,12 @@ class Block(object):
         block_fpath = os.path.dirname(self.po.xml)
 
         elem = ET.Element(pretty_ident)
-        elem.text = "\n"
+        if len(self.full_name) > 0:
+            comment_elem = ET.Comment(self.full_name)
+            comment_elem.tail = "\n"
+            elem.append(comment_elem)
+        else:
+            elem.text = "\n"
         elem.tail = "\n"
         for snum, section in self.sections.items():
             section_elem = ET.SubElement(elem,"Section")
@@ -681,7 +692,7 @@ class Block(object):
 class SingleIntBlock(Block):
     """ Block with raw data representing single integer value
 
-        To be used as parser for several blocks.
+    To be used as parser for several blocks.
     """
     def __init__(self, *args):
         super().__init__(*args)
@@ -751,6 +762,8 @@ class MUID(SingleIntBlock):
 
 
 class FPSE(SingleIntBlock):
+    """ Front Panel SE
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.byteorder = 'big'
@@ -760,6 +773,8 @@ class FPSE(SingleIntBlock):
 
 
 class BDSE(SingleIntBlock):
+    """ Block Diagram SE
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.byteorder = 'big'
@@ -787,7 +802,7 @@ class CPC2(SingleIntBlock):
 
 
 class LVSR(Block):
-    """ LabView Source Release
+    """ LabView Security
     """
     def __init__(self, *args):
         super().__init__(*args)
@@ -1192,7 +1207,7 @@ class vers(Block):
 
 
 class ICON(Block):
-    """ Icon 1bpp
+    """ Icon 32x32 1bpp
     """
     def __init__(self, *args):
         super().__init__(*args)
@@ -1319,7 +1334,7 @@ class ICON(Block):
 
 
 class icl8(ICON):
-    """ Icon Large 8bpp
+    """ Icon Large 32x32 8bpp
     """
     def __init__(self, *args):
         super().__init__(*args)
@@ -1329,7 +1344,7 @@ class icl8(ICON):
 
 
 class icl4(ICON):
-    """ Icon Large 4bpp
+    """ Icon Large 32x32 4bpp
     """
     def __init__(self, *args):
         super().__init__(*args)
@@ -1627,7 +1642,7 @@ class BDPW(Block):
 class LIBN(Block):
     """ Library Names
 
-        Stores names of libraries which contain this RSRC file.
+    Stores names of libraries which contain this RSRC file.
     """
     def __init__(self, *args):
         super().__init__(*args)
@@ -1699,13 +1714,13 @@ class LIBN(Block):
 
 
 class LVzp(Block):
-    """ Zipped Program tree
+    """ LabView Zipped Program tree
 
-        Used in llb-like objects created by building the project.
-        Contains the whole VIs hierarchy, stored within ZIP file.
+    Used in llb-like objects created by building the project.
+    Contains the whole VIs hierarchy, stored within ZIP file.
 
-        In LV from circa 2009 and before, the ZIP was stored in plain form.
-        In newer LV versions, it is encrypted by simple xor-based algorithm.
+    In LV from circa 2009 and before, the ZIP was stored in plain form.
+    In newer LV versions, it is encrypted by simple xor-based algorithm.
     """
     def __init__(self, *args):
         super().__init__(*args)
@@ -1719,7 +1734,9 @@ class LVzp(Block):
 
 
 class BDHP(Block):
-    """ Block Diagram Heap (LV 7beta and older)
+    """ Block Diagram Heap
+
+    This block is spcific to LV 7beta and older.
     """
     def __init__(self, *args):
         super().__init__(*args)
@@ -1745,10 +1762,11 @@ class BDHP(Block):
         return md5(self.content).digest()
 
 class BDH(Block):
-    """ Block Diagram Heap (LV 7 and newer)
+    """ Block Diagram Heap
 
-        Stored in "BDHx"-block. It uses a binary tree format to store hierarchy
-        structures. They use a kind of "xml-tags" to open and close objects.
+    Stored in "BDHx"-block. It uses a binary tree format to store hierarchy
+    structures. They use a kind of "xml-tags" to open and close objects.
+    This block is specific to LV 7 and newer.
     """
     def __init__(self, *args):
         super().__init__(*args)
@@ -1777,9 +1795,10 @@ BDHc = BDHb = BDH
 
 
 class FPH(Block):
-    """ Front Panel Heap (LV 7 and newer)
+    """ Front Panel Heap
 
-        Stored in "FPHx"-block.
+    Stored in "FPHx"-block.
+    This implementation is for LV 7 and newer.
     """
     def __init__(self, *args):
         super().__init__(*args)
@@ -1806,13 +1825,13 @@ FPHc = FPHb = FPH
 class VCTP(Block):
     """ Virtual Connectors / Terminal Points
 
-        All terminals used by the .VI and the terminals of the .VI itself are stored
-        in this block.
+    All terminals used by the .VI and the terminals of the .VI itself are stored
+    in this block.
 
-        The VCTP contains bottom-up objects. This means that objects can inherit
-        from previous defined objects. So to define a cluster they first define
-        every element and than add a cluster-object with a index-table containing
-        all previously defined elements used by the cluster.
+    The VCTP contains bottom-up objects. This means that objects can inherit
+    from previous defined objects. So to define a cluster they first define
+    every element and than add a cluster-object with a index-table containing
+    all previously defined elements used by the cluster.
     """
     def __init__(self, *args):
         super().__init__(*args)
