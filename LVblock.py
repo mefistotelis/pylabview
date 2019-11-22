@@ -811,22 +811,44 @@ class SingleStringBlock(Block):
         # Amount of bytes the size of this string uses
         self.size_len = 1
         self.content = []
+        self.eoln = '\r\n'
 
     def parseRSRCData(self, section_num, bldata):
         string_len = int.from_bytes(bldata.read(self.size_len), byteorder='big', signed=False)
         content = bldata.read(string_len)
-        self.content = content.split(b'\r\n')
+        # Need to divide decoded string, as single \n or \r may be there only due to the endoding
+        # Also, ignore encoding errors - some strings are encoded with exotic code pages instead of UTF.
+        # Maybe they just use native code page of the operating system (which in case of Windows, varies).
+        # First, replace some chars from popular code pages so that we have lower chance of affecting length.
+        content_fix = re.sub(b'([a-z])\xab([st])', b'\g<1>\'\g<2>', content)
+        content_str = content_fix.decode('utf-8', errors="ignore")
+        # Somehow, these strings can contain various EOLN chars, even if \r\n is the most often used one
+        # To avoid creating different files from XML, we have to detect the proper EOLN to use
+        if content_str.count('\r\n') > content_str.count('\n\r'):
+            self.eoln = '\r\n'
+        elif content_str.count('\n\r') > 0:
+            self.eoln = '\n\r'
+        elif content_str.count('\n') > content_str.count('\r'):
+            self.eoln = '\n'
+        elif content_str.count('\r') > 0:
+            self.eoln = '\r'
+        else:
+            # Set the most often used one as default
+            self.eoln = '\r\n'
+
+        self.content = [s.encode("utf-8") for s in content_str.split(self.eoln)]
 
     def updateSectionData(self, section_num=None, avoid_recompute=False):
         if section_num is None:
             section_num = self.section_loaded
 
-        content_bytes = b'\r\n'.join(self.content)
+        # There is no need to decode while joining
+        content_bytes = self.eoln.encode("utf-8").join(self.content)
         data_buf = int(len(content_bytes)).to_bytes(self.size_len, byteorder='big')
         data_buf += content_bytes
 
         expect_str_len = sum(len(line) for line in self.content)
-        expect_eoln_len = 2*max(len(self.content)-1,0)
+        expect_eoln_len = len(self.eoln) * max(len(self.content)-1,0)
         if (len(data_buf) != self.size_len+expect_str_len+expect_eoln_len) and not avoid_recompute:
             raise RuntimeError("Block {} section {} generated binary data of invalid size".format(self.ident,section_num))
 
@@ -846,6 +868,7 @@ class SingleStringBlock(Block):
             if (self.po.verbose > 2):
                 print("{:s}: For Block {} section {:d}, reading inline XML data"\
                   .format(self.vi.src_fname,self.ident,snum))
+            self.eoln = section_elem.get("EOLN").replace("CR",'\r').replace("LF",'\n')
             self.content = []
 
             for i, subelem in enumerate(section_elem):
@@ -866,6 +889,10 @@ class SingleStringBlock(Block):
         self.parseData(section_num=snum)
 
         section_elem.text = "\n"
+
+        # Store the EOLN used as an attribute
+        EOLN_type = self.eoln.replace('\r',"CR").replace('\n',"LF")
+        section_elem.set("EOLN", "{:s}".format(EOLN_type))
 
         for line in self.content:
             subelem = ET.SubElement(section_elem,"String")
