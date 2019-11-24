@@ -155,6 +155,41 @@ def encodeVersion(ver):
     vcode |= ((ver['build'] % 10) & 0x0F) << 0
     return vcode
 
+def isGreaterOrEqVersion(ver, major, minor = None, bugfix = None, stage = None):
+    """ Returns whether the version is higher or equal to given one
+    """
+    if major is not None:
+        if ver['major'] > major:
+            return True
+        if ver['major'] < major:
+            return False
+    if minor is not None:
+        if ver['minor'] > minor:
+            return True
+        if ver['minor'] < minor:
+            return False
+    if isinstance(stage, str):
+        for IDX, STAGE_TEXT in enumerate(LABVIEW_VERSION_STAGE_TEXT):
+            # If value is in array, and it is not "unknown", then update the numeric stage
+            if stage == STAGE_TEXT and IDX > 0:
+                stage = IDX
+                break
+    if not isinstance(stage, int):
+        stage = None
+    if stage is not None:
+        if ver['stage'] > stage:
+            return True
+        if ver['stage'] < stage:
+            return False
+
+    if bugfix is not None:
+        if ver['bugfix'] > bugfix:
+            return True
+        if ver['bugfix'] < bugfix:
+            return False
+
+    return True
+
 def crypto_xor(data):
     rol = lambda val, l_bits, max_bits: \
       ((val & ((1<<max_bits-(l_bits%max_bits))-1)) << l_bits%max_bits) | \

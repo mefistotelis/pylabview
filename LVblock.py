@@ -820,7 +820,8 @@ class SingleStringBlock(Block):
         # Also, ignore encoding errors - some strings are encoded with exotic code pages instead of UTF.
         # Maybe they just use native code page of the operating system (which in case of Windows, varies).
         # First, replace some chars from popular code pages so that we have lower chance of affecting length.
-        content_fix = re.sub(b'([a-z])\xab([st])', b'\g<1>\'\g<2>', content)
+        content_fix = re.sub(b'([a-z])\xab([st])', b'\g<1>\'\g<2>', content) # Special apostrophe
+        content_fix = re.sub(b'([a-z ])\x97([a-z ])', b'\g<1>-\g<2>', content_fix) # Special minus
         content_str = content_fix.decode('utf-8', errors="ignore")
         # Somehow, these strings can contain various EOLN chars, even if \r\n is the most often used one
         # To avoid creating different files from XML, we have to detect the proper EOLN to use
@@ -989,12 +990,13 @@ class LVSR(Block):
         self.field70 = int(data.field70)
         self.field74 = int(data.field74)
         # Additional data, exists only in newer versions
-        # sizeof(LVSR) per version: 8.6b7->120 9.0b25->120 9.0->120 10.0b84->120 11.0.1->136 12.0->136 13.0->136 14.0->137
-        if self.version['major'] >= 11:
+        # sizeof(LVSR) per version: 8.6b7->120 9.0b25->120 9.0->120 10.0b84->120 10.0->136 11.0.1->136 12.0->136 13.0->136 14.0->137
+
+        if isGreaterOrEqVersion(self.version, 10, 0, stage='release'):
             self.field78_md5 = bytes(data.field78_md5)
-        if self.version['major'] >= 14:
+        if isGreaterOrEqVersion(self.version, 14):
             self.inlineStg = int(data.inlineStg)
-        if self.version['major'] >= 15:
+        if isGreaterOrEqVersion(self.version, 15):
             self.field8C = int(data.field8C)
         # Any data added in future versions
         self.field90 = bldata.read()
@@ -1030,11 +1032,11 @@ class LVSR(Block):
         data_buf += self.libpass_md5
         data_buf += int(self.field70).to_bytes(4, byteorder='big')
         data_buf += int(self.field74).to_bytes(4, byteorder='big')
-        if self.version['major'] >= 11:
+        if isGreaterOrEqVersion(self.version, 10, 0, stage='release'):
             data_buf += self.field78_md5
-        if self.version['major'] >= 14:
+        if isGreaterOrEqVersion(self.version, 14):
             data_buf += int(self.inlineStg).to_bytes(1, byteorder='big')
-        if self.version['major'] >= 15:
+        if isGreaterOrEqVersion(self.version, 15):
             data_buf += b'\0' * 3
             data_buf += int(self.field8C).to_bytes(4, byteorder='big')
         data_buf += self.field90
