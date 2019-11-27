@@ -920,8 +920,19 @@ class STRG(SingleStringBlock):
         self.size_len = 4
 
 
+class LVIN(Block):
+    """ LabView Instrument
+
+    Instrument block from LabView 5; in later versions, called
+    "old instrument", and replaced functionally by 'LVSR'.
+    """
+    pass
+
+
 class LVSR(Block):
-    """ LabView Security
+    """ LabView Save Record
+
+    Structure named SAVERECORD is LV6 sources.
     """
     def __init__(self, *args):
         super().__init__(*args)
