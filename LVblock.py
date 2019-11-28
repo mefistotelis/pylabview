@@ -43,6 +43,19 @@ class BLOCK_CODING(enum.Enum):
     XOR = 2
 
 
+class VI_TYPE(enum.Enum):
+    NONE = 0	# invalid VI type
+    STANDARD = 1	# VI that contains a front panel and block diagram
+    CONTROL = 2	# subVI that defines a custom control or indicator
+    GLOBAL = 3	# subVI generated when creating global variables
+    POLYMORPH = 4	# subVI that is an instance of a polymorphic VI
+    CONFIG = 5	# Configuration VI
+    SUBSYSTEM = 6	# subVI that can be only placed on a simulation diagram
+    FACADE = 7	# subVI that represents a Facade ability, which defines the appearance of an XControl
+    METHOD = 8	# subVI added to the XControl Library for each XControl method
+    STATECHART = 9	# subVI that you can place only on a statechart diagram
+
+
 class BlockHeader(RSRCStructure):
     _fields_ = [('ident', c_ubyte * 4),	#0 4-byte block identifier
                 ('count', c_uint32),	#4 Amount of sections for that block
@@ -101,20 +114,21 @@ class LVSRData(RSRCStructure):
     # sizes mostly confirmed in lvrt
     _fields_ = [('version', c_uint32),	#0
                 ('flags04', c_uint32),	#4 
-                ('field08', c_uint32),	#8
+                ('field08', c_uint32),	#8 flag 0x0001 = viSuppressBackup, 0x0020 = viIsTemplate, 0x40000000 = viRemoteClientPanel
                 ('field0C', c_uint32),	#12
                 ('flags10', c_uint16),	#16
                 ('field12', c_uint16),	#18
-                ('field14', c_uint32),	#20
+                ('buttonsHidden', c_uint16),	#20 set based on value of viType
+                ('field16', c_uint16),	#18
                 ('instrState', c_uint32),	#24 flag 0x200 = viDebugCapable
-                ('field1C', c_uint32),	#28
+                ('execState', c_uint32),	#28 valid values under mask 0xF
                 ('field20', c_uint16),	#32
-                ('field22', c_uint16),	#34
+                ('viType', c_uint16),	#34 Type of VI
                 ('field24', c_uint32),	#36
                 ('field28', c_uint32),	#40 linked value 1/3
                 ('field2C', c_uint32),	#44 linked value 2/3
                 ('field30', c_uint32),	#48 linked value 3/3
-                ('field34_md5', c_ubyte * 16),	#52
+                ('viSignature', c_ubyte * 16),	#52 A hash identifying the VI file; used by LV while registering for events
                 ('field44', c_uint32),	#68
                 ('field48', c_uint32),	#72
                 ('field4C', c_uint16),	#76
@@ -943,16 +957,17 @@ class LVSR(Block):
         self.field0C = 0
         self.flags10 = 0
         self.field12 = 0
-        self.field14 = 0
+        self.buttonsHidden = 0
+        self.field16 = 0
         self.instrState = 0
-        self.field1C = 0
+        self.execState = 0
         self.field20 = 0
-        self.field22 = 0
+        self.viType = 0
         self.field24 = 0
         self.field28 = 0
         self.field2C = 0
         self.field30 = 0
-        self.field34_md5 = b''
+        self.viSignature = b''
         self.field44 = 0
         self.field48 = 0
         self.field4C = 0
@@ -981,16 +996,17 @@ class LVSR(Block):
         self.field0C = int(data.field0C)
         self.flags10 = int(data.flags10)
         self.field12 = int(data.field12)
-        self.field14 = int(data.field14)
+        self.buttonsHidden = int(data.buttonsHidden)
+        self.field16 = int(data.field16)
         self.instrState = int(data.instrState)
-        self.field1C = int(data.field1C)
+        self.execState = int(data.execState)
         self.field20 = int(data.field20)
-        self.field22 = int(data.field22)
+        self.viType = int(data.viType)
         self.field24 = int(data.field24)
         self.field28 = int(data.field28)
         self.field2C = int(data.field2C)
         self.field30 = int(data.field30)
-        self.field34_md5 = bytes(data.field34_md5)
+        self.viSignature = bytes(data.viSignature)
         self.field44 = int(data.field44)
         self.field48 = int(data.field48)
         self.field4C = int(data.field4C)
@@ -1023,16 +1039,17 @@ class LVSR(Block):
         data_buf += int(self.field0C).to_bytes(4, byteorder='big')
         data_buf += int(self.flags10).to_bytes(2, byteorder='big')
         data_buf += int(self.field12).to_bytes(2, byteorder='big')
-        data_buf += int(self.field14).to_bytes(4, byteorder='big')
+        data_buf += int(self.buttonsHidden).to_bytes(2, byteorder='big')
+        data_buf += int(self.field16).to_bytes(2, byteorder='big')
         data_buf += int(self.instrState).to_bytes(4, byteorder='big')
-        data_buf += int(self.field1C).to_bytes(4, byteorder='big')
+        data_buf += int(self.execState).to_bytes(4, byteorder='big')
         data_buf += int(self.field20).to_bytes(2, byteorder='big')
-        data_buf += int(self.field22).to_bytes(2, byteorder='big')
+        data_buf += int(self.viType).to_bytes(2, byteorder='big')
         data_buf += int(self.field24).to_bytes(4, byteorder='big')
         data_buf += int(self.field28).to_bytes(4, byteorder='big')
         data_buf += int(self.field2C).to_bytes(4, byteorder='big')
         data_buf += int(self.field30).to_bytes(4, byteorder='big')
-        data_buf += self.field34_md5
+        data_buf += self.viSignature
         data_buf += int(self.field44).to_bytes(4, byteorder='big')
         data_buf += int(self.field48).to_bytes(4, byteorder='big')
         data_buf += int(self.field4C).to_bytes(2, byteorder='big')
@@ -1101,17 +1118,18 @@ class LVSR(Block):
                     self.field0C = int(subelem.get("Field0C"), 0)
                     self.flags10 = int(subelem.get("Flags10"), 0)
                     self.field12 = int(subelem.get("Field12"), 0)
-                    self.field14 = int(subelem.get("Field14"), 0)
+                    self.buttonsHidden = int(subelem.get("ButtonsHidden"), 0)
+                    self.field16 = int(subelem.get("Field16"), 0)
                     self.instrState = int(subelem.get("InstrState"), 0)
-                    self.field1C = int(subelem.get("Field1C"), 0)
+                    self.execState = int(subelem.get("ExecState"), 0)
                     self.field20 = int(subelem.get("Field20"), 0)
-                    self.field22 = int(subelem.get("Field22"), 0)
+                    self.viType = int(subelem.get("ViType"), 0)
                     self.field24 = int(subelem.get("Field24"), 0)
                     self.field28 = int(subelem.get("Field28"), 0)
                     self.field2C = int(subelem.get("Field2C"), 0)
                     self.field30 = int(subelem.get("Field30"), 0)
-                    field34_hash = subelem.get("Field34Hash")
-                    self.field34_md5 = bytes.fromhex(field34_hash)
+                    field34_hash = subelem.get("ViSignature")
+                    self.viSignature = bytes.fromhex(field34_hash)
                     self.field44 = int(subelem.get("Field44"), 0)
                     self.field48 = int(subelem.get("Field48"), 0)
                     self.field4C = int(subelem.get("Field4C"), 0)
@@ -1176,16 +1194,17 @@ class LVSR(Block):
         subelem.set("Field0C", "{:d}".format(self.field0C))
         subelem.set("Flags10", "{:d}".format(self.flags10))
         subelem.set("Field12", "{:d}".format(self.field12))
-        subelem.set("Field14", "{:d}".format(self.field14))
+        subelem.set("ButtonsHidden", "{:d}".format(self.buttonsHidden))
+        subelem.set("Field16", "{:d}".format(self.field16))
         subelem.set("InstrState", "0x{:X}".format(self.instrState))
-        subelem.set("Field1C", "{:d}".format(self.field1C))
+        subelem.set("ExecState", "{:d}".format(self.execState))
         subelem.set("Field20", "{:d}".format(self.field20))
-        subelem.set("Field22", "{:d}".format(self.field22))
+        subelem.set("ViType", "{:d}".format(self.viType))
         subelem.set("Field24", "{:d}".format(self.field24))
         subelem.set("Field28", "{:d}".format(self.field28))
         subelem.set("Field2C", "{:d}".format(self.field2C))
         subelem.set("Field30", "{:d}".format(self.field30))
-        subelem.set("Field34Hash", self.field34_md5.hex())
+        subelem.set("ViSignature", self.viSignature.hex())
         subelem.set("Field44", "{:d}".format(self.field44))
         subelem.set("Field48", "{:d}".format(self.field48))
         subelem.set("Field4C", "{:d}".format(self.field4C))
