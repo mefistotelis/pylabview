@@ -33,9 +33,7 @@ from hashlib import md5
 
 import LVblock
 import LVconnector
-from LVmisc import eprint
-from LVmisc import RSRCStructure
-from LVmisc import getPrettyStrFromRsrcType, getRsrcTypeFromPrettyStr
+from LVmisc import *
 
 class FILE_FMT_TYPE(enum.Enum):
     NONE = 0
@@ -639,4 +637,15 @@ class VI():
             if ident in self.blocks:
                 return self.blocks[ident]
         raise LookupError("None of blocks {} found in RSRC file.".format(",".join(identv)))
+
+    def getFileVersion(self):
+        """ Gets file version array from any existing version block
+        """
+        vers = self.get_one_of('LVSR', 'vers') # TODO add LVIN when its supported
+        if vers is not None:
+            ver = vers.getVersion()
+        else:
+            # No version found - return all fields zeroed out
+            ver = decodeVersion(0x0)
+        return ver
 

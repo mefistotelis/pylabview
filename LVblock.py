@@ -798,6 +798,8 @@ class BDSE(SingleIntBlock):
 
 
 class CONP(SingleIntBlock):
+    """ Connector type map
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.byteorder = 'big'
@@ -932,6 +934,26 @@ class STRG(SingleStringBlock):
     def __init__(self, *args):
         super().__init__(*args)
         self.size_len = 4
+
+
+class DFDS(Block):
+    """ Default Fill of Data Space
+    """
+    pass
+
+
+class TM80(Block):
+    """ Data Space Type Map
+    """
+    pass
+
+
+class LIvi(Block):
+    """ Link Information of vi
+
+    Stored dependencies between this VI and other VIs, classes and libraries.
+    """
+    pass
 
 
 class LVIN(Block):
@@ -1230,6 +1252,10 @@ class LVSR(Block):
 
         section_elem.set("Format", "inline")
 
+    def getVersion(self):
+        self.parseData()
+        return self.version
+
 
 class vers(Block):
     """ Version block
@@ -1324,35 +1350,15 @@ class vers(Block):
 
         section_elem.set("Format", "inline")
 
-    def verMajor(self):
+    def getVersion(self):
         self.parseData()
-        return self.version['major']
+        return self.version
 
-    def verMinor(self):
-        self.parseData()
-        return self.version['minor']
-
-    def verBugfix(self):
-        self.parseData()
-        return self.version['bugfix']
-
-    def verStage(self):
-        self.parseData()
-        return self.version['stage_text']
-
-    def verFlags(self):
-        self.parseData()
-        return self.version['flags']
-
-    def verBuild(self):
-        self.parseData()
-        return self.version['build']
-
-    def verText(self):
+    def getVerText(self):
         self.parseData()
         return self.version_text
 
-    def verInfi(self):
+    def getVerInfo(self):
         self.parseData()
         return self.version_info
 
@@ -1625,13 +1631,13 @@ class BDPW(Block):
 
     def scanForHashSalt(self, presalt_data=b'', postsalt_data=b''):
         salt = b''
-        vers = self.vi.get('vers')
-        if vers is None:
+        ver = self.vi.getFileVersion()
+        if not isGreaterOrEqVersion(ver, major=1):
             if (po.verbose > 0):
-                eprint("{:s}: Warning: Block '{}' not found; using empty password salt".format(self.vi.src_fname,'vers'))
+                eprint("{:s}: Warning: No version block found; assuming oldest format, with empty password salt".format(self.vi.src_fname))
             self.salt = salt
             return salt
-        if vers.verMajor() >= 12:
+        if isGreaterOrEqVersion(ver, major=12):
             # Figure out the salt
             salt_iface_idx = None
             VCTP = self.vi.get_or_raise('VCTP')

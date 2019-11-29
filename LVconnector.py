@@ -374,7 +374,7 @@ class ConnectorObjectTerminal(ConnectorObject):
         super().__init__(*args)
 
     def parseData(self, bldata):
-        vers = self.vi.get('vers')
+        ver = self.vi.getFileVersion()
         # Skip length, flags and type - these were set in constructor
         bldata.read(4)
         count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
@@ -385,12 +385,12 @@ class ConnectorObjectTerminal(ConnectorObject):
             self.clients[i].index = cli_idx
         self.flags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         self.pattern = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        if vers.verMajor() >= 8:
+        if isGreaterOrEqVersion(ver, major=8):
             self.padding1 = int.from_bytes(bldata.read(2), byteorder='big', signed=False) # don't know/padding
             for i in range(count):
                 cli_flags = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
                 self.clients[i].flags = cli_flags
-        else: # vers.verMajor() < 8
+        else: # isLessOrEqVersion(ver, major=7)
             for i in range(count):
                 cli_flags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
                 self.clients[i].flags = cli_flags
@@ -408,12 +408,12 @@ class ConnectorObjectTerminal(ConnectorObject):
 
     def checkSanity(self):
         ret = True
-        vers = self.vi.get('vers')
+        ver = self.vi.getFileVersion()
         if (len(self.clients) > 125):
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}".format(self.vi.src_fname,self.index,self.otype,self.prop1,0xFFFFFFFF))
             ret = False
-        if vers.verMajor() >= 8:
+        if isGreaterOrEqVersion(ver, major=8):
             expsize = 4 + 2 + 2 * len(self.clients) + 4 + 2 + 4 * len(self.clients)
         else:
             expsize = 4 + 2 + 2 * len(self.clients) + 4 + 2 * len(self.clients)
