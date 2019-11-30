@@ -5,7 +5,6 @@
     Various general properties of the RSRC file.
 """
 
-# Copyright (C) 2013 Jessica Creighton <jcreigh@femtobit.org>
 # Copyright (C) 2019 Mefistotelis <mefistotelis@gmail.com>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -150,13 +149,13 @@ class VI_EXEC_FLAGS(enum.Enum):
 class LVSRData(RSRCStructure):
     # sizes mostly confirmed in lvrt
     _fields_ = [('version', c_uint32),	#0
-                ('flags04', c_uint32),	#4 see VI_EXEC_FLAGS
+                ('execFlags', c_uint32),	#4 see VI_EXEC_FLAGS
                 ('field08', c_uint32),	#8 flag 0x0001 = viSuppressBackup, 0x0020 = viIsTemplate, 0x40000000 = viRemoteClientPanel
                 ('field0C', c_uint32),	#12
                 ('flags10', c_uint16),	#16
                 ('field12', c_uint16),	#18
                 ('buttonsHidden', c_uint16),	#20 set based on value of viType, see VI_BTN_HIDE_FLAGS
-                ('field16', c_uint16),	#18 see VI_FP_FLAGS
+                ('frontpFlags', c_uint16),	#18 see VI_FP_FLAGS
                 ('instrState', c_uint32),	#24 see VI_IN_ST_FLAGS
                 ('execState', c_uint32),	#28 valid values under mask 0xF
                 ('execPrio', c_uint16),	#32 priority of the VI when it runs in parallel with other tasks; expected values 0..4

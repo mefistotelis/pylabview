@@ -923,14 +923,14 @@ class LVSR(Block):
     def __init__(self, *args):
         super().__init__(*args)
         self.version = []
-        self.flags04 = 0
+        self.execFlags = 0
         self.protected = False
         self.field08 = 0
         self.field0C = 0
         self.flags10 = 0
         self.field12 = 0
         self.buttonsHidden = 0
-        self.field16 = 0
+        self.frontpFlags = 0
         self.instrState = 0
         self.execState = 0
         self.execPrio = 0
@@ -962,14 +962,14 @@ class LVSR(Block):
             raise EOFError("Data block too short for parsing {} data.".format(self.ident))
 
         self.version = decodeVersion(data.version)
-        self.protected = ((data.flags04 & 0x2000) != 0)
-        self.flags04 = data.flags04 & (~0x2000)
+        self.protected = ((data.execFlags & 0x2000) != 0)
+        self.execFlags = data.execFlags & (~0x2000)
         self.field08 = int(data.field08)
         self.field0C = int(data.field0C)
         self.flags10 = int(data.flags10)
         self.field12 = int(data.field12)
         self.buttonsHidden = int(data.buttonsHidden)
-        self.field16 = int(data.field16)
+        self.frontpFlags = int(data.frontpFlags)
         self.instrState = int(data.instrState)
         self.execState = int(data.execState)
         self.execPrio = int(data.execPrio)
@@ -1005,14 +1005,14 @@ class LVSR(Block):
             section_num = self.section_loaded
 
         data_buf = int(encodeVersion(self.version)).to_bytes(4, byteorder='big')
-        data_flags04 = (self.flags04 & (~0x2000)) | (0x2000 if self.protected else 0)
-        data_buf += int(data_flags04).to_bytes(4, byteorder='big')
+        data_execFlags = (self.execFlags & (~0x2000)) | (0x2000 if self.protected else 0)
+        data_buf += int(data_execFlags).to_bytes(4, byteorder='big')
         data_buf += int(self.field08).to_bytes(4, byteorder='big')
         data_buf += int(self.field0C).to_bytes(4, byteorder='big')
         data_buf += int(self.flags10).to_bytes(2, byteorder='big')
         data_buf += int(self.field12).to_bytes(2, byteorder='big')
         data_buf += int(self.buttonsHidden).to_bytes(2, byteorder='big')
-        data_buf += int(self.field16).to_bytes(2, byteorder='big')
+        data_buf += int(self.frontpFlags).to_bytes(2, byteorder='big')
         data_buf += int(self.instrState).to_bytes(4, byteorder='big')
         data_buf += int(self.execState).to_bytes(4, byteorder='big')
         data_buf += int(self.execPrio).to_bytes(2, byteorder='big')
@@ -1085,13 +1085,13 @@ class LVSR(Block):
                         self.libpass_md5 = bytes.fromhex(password_hash)
                     pass
                 elif (subelem.tag == "Unknown"):
-                    self.flags04 = int(subelem.get("Flags04"), 0)
+                    self.execFlags = int(subelem.get("ExecFlags"), 0)
                     self.field08 = int(subelem.get("Field08"), 0)
                     self.field0C = int(subelem.get("Field0C"), 0)
                     self.flags10 = int(subelem.get("Flags10"), 0)
                     self.field12 = int(subelem.get("Field12"), 0)
                     self.buttonsHidden = int(subelem.get("ButtonsHidden"), 0)
-                    self.field16 = int(subelem.get("Field16"), 0)
+                    self.frontpFlags = int(subelem.get("FrontPFlags"), 0)
                     self.instrState = int(subelem.get("InstrState"), 0)
                     self.execState = int(subelem.get("ExecState"), 0)
                     self.execPrio = int(subelem.get("ExecPrio"), 0)
@@ -1161,13 +1161,13 @@ class LVSR(Block):
         subelem = ET.SubElement(section_elem,"Unknown")
         subelem.tail = "\n"
 
-        subelem.set("Flags04", "0x{:X}".format(self.flags04))
+        subelem.set("ExecFlags", "0x{:X}".format(self.execFlags))
         subelem.set("Field08", "{:d}".format(self.field08))
         subelem.set("Field0C", "{:d}".format(self.field0C))
         subelem.set("Flags10", "{:d}".format(self.flags10))
         subelem.set("Field12", "{:d}".format(self.field12))
         subelem.set("ButtonsHidden", "{:d}".format(self.buttonsHidden))
-        subelem.set("Field16", "{:d}".format(self.field16))
+        subelem.set("FrontPFlags", "{:d}".format(self.frontpFlags))
         subelem.set("InstrState", "0x{:X}".format(self.instrState))
         subelem.set("ExecState", "{:d}".format(self.execState))
         subelem.set("ExecPrio", "{:d}".format(self.execPrio))
