@@ -92,7 +92,7 @@ class VI_BTN_HIDE_FLAGS(enum.Enum):
 class VI_IN_ST_FLAGS(enum.Enum):
     """ VI Insrument State flags
     """
-    Bit0 = 1 << 0	# Indicates whether to display the Run button on the toolbar while the VI runs.
+    Bit0 = 1 << 0	# unknown
     Bit1 = 1 << 1	# unknown
     Bit2 = 1 << 2	# unknown
     Bit3 = 1 << 3	# unknown
@@ -113,22 +113,38 @@ class VI_IN_ST_FLAGS(enum.Enum):
 class VI_EXEC_FLAGS(enum.Enum):
     """ VI Execution flags
     """
-    Bit0 = 1 << 0	# Indicates whether to display the Run button on the toolbar while the VI runs.
+    Bit0 = 1 << 0	# unknown
     Bit1 = 1 << 1	# unknown
     Bit2 = 1 << 2	# unknown
     Bit3 = 1 << 3	# unknown
     Bit4 = 1 << 4	# unknown
-    Bit5 = 1 << 5	# unknown
-    Bit6 = 1 << 6	# unknown
+    IsReentrant = 1 << 5	# Indicates whether a VI can be reentrant (multiple instances of it can execute in parallel).
+    CloseAfterCall = 1 << 6	# Indicates whether to close the front panel after the VI runs.
     Bit7 = 1 << 7	# unknown
     Bit8 = 1 << 8	# unknown
     Bit9 = 1 << 9	# unknown
-    Bit10 = 1 << 10	# unknown
+    ShowFPOnLoad = 1 << 10	# Indicates whether to show the front panel when the VI is loaded.
     Bit11 = 1 << 11	# unknown
     Bit12 = 1 << 12	# unknown
     Bit13 = 1 << 13	# unknown
-    Bit14 = 1 << 14	# unknown
-    Bit15 = 1 << 15	# unknown
+    RunOnOpen = 1 << 14	# Indicates whether to run the VI when it opens.
+    ShowFPOnCall = 1 << 15	# Indicates whether to show the front panel when the VI is called.
+    Bit16 = 1 << 16	# unknown
+    Bit17 = 1 << 17	# in use; sets highest priority; realtime option?
+    Bit18 = 1 << 18	# unknown
+    Bit19 = 1 << 19	# unknown
+    Bit20 = 1 << 20	# unknown
+    Bit21 = 1 << 21	# unknown
+    Bit22 = 1 << 22	# unknown
+    Bit23 = 1 << 23	# unknown
+    Bit24 = 1 << 24	# unknown
+    Bit25 = 1 << 25	# unknown
+    Bit26 = 1 << 26	# unknown
+    Bit27 = 1 << 27	# unknown
+    Bit28 = 1 << 28	# unknown
+    Bit29 = 1 << 29	# unknown
+    Bit30 = 1 << 30	# unknown
+    Bit31 = 1 << 31	# unknown
 
 
 class LVSRData(RSRCStructure):
@@ -139,12 +155,12 @@ class LVSRData(RSRCStructure):
                 ('field0C', c_uint32),	#12
                 ('flags10', c_uint16),	#16
                 ('field12', c_uint16),	#18
-                ('buttonsHidden', c_uint16),	#20 set based on value of viType,  see VI_BTN_HIDE_FLAGS
+                ('buttonsHidden', c_uint16),	#20 set based on value of viType, see VI_BTN_HIDE_FLAGS
                 ('field16', c_uint16),	#18 see VI_FP_FLAGS
                 ('instrState', c_uint32),	#24 see VI_IN_ST_FLAGS
                 ('execState', c_uint32),	#28 valid values under mask 0xF
-                ('field20', c_uint16),	#32
-                ('viType', c_uint16),	#34 Type of VI
+                ('execPrio', c_uint16),	#32 priority of the VI when it runs in parallel with other tasks; expected values 0..4
+                ('viType', c_uint16),	#34 type of VI
                 ('field24', c_uint32),	#36
                 ('field28', c_uint32),	#40 linked value 1/3
                 ('field2C', c_uint32),	#44 linked value 2/3

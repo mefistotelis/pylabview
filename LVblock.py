@@ -933,7 +933,7 @@ class LVSR(Block):
         self.field16 = 0
         self.instrState = 0
         self.execState = 0
-        self.field20 = 0
+        self.execPrio = 0
         self.viType = 0
         self.field24 = 0
         self.field28 = 0
@@ -972,7 +972,7 @@ class LVSR(Block):
         self.field16 = int(data.field16)
         self.instrState = int(data.instrState)
         self.execState = int(data.execState)
-        self.field20 = int(data.field20)
+        self.execPrio = int(data.execPrio)
         self.viType = int(data.viType)
         self.field24 = int(data.field24)
         self.field28 = int(data.field28)
@@ -1015,7 +1015,7 @@ class LVSR(Block):
         data_buf += int(self.field16).to_bytes(2, byteorder='big')
         data_buf += int(self.instrState).to_bytes(4, byteorder='big')
         data_buf += int(self.execState).to_bytes(4, byteorder='big')
-        data_buf += int(self.field20).to_bytes(2, byteorder='big')
+        data_buf += int(self.execPrio).to_bytes(2, byteorder='big')
         data_buf += int(self.viType).to_bytes(2, byteorder='big')
         data_buf += int(self.field24).to_bytes(4, byteorder='big')
         data_buf += int(self.field28).to_bytes(4, byteorder='big')
@@ -1094,7 +1094,7 @@ class LVSR(Block):
                     self.field16 = int(subelem.get("Field16"), 0)
                     self.instrState = int(subelem.get("InstrState"), 0)
                     self.execState = int(subelem.get("ExecState"), 0)
-                    self.field20 = int(subelem.get("Field20"), 0)
+                    self.execPrio = int(subelem.get("ExecPrio"), 0)
                     self.viType = int(subelem.get("ViType"), 0)
                     self.field24 = int(subelem.get("Field24"), 0)
                     self.field28 = int(subelem.get("Field28"), 0)
@@ -1170,7 +1170,7 @@ class LVSR(Block):
         subelem.set("Field16", "{:d}".format(self.field16))
         subelem.set("InstrState", "0x{:X}".format(self.instrState))
         subelem.set("ExecState", "{:d}".format(self.execState))
-        subelem.set("Field20", "{:d}".format(self.field20))
+        subelem.set("ExecPrio", "{:d}".format(self.execPrio))
         subelem.set("ViType", "{:d}".format(self.viType))
         subelem.set("Field24", "{:d}".format(self.field24))
         subelem.set("Field28", "{:d}".format(self.field28))
