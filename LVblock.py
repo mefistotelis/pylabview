@@ -35,25 +35,13 @@ from ctypes import *
 
 from LVmisc import *
 from LVconnector import *
+from LVinstrument import *
 from LVresource import *
 
 class BLOCK_CODING(enum.Enum):
     NONE = 0
     ZLIB = 1
     XOR = 2
-
-
-class VI_TYPE(enum.Enum):
-    NONE = 0	# invalid VI type
-    STANDARD = 1	# VI that contains a front panel and block diagram
-    CONTROL = 2	# subVI that defines a custom control or indicator
-    GLOBAL = 3	# subVI generated when creating global variables
-    POLYMORPH = 4	# subVI that is an instance of a polymorphic VI
-    CONFIG = 5	# Configuration VI
-    SUBSYSTEM = 6	# subVI that can be only placed on a simulation diagram
-    FACADE = 7	# subVI that represents a Facade ability, which defines the appearance of an XControl
-    METHOD = 8	# subVI added to the XControl Library for each XControl method
-    STATECHART = 9	# subVI that you can place only on a statechart diagram
 
 
 class BlockHeader(RSRCStructure):
@@ -108,44 +96,6 @@ class BlockSectionData(RSRCStructure):
     def checkSanity(self):
         ret = True
         return ret
-
-
-class LVSRData(RSRCStructure):
-    # sizes mostly confirmed in lvrt
-    _fields_ = [('version', c_uint32),	#0
-                ('flags04', c_uint32),	#4 
-                ('field08', c_uint32),	#8 flag 0x0001 = viSuppressBackup, 0x0020 = viIsTemplate, 0x40000000 = viRemoteClientPanel
-                ('field0C', c_uint32),	#12
-                ('flags10', c_uint16),	#16
-                ('field12', c_uint16),	#18
-                ('buttonsHidden', c_uint16),	#20 set based on value of viType
-                ('field16', c_uint16),	#18
-                ('instrState', c_uint32),	#24 flag 0x200 = viDebugCapable
-                ('execState', c_uint32),	#28 valid values under mask 0xF
-                ('field20', c_uint16),	#32
-                ('viType', c_uint16),	#34 Type of VI
-                ('field24', c_uint32),	#36
-                ('field28', c_uint32),	#40 linked value 1/3
-                ('field2C', c_uint32),	#44 linked value 2/3
-                ('field30', c_uint32),	#48 linked value 3/3
-                ('viSignature', c_ubyte * 16),	#52 A hash identifying the VI file; used by LV while registering for events
-                ('field44', c_uint32),	#68
-                ('field48', c_uint32),	#72
-                ('field4C', c_uint16),	#76
-                ('field4E', c_uint16),	#78
-                ('field50_md5', c_ubyte * 16),	#80
-                ('libpass_md5', c_ubyte * 16),	#96
-                ('field70', c_uint32),	#112
-                ('field74', c_uint32),	#116
-                ('field78_md5', c_ubyte * 16),	#120
-                ('inlineStg', c_ubyte),	#136 inline setting, valid value 0..2
-                ('inline_padding', c_ubyte * 3),	#137 
-                ('field8C', c_uint32),	#140 
-    ]
-
-    def __init__(self, po):
-        self.po = po
-        pass
 
 
 class versData(RSRCStructure):
