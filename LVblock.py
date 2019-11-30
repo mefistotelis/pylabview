@@ -1017,7 +1017,7 @@ class LVSR(Block):
         data_buf += int(self.execState).to_bytes(4, byteorder='big')
         data_buf += int(self.execPrio).to_bytes(2, byteorder='big')
         data_buf += int(self.viType).to_bytes(2, byteorder='big')
-        data_buf += int(self.field24).to_bytes(4, byteorder='big')
+        data_buf += int(self.field24).to_bytes(4, byteorder='big', signed=True)
         data_buf += int(self.field28).to_bytes(4, byteorder='big')
         data_buf += int(self.field2C).to_bytes(4, byteorder='big')
         data_buf += int(self.field30).to_bytes(4, byteorder='big')
@@ -1031,7 +1031,7 @@ class LVSR(Block):
             pass #TODO re-compute md5 from pass
         data_buf += self.libpass_md5
         data_buf += int(self.field70).to_bytes(4, byteorder='big')
-        data_buf += int(self.field74).to_bytes(4, byteorder='big')
+        data_buf += int(self.field74).to_bytes(4, byteorder='big', signed=True)
         if isGreaterOrEqVersion(self.version, 10, 0, stage='release'):
             data_buf += self.field78_md5
         if isGreaterOrEqVersion(self.version, 14):
@@ -1090,21 +1090,22 @@ class LVSR(Block):
                     self.execFlags = importXMLBitfields(VI_EXEC_FLAGS, subelem)
                 elif (subelem.tag == "ButtonsHidden"):
                     self.buttonsHidden = importXMLBitfields(VI_BTN_HIDE_FLAGS, subelem)
-                elif (subelem.tag == "InstrumentState"):
+                elif (subelem.tag == "Instrument"):
+                    self.viType = valFromEnumOrIntString(VI_TYPE, subelem.get("Type"))
+                    tmphash = subelem.get("Signature")
+                    self.viSignature = bytes.fromhex(tmphash)
                     self.instrState = importXMLBitfields(VI_IN_ST_FLAGS, subelem)
+                elif (subelem.tag == "FrontPanel"):
+                    self.frontpFlags = importXMLBitfields(VI_FP_FLAGS, subelem)
                 elif (subelem.tag == "Unknown"):
                     self.field08 = int(subelem.get("Field08"), 0)
                     self.field0C = int(subelem.get("Field0C"), 0)
                     self.flags10 = int(subelem.get("Flags10"), 0)
                     self.field12 = int(subelem.get("Field12"), 0)
-                    self.frontpFlags = int(subelem.get("FrontPFlags"), 0)
-                    self.viType = int(subelem.get("ViType"), 0)
                     self.field24 = int(subelem.get("Field24"), 0)
                     self.field28 = int(subelem.get("Field28"), 0)
                     self.field2C = int(subelem.get("Field2C"), 0)
                     self.field30 = int(subelem.get("Field30"), 0)
-                    field34_hash = subelem.get("ViSignature")
-                    self.viSignature = bytes.fromhex(field34_hash)
                     self.field44 = int(subelem.get("Field44"), 0)
                     self.field48 = int(subelem.get("Field48"), 0)
                     self.field4C = int(subelem.get("Field4C"), 0)
@@ -1169,9 +1170,15 @@ class LVSR(Block):
         subelem.tail = "\n"
         exportXMLBitfields(VI_BTN_HIDE_FLAGS, subelem, self.buttonsHidden)
 
-        subelem = ET.SubElement(section_elem,"InstrumentState")
+        subelem = ET.SubElement(section_elem,"Instrument")
         subelem.tail = "\n"
+        subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(VI_TYPE, self.viType)))
+        subelem.set("Signature", self.viSignature.hex())
         exportXMLBitfields(VI_IN_ST_FLAGS, subelem, self.instrState)
+
+        subelem = ET.SubElement(section_elem,"FrontPanel")
+        subelem.tail = "\n"
+        exportXMLBitfields(VI_FP_FLAGS, subelem, self.frontpFlags)
 
         subelem = ET.SubElement(section_elem,"Unknown")
         subelem.tail = "\n"
@@ -1180,13 +1187,10 @@ class LVSR(Block):
         subelem.set("Field0C", "{:d}".format(self.field0C))
         subelem.set("Flags10", "{:d}".format(self.flags10))
         subelem.set("Field12", "{:d}".format(self.field12))
-        subelem.set("FrontPFlags", "{:d}".format(self.frontpFlags))
-        subelem.set("ViType", "{:d}".format(self.viType))
         subelem.set("Field24", "{:d}".format(self.field24))
         subelem.set("Field28", "{:d}".format(self.field28))
         subelem.set("Field2C", "{:d}".format(self.field2C))
         subelem.set("Field30", "{:d}".format(self.field30))
-        subelem.set("ViSignature", self.viSignature.hex())
         subelem.set("Field44", "{:d}".format(self.field44))
         subelem.set("Field48", "{:d}".format(self.field48))
         subelem.set("Field4C", "{:d}".format(self.field4C))

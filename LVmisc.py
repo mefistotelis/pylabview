@@ -23,6 +23,7 @@ Miscelanous generic utilities.
 
 import re
 import sys
+import enum
 import math
 
 from ctypes import *
@@ -49,7 +50,14 @@ class RSRCStructure(BigEndianStructure):
         return pformat(d, indent=0, width=160)
 
 
-LABVIEW_VERSION_STAGE_TEXT = ['unknown', 'development', 'alpha', 'beta', 'release']
+class LABVIEW_VERSION_STAGE(enum.Enum):
+    """ Development stage fields in LabView version
+    """
+    unknown = 0
+    development = 1
+    alpha = 2
+    beta = 3
+    release = 4
 
 LABVIEW_COLOR_PALETTE_256 = [
     0xF1F1F1, 0xFFFFCC, 0xFFFF99, 0xFFFF66, 0xFFFF33, 0xFFFF00, 0xFFCCFF, 0xFFCCCC,
@@ -130,19 +138,14 @@ def decodeVersion(vcode):
     ver['stage'] = (vcode >> 13) & 0x07
     ver['flags'] = (vcode >> 8) & 0x1F  # 5 bit??
     ver['build'] = ((vcode >> 4) & 0x0F) * 10 + ((vcode >> 0) & 0x0F)
-    ver['stage_text'] = LABVIEW_VERSION_STAGE_TEXT[0]
-    if ver['stage'] < len(LABVIEW_VERSION_STAGE_TEXT):
-        ver['stage_text'] = LABVIEW_VERSION_STAGE_TEXT[ver['stage']]
+    ver['stage_text'] = stringFromValEnumOrInt(LABVIEW_VERSION_STAGE, ver['stage'])
+
     return ver
 
 def encodeVersion(ver):
     vcode = 0
     if 'stage_text' in ver:
-        for IDX, STAGE_TEXT in enumerate(LABVIEW_VERSION_STAGE_TEXT):
-            # If value is in array, and it is not "unknown", then update the numeric stage
-            if ver['stage_text'] == STAGE_TEXT and IDX > 0:
-                ver['stage'] = IDX
-                break
+        ver['stage'] = valFromEnumOrIntString(LABVIEW_VERSION_STAGE, ver['stage_text'])
     # If somehow still no numeric stage, then set it to zero
     if 'stage' not in ver:
         ver['stage'] = 0
@@ -171,11 +174,7 @@ def isGreaterOrEqVersion(ver, major, minor = None, bugfix = None, stage = None):
         if ver['minor'] < minor:
             return False
     if isinstance(stage, str):
-        for IDX, STAGE_TEXT in enumerate(LABVIEW_VERSION_STAGE_TEXT):
-            # If value is in array, and it is not "unknown", then update the numeric stage
-            if stage == STAGE_TEXT and IDX > 0:
-                stage = IDX
-                break
+        stage = valFromEnumOrIntString(LABVIEW_VERSION_STAGE, stage)
     if not isinstance(stage, int):
         stage = None
     if stage is not None:
@@ -191,6 +190,18 @@ def isGreaterOrEqVersion(ver, major, minor = None, bugfix = None, stage = None):
             return False
 
     return True
+
+def stringFromValEnumOrInt(EnumClass, value):
+    for en in EnumClass:
+        if value == en.value:
+            return en.name
+    return str(value)
+
+def valFromEnumOrIntString(EnumClass, strval):
+    for en in EnumClass:
+        if str(strval).lower() == en.name.lower():
+            return en.value
+    return int(strval, 0)
 
 def getFirstSetBitPos(n):
      return round(math.log2(n&-n)+1)

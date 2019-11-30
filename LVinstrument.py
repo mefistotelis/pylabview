@@ -176,7 +176,7 @@ class LVSRData(RSRCStructure):
                 ('execState', c_uint32),	#28 valid values under mask 0xF
                 ('execPrio', c_uint16),	#32 priority of the VI when it runs in parallel with other tasks; expected values 0..4
                 ('viType', c_uint16),	#34 type of VI
-                ('field24', c_uint32),	#36
+                ('field24', c_int32),	#36 signed
                 ('field28', c_uint32),	#40 linked value 1/3
                 ('field2C', c_uint32),	#44 linked value 2/3
                 ('field30', c_uint32),	#48 linked value 3/3
@@ -188,7 +188,7 @@ class LVSRData(RSRCStructure):
                 ('field50_md5', c_ubyte * 16),	#80
                 ('libpass_md5', c_ubyte * 16),	#96
                 ('field70', c_uint32),	#112
-                ('field74', c_uint32),	#116
+                ('field74', c_int32),	#116 signed
                 ('field78_md5', c_ubyte * 16),	#120
                 ('inlineStg', c_ubyte),	#136 inline setting, valid value 0..2
                 ('inline_padding', c_ubyte * 3),	#137 
