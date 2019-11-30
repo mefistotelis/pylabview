@@ -23,6 +23,8 @@ Miscelanous generic utilities.
 
 import re
 import sys
+import math
+
 from ctypes import *
 from collections import OrderedDict
 
@@ -189,6 +191,35 @@ def isGreaterOrEqVersion(ver, major, minor = None, bugfix = None, stage = None):
             return False
 
     return True
+
+def getFirstSetBitPos(n):
+     return round(math.log2(n&-n)+1)
+
+def exportXMLBitfields(EnumClass, subelem, value):
+    """ Export bitfields of an enum stored in int to ElementTree properties
+    """
+    for mask in EnumClass:
+        # Add only properties which have bit set or have non-default bit name
+        addProperty = ((value & mask.value) != 0) or (not re.match("(^Bit[0-9]*$)", mask.name))
+        if not addProperty:
+            continue
+        nshift = getFirstSetBitPos(mask.value) - 1
+        subelem.set(mask.name, "{:d}".format( (value & mask.value) >> nshift))
+
+def importXMLBitfields(EnumClass, subelem):
+    """ Import bitfields of an enum from ElementTree properties to int
+    """
+    value = 0
+    for mask in EnumClass:
+        # Skip non-existing
+        propval = subelem.get(mask.name)
+        if propval is None:
+            continue
+        propval = int(propval, 0)
+        # Got integer value; mark bits in resulting value
+        nshift = getFirstSetBitPos(mask.value) - 1
+        value |= ((propval << nshift) & mask.value)
+    return value
 
 def crypto_xor(data):
     rol = lambda val, l_bits, max_bits: \

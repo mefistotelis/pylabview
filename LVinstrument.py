@@ -107,6 +107,22 @@ class VI_IN_ST_FLAGS(enum.Enum):
     Bit13 = 1 << 13	# unknown
     Bit14 = 1 << 14	# unknown
     Bit15 = 1 << 15	# unknown
+    Bit16 = 1 << 16	# unknown
+    Bit17 = 1 << 17	# unknown
+    Bit18 = 1 << 18	# unknown
+    Bit19 = 1 << 19	# unknown
+    Bit20 = 1 << 20	# unknown
+    Bit21 = 1 << 21	# unknown
+    Bit22 = 1 << 22	# unknown
+    Bit23 = 1 << 23	# unknown
+    Bit24 = 1 << 24	# unknown
+    Bit25 = 1 << 25	# unknown
+    Bit26 = 1 << 26	# unknown
+    Bit27 = 1 << 27	# unknown
+    Bit28 = 1 << 28	# unknown
+    Bit29 = 1 << 29	# unknown
+    Bit30 = 1 << 30	# unknown
+    Bit31 = 1 << 31	# unknown
 
 
 class VI_EXEC_FLAGS(enum.Enum):

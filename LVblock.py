@@ -1084,17 +1084,20 @@ class LVSR(Block):
                     else:
                         self.libpass_md5 = bytes.fromhex(password_hash)
                     pass
+                elif (subelem.tag == "Execution"):
+                    self.execState = int(subelem.get("State"), 0)
+                    self.execPrio = int(subelem.get("Priority"), 0)
+                    self.execFlags = importXMLBitfields(VI_EXEC_FLAGS, subelem)
+                elif (subelem.tag == "ButtonsHidden"):
+                    self.buttonsHidden = importXMLBitfields(VI_BTN_HIDE_FLAGS, subelem)
+                elif (subelem.tag == "InstrumentState"):
+                    self.instrState = importXMLBitfields(VI_IN_ST_FLAGS, subelem)
                 elif (subelem.tag == "Unknown"):
-                    self.execFlags = int(subelem.get("ExecFlags"), 0)
                     self.field08 = int(subelem.get("Field08"), 0)
                     self.field0C = int(subelem.get("Field0C"), 0)
                     self.flags10 = int(subelem.get("Flags10"), 0)
                     self.field12 = int(subelem.get("Field12"), 0)
-                    self.buttonsHidden = int(subelem.get("ButtonsHidden"), 0)
                     self.frontpFlags = int(subelem.get("FrontPFlags"), 0)
-                    self.instrState = int(subelem.get("InstrState"), 0)
-                    self.execState = int(subelem.get("ExecState"), 0)
-                    self.execPrio = int(subelem.get("ExecPrio"), 0)
                     self.viType = int(subelem.get("ViType"), 0)
                     self.field24 = int(subelem.get("Field24"), 0)
                     self.field28 = int(subelem.get("Field28"), 0)
@@ -1143,7 +1146,6 @@ class LVSR(Block):
         section_elem.text = "\n"
         subelem = ET.SubElement(section_elem,"Version")
         subelem.tail = "\n"
-
         subelem.set("Major", "{:d}".format(self.version['major']))
         subelem.set("Minor", "{:d}".format(self.version['minor']))
         subelem.set("Bugfix", "{:d}".format(self.version['bugfix']))
@@ -1153,24 +1155,32 @@ class LVSR(Block):
 
         subelem = ET.SubElement(section_elem,"Library")
         subelem.tail = "\n"
-
         subelem.set("Protected", "{:d}".format(self.protected))
         subelem.set("PasswordHash", self.libpass_md5.hex())
         subelem.set("HashType", "MD5")
 
+        subelem = ET.SubElement(section_elem,"Execution")
+        subelem.tail = "\n"
+        subelem.set("State", "{:d}".format(self.execState))
+        subelem.set("Priority", "{:d}".format(self.execPrio))
+        exportXMLBitfields(VI_EXEC_FLAGS, subelem, self.execFlags)
+
+        subelem = ET.SubElement(section_elem,"ButtonsHidden")
+        subelem.tail = "\n"
+        exportXMLBitfields(VI_BTN_HIDE_FLAGS, subelem, self.buttonsHidden)
+
+        subelem = ET.SubElement(section_elem,"InstrumentState")
+        subelem.tail = "\n"
+        exportXMLBitfields(VI_IN_ST_FLAGS, subelem, self.instrState)
+
         subelem = ET.SubElement(section_elem,"Unknown")
         subelem.tail = "\n"
 
-        subelem.set("ExecFlags", "0x{:X}".format(self.execFlags))
         subelem.set("Field08", "{:d}".format(self.field08))
         subelem.set("Field0C", "{:d}".format(self.field0C))
         subelem.set("Flags10", "{:d}".format(self.flags10))
         subelem.set("Field12", "{:d}".format(self.field12))
-        subelem.set("ButtonsHidden", "{:d}".format(self.buttonsHidden))
         subelem.set("FrontPFlags", "{:d}".format(self.frontpFlags))
-        subelem.set("InstrState", "0x{:X}".format(self.instrState))
-        subelem.set("ExecState", "{:d}".format(self.execState))
-        subelem.set("ExecPrio", "{:d}".format(self.execPrio))
         subelem.set("ViType", "{:d}".format(self.viType))
         subelem.set("Field24", "{:d}".format(self.field24))
         subelem.set("Field28", "{:d}".format(self.field28))
