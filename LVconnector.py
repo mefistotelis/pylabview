@@ -153,22 +153,90 @@ class CONNECTOR_REF_TYPE(enum.IntEnum):
 
 class ConnectorObject:
 
-    def __init__(self, vi, bldata, idx, pos, obj_len, obj_flags, obj_type, po):
+    def __init__(self, vi, idx, obj_flags, obj_type, po):
         """ Creates new Connector object, capable of handling generic Connector data.
         """
         self.vi = vi
         self.po = po
         self.index = idx
-        self.pos = pos
-        self.size = obj_len
         self.oflags = obj_flags
         self.otype = obj_type
-        self.raw_data = bldata.read(obj_len)
         self.clients = []
+        self.size = None
+        self.raw_data = None
+        self.raw_data_updated = False
+        self.parsed_data_updated = False
 
-    def parseData(self, bldata):
+    def initWithRSRC(self, bldata, obj_len):
+        """ Early part of connector loading from RSRC file
+
+        At the point it is executed, other sections are inaccessible.
+        """
+        self.size = obj_len
+        self.raw_data = bldata.read(obj_len)
+        self.raw_data_updated = True
+
+    def initWithXML(self, conn_elem):
+        """ Early part of connector loading from XML file
+
+        At the point it is executed, other sections are inaccessible.
+        """
+        fmt = conn_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            data_head = int(4).to_bytes(2, byteorder='big')
+            data_head += int(self.oflags).to_bytes(1, byteorder='big')
+            data_head += int(self.otype).to_bytes(1, byteorder='big')
+            self.setData(data_head)
+        elif fmt == "bin":# Format="bin" - the content is stored separately as raw binary data
+            if (self.po.verbose > 2):
+                print("{:s}: For Connector {}, reading BIN file '{}'"\
+                  .format(self.vi.src_fname,self.index,conn_elem.get("File")))
+            bin_path = os.path.dirname(self.vi.src_fname)
+            if len(bin_path) > 0:
+                bin_fname = bin_path + '/' + conn_elem.get("File")
+            else:
+                bin_fname = conn_elem.get("File")
+            with open(bin_fname, "rb") as bin_fh:
+                data_buf = bin_fh.read()
+            data_head = int(len(data_buf)+4).to_bytes(2, byteorder='big')
+            data_head += int(self.oflags).to_bytes(1, byteorder='big')
+            data_head += int(self.otype).to_bytes(1, byteorder='big')
+            self.setData(data_head+data_buf)
+        else:
+            raise NotImplementedError("Unsupported Connector {} Format '{}'.".format(self.index,fmt))
+        pass
+
+    def parseRSRCData(self, bldata):
+        """ Implements final stage of setting connector properties from RSRC file
+
+        Can use other connectors and other blocks.
+        """
         if (self.po.verbose > 2):
-            print("{:s}: Connector {:d} type 0x{:02x} data format isn't known; leaving raw only".format(self.vi.src_fname,self.index,self.otype))
+            print("{:s}: Connector {:d} type 0x{:02x} data format isn't known; leaving raw only"\
+              .format(self.vi.src_fname,self.index,self.otype))
+        self.raw_data_updated = False
+
+    def parseXMLData(self):
+        """ Implements final stage of setting connector properties from XML
+
+        Can use other connectors and other blocks.
+        """
+        self.parsed_data_updated = False
+
+    def parseData(self):
+        """ Parse data of specific section and place it as Connector properties
+        """
+        if self.needParseData():
+            if self.raw_data_updated:
+                bldata = self.getData()
+                self.parseRSRCData(bldata)
+            elif self.parsed_data_updated:
+                self.parseXMLData()
+            elif self.vi.dataSource == "rsrc":
+                bldata = self.getData()
+                self.parseRSRCData(bldata)
+            elif self.vi.dataSource == "xml":
+                self.parseXMLData()
         pass
 
     def needParseData(self):
@@ -177,11 +245,35 @@ class ConnectorObject:
             After a call to parseData(), or after filling the data manually, this should
             return True. Otherwise, False.
         """
-        return False
+        return self.raw_data_updated or self.parsed_data_updated
+
+    def exportXML(self, conn_elem, fname_base):
+        self.parseData()
+
+        if self.size <= 4:
+            # Connector stores no additional data
+            conn_elem.set("Format", "inline")
+        else:
+            part_fname = "{:s}_{:04d}.{:s}".format(fname_base,self.index,"bin")
+            if (self.po.verbose > 2):
+                print("{:s}: For Connector {}, writing BIN file '{}'"\
+                  .format(self.vi.src_fname,self.index,fname_base))
+            bldata = self.getData()
+            bldata.read(4) # The data includes 4-byte header
+            with open(part_fname, "wb") as part_fd:
+                part_fd.write(bldata.read())
+
+            conn_elem.set("Format", "bin")
+            conn_elem.set("File", os.path.basename(part_fname))
 
     def getData(self):
         bldata = BytesIO(self.raw_data)
         return bldata
+
+    def setData(self, data_buf):
+        self.raw_data = data_buf
+        self.size = len(self.raw_data)
+        self.raw_data_updated = True
 
     def checkSanity(self):
         ret = True
@@ -229,19 +321,23 @@ class ConnectorObject:
             raise LookupError("Block {} not found in RSRC file.".format('VCTP'))
         out_enum = []
         for i, client in enumerate(self.clients):
-            conn_obj = VCTP.content[client.index]
+            if client.index == -1: # Special case this is how we mark nested client
+                conn_obj = client.nested
+            else:
+                conn_obj = VCTP.content[client.index]
             out_enum.append( (i, client.index, conn_obj, client.flags, ) )
         return out_enum
 
     def getClientConnectorsByType(self):
-        self.getData() # Make sure the block is parsed
+        self.parseData() # Make sure the block is parsed
         out_lists = { 'number': [], 'path': [], 'string': [], 'compound': [], 'other': [] }
         for cli_idx, conn_idx, conn_obj, conn_flags in self.clientsEnumerate():
             # We will need a list of clients, so ma might as well parse the connector now
-            conn_obj.getData()
+            conn_obj.parseData()
             if not conn_obj.checkSanity():
                 if (self.po.verbose > 0):
-                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} sanity check failed!".format(self.vi.src_fname,conn_obj.index,conn_obj.otype))
+                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} sanity check failed!"\
+                      .format(self.vi.src_fname,conn_obj.index,conn_obj.otype))
             # Add connectors of this Terminal to list
             if conn_obj.isNumber():
                 out_lists['number'].append(conn_obj)
@@ -256,12 +352,13 @@ class ConnectorObject:
             if (self.po.verbose > 2):
                 keys = list(out_lists)
                 print("enumerating: {}.{} idx={} flags={:09x} type={} connectors: {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d}"\
-                      .format(self.index, cli_idx, conn_idx,  conn_flags, conn_obj.fullType().name if isinstance(conn_obj.fullType(), enum.IntEnum) else conn_obj.fullType(),\
-                      keys[0],len(out_lists[keys[0]]),\
-                      keys[1],len(out_lists[keys[1]]),\
-                      keys[2],len(out_lists[keys[2]]),\
-                      keys[3],len(out_lists[keys[3]]),\
-                      keys[4],len(out_lists[keys[4]]),\
+                      .format(self.index, cli_idx, conn_idx,  conn_flags,\
+                        conn_obj.fullType().name if isinstance(conn_obj.fullType(), enum.IntEnum) else conn_obj.fullType(),\
+                        keys[0],len(out_lists[keys[0]]),\
+                        keys[1],len(out_lists[keys[1]]),\
+                        keys[2],len(out_lists[keys[2]]),\
+                        keys[3],len(out_lists[keys[3]]),\
+                        keys[4],len(out_lists[keys[4]]),\
                       ))
             # Add sub-connectors the terminals within this connector
             if conn_obj.hasClients():
@@ -276,31 +373,26 @@ class ConnectorObjectNumber(ConnectorObject):
         super().__init__(*args)
         self.prop1 = None
 
-    def parseData(self, bldata):
+    def parseRSRCData(self, bldata):
         bldata.read(4)
         self.prop1 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        pass
+        self.raw_data_updated = False
 
     def needParseData(self):
         return (self.prop1 is None)
-
-    def getData(self, *args):
-        bldata = ConnectorObject.getData(self, *args)
-        if self.needParseData():
-            self.parseData(bldata)
-            bldata.seek(0)
-        return bldata
 
     def checkSanity(self):
         ret = True
         if (self.prop1 != 0):
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 {:d}, expected {:d}".format(self.vi.src_fname,self.index,self.otype,self.prop1,0))
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 {:d}, expected {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,self.prop1,0))
             ret = False
         expsize = 4+1 # We do not parse the whole chunk; complete size is larger
         if len(self.raw_data) < expsize:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}".format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),expsize))
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),expsize))
             ret = False
         return ret
 
@@ -309,27 +401,21 @@ class ConnectorObjectNumberPtr(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
 
-    def parseData(self, bldata):
+    def parseRSRCData(self, bldata):
         bldata.read(4)
         # No more known data inside
-        pass
+        self.raw_data_updated = False
 
     def needParseData(self):
         return True
-
-    def getData(self, *args):
-        bldata = ConnectorObject.getData(self, *args)
-        if self.needParseData():
-            self.parseData(bldata)
-            bldata.seek(0)
-        return bldata
 
     def checkSanity(self):
         ret = True
         expsize = 4 # We do not parse the whole chunk; complete size is larger
         if len(self.raw_data) < expsize:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}".format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),expsize))
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),expsize))
             ret = False
         return ret
 
@@ -339,32 +425,27 @@ class ConnectorObjectBlob(ConnectorObject):
         super().__init__(*args)
         self.prop1 = None
 
-    def parseData(self, bldata):
+    def parseRSRCData(self, bldata):
         bldata.read(4)
         self.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         # No more known data inside
-        pass
+        self.raw_data_updated = False
 
     def needParseData(self):
         return (self.prop1 is None)
-
-    def getData(self, *args):
-        bldata = ConnectorObject.getData(self, *args)
-        if self.needParseData():
-            self.parseData(bldata)
-            bldata.seek(0)
-        return bldata
 
     def checkSanity(self):
         ret = True
         if self.prop1 != 0xFFFFFFFF:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}".format(self.vi.src_fname,self.index,self.otype,self.prop1,0xFFFFFFFF))
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}"\
+                  .format(self.vi.src_fname,self.index,self.otype,self.prop1,0xFFFFFFFF))
             ret = False
         expsize = 4 # We do not parse the whole chunk; complete size is larger
         if len(self.raw_data) < expsize:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}".format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),expsize))
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),expsize))
             ret = False
         return ret
 
@@ -373,7 +454,7 @@ class ConnectorObjectTerminal(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
 
-    def parseData(self, bldata):
+    def parseRSRCData(self, bldata):
         ver = self.vi.getFileVersion()
         # Skip length, flags and type - these were set in constructor
         bldata.read(4)
@@ -394,24 +475,18 @@ class ConnectorObjectTerminal(ConnectorObject):
             for i in range(count):
                 cli_flags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
                 self.clients[i].flags = cli_flags
-        pass
+        self.raw_data_updated = False
 
     def needParseData(self):
         return (len(self.clients) == 0)
-
-    def getData(self, *args):
-        bldata = ConnectorObject.getData(self, *args)
-        if self.needParseData():
-            self.parseData(bldata)
-            bldata.seek(0)
-        return bldata
 
     def checkSanity(self):
         ret = True
         ver = self.vi.getFileVersion()
         if (len(self.clients) > 125):
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}".format(self.vi.src_fname,self.index,self.otype,self.prop1,0xFFFFFFFF))
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}"\
+                  .format(self.vi.src_fname,self.index,self.otype,self.prop1,0xFFFFFFFF))
             ret = False
         if isGreaterOrEqVersion(ver, major=8):
             expsize = 4 + 2 + 2 * len(self.clients) + 4 + 2 + 4 * len(self.clients)
@@ -419,7 +494,8 @@ class ConnectorObjectTerminal(ConnectorObject):
             expsize = 4 + 2 + 2 * len(self.clients) + 4 + 2 * len(self.clients)
         if len(self.raw_data) != expsize:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}".format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),expsize))
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),expsize))
             ret = False
         return ret
 
@@ -430,8 +506,22 @@ class ConnectorObjectTypeDef(ConnectorObject):
         self.flag1 = None
         self.labels = []
 
-    def parseData(self, bldata):
-        VCTP = self.vi.get('VCTP')
+    def parseRSRCNestedConnector(self, bldata, pos):
+        """ Parse RSRC data of a connector which is not in main list of connectors
+
+        This is a variant of VCTP.parseRSRCConnector() which assigns index -1 and
+        does not store the connector in any list.
+        """
+        bldata.seek(pos)
+        obj_len = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        obj_flags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        obj_type = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        obj = newConnectorObject(self.vi, -1, obj_flags, obj_type, self.po)
+        bldata.seek(pos)
+        obj.initWithRSRC(bldata, obj_len)
+        return obj, obj_len
+
+    def parseRSRCData(self, bldata):
         # Skip length, flags and type - these were set in constructor
         bldata.read(4)
         self.flag1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
@@ -441,33 +531,26 @@ class ConnectorObjectTypeDef(ConnectorObject):
             label_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
             self.labels[i] = bldata.read(label_len)
         # The underlying object is stored here directly, not as index in VCTP list
-        # Let's add it to that list anyway, as keeping one flat list is simpler
         pos = bldata.tell()
         self.clients = [ SimpleNamespace() ]
         # In "Vi Explorer" code, the length value of this object is treated differently
         # (decreased by 4); not sure if this is correct and an issue here
-        cli_idx, cli_len = VCTP.parseConnector(bldata, pos)
+        cli, cli_len = self.parseRSRCNestedConnector(bldata, pos)
         cli_flags = 0
-        self.clients[0].index = cli_idx
+        self.clients[0].index = cli.index # Bested clients have index -1
         self.clients[0].flags = cli_flags
-        pass
+        self.clients[0].nested = cli
+        self.raw_data_updated = False
 
     def needParseData(self):
         return (self.flag1 is None)
-
-    def getData(self, *args):
-        bldata = ConnectorObject.getData(self, *args)
-        if self.needParseData():
-            self.parseData(bldata)
-            bldata.seek(0)
-        return bldata
 
 
 class ConnectorObjectArray(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
 
-    def parseData(self, bldata):
+    def parseRSRCData(self, bldata):
         # Skip length, flags and type - these were set in constructor
         bldata.read(4)
         ndimensions = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
@@ -490,16 +573,10 @@ class ConnectorObjectArray(ConnectorObject):
         cli_flags = 0
         self.clients[0].index = cli_idx
         self.clients[0].flags = cli_flags
+        self.raw_data_updated = False
 
     def needParseData(self):
         return (len(self.clients) == 0)
-
-    def getData(self, *args):
-        bldata = ConnectorObject.getData(self, *args)
-        if self.needParseData():
-            self.parseData(bldata)
-            bldata.seek(0)
-        return bldata
 
     def checkSanity(self):
         ret = True
@@ -512,7 +589,8 @@ class ConnectorObjectArray(ConnectorObject):
         for client in self.clients:
             if client.index >= self.index:
                 if (self.po.verbose > 1):
-                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} client {:d} is reference to higher index".format(self.vi.src_fname,self.index,self.otype,client.index))
+                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} client {:d} is reference to higher index"\
+                      .format(self.vi.src_fname,self.index,self.otype,client.index))
                 ret = False
         return ret
 
@@ -523,7 +601,7 @@ class ConnectorObjectUnit(ConnectorObject):
         self.values = []
         self.prop1 = None
 
-    def parseData(self, bldata):
+    def parseRSRCData(self, bldata):
         # Skip length, flags and type - these were set in constructor
         bldata.read(4)
         count = int.from_bytes(bldata.read(2), byteorder='big', signed=False) # unit/item count
@@ -552,27 +630,22 @@ class ConnectorObjectUnit(ConnectorObject):
         else:
             self.padding1 = None
         self.prop1 = int.from_bytes(bldata.read(1), byteorder='big', signed=False) # Unknown
-        pass
+        self.raw_data_updated = False
 
     def needParseData(self):
         return (self.prop1 is None)
-
-    def getData(self, *args):
-        bldata = ConnectorObject.getData(self, *args)
-        if self.needParseData():
-            self.parseData(bldata)
-            bldata.seek(0)
-        return bldata
 
     def checkSanity(self):
         ret = True
         if (self.padding1 is not None) and (self.padding1 != b'\0'):
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Unit {:d} type 0x{:02x} padding1 {}, expected zeros".format(self.vi.src_fname,self.index,self.otype,self.padding1))
+                eprint("{:s}: Warning: Unit {:d} type 0x{:02x} padding1 {}, expected zeros"\
+                  .format(self.vi.src_fname,self.index,self.otype,self.padding1))
             ret = False
         if self.prop1 != 0:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Unit {:d} type 0x{:02x} prop1 {:d}, expected {:d}".format(self.vi.src_fname,self.index,self.otype,self.prop1,0))
+                eprint("{:s}: Warning: Unit {:d} type 0x{:02x} prop1 {:d}, expected {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,self.prop1,0))
             ret = False
         if len(self.values) < 1:
             ret = False
@@ -584,7 +657,7 @@ class ConnectorObjectRef(ConnectorObject):
         super().__init__(*args)
         self.reftype = None
 
-    def parseData(self, bldata):
+    def parseRSRCData(self, bldata):
         # Skip length, flags and type - these were set in constructor
         bldata.read(4)
         self.reftype = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
@@ -609,7 +682,7 @@ class ConnectorObjectRef(ConnectorObject):
         }.get(self.refType(), None)
         if parseRefType is not None:
             parseRefType(self, bldata)
-        pass
+        self.raw_data_updated = False
 
     def parseRefQueue(self, bldata):
         count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
@@ -680,13 +753,6 @@ class ConnectorObjectRef(ConnectorObject):
     def needParseData(self):
         return (self.reftype is None)
 
-    def getData(self, *args):
-        bldata = ConnectorObject.getData(self, *args)
-        if self.needParseData():
-            self.parseData(bldata)
-            bldata.seek(0)
-        return bldata
-
     def checkSanity(self):
         ret = True
         if self.refType() in [ CONNECTOR_REF_TYPE.DataLogFile, \
@@ -705,7 +771,8 @@ class ConnectorObjectRef(ConnectorObject):
         for client in self.clients:
             if client.index >= self.index:
                 if (self.po.verbose > 1):
-                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} client {:d} is reference to higher index".format(self.vi.src_fname,self.index,self.otype,client.index))
+                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} client {:d} is reference to higher index"\
+                      .format(self.vi.src_fname,self.index,self.otype,client.index))
                 ret = False
         return ret
 
@@ -720,7 +787,7 @@ class ConnectorObjectCluster(ConnectorObject):
         super().__init__(*args)
         self.clusterFmt = None
 
-    def parseData(self, bldata):
+    def parseRSRCData(self, bldata):
         # Skip length, flags and type - these were set in constructor
         bldata.read(4)
 
@@ -739,8 +806,9 @@ class ConnectorObjectCluster(ConnectorObject):
 
         else:
             if (self.po.verbose > 2):
-                print("{:s}: Connector {:d} cluster type 0x{:02x} data format isn't known; leaving raw only".format(self.vi.src_fname,self.index,self.otype))
-        pass
+                print("{:s}: Connector {:d} cluster type 0x{:02x} data format isn't known; leaving raw only"\
+                  .format(self.vi.src_fname,self.index,self.otype))
+        self.raw_data_updated = False
 
     def needParseData(self):
         if self.fullType() == CONNECTOR_FULL_TYPE.Cluster:
@@ -748,13 +816,6 @@ class ConnectorObjectCluster(ConnectorObject):
         elif self.fullType() == CONNECTOR_FULL_TYPE.ClusterData:
             return (self.clusterFmt is None)
         return True
-
-    def getData(self, *args):
-        bldata = ConnectorObject.getData(self, *args)
-        if self.needParseData():
-            self.parseData(bldata)
-            bldata.seek(0)
-        return bldata
 
     def checkSanity(self):
         ret = True
@@ -772,26 +833,26 @@ class ConnectorObjectCluster(ConnectorObject):
         return CONNECTOR_CLUSTER_FORMAT(self.clusterFmt)
 
 
-def newConnectorObjectMainNumberOrVoid(vi, bldata, idx, pos, obj_len, obj_flags, obj_type, po):
+def newConnectorObjectMainNumberOrVoid(vi, idx, obj_flags, obj_type, po):
     """ Creates and returns new terminal object of main type 'Terminal'
     """
     ctor = {
         CONNECTOR_FULL_TYPE.Void: ConnectorObject,
     }.get(obj_type, ConnectorObjectNumber) # Number is the default type in case of no match
-    return ctor(vi, bldata, idx, pos, obj_len, obj_flags, obj_type, po)
+    return ctor(vi, idx, obj_flags, obj_type, po)
 
 
-def newConnectorObjectMainTerminal(vi, bldata, idx, pos, obj_len, obj_flags, obj_type, po):
+def newConnectorObjectMainTerminal(vi, idx, obj_flags, obj_type, po):
     """ Creates and returns new terminal object of main type 'Terminal'
     """
     ctor = {
         CONNECTOR_FULL_TYPE.Terminal: ConnectorObjectTerminal,
         CONNECTOR_FULL_TYPE.TypeDef: ConnectorObjectTypeDef,
     }.get(obj_type, ConnectorObject) # Void is the default type in case of no match
-    return ctor(vi, bldata, idx, pos, obj_len, obj_flags, obj_type, po)
+    return ctor(vi, idx, obj_flags, obj_type, po)
 
 
-def newConnectorObject(vi, bldata, idx, pos, obj_len, obj_flags, obj_type, po):
+def newConnectorObject(vi, idx, obj_flags, obj_type, po):
     """ Creates and returns new terminal object with given parameters
     """
     obj_main_type = obj_type >> 4
@@ -808,5 +869,5 @@ def newConnectorObject(vi, bldata, idx, pos, obj_len, obj_flags, obj_type, po):
         CONNECTOR_MAIN_TYPE.Terminal: newConnectorObjectMainTerminal,
         CONNECTOR_MAIN_TYPE.Void: ConnectorObject, # No properties - basic type is enough
     }.get(obj_main_type, ConnectorObject) # Void is the default type in case of no match
-    return ctor(vi, bldata, idx, pos, obj_len, obj_flags, obj_type, po)
+    return ctor(vi, idx, obj_flags, obj_type, po)
 

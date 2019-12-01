@@ -112,6 +112,8 @@ class versData(RSRCStructure):
 class Section(object):
     def __init__(self, vi, po):
         """ Creates new Section object, represention one of possible contents of a Block.
+
+        Support of a section is mostly implemented in Block, so there isn't much here.
         """
         self.vi = vi
         self.po = po
@@ -152,7 +154,7 @@ class Block(object):
     def initWithRSRCEarly(self, header):
         """ Early part of block loading from RSRC file
 
-        At the pint it is executed, other sections are inaccessible.
+        At the point it is executed, other sections are inaccessible.
         """
         self.header = header
         self.ident = bytes(header.ident)
@@ -238,7 +240,7 @@ class Block(object):
     def initWithXMLEarly(self, block_elem):
         """ Early part of block loading from XML file
 
-        At the pint it is executed, other blocks and sections are inaccessible.
+        At the point it is executed, other blocks and sections are inaccessible.
         """
         self.ident = getRsrcTypeFromPrettyStr(block_elem.tag)
         self.header = BlockHeader(self.po)
@@ -452,7 +454,7 @@ class Block(object):
             section_num = self.section_loaded
 
         if self.sections[section_num].raw_data is None:
-            raise RuntimeError("Block {} section {} has no raw data generation method".format(self.ident,snum))
+            raise RuntimeError("Block {} section {} has no raw data generation method".format(self.ident,section_num))
         pass
 
     def updateData(self):
@@ -1956,25 +1958,34 @@ class VCTP(Block):
     """
     def __init__(self, *args):
         super().__init__(*args)
-        self.content = None
+        self.content = []
+        self.unklist = []
 
-    def parseConnector(self, bldata, pos):
+    def parseRSRCConnector(self, bldata, pos):
         bldata.seek(pos)
         obj_len = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         obj_flags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         obj_type = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        bldata.seek(pos)
-        obj = newConnectorObject(self.vi, bldata, len(self.content), pos, obj_len, obj_flags, obj_type, self.po)
+        obj = newConnectorObject(self.vi, len(self.content), obj_flags, obj_type, self.po)
         self.content.append(obj)
+        bldata.seek(pos)
+        obj.initWithRSRC(bldata, obj_len)
         return obj.index, obj_len
 
     def parseRSRCData(self, section_num, bldata):
-        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.content = []
+        # First we have count of connectors, and then the connectors themselves
+        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         pos = bldata.tell()
         for i in range(count):
-            obj_idx, obj_len = self.parseConnector(bldata, pos)
+            obj_idx, obj_len = self.parseRSRCConnector(bldata, pos)
             pos += obj_len
+        # After that,there is a list
+        self.unklist = []
+        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        for i in range(count):
+            val = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            self.unklist.append(val)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
@@ -1982,6 +1993,81 @@ class VCTP(Block):
 
     def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
         Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+
+    def initWithXMLSection(self, section, section_elem):
+        snum = section.start.section_idx
+        fmt = section_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            self.content = []
+            self.unklist = []
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.ident,snum))
+            for subelem in section_elem:
+                if (subelem.tag == "Connector"):
+                    obj_idx = int(subelem.get("Index"), 0)
+                    obj_type = valFromEnumOrIntString(CONNECTOR_FULL_TYPE, subelem.get("Type"))
+                    obj_flags = int(subelem.get("Flags"), 0)
+                    obj = newConnectorObject(self.vi, obj_idx, obj_flags, obj_type, self.po)
+                    # Grow the list if needed (the connectors may be in wrong order)
+                    if obj_idx >= len(self.content):
+                        self.content.extend([None] * (obj_idx - len(self.content) + 1))
+                    self.content[obj_idx] = obj
+                    # Set connector data based on XML properties
+                    obj.initWithXML(subelem)
+                elif (subelem.tag == "UnkList"):
+                    self.unklist += [int(itm,0) for itm in subelem.text.split()]
+                else:
+                    raise AttributeError("Section contains unexpected tag")
+
+            self.updateSectionData(section_num=snum,avoid_recompute=True)
+        else:
+            Block.initWithXMLSection(self, section, section_elem)
+        pass
+
+    def updateSectionData(self, section_num=None, avoid_recompute=False):
+        if section_num is None:
+            section_num = self.section_loaded
+
+        data_buf = int(len(self.content)).to_bytes(4, byteorder='big')
+        for i, connobj in enumerate(self.content):
+            bldata = connobj.getData()
+            data_buf += bldata.read()
+
+        data_buf += int(len(self.unklist)).to_bytes(2, byteorder='big')
+        for i, val in enumerate(self.unklist):
+            data_buf += int(val).to_bytes(2, byteorder='big')
+
+        if (len(data_buf) < 4 + 4*len(self.content)) and not avoid_recompute:
+            raise RuntimeError("Block {} section {} generated binary data of invalid size".format(self.ident,section_num))
+
+        self.setData(data_buf, section_num=section_num)
+
+    def exportXMLSection(self, section_elem, snum, section, fname_base):
+        self.parseData(section_num=snum)
+
+        section_elem.text = "\n"
+
+        for connobj in self.content:
+            subelem = ET.SubElement(section_elem,"Connector")
+            subelem.tail = "\n"
+
+            subelem.set("Index", str(connobj.index))
+            subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(CONNECTOR_FULL_TYPE, connobj.otype)))
+            subelem.set("Flags", "0x{:02X}".format(connobj.oflags))
+
+            connobj.exportXML(subelem, fname_base)
+
+        subelem = ET.SubElement(section_elem,"UnkList")
+        subelem.tail = "\n"
+
+        strlist = ""
+        for i, val in enumerate(self.unklist):
+            if i % 16 == 0: strlist += "\n"
+            strlist += " {:3d}".format(val)
+        subelem.text = strlist
+
+        section_elem.set("Format", "inline")
 
     def getContent(self):
         self.parseData()
