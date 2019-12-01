@@ -151,6 +151,19 @@ class CONNECTOR_REF_TYPE(enum.IntEnum):
     FIFORefnum =	0x21
 
 
+class CONNECTOR_FLAGS(enum.Enum):
+    """ Connector flags
+    """
+    Bit0 = 1 << 0	# unknown
+    Bit1 = 1 << 1	# unknown
+    Bit2 = 1 << 2	# unknown
+    Bit3 = 1 << 3	# unknown
+    Bit4 = 1 << 4	# unknown
+    Bit5 = 1 << 5	# unknown
+    HasLabel = 1 << 6	# After connector data, there is a string label stored
+    Bit7 = 1 << 7	# unknown
+
+
 class ConnectorObject:
 
     def __init__(self, vi, idx, obj_flags, obj_type, po):
@@ -755,7 +768,7 @@ class ConnectorObjectRef(ConnectorObject):
 
     def checkSanity(self):
         ret = True
-        if self.refType() in [ CONNECTOR_REF_TYPE.DataLogFile, \
+        if self.refType() in [ CONNECTOR_REF_TYPE.DataLogFile,
            CONNECTOR_REF_TYPE.Queue, CONNECTOR_REF_TYPE.UserEvent,
            CONNECTOR_REF_TYPE.ControlRefnum, CONNECTOR_REF_TYPE.NotifierRefnum,
            CONNECTOR_REF_TYPE.DataValueRef, ]:

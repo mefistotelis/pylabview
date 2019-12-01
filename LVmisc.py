@@ -206,10 +206,12 @@ def valFromEnumOrIntString(EnumClass, strval):
 def getFirstSetBitPos(n):
      return round(math.log2(n&-n)+1)
 
-def exportXMLBitfields(EnumClass, subelem, value):
+def exportXMLBitfields(EnumClass, subelem, value, skip_mask=0):
     """ Export bitfields of an enum stored in int to ElementTree properties
     """
     for mask in EnumClass:
+        if ((mask.value & skip_mask) != 0): # Skip fields given as mask
+            continue
         # Add only properties which have bit set or have non-default bit name
         addProperty = ((value & mask.value) != 0) or (not re.match("(^Bit[0-9]*$)", mask.name))
         if not addProperty:

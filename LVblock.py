@@ -964,8 +964,8 @@ class LVSR(Block):
             raise EOFError("Data block too short for parsing {} data.".format(self.ident))
 
         self.version = decodeVersion(data.version)
-        self.protected = ((data.execFlags & 0x2000) != 0)
-        self.execFlags = data.execFlags & (~0x2000)
+        self.protected = ((data.execFlags & VI_EXEC_FLAGS.LibProtected.value) != 0)
+        self.execFlags = data.execFlags & (~VI_EXEC_FLAGS.LibProtected.value)
         self.field08 = int(data.field08)
         self.field0C = int(data.field0C)
         self.flags10 = int(data.flags10)
@@ -1007,7 +1007,8 @@ class LVSR(Block):
             section_num = self.section_loaded
 
         data_buf = int(encodeVersion(self.version)).to_bytes(4, byteorder='big')
-        data_execFlags = (self.execFlags & (~0x2000)) | (0x2000 if self.protected else 0)
+        data_execFlags = (self.execFlags & (~VI_EXEC_FLAGS.LibProtected.value)) | \
+          (VI_EXEC_FLAGS.LibProtected.value if self.protected else 0)
         data_buf += int(data_execFlags).to_bytes(4, byteorder='big')
         data_buf += int(self.field08).to_bytes(4, byteorder='big')
         data_buf += int(self.field0C).to_bytes(4, byteorder='big')
@@ -1166,7 +1167,8 @@ class LVSR(Block):
         subelem.tail = "\n"
         subelem.set("State", "{:d}".format(self.execState))
         subelem.set("Priority", "{:d}".format(self.execPrio))
-        exportXMLBitfields(VI_EXEC_FLAGS, subelem, self.execFlags)
+        exportXMLBitfields(VI_EXEC_FLAGS, subelem, self.execFlags, \
+          skip_mask=VI_EXEC_FLAGS.LibProtected.value)
 
         subelem = ET.SubElement(section_elem,"ButtonsHidden")
         subelem.tail = "\n"

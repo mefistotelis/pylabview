@@ -141,7 +141,7 @@ class VI_EXEC_FLAGS(enum.Enum):
     ShowFPOnLoad = 1 << 10	# Indicates whether to show the front panel when the VI is loaded.
     Bit11 = 1 << 11	# unknown
     Bit12 = 1 << 12	# unknown
-    Bit13 = 1 << 13	# unknown
+    LibProtected = 1 << 13	# The library which this VI is part of is protected from changes
     RunOnOpen = 1 << 14	# Indicates whether to run the VI when it opens.
     ShowFPOnCall = 1 << 15	# Indicates whether to show the front panel when the VI is called.
     Bit16 = 1 << 16	# unknown
