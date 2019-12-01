@@ -2009,7 +2009,7 @@ class VCTP(Block):
                 if (subelem.tag == "Connector"):
                     obj_idx = int(subelem.get("Index"), 0)
                     obj_type = valFromEnumOrIntString(CONNECTOR_FULL_TYPE, subelem.get("Type"))
-                    obj_flags = int(subelem.get("Flags"), 0)
+                    obj_flags = importXMLBitfields(CONNECTOR_FLAGS, subelem)
                     obj = newConnectorObject(self.vi, obj_idx, obj_flags, obj_type, self.po)
                     # Grow the list if needed (the connectors may be in wrong order)
                     if obj_idx >= len(self.content):
@@ -2056,9 +2056,10 @@ class VCTP(Block):
 
             subelem.set("Index", str(connobj.index))
             subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(CONNECTOR_FULL_TYPE, connobj.otype)))
-            subelem.set("Flags", "0x{:02X}".format(connobj.oflags))
 
             connobj.exportXML(subelem, fname_base)
+
+            exportXMLBitfields(CONNECTOR_FLAGS, subelem, connobj.oflags)
 
         subelem = ET.SubElement(section_elem,"UnkList")
         subelem.tail = "\n"
