@@ -196,6 +196,7 @@ class ConnectorObject:
         At the point it is executed, other sections are inaccessible.
         """
         fmt = conn_elem.get("Format")
+        # TODO the inline block belongs to inheriting classes, not here - move
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             self.label = None
             label_text = conn_elem.get("Label")
@@ -206,6 +207,9 @@ class ConnectorObject:
             data_head += int(self.oflags).to_bytes(1, byteorder='big')
             data_head += int(self.otype).to_bytes(1, byteorder='big')
             self.setData(data_head)
+            # TODO replace with call below, after prepareRSRCData() is ready for each class
+            #self.updateData(avoid_recompute=True)
+
         elif fmt == "bin":# Format="bin" - the content is stored separately as raw binary data
             if (self.po.verbose > 2):
                 print("{:s}: For Connector {}, reading BIN file '{}'"\
@@ -284,6 +288,34 @@ class ConnectorObject:
             return True. Otherwise, False.
         """
         return self.raw_data_updated or self.parsed_data_updated
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        """ Returns part of the connector data re-created from properties.
+
+        To be overloaded in classes for specific connector types.
+        """
+        data_buf = self.raw_data[4:]
+        # TODO support labels after they can be read properly
+        #if self.label is not None:
+        #    label_len = len(self.label) + 1
+        #    data_buf = self.raw_data[:-label_len]
+        return data_buf
+
+    def updateData(self, avoid_recompute=False):
+
+        data_buf = prepareRSRCData(self, avoid_recompute=avoid_recompute)
+
+        data_tail = b''
+        # TODO support labels after they can be read properly
+        #if self.label is not None:
+        #    data_tail += int(len(self.label)).to_bytes(1, byteorder='big')
+        #    data_tail += self.label
+
+        data_head = int(len(data_buf)+len(data_tail)+4).to_bytes(2, byteorder='big')
+        data_head += int(self.oflags).to_bytes(1, byteorder='big')
+        data_head += int(self.otype).to_bytes(1, byteorder='big')
+
+        self.setData(data_head+data_buf)
 
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
