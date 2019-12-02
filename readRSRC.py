@@ -57,6 +57,9 @@ def main():
     parser.add_argument('-v', '--verbose', action='count', default=0,
             help="increases verbosity level; max level is set by -vvv")
 
+    parser.add_argument('-t', '--textcp', default="mac_roman", type=str,
+            help="Text encoding used while loading VI file (default is \"%(default)s\")")
+
     subparser = parser.add_mutually_exclusive_group(required=True)
 
     subparser.add_argument('-l', '--list', action='store_true',
@@ -102,7 +105,7 @@ def main():
         if (po.verbose > 0):
             print("{}: Starting file parse for RSRC listing".format(po.rsrc))
         with open(po.rsrc, "rb") as rsrc_fh:
-            vi = VI(po, rsrc_fh=rsrc_fh)
+            vi = VI(po, rsrc_fh=rsrc_fh, text_encoding=po.textcp)
 
         print("{}\t{}".format("ident","content"))
         for ident, block in vi.blocks.items():
@@ -121,7 +124,7 @@ def main():
         if (po.verbose > 0):
             print("{}: Starting file parse for RSRC dumping".format(po.rsrc))
         with open(po.rsrc, "rb") as rsrc_fh:
-            vi = VI(po, rsrc_fh=rsrc_fh)
+            vi = VI(po, rsrc_fh=rsrc_fh, text_encoding=po.textcp)
 
             root = vi.exportBinBlocksXMLTree()
 
@@ -143,7 +146,7 @@ def main():
         if (po.verbose > 0):
             print("{}: Starting file parse for RSRC extraction".format(po.rsrc))
         with open(po.rsrc, "rb") as rsrc_fh:
-            vi = VI(po, rsrc_fh=rsrc_fh)
+            vi = VI(po, rsrc_fh=rsrc_fh, text_encoding=po.textcp)
 
             root = vi.exportXMLTree()
 
@@ -161,7 +164,7 @@ def main():
         if (po.verbose > 0):
             print("{}: Starting file parse for RSRC creation".format(po.rsrc))
         tree = ET.parse(po.xml)
-        vi = VI(po, xml_root=tree.getroot())
+        vi = VI(po, xml_root=tree.getroot(), text_encoding=po.textcp)
 
         if len(po.rsrc) == 0:
             po.rsrc = po.filebase + "." + getFileExtByType(vi.ftype)
@@ -177,7 +180,7 @@ def main():
         if (po.verbose > 0):
             print("{}: Starting file parse for password print".format(po.rsrc))
         with open(po.rsrc, "rb") as rsrc_fh:
-            vi = VI(po, rsrc_fh=rsrc_fh)
+            vi = VI(po, rsrc_fh=rsrc_fh, text_encoding=po.textcp)
 
         BDPW = vi.get('BDPW')
         if BDPW is not None:

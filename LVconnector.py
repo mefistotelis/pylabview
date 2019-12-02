@@ -201,7 +201,7 @@ class ConnectorObject:
             self.label = None
             label_text = conn_elem.get("Label")
             if label_text is not None:
-                self.label = label_text.encode("utf-8")
+                self.label = label_text.encode(self.vi.textEncoding)
 
             data_head = int(4).to_bytes(2, byteorder='big')
             data_head += int(self.oflags).to_bytes(1, byteorder='big')
@@ -239,6 +239,11 @@ class ConnectorObject:
 
         Can use other connectors and other blocks.
         """
+        # Fields oflags,otype are set at constructor, but no harm in setting them again
+        obj_len = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        self.oflags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        self.otype = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+
         if (self.po.verbose > 2):
             print("{:s}: Connector {:d} type 0x{:02x} data format isn't known; leaving raw only"\
               .format(self.vi.src_fname,self.index,self.otype))
@@ -252,10 +257,24 @@ class ConnectorObject:
         The label behaves in the same way for every connector type, so this function
         is really a type-independent part of parseRSRCData().
         """
-        # TODO read the label, or try to detect it by moving from end of the string
-        # TODO use the 'detection from end' if checking data size fails
         if (self.oflags & CONNECTOR_FLAGS.HasLabel.value) != 0:
-            self.label = b""
+            min_pos = bldata.tell() # We receive the file with pos set at minimal - the label can't start before it
+            # The data should be smaller than 256 bytes; but it is still wise to make some restriction on it
+            whole_data = bldata.read(1024*1024)
+            # Strip padding at the end (would be better to limit padding to up to 3 chars.. but not a big deal)
+            whole_data = whole_data.rstrip(b'\0')
+            # Find a proper position to read the label; try the current position first (if the data after current is not beyond 255)
+            for i in range(max(len(whole_data)-256,0), len(whole_data)):
+                label_len = int.from_bytes(whole_data[i:i+1], byteorder='big', signed=False)
+                if (len(whole_data)-i == label_len+1) and all((bt in b'\r\n') or (bt >= 32) for bt in whole_data[i+1:]):
+                    self.label = whole_data[i+1:]
+                    break
+            if self.label is None:
+                if (self.po.verbose > 0):
+                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} label text not found"\
+                      .format(self.vi.src_fname,self.index,self.otype))
+                self.label = b""
+
         self.raw_data_updated = False
 
     def parseXMLData(self):

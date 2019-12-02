@@ -110,7 +110,7 @@ def eprint(*args, **kwargs):
 def getPrettyStrFromRsrcType(rsrc_ident):
     """ Gives alphanumeric string representation of a 4-byte identifier, like block ident
     """
-    pretty_ident = bytes(rsrc_ident).decode(encoding='utf-8')
+    pretty_ident = bytes(rsrc_ident).decode(encoding='ascii')
     pretty_ident = re.sub('#', 'sh', pretty_ident)
     pretty_ident = re.sub('[^a-zA-Z0-9_-]+', '', pretty_ident)
     if len(pretty_ident) < 3:
@@ -121,7 +121,7 @@ def getPrettyStrFromRsrcType(rsrc_ident):
 def getRsrcTypeFromPrettyStr(pretty_ident):
     """ Gives 4-byte identifier from alphanumeric string representation
     """
-    rsrc_ident = str(pretty_ident).encode(encoding='utf-8')
+    rsrc_ident = str(pretty_ident).encode(encoding='ascii')
     if len(rsrc_ident) > 4:
         rsrc_ident = re.sub(b'sh', b'#', rsrc_ident)
     if len(rsrc_ident) > 4:

@@ -196,13 +196,14 @@ def getExistingRSRCFileWithBase(filebase):
     return ""
 
 class VI():
-    def __init__(self, po, rsrc_fh=None, xml_root=None):
+    def __init__(self, po, rsrc_fh=None, xml_root=None, text_encoding='utf-8'):
         self.rsrc_fh = None
         self.src_fname = ""
         self.xml_root = None
         self.po = po
         self.rsrc_headers = []
         self.ftype = FILE_FMT_TYPE.NONE
+        self.textEncoding = text_encoding
 
         if rsrc_fh is not None:
             self.dataSource = "rsrc"
@@ -507,7 +508,7 @@ class VI():
         elem.text = "\n"
         elem.tail = "\n"
         rsrc_type_id = getRsrcTypeForFileType(self.ftype)
-        elem.set("Type", rsrc_type_id.decode("utf-8"))
+        elem.set("Type", rsrc_type_id.decode('ascii'))
 
         if self.ftype == FILE_FMT_TYPE.LLB:
             dataset_int1 = self.binflsthead.dataset_int1

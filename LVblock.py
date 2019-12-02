@@ -261,7 +261,7 @@ class Block(object):
                 section.start.int5 = int(block_int5, 0)
 
             if name_text is not None:
-                section.name_text = name_text.encode("utf-8")
+                section.name_text = name_text.encode(self.vi.textEncoding)
             if section.start.section_idx in self.sections:
                 raise IOError("BlockSectionStart of given section_idx exists twice.")
             self.sections[section.start.section_idx] = section
@@ -612,7 +612,7 @@ class Block(object):
                 block_int5 = None
 
             if section.name_text is not None:
-                section_elem.set("Name", section.name_text.decode("utf-8"))
+                section_elem.set("Name", section.name_text.decode(self.vi.textEncoding))
             if block_int5 is not None:
                 section_elem.set("Int5", "0x{:08X}".format(block_int5))
 
@@ -785,12 +785,9 @@ class SingleStringBlock(Block):
         string_len = int.from_bytes(bldata.read(self.size_len), byteorder='big', signed=False)
         content = bldata.read(string_len)
         # Need to divide decoded string, as single \n or \r may be there only due to the endoding
-        # Also, ignore encoding errors - some strings are encoded with exotic code pages instead of UTF.
-        # Maybe they just use native code page of the operating system (which in case of Windows, varies).
-        # First, replace some chars from popular code pages so that we have lower chance of affecting length.
-        content_fix = re.sub(b'([a-z])\xab([st])', b'\g<1>\'\g<2>', content) # Special apostrophe
-        content_fix = re.sub(b'([a-z ])\x97([a-z ])', b'\g<1>-\g<2>', content_fix) # Special minus
-        content_str = content_fix.decode('utf-8', errors="ignore")
+        # Also, ignore encoding errors - some strings are encoded with exotic code pages, as they
+        # just use native code page of the operating system (which in case of Windows, varies).
+        content_str = content.decode(self.vi.textEncoding, errors="ignore")
         # Somehow, these strings can contain various EOLN chars, even if \r\n is the most often used one
         # To avoid creating different files from XML, we have to detect the proper EOLN to use
         if content_str.count('\r\n') > content_str.count('\n\r'):
@@ -805,14 +802,14 @@ class SingleStringBlock(Block):
             # Set the most often used one as default
             self.eoln = '\r\n'
 
-        self.content = [s.encode("utf-8") for s in content_str.split(self.eoln)]
+        self.content = [s.encode(self.vi.textEncoding) for s in content_str.split(self.eoln)]
 
     def updateSectionData(self, section_num=None, avoid_recompute=False):
         if section_num is None:
             section_num = self.section_loaded
 
         # There is no need to decode while joining
-        content_bytes = self.eoln.encode("utf-8").join(self.content)
+        content_bytes = self.eoln.encode(self.vi.textEncoding).join(self.content)
         data_buf = int(len(content_bytes)).to_bytes(self.size_len, byteorder='big')
         data_buf += content_bytes
 
@@ -843,7 +840,7 @@ class SingleStringBlock(Block):
             for i, subelem in enumerate(section_elem):
                 if (subelem.tag == "String"):
                     if subelem.text is not None:
-                        self.content.append(subelem.text.encode("utf-8"))
+                        self.content.append(subelem.text.encode(self.vi.textEncoding))
                     else:
                         self.content.append(b'')
                 else:
@@ -867,7 +864,7 @@ class SingleStringBlock(Block):
             subelem = ET.SubElement(section_elem,"String")
             subelem.tail = "\n"
 
-            pretty_string = line.decode("utf-8")
+            pretty_string = line.decode(self.vi.textEncoding)
             subelem.text = pretty_string
 
         section_elem.set("Format", "inline")
@@ -1081,7 +1078,7 @@ class LVSR(Block):
                     password_text = subelem.get("Password")
                     password_hash = subelem.get("PasswordHash")
                     if password_text is not None:
-                        password_bin = password_text.encode('utf-8')
+                        password_bin = password_text.encode(self.vi.textEncoding)
                         self.libpass_text = password_text
                         self.libpass_md5 = md5(password_bin).digest()
                     else:
@@ -1291,8 +1288,8 @@ class vers(Block):
                 ver['stage_text'] = subelem.get("Stage")
                 ver['build'] = int(subelem.get("Build"), 0)
                 ver['flags'] = int(subelem.get("Flags"), 0)
-                self.version_text = subelem.get("Text").encode("utf-8")
-                self.version_info = subelem.get("Info").encode("utf-8")
+                self.version_text = subelem.get("Text").encode(self.vi.textEncoding)
+                self.version_info = subelem.get("Info").encode(self.vi.textEncoding)
                 self.version = ver
 
             self.updateSectionData(section_num=snum,avoid_recompute=True)
@@ -1313,8 +1310,8 @@ class vers(Block):
         subelem.set("Stage", "{:s}".format(self.version['stage_text']))
         subelem.set("Build", "{:d}".format(self.version['build']))
         subelem.set("Flags", "0x{:X}".format(self.version['flags']))
-        subelem.set("Text", "{:s}".format(self.version_text.decode("utf-8")))
-        subelem.set("Info", "{:s}".format(self.version_info.decode("utf-8")))
+        subelem.set("Text", "{:s}".format(self.version_text.decode(self.vi.textEncoding)))
+        subelem.set("Info", "{:s}".format(self.version_info.decode(self.vi.textEncoding)))
 
         section_elem.set("Format", "inline")
 
@@ -1671,7 +1668,7 @@ class BDPW(Block):
         if password_text is not None:
             if store:
                 self.password = password_text
-            newPassBin = password_text.encode('utf-8')
+            newPassBin = password_text.encode(self.vi.textEncoding)
             password_md5 = md5(newPassBin).digest()
         else:
             if store:
@@ -1690,7 +1687,7 @@ class BDPW(Block):
             password_md5 = self.password_md5
         found_pass = None
         for test_pass in ['', 'qwerty', 'password', '111111', '12345678', 'abc123', '1234567', 'password1', '12345', '123']:
-            test_pass_bin = test_pass.encode('utf-8')
+            test_pass_bin = test_pass.encode(self.vi.textEncoding)
             test_md5 = md5(test_pass_bin).digest()
             if password_md5 == test_md5:
                 found_pass = test_pass
@@ -1815,7 +1812,7 @@ class LIBN(Block):
                     raise AttributeError("Section contains something else than 'Library'")
 
                 name_text = subelem.get("Name")
-                self.content.append(name_text.encode("utf-8"))
+                self.content.append(name_text.encode(self.vi.textEncoding))
 
             self.updateSectionData(section_num=snum,avoid_recompute=True)
         else:
@@ -1829,7 +1826,7 @@ class LIBN(Block):
         for name in self.content:
             subelem = ET.SubElement(section_elem,"Library")
             subelem.tail = "\n"
-            subelem.set("Name", name.decode("utf-8"))
+            subelem.set("Name", name.decode(self.vi.textEncoding))
 
         section_elem.set("Format", "inline")
 
@@ -2073,7 +2070,7 @@ class VCTP(Block):
                 exportXMLBitfields(CONNECTOR_FLAGS, subelem, connobj.oflags, \
                   skip_mask=CONNECTOR_FLAGS.HasLabel.value)
                 if connobj.label is not None:
-                    label_text = connobj.label.decode("utf-8")
+                    label_text = connobj.label.decode(self.vi.textEncoding)
                     subelem.set("Label", "{:s}".format(label_text))
             pass
 

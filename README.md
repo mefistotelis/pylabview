@@ -72,6 +72,36 @@ In order to reverse an EXE back to LabView project:
 
 14. Build the project
 
+# Text Code Pages
+
+The RSRC files use various code pages, depending on OS on which the file was created.
+On reading RSRC file, you can provide the code page as a parameter.
+
+Example code pages you could use:
+
+| TextEncoding | Related Operating System |
+| ------------ | ------------------------ |
+| mac_cyrillic | MacOS Bulgarian, Byelorussian, Macedonian, Russian, Serbian |
+| mac_greek    | MacOS Greek |
+| mac_iceland  | MacOS Icelandic |
+| mac_latin2   | MacOS Central and Eastern Europe |
+| mac_roman    | MacOS Western Europe (and US) |
+| mac_turkish  | MacOS Turkish |
+| cp1250       | Windows Central and Eastern Europe |
+| cp1251       | Windows Bulgarian, Byelorussian, Macedonian, Russian, Serbian |
+| cp1252       | Windows Western Europe (and US) |
+| cp1253       | Windows Greek |
+| cp1254       | Windows Turkish |
+| cp1255       | Windows Hebrew |
+| cp1256       | Windows Arabic |
+| cp1257       | Windows Baltic languages |
+| cp1258       | Windows Vietnamese |
+| shift_jis    | Windows Japanese |
+| gbk          | Windows Chinese (simplified) |
+| cp949        | Windows Korean Hangul |
+| cp950        | Windows Chinese (traditional) |
+| utf-8        | Universal encoding, used by everyone except NI for decades |
+
 # File format
 
 To learn abot file format, check out wiki of this project.
