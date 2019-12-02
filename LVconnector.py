@@ -175,6 +175,7 @@ class ConnectorObject:
         self.oflags = obj_flags
         self.otype = obj_type
         self.clients = []
+        self.label = None
         self.size = None
         self.raw_data = None
         self.raw_data_updated = False
@@ -196,6 +197,11 @@ class ConnectorObject:
         """
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            self.label = None
+            label_text = conn_elem.get("Label")
+            if label_text is not None:
+                self.label = label_text.encode("utf-8")
+
             data_head = int(4).to_bytes(2, byteorder='big')
             data_head += int(self.oflags).to_bytes(1, byteorder='big')
             data_head += int(self.otype).to_bytes(1, byteorder='big')
@@ -204,6 +210,11 @@ class ConnectorObject:
             if (self.po.verbose > 2):
                 print("{:s}: For Connector {}, reading BIN file '{}'"\
                   .format(self.vi.src_fname,self.index,conn_elem.get("File")))
+            # If there is label in binary data, set our label property to non-None value
+            self.label = None
+            if (self.oflags & CONNECTOR_FLAGS.HasLabel.value) != 0:
+                self.label = b""
+
             bin_path = os.path.dirname(self.vi.src_fname)
             if len(bin_path) > 0:
                 bin_fname = bin_path + '/' + conn_elem.get("File")
@@ -227,6 +238,20 @@ class ConnectorObject:
         if (self.po.verbose > 2):
             print("{:s}: Connector {:d} type 0x{:02x} data format isn't known; leaving raw only"\
               .format(self.vi.src_fname,self.index,self.otype))
+
+        self.parseRSRCDataFinish(bldata)
+
+    def parseRSRCDataFinish(self, bldata):
+        """ Does generic part of RSRC connector parsing and marks the parse as finished
+
+        Really, it mostly implements setting connector label from RSRC file.
+        The label behaves in the same way for every connector type, so this function
+        is really a type-independent part of parseRSRCData().
+        """
+        # TODO read the label, or try to detect it by moving from end of the string
+        # TODO use the 'detection from end' if checking data size fails
+        if (self.oflags & CONNECTOR_FLAGS.HasLabel.value) != 0:
+            self.label = b""
         self.raw_data_updated = False
 
     def parseXMLData(self):
@@ -389,7 +414,7 @@ class ConnectorObjectNumber(ConnectorObject):
     def parseRSRCData(self, bldata):
         bldata.read(4)
         self.prop1 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        self.raw_data_updated = False
+        self.parseRSRCDataFinish(bldata)
 
     def needParseData(self):
         return (self.prop1 is None)
@@ -417,7 +442,7 @@ class ConnectorObjectNumberPtr(ConnectorObject):
     def parseRSRCData(self, bldata):
         bldata.read(4)
         # No more known data inside
-        self.raw_data_updated = False
+        self.parseRSRCDataFinish(bldata)
 
     def needParseData(self):
         return True
@@ -442,7 +467,7 @@ class ConnectorObjectBlob(ConnectorObject):
         bldata.read(4)
         self.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         # No more known data inside
-        self.raw_data_updated = False
+        self.parseRSRCDataFinish(bldata)
 
     def needParseData(self):
         return (self.prop1 is None)
@@ -488,7 +513,7 @@ class ConnectorObjectTerminal(ConnectorObject):
             for i in range(count):
                 cli_flags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
                 self.clients[i].flags = cli_flags
-        self.raw_data_updated = False
+        self.parseRSRCDataFinish(bldata)
 
     def needParseData(self):
         return (len(self.clients) == 0)
@@ -553,7 +578,7 @@ class ConnectorObjectTypeDef(ConnectorObject):
         self.clients[0].index = cli.index # Bested clients have index -1
         self.clients[0].flags = cli_flags
         self.clients[0].nested = cli
-        self.raw_data_updated = False
+        self.parseRSRCDataFinish(bldata)
 
     def needParseData(self):
         return (self.flag1 is None)
@@ -586,7 +611,7 @@ class ConnectorObjectArray(ConnectorObject):
         cli_flags = 0
         self.clients[0].index = cli_idx
         self.clients[0].flags = cli_flags
-        self.raw_data_updated = False
+        self.parseRSRCDataFinish(bldata)
 
     def needParseData(self):
         return (len(self.clients) == 0)
@@ -643,7 +668,7 @@ class ConnectorObjectUnit(ConnectorObject):
         else:
             self.padding1 = None
         self.prop1 = int.from_bytes(bldata.read(1), byteorder='big', signed=False) # Unknown
-        self.raw_data_updated = False
+        self.parseRSRCDataFinish(bldata)
 
     def needParseData(self):
         return (self.prop1 is None)
@@ -695,7 +720,7 @@ class ConnectorObjectRef(ConnectorObject):
         }.get(self.refType(), None)
         if parseRefType is not None:
             parseRefType(self, bldata)
-        self.raw_data_updated = False
+        self.parseRSRCDataFinish(bldata)
 
     def parseRefQueue(self, bldata):
         count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
@@ -821,7 +846,7 @@ class ConnectorObjectCluster(ConnectorObject):
             if (self.po.verbose > 2):
                 print("{:s}: Connector {:d} cluster type 0x{:02x} data format isn't known; leaving raw only"\
                   .format(self.vi.src_fname,self.index,self.otype))
-        self.raw_data_updated = False
+        self.parseRSRCDataFinish(bldata)
 
     def needParseData(self):
         if self.fullType() == CONNECTOR_FULL_TYPE.Cluster:
