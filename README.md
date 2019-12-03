@@ -42,35 +42,71 @@ The missing elements can be re-created, but currently there is no tool to do so.
 
 Still, even without the full VI reversed so source form, it is possible to extract the EXE back to a project, which then can be re-built with the same version of LabView which was originally used. It is then possible to start replacing single VIs with a newly created ones, while retaining useability of the whole project.
 
-In order to reverse an EXE back to LabView project:
+In order to reverse an executable back to LabView project:
 
-1. Extract EXE, decrypt ZIP inside
+### 1. Extract RSRC file from the executable
 
-2. Create a folder, create new LabView project there
+Use any tool you see fit. In case of Windows `PE` executable, you may use [Resource Hacker](https://en.wikipedia.org/wiki/Resource_Hacker). You may also just find `RSRC` in file content and copy the data starting from that position, using `dd`. Any method should work, as long as you receive the file with `RSRC` header.
 
-3. create sub-folder within project folder, ie. "app" or "lv" or however you want to call the labview app part; copy the files extracted from ZIP there
+### 2. Decrypt the ZIP from within RSRC file
 
-4. Copy any config and data files (and folders) distributed with original binary to the project folder
+The `RSRC` file will contain weakly encrypted ZIP. Extract it with the tools from this repo.
 
-5. Copy options from BinryName.ini into your BinaryName.lvproj (created in step 2)
+### 3. Get proper LabVIEW version
 
-6. Open the project in LabView
+Look inside VI files from the ZIP to figure out which version of LabVIEW was used to create them. You can look at the versions by extraction one of the vIs to XML form. Use the exact same version for further steps.
 
-7. Add each folder from your labview app part to the project; use "My Computer" -> "Add" -> "Folder (Auto-populating)"
+### 4. Make new LabView project
 
-8. Make new build target; use "Build Specifications" -> "New" -> "Application"
+Create a folder. Open LabVIEW. Create new LabView project in the new folder.
 
-9. Set proper "Name: and "Target filename" in build target "Information" tab
+### 5. Copy VIs to the project folder
 
-10. Find the starting form of the original app and add it as "Startup VIs" in build target "Source files" tab
+Create sub-folder within the project folder, ie. `app` or `lv` or however you want to call the labview app part; copy the files extracted from ZIP there.
 
-11. You shouldn't have to put anything in "Always included" list in build target "Source files" tab; but if you want - you can now
+### 6. Copy non-VI dependencies
 
-12. Disable all the "Remove ..." and "Disconnect ..." options in build target "Additional Exclusions" tab
+Copy any config and data files (and folders) distributed with original binary (either within the ZIP, or just placed in the same folder where the EXE you've extracted) to the project folder.
 
-13. Fix any "Missing items" in the project, by placing files in correct places or modifying *.lvlib files which point to locations of additional files (VIs with both Front Panel and Block Diagram removed will require manual fixing of the paths inside, as LabVIEW will refuse to load them, and therefore to re-save them with different paths)
+### 7. Copy LV Runtime Engine settings
 
-14. Build the project
+Copy options from BinryName.ini into your BinaryName.lvproj (created in step 4).
+
+### 8. Open the project in LabView
+
+Just run LabVIEW and open your project. Noe that LabVIEW still considers your project to be empty.
+
+### 9. Add VIs to the LV project
+
+Add each folder from your labview app part to the project. Use "My Computer" -> "Add" -> "Folder (Auto-populating)".
+
+### 10. Create build target in the LV project
+
+To make the new build target, use "Build Specifications" -> "New" -> "Application".
+
+### 11. Set build target settings
+
+Set proper "Name: and "Target filename" in build target "Information" tab.
+
+### 12. Set build target Startup VI
+
+Look at the starting form from original app. Find the starting panel in your VIs, and add it as "Startup VIs" in build target "Source files" tab.
+
+You shouldn't have to put anything in "Always included" list in build target "Source files" tab. Each VI stores its dependencies, so LV should be able to figure out which files to include in your build. But if you want - you can add some files there now.
+
+### 13. Disable removing things from VIs
+
+Disable all the "Remove ..." and "Disconnect ..." options in build target "Additional Exclusions" tab.
+
+### 14. Fix "Missing items"
+
+LabVIEW will likely inform you of "Missing items" in the project. You can fix these by placing files in correct places or modifying file paths within the files which reference them. Usually, LabVIEW will ask you dozens of questions in regard to which file you want to use; but after that, most "Missing items" will be fixed. Probably not all though - VIs with both Front Panel and Block Diagram removed will require manual fixing of the paths inside, as LabVIEW will refuse to load them, and therefore will not re-save them with different paths.
+
+### 15. Build the project
+
+If you encounter further errors, fix them. If you've solved the "Missing items", everything else is simple and you shouldn't have much problems.
+
+Now you have a LabVIEW project which allows you to re-build the EXE.
 
 # Text Code Pages
 
