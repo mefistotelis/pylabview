@@ -346,7 +346,7 @@ class ConnectorObject:
             part_fname = "{:s}_{:04d}.{:s}".format(fname_base,self.index,"bin")
             if (self.po.verbose > 2):
                 print("{:s}: For Connector {}, writing BIN file '{}'"\
-                  .format(self.vi.src_fname,self.index,fname_base))
+                  .format(self.vi.src_fname,self.index,os.path.basename(part_fname)))
             bldata = self.getData()
             bldata.read(4) # The data includes 4-byte header
             with open(part_fname, "wb") as part_fd:
@@ -652,7 +652,9 @@ class ConnectorObjectArray(ConnectorObject):
                     self.dimensions[i].flags = flags >> 24
                     self.dimensions[i].fixedSize = flags & 0x00FFFFFF
                 else:
-                    raise ValueError("Unexpected flags field in connector {:d}; fixed size flag not set in 0x{:08x}.".format(self.index,flags))
+                    print("Warning: Unexpected flags field in connector {:d}; fixed size flag not set in 0x{:08x}.".format(self.index,flags))
+                    self.dimensions[i].flags = flags >> 24
+                    self.dimensions[i].fixedSize = flags & 0x00FFFFFF
             else:
                 # TODO No idea what to do here... it does happen
                 self.dimensions[i].flags = flags >> 24
