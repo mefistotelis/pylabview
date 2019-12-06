@@ -175,37 +175,30 @@ def main():
     elif po.password is not None:
 
         if len(po.rsrc) == 0:
-            raise FileNotFoundError("Only RSRC file listing is currently supported.")
+            raise FileNotFoundError("Only RSRC file password change is currently supported.")
 
         if (po.verbose > 0):
-            print("{}: Starting file parse for password print".format(po.rsrc))
+            print("{}: Starting file parse for password change".format(po.rsrc))
         with open(po.rsrc, "rb") as rsrc_fh:
             vi = VI(po, rsrc_fh=rsrc_fh, text_encoding=po.textcp)
 
-        BDPW = vi.get('BDPW')
+        BDPW = vi.get_or_raise('BDPW')
         if BDPW is not None:
-            print("{:s}: Stored password data".format(po.rsrc))
+            print("{:s}: Previous password data".format(po.rsrc))
             print("  password md5: {:s}".format(BDPW.password_md5.hex()))
             print("  hash_1      : {:s}".format(BDPW.hash_1.hex()))
             print("  hash_2      : {:s}".format(BDPW.hash_2.hex()))
             password_md5 = BDPW.password_md5
-        else:
-            print("{:s}: password block '{:s}' not found".format(po.rsrc,'BDPW'))
-            password_md5 = None
-
-        if password_md5 is not None:
-            BDPW = vi.setNewPassword(password_md5=password_md5)
-            print("{:s}: How re-computed hashes look like".format(po.rsrc))
-            print("  password md5: {:s}".format(BDPW.password_md5.hex()))
-            print("  hash_1      : {:s}".format(BDPW.hash_1.hex()))
-            print("  hash_2      : {:s}".format(BDPW.hash_2.hex()))
 
         BDPW = vi.setNewPassword(password_text=po.password)
         if BDPW is not None:
-            print("{:s}: How given password would look like".format(po.rsrc))
+            print("{:s}: New password data".format(po.rsrc))
             print("  password md5: {:s}".format(BDPW.password_md5.hex()))
             print("  hash_1      : {:s}".format(BDPW.hash_1.hex()))
             print("  hash_2      : {:s}".format(BDPW.hash_2.hex()))
+
+        with open(po.rsrc, "wb") as rsrc_fh:
+            vi.saveRSRC(rsrc_fh)
 
     else:
 
