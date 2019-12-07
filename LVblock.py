@@ -1606,7 +1606,7 @@ class BDPW(Block):
             # Figure out the salt
             salt_iface_idx = None
             VCTP = self.vi.get_or_raise('VCTP')
-            interfaceEnumerate = self.vi.connectorEnumerate(fullType=CONNECTOR_FULL_TYPE.Terminal)
+            interfaceEnumerate = self.vi.connectorEnumerate(fullType=CONNECTOR_FULL_TYPE.Function)
             # Connectors count if one of the interfaces is the source of salt; usually it's the last interface, so check in reverse
             for i, iface_idx, iface_obj in reversed(interfaceEnumerate):
                 term_connectors = VCTP.getClientConnectorsByType(iface_obj)

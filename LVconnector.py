@@ -51,74 +51,73 @@ class CONNECTOR_MAIN_TYPE(enum.IntEnum):
 
 
 class CONNECTOR_FULL_TYPE(enum.IntEnum):
-    Void =		0x00
+    """ known types of connectors
 
-    NumberI8 =	0x01
-    NumberI16 =	0x02
-    NumberI32 =	0x03
-    NumberI64 =	0x04
-    NumberU8 =	0x05
-    NumberU16 =	0x06
-    NumberU32 =	0x07
-    NumberU64 =	0x08
-    NumberSGL =	0x09
-    NumberDBL =	0x0A
-    NumberXTP =	0x0B
-    NumberCSG =	0x0C
-    NumberCDB =	0x0D
-    NumberCXT =	0x0E
+    All types from LabVIEW 2014 are there.
+    """
+    Void =			0x00
 
-    UnitI8 =	0x11
-    UnitI16 =	0x12
-    UnitI32 =	0x13
-    UnitI64 =	0x14
-    UnitU8 =	0x15
-    UnitU16 =	0x16
-    UnitU32 =	0x17
-    UnitU64 =	0x18
-    UnitSGL =	0x19
-    UnitDBL =	0x1A
-    UnitXTP =	0x1B
-    UnitCSG =	0x1C
-    UnitCDB =	0x1D
-    UnitCXT =	0x1E
+    NumInt8 =		0x01 # Integer with signed 1 byte data
+    NumInt16 =		0x02 # Integer with signed 2 byte data
+    NumInt32 =		0x03 # Integer with signed 4 byte data
+    NumInt64 =		0x04 # Integer with signed 8 byte data
+    NumUInt8 =		0x05 # Integer with unsigned 1 byte data
+    NumUInt16 =		0x06 # Integer with unsigned 2 byte data
+    NumUInt32 =		0x07 # Integer with unsigned 4 byte data
+    NumUInt64 =		0x08 # Integer with unsigned 8 byte data
+    NumFloat32 =	0x09 # floating point with single precision 4 byte data
+    NumFloat64 =	0x0A # floating point with double precision 8 byte data
+    NumFloatExt =	0x0B # floating point with extended data
+    NumComplex64 =	0x0C # complex floating point with 8 byte data
+    NumComplex128 =	0x0D # complex floating point with 16 byte data
+    NumComplexExt =	0x0E # complex floating point with extended data
 
-    Bool =		0x21
+    UnitUInt8 =		0x15
+    UnitUInt16 =	0x16
+    UnitUInt32 =	0x17
+    UnitFloat32 =	0x19
+    UnitFloat64 =	0x1A
+    UnitFloatExt =	0x1B
+    UnitComplex64 =	0x1C
+    UnitComplex128 = 0x1D
+    UnitComplexExt = 0x1E
+
+    BooleanU16 =	0x20
+    Boolean =		0x21
 
     String =		0x30
     Path =			0x32
     Picture =		0x33
     CString =		0x34
-    PascalString =	0x35
-    DAQChannel =	0x37
+    PasStrung =		0x35
+    Tag =			0x37
+    SubString =		0x3F
 
-    Array =				0x40
+    Array =			0x40
+    ArrayDataPtr =	0x41
+    SubArray =		0x4F
 
-    Cluster =			0x50
-    ClusterVariant =	0x53
-    ClusterData =		0x54
-    ClusterNumFixPoint = 0x5F
+    Cluster =		0x50
+    LVVariant =		0x53
+    MeasureData =	0x54
+    ComplexFixedPt = 0x5E
+    FixedPoint =	0x5F
 
-    Ref =				0x70
+    Block =			0x60
+    TypeBlock =		0x61
+    VoidBlock =		0x62
+    AlignedBlock =	0x63
+    RepeatedBlock =	0x64
+    AlignmntMarker = 0x65
 
-    PointerNumberXX =	0x80
-    PointerNumberI8 =	0x81
-    PointerNumberI16 =	0x82
-    PointerNumberI32 =	0x83
-    PointerNumberI64 =	0x84
-    PointerNumberU8 =	0x85
-    PointerNumberU16 =	0x86
-    PointerNumberU32 =	0x87
-    PointerNumberU64 =	0x88
-    PointerNumberSGL =	0x89
-    PointerNumberDBL =	0x8A
-    PointerNumberXTP =	0x8B
-    PointerNumberCSG =	0x8C
-    PointerNumberCDB =	0x8D
-    PointerNumberCXT =	0x8E
+    Refnum =		0x70
 
-    Terminal =	0xF0
-    TypeDef =	0xF1
+    Ptr =			0x80
+    PtrTo =			0x83
+
+    Function =		0xF0
+    TypeDef =		0xF1
+    PolyVI =		0xF2
 
     # Not official
     Unknown = -1
@@ -388,14 +387,14 @@ class ConnectorObject:
         return ( \
           (self.mainType() == CONNECTOR_MAIN_TYPE.Number) or \
           (self.mainType() == CONNECTOR_MAIN_TYPE.Unit) or \
-          (self.fullType() == CONNECTOR_FULL_TYPE.ClusterNumFixPoint));
+          (self.fullType() == CONNECTOR_FULL_TYPE.FixedPoint));
 
     def isString(self):
         return ( \
           (self.fullType() == CONNECTOR_FULL_TYPE.String));
         # looks like these are not counted as strings?
         #  (self.fullType() == CONNECTOR_FULL_TYPE.CString) or \
-        #  (self.fullType() == CONNECTOR_FULL_TYPE.PascalString));
+        #  (self.fullType() == CONNECTOR_FULL_TYPE.PasString));
 
     def isPath(self):
         return ( \
@@ -539,7 +538,7 @@ class ConnectorObjectBlob(ConnectorObject):
         return ret
 
 
-class ConnectorObjectTerminal(ConnectorObject):
+class ConnectorObjectFunction(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
 
@@ -698,7 +697,7 @@ class ConnectorObjectUnit(ConnectorObject):
         count = int.from_bytes(bldata.read(2), byteorder='big', signed=False) # unit/item count
 
         isTextEnum = False
-        if self.fullType() in [ CONNECTOR_FULL_TYPE.UnitU8, CONNECTOR_FULL_TYPE.UnitU16, CONNECTOR_FULL_TYPE.UnitU32 ]:
+        if self.fullType() in [ CONNECTOR_FULL_TYPE.NumUInt8, CONNECTOR_FULL_TYPE.NumUInt16, CONNECTOR_FULL_TYPE.NumUInt32 ]:
             isTextEnum = True
 
         # Create _separate_ empty namespace for each connector
@@ -892,7 +891,7 @@ class ConnectorObjectCluster(ConnectorObject):
                 self.clients[i].index = cli_idx
                 self.clients[i].flags = cli_flags
 
-        elif self.fullType() == CONNECTOR_FULL_TYPE.ClusterData:
+        elif self.fullType() == CONNECTOR_FULL_TYPE.MeasureData:
             self.clusterFmt = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
 
         else:
@@ -904,7 +903,7 @@ class ConnectorObjectCluster(ConnectorObject):
     def needParseData(self):
         if self.fullType() == CONNECTOR_FULL_TYPE.Cluster:
             return (len(self.clients) == 0)
-        elif self.fullType() == CONNECTOR_FULL_TYPE.ClusterData:
+        elif self.fullType() == CONNECTOR_FULL_TYPE.MeasureData:
             return (self.clusterFmt is None)
         return True
 
@@ -913,7 +912,7 @@ class ConnectorObjectCluster(ConnectorObject):
         if self.fullType() == CONNECTOR_FULL_TYPE.Cluster:
             if len(self.clients) > 500:
                 ret = False
-        elif self.fullType() == CONNECTOR_FULL_TYPE.ClusterData:
+        elif self.fullType() == CONNECTOR_FULL_TYPE.MeasureData:
             if self.clusterFmt > 127: # Not sure how many cluster formats are there
                 ret = False
         return ret
@@ -937,7 +936,7 @@ def newConnectorObjectMainTerminal(vi, idx, obj_flags, obj_type, po):
     """ Creates and returns new terminal object of main type 'Terminal'
     """
     ctor = {
-        CONNECTOR_FULL_TYPE.Terminal: ConnectorObjectTerminal,
+        CONNECTOR_FULL_TYPE.Function: ConnectorObjectFunction,
         CONNECTOR_FULL_TYPE.TypeDef: ConnectorObjectTypeDef,
     }.get(obj_type, ConnectorObject) # Void is the default type in case of no match
     return ctor(vi, idx, obj_flags, obj_type, po)
