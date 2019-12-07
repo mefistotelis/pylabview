@@ -245,3 +245,15 @@ def crypto_xor(data):
         out[i] = nval
         key = nval ^ rol(key, 1, 32)
     return out
+
+def readVariableSizeField(bldata):
+    """ Reads VI field which is either 16-bit or 32-bit, depending on first bit
+
+    Variable size blocks are often used within RSRC files. Usually the size is
+    followed by actual data.
+    """
+    val = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+    if (val & 0x8000) != 0: # 32-bit length
+        val = ((val & 0x7FFF) << 16)
+        val |= int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+    return val

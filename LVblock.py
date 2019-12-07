@@ -1981,9 +1981,9 @@ class VCTP(Block):
             pos += obj_len
         # After that,there is a list
         self.unklist = []
-        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        count = readVariableSizeField(bldata)
         for i in range(count):
-            val = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            val = readVariableSizeField(bldata)
             self.unklist.append(val)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
