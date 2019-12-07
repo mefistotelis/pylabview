@@ -233,15 +233,20 @@ class ConnectorObject:
             raise NotImplementedError("Unsupported Connector {} Format '{}'.".format(self.index,fmt))
         pass
 
+    @staticmethod
+    def parseRSRCDataHeader(bldata):
+        obj_len = readVariableSizeField(bldata)
+        obj_flags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        obj_type = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        return obj_type, obj_flags, obj_len
+
     def parseRSRCData(self, bldata):
         """ Implements final stage of setting connector properties from RSRC file
 
         Can use other connectors and other blocks.
         """
         # Fields oflags,otype are set at constructor, but no harm in setting them again
-        obj_len = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        self.oflags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        self.otype = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
 
         if (self.po.verbose > 2):
             print("{:s}: Connector {:d} type 0x{:02x} data format isn't known; leaving raw only"\
@@ -271,8 +276,12 @@ class ConnectorObject:
             if self.label is None:
                 if (self.po.verbose > 0):
                     eprint("{:s}: Warning: Connector {:d} type 0x{:02x} label text not found"\
-                      .format(self.vi.src_fname,self.index,self.otype))
+                      .format(self.vi.src_fname, self.index, self.otype))
                 self.label = b""
+            elif i > 0:
+                if (self.po.verbose > 0):
+                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} has label not immediatelly following data"\
+                      .format(self.vi.src_fname, self.index, self.otype))
 
         self.raw_data_updated = False
 
@@ -462,8 +471,11 @@ class ConnectorObjectNumber(ConnectorObject):
         self.prop1 = None
 
     def parseRSRCData(self, bldata):
-        bldata.read(4)
+        # Fields oflags,otype are set at constructor, but no harm in setting them again
+        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+
         self.prop1 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+
         self.parseRSRCDataFinish(bldata)
 
     def needParseData(self):
@@ -490,7 +502,8 @@ class ConnectorObjectNumberPtr(ConnectorObject):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
-        bldata.read(4)
+        # Fields oflags,otype are set at constructor, but no harm in setting them again
+        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
         # No more known data inside
         self.parseRSRCDataFinish(bldata)
 
@@ -514,7 +527,9 @@ class ConnectorObjectBlob(ConnectorObject):
         self.prop1 = None
 
     def parseRSRCData(self, bldata):
-        bldata.read(4)
+        # Fields oflags,otype are set at constructor, but no harm in setting them again
+        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+
         self.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         # No more known data inside
         self.parseRSRCDataFinish(bldata)
@@ -544,8 +559,9 @@ class ConnectorObjectFunction(ConnectorObject):
 
     def parseRSRCData(self, bldata):
         ver = self.vi.getFileVersion()
-        # Skip length, flags and type - these were set in constructor
-        bldata.read(4)
+        # Fields oflags,otype are set at constructor, but no harm in setting them again
+        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+
         count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         # Create _separate_ empty namespace for each connector
         self.clients = [SimpleNamespace() for _ in range(count)]
@@ -589,6 +605,11 @@ class ConnectorObjectFunction(ConnectorObject):
 
 
 class ConnectorObjectTypeDef(ConnectorObject):
+    """ Connector which stores type definition
+
+    Connectors of this type have a special support in LabView code, where type data
+    is replaced by the data from nested connector. But we shouldn't need it here.
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.flag1 = None
@@ -601,17 +622,18 @@ class ConnectorObjectTypeDef(ConnectorObject):
         does not store the connector in any list.
         """
         bldata.seek(pos)
-        obj_len = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        obj_flags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        obj_type = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        # Fields oflags,otype are set at constructor, but no harm in setting them again
+        obj_type, obj_flags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+
         obj = newConnectorObject(self.vi, -1, obj_flags, obj_type, self.po)
         bldata.seek(pos)
         obj.initWithRSRC(bldata, obj_len)
         return obj, obj_len
 
     def parseRSRCData(self, bldata):
-        # Skip length, flags and type - these were set in constructor
-        bldata.read(4)
+        # Fields oflags,otype are set at constructor, but no harm in setting them again
+        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+
         self.flag1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.labels = [b"" for _ in range(count)]
@@ -639,8 +661,9 @@ class ConnectorObjectArray(ConnectorObject):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
-        # Skip length, flags and type - these were set in constructor
-        bldata.read(4)
+        # Fields oflags,otype are set at constructor, but no harm in setting them again
+        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+
         ndimensions = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         self.dimensions = [SimpleNamespace() for _ in range(ndimensions)]
         for i in range(ndimensions):
@@ -692,8 +715,9 @@ class ConnectorObjectUnit(ConnectorObject):
         self.prop1 = None
 
     def parseRSRCData(self, bldata):
-        # Skip length, flags and type - these were set in constructor
-        bldata.read(4)
+        # Fields oflags,otype are set at constructor, but no harm in setting them again
+        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+
         count = int.from_bytes(bldata.read(2), byteorder='big', signed=False) # unit/item count
 
         isTextEnum = False
@@ -748,8 +772,9 @@ class ConnectorObjectRef(ConnectorObject):
         self.reftype = None
 
     def parseRSRCData(self, bldata):
-        # Skip length, flags and type - these were set in constructor
-        bldata.read(4)
+        # Fields oflags,otype are set at constructor, but no harm in setting them again
+        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+
         self.reftype = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         parseRefType = {
             CONNECTOR_REF_TYPE.DataLogFile: ConnectorObjectRef.parseRefQueue,
@@ -878,8 +903,8 @@ class ConnectorObjectCluster(ConnectorObject):
         self.clusterFmt = None
 
     def parseRSRCData(self, bldata):
-        # Skip length, flags and type - these were set in constructor
-        bldata.read(4)
+        # Fields oflags,otype are set at constructor, but no harm in setting them again
+        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
 
         if self.fullType() == CONNECTOR_FULL_TYPE.Cluster:
             count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
