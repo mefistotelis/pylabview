@@ -355,6 +355,11 @@ class ConnectorObject:
 
         data_tail = self.prepareRSRCDataFinish()
 
+        whole_len = len(data_buf)+len(data_tail)+4
+        if whole_len % 2 > 0:
+            padding_len = 2 - (whole_len % 2)
+            data_tail += (b'\0' * padding_len)
+
         data_head = int(len(data_buf)+len(data_tail)+4).to_bytes(2, byteorder='big')
         data_head += int(self.oflags).to_bytes(1, byteorder='big')
         data_head += int(self.otype).to_bytes(1, byteorder='big')

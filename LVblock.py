@@ -1963,6 +1963,9 @@ class VCTP(Block):
     def parseRSRCConnector(self, bldata, pos):
         bldata.seek(pos)
         obj_type, obj_flags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+        if (self.po.verbose > 2):
+            print("{:s}: Block {} connector {:d}, at 0x{:04x}, type 0x{:02x} flags 0x{:02x} len {:d}"\
+              .format(self.vi.src_fname, self.ident, len(self.content), pos, obj_type, obj_flags, obj_len))
         if obj_len < 4:
             eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d} too small to be valid"\
               .format(self.vi.src_fname, len(self.content), obj_type, obj_len))
