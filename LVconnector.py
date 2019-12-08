@@ -40,7 +40,7 @@ class CONNECTOR_MAIN_TYPE(enum.IntEnum):
     Blob = 0x3		# String/Path/...
     Array = 0x4		# Array
     Cluster = 0x5	# Struct (hard code [Timestamp] or flexibl)
-    Unknown6 = 0x6	# ???
+    Block = 0x6		# Data divided into blocks
     Ref = 0x7		# Pointers
     NumberPointer = 0x8	# INT+Format: Enum/Units Pointer
     Terminal = 0xF	# like Cluser+Flags/Typdef
@@ -189,18 +189,27 @@ class ConnectorObject:
         self.raw_data = bldata.read(obj_len)
         self.raw_data_updated = True
 
+    def initWithXMLInlineStart(self, conn_elem):
+        """ Early part of connector loading from XML file using Inline formats
+
+        That is simply a common part used in all overloaded initWithXML(),
+        separated only to avoid code duplication.
+        """
+        self.label = None
+        label_text = conn_elem.get("Label")
+        if label_text is not None:
+            self.label = label_text.encode(self.vi.textEncoding)
+
     def initWithXML(self, conn_elem):
         """ Early part of connector loading from XML file
 
         At the point it is executed, other sections are inaccessible.
+        To be overriden by child classes which want to load more properties from XML.
         """
         fmt = conn_elem.get("Format")
         # TODO the inline block belongs to inheriting classes, not here - move
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
-            self.label = None
-            label_text = conn_elem.get("Label")
-            if label_text is not None:
-                self.label = label_text.encode(self.vi.textEncoding)
+            self.initWithXMLInlineStart(conn_elem)
 
             self.updateData(avoid_recompute=True)
 
@@ -369,6 +378,7 @@ class ConnectorObject:
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
 
+        # TODO the inline block belongs to inheriting classes, not here - move
         if self.size <= 4:
             # Connector stores no additional data
             conn_elem.set("Format", "inline")
@@ -522,11 +532,29 @@ class ConnectorObjectVoid(ConnectorObject):
         data_buf = b''
         return data_buf
 
+    def initWithXML(self, conn_elem):
+        fmt = conn_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            self.initWithXMLInlineStart(conn_elem)
+
+            self.updateData(avoid_recompute=True)
+
+        else:
+            ConnectorObject.initWithXML(self, conn_elem)
+        pass
+
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
         # Connector stores no additional data
         conn_elem.set("Format", "inline")
 
+
+class ConnectorObjectBool(ConnectorObjectVoid):
+    """ Connector with Boolean data
+
+    Stores no additional data, so handling is identical to Void connector.
+    """
+    pass
 
 class ConnectorObjectNumber(ConnectorObject):
     def __init__(self, *args):
@@ -1011,22 +1039,14 @@ class ConnectorObjectCluster(ConnectorObject):
         return CONNECTOR_CLUSTER_FORMAT(self.clusterFmt)
 
 
-def newConnectorObjectMainTerminal(vi, idx, obj_flags, obj_type, po):
-    """ Creates and returns new terminal object of main type 'Terminal'
-    """
-    ctor = {
-        CONNECTOR_FULL_TYPE.Function: ConnectorObjectFunction,
-        CONNECTOR_FULL_TYPE.TypeDef: ConnectorObjectTypeDef,
-    }.get(obj_type, ConnectorObject) # Void is the default type in case of no match
-    return ctor(vi, idx, obj_flags, obj_type, po)
-
-
 def newConnectorObject(vi, idx, obj_flags, obj_type, po):
     """ Creates and returns new terminal object with given parameters
     """
     # Try types for which we have specific constructors
     ctor = {
         CONNECTOR_FULL_TYPE.Void: ConnectorObjectVoid,
+        CONNECTOR_FULL_TYPE.Function: ConnectorObjectFunction,
+        CONNECTOR_FULL_TYPE.TypeDef: ConnectorObjectTypeDef,
     }.get(obj_type, None)
     if ctor is None:
         # If no specific constructor - go by general type
@@ -1034,15 +1054,15 @@ def newConnectorObject(vi, idx, obj_flags, obj_type, po):
         ctor = {
             CONNECTOR_MAIN_TYPE.Number: ConnectorObjectNumber,
             CONNECTOR_MAIN_TYPE.Unit: ConnectorObjectUnit,
-            CONNECTOR_MAIN_TYPE.Bool: ConnectorObject, # No properties - basic type is enough
+            CONNECTOR_MAIN_TYPE.Bool: ConnectorObjectBool,
             CONNECTOR_MAIN_TYPE.Blob: ConnectorObjectBlob,
             CONNECTOR_MAIN_TYPE.Array: ConnectorObjectArray,
             CONNECTOR_MAIN_TYPE.Cluster: ConnectorObjectCluster,
-            CONNECTOR_MAIN_TYPE.Unknown6: ConnectorObject,
+            CONNECTOR_MAIN_TYPE.Block: ConnectorObject,
             CONNECTOR_MAIN_TYPE.Ref: ConnectorObjectRef,
             CONNECTOR_MAIN_TYPE.NumberPointer: ConnectorObjectNumberPtr,
-            CONNECTOR_MAIN_TYPE.Terminal: newConnectorObjectMainTerminal,
-            CONNECTOR_MAIN_TYPE.Void: ConnectorObject, # No properties - basic type is enough
+            CONNECTOR_MAIN_TYPE.Terminal: ConnectorObject,
+            CONNECTOR_MAIN_TYPE.Void: ConnectorObject, # With the way we get main_type, this condition is impossible
         }.get(obj_main_type, ConnectorObject) # Void is the default type in case of no match
     return ctor(vi, idx, obj_flags, obj_type, po)
 
