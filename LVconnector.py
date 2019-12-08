@@ -202,12 +202,7 @@ class ConnectorObject:
             if label_text is not None:
                 self.label = label_text.encode(self.vi.textEncoding)
 
-            data_head = int(4).to_bytes(2, byteorder='big')
-            data_head += int(self.oflags).to_bytes(1, byteorder='big')
-            data_head += int(self.otype).to_bytes(1, byteorder='big')
-            self.setData(data_head)
-            # TODO replace with call below, after prepareRSRCData() is ready for each class
-            #self.updateData(avoid_recompute=True)
+            self.updateData(avoid_recompute=True)
 
         elif fmt == "bin":# Format="bin" - the content is stored separately as raw binary data
             if (self.po.verbose > 2):
@@ -321,28 +316,50 @@ class ConnectorObject:
 
         To be overloaded in classes for specific connector types.
         """
-        data_buf = self.raw_data[4:]
-        # TODO support labels after they can be read properly
-        #if self.label is not None:
-        #    label_len = len(self.label) + 1
-        #    data_buf = self.raw_data[:-label_len]
+        if self.raw_data:
+            data_buf = self.raw_data[4:]
+        else:
+            data_buf = b''
+
+        # Remove label from the end - use the algorithm from parseRSRCDataFinish() for consistency
+        if (self.oflags & CONNECTOR_FLAGS.HasLabel.value) != 0:
+            whole_data = data_buf
+            # Strip padding at the end (would be better to limit padding to up to 3 chars.. but not a big deal)
+            whole_data = whole_data.rstrip(b'\0')
+            # Find a proper position to read the label; try the current position first (if the data after current is not beyond 255)
+            for i in range(max(len(whole_data)-256,0), len(whole_data)):
+                label_len = int.from_bytes(whole_data[i:i+1], byteorder='big', signed=False)
+                if (len(whole_data)-i == label_len+1) and all((bt in b'\r\n') or (bt >= 32) for bt in whole_data[i+1:]):
+                    data_buf = data_buf[:i]
+                    break
+        # Done - got the data part only
+        return data_buf
+
+    def prepareRSRCDataFinish(self):
+        data_buf = b''
+
+        if self.label is not None:
+            self.oflags |= CONNECTOR_FLAGS.HasLabel.value
+            if len(self.label) > 255:
+                self.label = self.label[:255]
+            data_buf += int(len(self.label)).to_bytes(1, byteorder='big')
+            data_buf += self.label
+        else:
+            self.oflags &= ~CONNECTOR_FLAGS.HasLabel.value
+
         return data_buf
 
     def updateData(self, avoid_recompute=False):
 
-        data_buf = prepareRSRCData(self, avoid_recompute=avoid_recompute)
+        data_buf = self.prepareRSRCData(avoid_recompute=avoid_recompute)
 
-        data_tail = b''
-        # TODO support labels after they can be read properly
-        #if self.label is not None:
-        #    data_tail += int(len(self.label)).to_bytes(1, byteorder='big')
-        #    data_tail += self.label
+        data_tail = self.prepareRSRCDataFinish()
 
         data_head = int(len(data_buf)+len(data_tail)+4).to_bytes(2, byteorder='big')
         data_head += int(self.oflags).to_bytes(1, byteorder='big')
         data_head += int(self.otype).to_bytes(1, byteorder='big')
 
-        self.setData(data_head+data_buf)
+        self.setData(data_head+data_buf+data_tail)
 
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
@@ -362,6 +379,25 @@ class ConnectorObject:
 
             conn_elem.set("Format", "bin")
             conn_elem.set("File", os.path.basename(part_fname))
+
+    def exportXMLFinish(self, conn_elem):
+        # Now fat chunk of code for handling connector label
+        if self.label is not None:
+            self.oflags |= CONNECTOR_FLAGS.HasLabel.value
+        else:
+            self.oflags &= ~CONNECTOR_FLAGS.HasLabel.value
+        # While exporting flags and label, mind the export format set by exportXML()
+        if conn_elem.get("Format") == "bin":
+            # For binary format, export only HasLabel flag instead of the actual label; label is in binary data
+            exportXMLBitfields(CONNECTOR_FLAGS, conn_elem, self.oflags)
+        else:
+            # For parsed formats, export "Label" property, and get rid of the flag; existence of the "Label" acts as flag
+            exportXMLBitfields(CONNECTOR_FLAGS, conn_elem, self.oflags, \
+              skip_mask=CONNECTOR_FLAGS.HasLabel.value)
+            if self.label is not None:
+                label_text = self.label.decode(self.vi.textEncoding)
+                conn_elem.set("Label", "{:s}".format(label_text))
+        pass
 
     def getData(self):
         bldata = BytesIO(self.raw_data)
@@ -463,6 +499,28 @@ class ConnectorObject:
                 for k in out_lists:
                     out_lists[k].extend(sub_lists[k])
         return out_lists
+
+
+class ConnectorObjectVoid(ConnectorObject):
+    """ Connector with Void data
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        # Fields oflags,otype are set at constructor, but no harm in setting them again
+        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+        # And that is it, no other data expected
+        self.parseRSRCDataFinish(bldata)
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        return data_buf
+
+    def exportXML(self, conn_elem, fname_base):
+        self.parseData()
+        # Connector stores no additional data
+        conn_elem.set("Format", "inline")
 
 
 class ConnectorObjectNumber(ConnectorObject):
@@ -948,15 +1006,6 @@ class ConnectorObjectCluster(ConnectorObject):
         return CONNECTOR_CLUSTER_FORMAT(self.clusterFmt)
 
 
-def newConnectorObjectMainNumberOrVoid(vi, idx, obj_flags, obj_type, po):
-    """ Creates and returns new terminal object of main type 'Terminal'
-    """
-    ctor = {
-        CONNECTOR_FULL_TYPE.Void: ConnectorObject,
-    }.get(obj_type, ConnectorObjectNumber) # Number is the default type in case of no match
-    return ctor(vi, idx, obj_flags, obj_type, po)
-
-
 def newConnectorObjectMainTerminal(vi, idx, obj_flags, obj_type, po):
     """ Creates and returns new terminal object of main type 'Terminal'
     """
@@ -970,19 +1019,25 @@ def newConnectorObjectMainTerminal(vi, idx, obj_flags, obj_type, po):
 def newConnectorObject(vi, idx, obj_flags, obj_type, po):
     """ Creates and returns new terminal object with given parameters
     """
-    obj_main_type = obj_type >> 4
+    # Try types for which we have specific constructors
     ctor = {
-        CONNECTOR_MAIN_TYPE.Number: newConnectorObjectMainNumberOrVoid,
-        CONNECTOR_MAIN_TYPE.Unit: ConnectorObjectUnit,
-        CONNECTOR_MAIN_TYPE.Bool: ConnectorObject, # No properties - basic type is enough
-        CONNECTOR_MAIN_TYPE.Blob: ConnectorObjectBlob,
-        CONNECTOR_MAIN_TYPE.Array: ConnectorObjectArray,
-        CONNECTOR_MAIN_TYPE.Cluster: ConnectorObjectCluster,
-        CONNECTOR_MAIN_TYPE.Unknown6: ConnectorObject,
-        CONNECTOR_MAIN_TYPE.Ref: ConnectorObjectRef,
-        CONNECTOR_MAIN_TYPE.NumberPointer: ConnectorObjectNumberPtr,
-        CONNECTOR_MAIN_TYPE.Terminal: newConnectorObjectMainTerminal,
-        CONNECTOR_MAIN_TYPE.Void: ConnectorObject, # No properties - basic type is enough
-    }.get(obj_main_type, ConnectorObject) # Void is the default type in case of no match
+        CONNECTOR_FULL_TYPE.Void: ConnectorObjectVoid,
+    }.get(obj_type, None)
+    if ctor is None:
+        # If no specific constructor - go by general type
+        obj_main_type = obj_type >> 4
+        ctor = {
+            CONNECTOR_MAIN_TYPE.Number: ConnectorObjectNumber,
+            CONNECTOR_MAIN_TYPE.Unit: ConnectorObjectUnit,
+            CONNECTOR_MAIN_TYPE.Bool: ConnectorObject, # No properties - basic type is enough
+            CONNECTOR_MAIN_TYPE.Blob: ConnectorObjectBlob,
+            CONNECTOR_MAIN_TYPE.Array: ConnectorObjectArray,
+            CONNECTOR_MAIN_TYPE.Cluster: ConnectorObjectCluster,
+            CONNECTOR_MAIN_TYPE.Unknown6: ConnectorObject,
+            CONNECTOR_MAIN_TYPE.Ref: ConnectorObjectRef,
+            CONNECTOR_MAIN_TYPE.NumberPointer: ConnectorObjectNumberPtr,
+            CONNECTOR_MAIN_TYPE.Terminal: newConnectorObjectMainTerminal,
+            CONNECTOR_MAIN_TYPE.Void: ConnectorObject, # No properties - basic type is enough
+        }.get(obj_main_type, ConnectorObject) # Void is the default type in case of no match
     return ctor(vi, idx, obj_flags, obj_type, po)
 

@@ -2057,24 +2057,7 @@ class VCTP(Block):
             subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(CONNECTOR_FULL_TYPE, connobj.otype)))
 
             connobj.exportXML(subelem, fname_base)
-
-            # Now fat chunk of code for handling connector label
-            if connobj.label is not None:
-                connobj.oflags |= CONNECTOR_FLAGS.HasLabel.value
-            else:
-                connobj.oflags &= ~CONNECTOR_FLAGS.HasLabel.value
-            # While exporting flags and label, mind the export format set by exportXML()
-            if subelem.get("Format") == "bin":
-                # For binary format, export only HasLabel flag instead of the actual label; label is in binary data
-                exportXMLBitfields(CONNECTOR_FLAGS, subelem, connobj.oflags)
-            else:
-                # For parsed formats, export "Label" property, and get rid of the flag; existence of the "Label" acts as flag
-                exportXMLBitfields(CONNECTOR_FLAGS, subelem, connobj.oflags, \
-                  skip_mask=CONNECTOR_FLAGS.HasLabel.value)
-                if connobj.label is not None:
-                    label_text = connobj.label.decode(self.vi.textEncoding)
-                    subelem.set("Label", "{:s}".format(label_text))
-            pass
+            connobj.exportXMLFinish(subelem)
 
         subelem = ET.SubElement(section_elem,"UnkList")
         subelem.tail = "\n"
