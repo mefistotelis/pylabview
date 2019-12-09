@@ -356,6 +356,10 @@ class ConnectorObject:
         else:
             self.oflags &= ~CONNECTOR_FLAGS.HasLabel.value
 
+        if len(data_buf) % 2 > 0:
+            padding_len = 2 - (len(data_buf) % 2)
+            data_buf += (b'\0' * padding_len)
+
         return data_buf
 
     def updateData(self, avoid_recompute=False):
@@ -363,11 +367,6 @@ class ConnectorObject:
         data_buf = self.prepareRSRCData(avoid_recompute=avoid_recompute)
 
         data_tail = self.prepareRSRCDataFinish()
-
-        whole_len = len(data_buf)+len(data_tail)+4
-        if whole_len % 2 > 0:
-            padding_len = 2 - (whole_len % 2)
-            data_tail += (b'\0' * padding_len)
 
         data_head = int(len(data_buf)+len(data_tail)+4).to_bytes(2, byteorder='big')
         data_head += int(self.oflags).to_bytes(1, byteorder='big')
@@ -532,6 +531,15 @@ class ConnectorObjectVoid(ConnectorObject):
         data_buf = b''
         return data_buf
 
+    def expectedRSRCSize(self):
+        exp_whole_len = 4
+        if self.label is not None:
+            label_len = 1 + len(self.label)
+            if label_len % 2 > 0: # Include padding
+                label_len += 2 - (label_len % 2)
+            exp_whole_len += label_len
+        return exp_whole_len
+
     def initWithXML(self, conn_elem):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
@@ -548,6 +556,16 @@ class ConnectorObjectVoid(ConnectorObject):
         # Connector stores no additional data
         conn_elem.set("Format", "inline")
 
+    def checkSanity(self):
+        ret = True
+        exp_whole_len = self.expectedRSRCSize()
+        if len(self.raw_data) != exp_whole_len:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
+            ret = False
+        return ret
+
 
 class ConnectorObjectBool(ConnectorObjectVoid):
     """ Connector with Boolean data
@@ -557,6 +575,8 @@ class ConnectorObjectBool(ConnectorObjectVoid):
     pass
 
 class ConnectorObjectNumber(ConnectorObject):
+    """ Connector with single number as data
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.prop1 = None
@@ -569,8 +589,36 @@ class ConnectorObjectNumber(ConnectorObject):
 
         self.parseRSRCDataFinish(bldata)
 
-    def needParseData(self):
-        return (self.prop1 is None)
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(self.prop1).to_bytes(1, byteorder='big')
+        return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 4 + 1
+        if self.label is not None:
+            label_len = 1 + len(self.label)
+            if label_len % 2 > 0: # Include padding
+                label_len += 2 - (label_len % 2)
+            exp_whole_len += label_len
+        return exp_whole_len
+
+    def initWithXML(self, conn_elem):
+        fmt = conn_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            self.initWithXMLInlineStart(conn_elem)
+            self.prop1 = int(conn_elem.get("Prop1"), 0)
+
+            self.updateData(avoid_recompute=True)
+
+        else:
+            ConnectorObject.initWithXML(self, conn_elem)
+        pass
+
+    def exportXML(self, conn_elem, fname_base):
+        self.parseData()
+        conn_elem.set("Prop1", "{:d}".format(self.prop1))
+        conn_elem.set("Format", "inline")
 
     def checkSanity(self):
         ret = True
@@ -579,11 +627,11 @@ class ConnectorObjectNumber(ConnectorObject):
                 eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,self.prop1,0))
             ret = False
-        expsize = 4+1 # We do not parse the whole chunk; complete size is larger
-        if len(self.raw_data) < expsize:
+        exp_whole_len = self.expectedRSRCSize()
+        if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
-                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),expsize))
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
 

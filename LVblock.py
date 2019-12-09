@@ -696,7 +696,7 @@ class SingleIntBlock(Block):
             if (self.po.verbose > 2):
                 print("{:s}: For Block {} section {:d}, reading inline XML data"\
                   .format(self.vi.src_fname,self.ident,snum))
-            self.value = section_elem.get("Value")
+            self.value = int(section_elem.get("Value"), 0)
 
             self.updateSectionData(section_num=snum,avoid_recompute=True)
         else:
