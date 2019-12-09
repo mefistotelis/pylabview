@@ -1958,7 +1958,7 @@ class VCTP(Block):
     def __init__(self, *args):
         super().__init__(*args)
         self.content = []
-        self.unklist = []
+        self.unflatten = []
 
     def parseRSRCConnector(self, bldata, pos):
         bldata.seek(pos)
@@ -1985,11 +1985,11 @@ class VCTP(Block):
             obj_idx, obj_len = self.parseRSRCConnector(bldata, pos)
             pos += obj_len
         # After that,there is a list
-        self.unklist = []
+        self.unflatten = []
         count = readVariableSizeField(bldata)
         for i in range(count):
             val = readVariableSizeField(bldata)
-            self.unklist.append(val)
+            self.unflatten.append(val)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
@@ -2003,7 +2003,7 @@ class VCTP(Block):
         fmt = section_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             self.content = []
-            self.unklist = []
+            self.unflatten = []
             if (self.po.verbose > 2):
                 print("{:s}: For Block {} section {:d}, reading inline XML data"\
                   .format(self.vi.src_fname,self.ident,snum))
@@ -2019,8 +2019,8 @@ class VCTP(Block):
                     self.content[obj_idx] = obj
                     # Set connector data based on XML properties
                     obj.initWithXML(subelem)
-                elif (subelem.tag == "UnkList"):
-                    self.unklist += [int(itm,0) for itm in subelem.text.split()]
+                elif (subelem.tag == "UnFlatten"):
+                    self.unflatten += [int(itm,0) for itm in subelem.text.split()]
                 else:
                     raise AttributeError("Section contains unexpected tag")
 
@@ -2038,8 +2038,8 @@ class VCTP(Block):
             bldata = connobj.getData()
             data_buf += bldata.read()
 
-        data_buf += int(len(self.unklist)).to_bytes(2, byteorder='big')
-        for i, val in enumerate(self.unklist):
+        data_buf += int(len(self.unflatten)).to_bytes(2, byteorder='big')
+        for i, val in enumerate(self.unflatten):
             data_buf += int(val).to_bytes(2, byteorder='big')
 
         if (len(data_buf) < 4 + 4*len(self.content)) and not avoid_recompute:
@@ -2062,11 +2062,11 @@ class VCTP(Block):
             connobj.exportXML(subelem, fname_base)
             connobj.exportXMLFinish(subelem)
 
-        subelem = ET.SubElement(section_elem,"UnkList")
+        subelem = ET.SubElement(section_elem,"UnFlatten")
         subelem.tail = "\n"
 
         strlist = ""
-        for i, val in enumerate(self.unklist):
+        for i, val in enumerate(self.unflatten):
             if i % 16 == 0: strlist += "\n"
             strlist += " {:3d}".format(val)
         subelem.text = strlist
