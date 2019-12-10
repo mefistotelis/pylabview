@@ -385,6 +385,10 @@ class VI():
         rsrc_type_id = getRsrcTypeFromPrettyStr(pretty_type_str)
         self.ftype = recognizeFileTypeFromRsrcType(rsrc_type_id)
 
+        encoding_str = self.xml_root.get("Encoding")
+        if encoding_str is not None:
+            self.textEncoding = encoding_str
+
         self.rsrc_headers = []
         rsrchead = RSRCHeader(self.po)
         rsrchead.rsrc_type = (c_ubyte * sizeof(rsrchead.rsrc_type)).from_buffer_copy(rsrc_type_id)
@@ -509,6 +513,7 @@ class VI():
         elem.tail = "\n"
         rsrc_type_id = getRsrcTypeForFileType(self.ftype)
         elem.set("Type", rsrc_type_id.decode('ascii'))
+        elem.set("Encoding", self.textEncoding)
 
         if self.ftype == FILE_FMT_TYPE.LLB:
             dataset_int1 = self.binflsthead.dataset_int1
