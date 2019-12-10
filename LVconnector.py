@@ -274,7 +274,7 @@ class ConnectorObject:
             # Find a proper position to read the label; try the current position first (if the data after current is not beyond 255)
             for i in range(max(len(whole_data)-256,0), len(whole_data)):
                 label_len = int.from_bytes(whole_data[i:i+1], byteorder='big', signed=False)
-                if (len(whole_data)-i == label_len+1) and all((bt in b'\r\n') or (bt >= 32) for bt in whole_data[i+1:]):
+                if (len(whole_data)-i == label_len+1) and all((bt in b'\r\n\t') or (bt >= 32) for bt in whole_data[i+1:]):
                     self.label = whole_data[i+1:]
                     break
             if self.label is None:
