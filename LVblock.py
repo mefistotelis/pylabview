@@ -769,6 +769,15 @@ class CPC2(SingleIntBlock):
         self.signed = False
 
 
+class FLAG(SingleIntBlock):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.byteorder = 'big'
+        self.size = 1
+        self.base = 16
+        self.signed = False
+
+
 class SingleStringBlock(Block):
     """ Block with raw data representing single string value
 
@@ -883,6 +892,14 @@ class STRG(SingleStringBlock):
     def __init__(self, *args):
         super().__init__(*args)
         self.size_len = 4
+
+
+class STR(SingleStringBlock):
+    """ Short String
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.size_len = 1
 
 
 class DFDS(Block):
