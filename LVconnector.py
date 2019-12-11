@@ -722,6 +722,9 @@ class ConnectorObjectNumberPtr(ConnectorObjectVoid):
 class ConnectorObjectFunction(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
+        self.fflags = 0
+        self.pattern = 0
+        self.padding1 = 0
 
     def parseRSRCData(self, bldata):
         ver = self.vi.getFileVersion()
@@ -734,7 +737,7 @@ class ConnectorObjectFunction(ConnectorObject):
         for i in range(count):
             cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
             self.clients[i].index = cli_idx
-        self.flags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        self.fflags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         self.pattern = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         if isGreaterOrEqVersion(ver, major=8):
             self.padding1 = int.from_bytes(bldata.read(2), byteorder='big', signed=False) # don't know/padding
@@ -742,9 +745,11 @@ class ConnectorObjectFunction(ConnectorObject):
                 cli_flags = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
                 self.clients[i].flags = cli_flags
         else: # isLessOrEqVersion(ver, major=7)
+            self.padding1 = 0
             for i in range(count):
                 cli_flags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
                 self.clients[i].flags = cli_flags
+        # No more known data inside
         self.parseRSRCDataFinish(bldata)
 
     def expectedRSRCSize(self):
@@ -761,12 +766,72 @@ class ConnectorObjectFunction(ConnectorObject):
             exp_whole_len += label_len
         return exp_whole_len
 
+    def initWithXML(self, conn_elem):
+        fmt = conn_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            self.initWithXMLInlineStart(conn_elem)
+            if (self.po.verbose > 2):
+                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.index,self.otype))
+
+            self.fflags = int(conn_elem.get("FuncFlags"), 0)
+            self.pattern = int(conn_elem.get("Pattern"), 0)
+            tmp_val = conn_elem.get("Padding1")
+            if tmp_val is not None:
+                self.padding1 = int(tmp_val, 0)
+            else:
+                self.padding1 = 0
+
+            self.clients = []
+            for subelem in conn_elem:
+                if (subelem.tag == "Client"):
+                    client = SimpleNamespace()
+                    i = int(subelem.get("Index"), 0)
+                    client.index = int(subelem.get("ConnectorIndex"), 0)
+                    client.flags = int(subelem.get("Flags"), 0)
+                    # Grow the list if needed (the clients may be in wrong order)
+                    if i >= len(self.clients):
+                        self.clients.extend([None] * (i - len(self.clients) + 1))
+                    self.clients[i] = client
+                else:
+                    raise AttributeError("Connector contains unexpected tag")
+
+            self.updateData(avoid_recompute=True)
+
+        else:
+            ConnectorObject.initWithXML(self, conn_elem)
+        pass
+
+    def DISAexportXML(self, conn_elem, fname_base):#TODO future
+        self.parseData()
+        conn_elem.text = "\n"
+
+        conn_elem.set("FuncFlags", "0x{:X}".format(self.fflags))
+        conn_elem.set("Pattern", "0x{:X}".format(self.pattern))
+        if self.padding1 != 0:
+            conn_elem.set("Padding1", "0x{:X}".format(self.padding1))
+
+        for i, client in enumerate(self.clients):
+            subelem = ET.SubElement(conn_elem,"Client")
+            subelem.tail = "\n"
+
+            subelem.set("Index", "{:d}".format(i))
+            subelem.set("ConnectorIndex", str(client.index))
+            subelem.set("Flags", "0x{:04X}".format(client.flags))
+
+        conn_elem.set("Format", "inline")
+
     def checkSanity(self):
         ret = True
         if (len(self.clients) > 125):
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: Connector {:d} type 0x{:02x} clients count {:d}, expected below {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.clients),125+1))
+            ret = False
+        if self.padding1 != 0:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} padding1 is {:d}, expected {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,self.padding1,0))
             ret = False
         VCTP = self.vi.get('VCTP')
         if VCTP is not None:
@@ -775,13 +840,13 @@ class ConnectorObjectFunction(ConnectorObject):
                     if client.nested is None:
                         if (self.po.verbose > 1):
                             eprint("{:s}: Warning: Connector {:d} nested client {:d} does not exist"\
-                              .format(self.vi.src_fname,self.i))
+                              .format(self.vi.src_fname,self.index,i))
                         ret = False
                 else:
                     if client.index >= len(VCTP.content):
                         if (self.po.verbose > 1):
                             eprint("{:s}: Warning: Connector {:d} client {:d} references outranged connector {:d}"\
-                              .format(self.vi.src_fname,self.i,client.index))
+                              .format(self.vi.src_fname,self.index,i,client.index))
                         ret = False
                 pass
         exp_whole_len = self.expectedRSRCSize()
@@ -801,7 +866,7 @@ class ConnectorObjectTypeDef(ConnectorObject):
     """
     def __init__(self, *args):
         super().__init__(*args)
-        self.flag1 = None
+        self.flag1 = 0
         self.labels = []
 
     def parseRSRCNestedConnector(self, bldata, pos):
@@ -840,6 +905,99 @@ class ConnectorObjectTypeDef(ConnectorObject):
         self.clients[0].flags = cli_flags
         self.clients[0].nested = cli
         self.parseRSRCDataFinish(bldata)
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 4
+        exp_whole_len += 4 + sum((1+len(s)) for s in self.labels)
+        #TODO count size of the nested connector
+        if self.label is not None:
+            label_len = 1 + len(self.label)
+            if label_len % 2 > 0: # Include padding
+                label_len += 2 - (label_len % 2)
+            exp_whole_len += label_len
+        return exp_whole_len
+
+    def initWithXML(self, conn_elem):
+        fmt = conn_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            self.initWithXMLInlineStart(conn_elem)
+            if (self.po.verbose > 2):
+                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.index,self.otype))
+
+            self.flag1 = int(conn_elem.get("Flag1"), 0)
+
+            self.labels = []
+            self.clients = []
+            for subelem in conn_elem:
+                if (subelem.tag == "Client"):
+                    client = SimpleNamespace()
+                    i = int(subelem.get("Index"), 0)
+                    client.index = -1
+                    client.flags = int(subelem.get("Flags"), 0)
+                    obj_type = valFromEnumOrIntString(CONNECTOR_FULL_TYPE, subelem.get("Type"))
+                    obj_flags = importXMLBitfields(CONNECTOR_FLAGS, subelem)
+                    obj = newConnectorObject(self.vi, -1, obj_flags, obj_type, self.po)
+                    client.nested = obj
+                    if i != 0:
+                        raise AttributeError("Connector expected to contain exactly one nested sub-connector")
+                    self.clients.append(client)
+                elif (subelem.tag == "Label"):
+                    i = int(subelem.get("Index"), 0)
+                    label = subelem.get("Text").encode(self.vi.textEncoding)
+                    # Grow the list if needed (the labels may be in wrong order)
+                    if i >= len(self.labels):
+                        self.labels.extend([None] * (i - len(self.labels) + 1))
+                    self.labels[i] = label
+                else:
+                    raise AttributeError("Connector contains unexpected tag")
+
+            self.updateData(avoid_recompute=True)
+
+        else:
+            ConnectorObject.initWithXML(self, conn_elem)
+        pass
+
+    def DISAexportXML(self, conn_elem, fname_base):#TODO future
+        self.parseData()
+        conn_elem.text = "\n"
+
+        conn_elem.set("FuncFlags", "0x{:X}".format(self.fflags))
+        conn_elem.set("Pattern", "0x{:X}".format(self.pattern))
+        if self.padding1 != 0:
+            conn_elem.set("Padding1", "0x{:X}".format(self.padding1))
+
+        for i, client in enumerate(self.clients):
+            subelem = ET.SubElement(conn_elem,"Client")
+            subelem.tail = "\n"
+
+            subelem.set("Index", "{:d}".format(i))
+            subelem.set("ConnectorIndex", str(client.index))
+            subelem.set("Flags", "0x{:04X}".format(client.flags))
+
+        conn_elem.set("Format", "inline")
+
+    def checkSanity(self):
+        ret = True
+        if (len(self.clients) != 1):
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} clients count {:d}, expected {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.clients),1))
+            ret = False
+        for i, client in enumerate(self.clients):
+            if client.index != -1:
+                if (self.po.verbose > 1):
+                    eprint("{:s}: Warning: Connector {:d} expected to have nested client"\
+                      .format(self.vi.src_fname,i))
+                ret = False
+            pass
+        exp_whole_len = self.expectedRSRCSize()
+        if len(self.raw_data) != exp_whole_len:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
+            ret = False
+        return ret
 
 
 class ConnectorObjectArray(ConnectorObject):
@@ -1138,7 +1296,7 @@ class ConnectorObjectCluster(ConnectorObject):
             ConnectorObject.initWithXML(self, conn_elem)
         pass
 
-    def DISAexportXML(self, conn_elem, fname_base):#TODO for the future
+    def exportXML(self, conn_elem, fname_base):
         self.parseData()
 
         conn_elem.text = "\n"
