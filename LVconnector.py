@@ -463,9 +463,7 @@ class ConnectorObject:
         return (len(self.clients) > 0)
 
     def clientsEnumerate(self):
-        VCTP = self.vi.get('VCTP')
-        if VCTP is None:
-            raise LookupError("Block {} not found in RSRC file.".format('VCTP'))
+        VCTP = self.vi.get_or_raise('VCTP')
         out_enum = []
         for i, client in enumerate(self.clients):
             if client.index == -1: # Special case this is how we mark nested client
@@ -664,7 +662,19 @@ class ConnectorObjectBlob(ConnectorObject):
             exp_whole_len += label_len
         return exp_whole_len
 
-    def DISAexportXML(self, conn_elem, fname_base):# for the future
+    def initWithXML(self, conn_elem):
+        fmt = conn_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            self.initWithXMLInlineStart(conn_elem)
+            self.prop1 = int(conn_elem.get("Prop1"), 0)
+
+            self.updateData(avoid_recompute=True)
+
+        else:
+            ConnectorObject.initWithXML(self, conn_elem)
+        pass
+
+    def DISAexportXML(self, conn_elem, fname_base):#TODO for the future
         self.parseData()
         conn_elem.set("Prop1", "{:d}".format(self.prop1))
         conn_elem.set("Format", "inline")
@@ -680,7 +690,7 @@ class ConnectorObjectBlob(ConnectorObject):
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
-                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),expsize))
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
 
@@ -732,6 +742,22 @@ class ConnectorObjectFunction(ConnectorObject):
                 eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}"\
                   .format(self.vi.src_fname,self.index,self.otype,self.prop1,0xFFFFFFFF))
             ret = False
+        VCTP = self.vi.get('VCTP')
+        if VCTP is not None:
+            for i, client in enumerate(self.clients):
+                if client.index == -1: # Special case this is how we mark nested client
+                    if client.nested is None:
+                        if (self.po.verbose > 1):
+                            eprint("{:s}: Warning: Connector {:d} nested client {:d} does not exist"\
+                              .format(self.vi.src_fname,self.i))
+                        ret = False
+                else:
+                    if client.index >= len(VCTP.content):
+                        if (self.po.verbose > 1):
+                            eprint("{:s}: Warning: Connector {:d} client {:d} references outranged connector {:d}"\
+                              .format(self.vi.src_fname,self.i,client.index))
+                        ret = False
+                pass
         if isGreaterOrEqVersion(ver, major=8):
             expsize = 4 + 2 + 2 * len(self.clients) + 4 + 2 + 4 * len(self.clients)
         else:
@@ -1040,46 +1066,136 @@ class ConnectorObjectRef(ConnectorObject):
 class ConnectorObjectCluster(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        # Fields oflags,otype are set at constructor, but no harm in setting them again
+        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+
+        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        # Create _separate_ empty namespace for each connector
+        self.clients = [SimpleNamespace() for _ in range(count)]
+        for i in range(count):
+            cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            cli_flags = 0
+            self.clients[i].index = cli_idx
+            self.clients[i].flags = cli_flags
+        # No more data inside
+        self.parseRSRCDataFinish(bldata)
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(len(self.clients)).to_bytes(2, byteorder='big')
+        for client in self.clients:
+            data_buf += int(client.index).to_bytes(2, byteorder='big')
+        return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 4 + 2 + 2 * len(self.clients)
+        if self.label is not None:
+            label_len = 1 + len(self.label)
+            if label_len % 2 > 0: # Include padding
+                label_len += 2 - (label_len % 2)
+            exp_whole_len += label_len
+        return exp_whole_len
+
+    def initWithXML(self, conn_elem):
+        fmt = conn_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            self.initWithXMLInlineStart(conn_elem)
+            # TODO implement
+
+            self.updateData(avoid_recompute=True)
+
+        else:
+            ConnectorObject.initWithXML(self, conn_elem)
+        pass
+
+    def DISAexportXML(self, conn_elem, fname_base):#TODO for the future
+        self.parseData()
+
+        conn_elem.text = "\n"
+
+        for client in self.clients:
+            subelem = ET.SubElement(conn_elem,"Client")
+            subelem.tail = "\n"
+
+            subelem.set("Index", str(client.index))
+
+        conn_elem.set("Format", "inline")
+
+    def checkSanity(self):
+        ret = True
+        if len(self.clients) > 500:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} has {:d} clients, expected below {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.clients),500+1))
+            ret = False
+        exp_whole_len = self.expectedRSRCSize()
+        if len(self.raw_data) != exp_whole_len:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
+            ret = False
+        return ret
+
+
+class ConnectorObjectMeasureData(ConnectorObject):
+    def __init__(self, *args):
+        super().__init__(*args)
         self.clusterFmt = None
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
         self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
 
-        if self.fullType() == CONNECTOR_FULL_TYPE.Cluster:
-            count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            # Create _separate_ empty namespace for each connector
-            self.clients = [SimpleNamespace() for _ in range(count)]
-            for i in range(count):
-                cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-                cli_flags = 0
-                self.clients[i].index = cli_idx
-                self.clients[i].flags = cli_flags
-
-        elif self.fullType() == CONNECTOR_FULL_TYPE.MeasureData:
-            self.clusterFmt = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-
-        else:
-            if (self.po.verbose > 2):
-                print("{:s}: Connector {:d} cluster type 0x{:02x} data format isn't known; leaving raw only"\
-                  .format(self.vi.src_fname,self.index,self.otype))
+        self.clusterFmt = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        # No more known data inside
         self.parseRSRCDataFinish(bldata)
 
-    def needParseData(self):
-        if self.fullType() == CONNECTOR_FULL_TYPE.Cluster:
-            return (len(self.clients) == 0)
-        elif self.fullType() == CONNECTOR_FULL_TYPE.MeasureData:
-            return (self.clusterFmt is None)
-        return True
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(self.clusterFmt).to_bytes(2, byteorder='big')
+        return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 4 + 2
+        if self.label is not None:
+            label_len = 1 + len(self.label)
+            if label_len % 2 > 0: # Include padding
+                label_len += 2 - (label_len % 2)
+            exp_whole_len += label_len
+        return exp_whole_len
+
+    def initWithXML(self, conn_elem):
+        fmt = conn_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            self.initWithXMLInlineStart(conn_elem)
+            self.clusterFmt = valFromEnumOrIntString(CONNECTOR_CLUSTER_FORMAT, conn_elem.get("ClusterFmt"))
+
+            self.updateData(avoid_recompute=True)
+
+        else:
+            ConnectorObject.initWithXML(self, conn_elem)
+        pass
+
+    def DISAexportXML(self, conn_elem, fname_base):#TODO for the future
+        self.parseData()
+        conn_elem.set("ClusterFmt", "{:s}".format(stringFromValEnumOrInt(CONNECTOR_CLUSTER_FORMAT, self.clusterFmt)))
+        conn_elem.set("Format", "inline")
 
     def checkSanity(self):
         ret = True
-        if self.fullType() == CONNECTOR_FULL_TYPE.Cluster:
-            if len(self.clients) > 500:
-                ret = False
-        elif self.fullType() == CONNECTOR_FULL_TYPE.MeasureData:
-            if self.clusterFmt > 127: # Not sure how many cluster formats are there
-                ret = False
+        if self.clusterFmt > 127: # Not sure how many cluster formats are there
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} clusterFmt {:d}, expected below {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,self.clusterFmt,127+1))
+            ret = False
+        exp_whole_len = self.expectedRSRCSize()
+        if len(self.raw_data) != exp_whole_len:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
+            ret = False
         return ret
 
     def clusterFormat(self):
@@ -1097,10 +1213,10 @@ def newConnectorObject(vi, idx, obj_flags, obj_type, po):
         CONNECTOR_FULL_TYPE.Function: ConnectorObjectFunction,
         CONNECTOR_FULL_TYPE.TypeDef: ConnectorObjectTypeDef,
         CONNECTOR_FULL_TYPE.Cluster: ConnectorObjectCluster,
-        CONNECTOR_FULL_TYPE.LVVariant: ConnectorObjectCluster,
-        CONNECTOR_FULL_TYPE.MeasureData: ConnectorObjectCluster,
-        CONNECTOR_FULL_TYPE.ComplexFixedPt: ConnectorObjectCluster,
-        CONNECTOR_FULL_TYPE.FixedPoint: ConnectorObjectCluster,
+        #CONNECTOR_FULL_TYPE.LVVariant: ConnectorObjectCluster,
+        CONNECTOR_FULL_TYPE.MeasureData: ConnectorObjectMeasureData,
+        #CONNECTOR_FULL_TYPE.ComplexFixedPt: ConnectorObjectCluster,
+        #CONNECTOR_FULL_TYPE.FixedPoint: ConnectorObjectCluster,
         CONNECTOR_FULL_TYPE.Ptr: ConnectorObjectNumberPtr,
         #CONNECTOR_FULL_TYPE.PtrTo: ConnectorObjectNumberPtr,
     }.get(obj_type, None)
