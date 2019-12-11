@@ -89,7 +89,7 @@ class CONNECTOR_FULL_TYPE(enum.IntEnum):
     Path =			0x32
     Picture =		0x33
     CString =		0x34
-    PasStrung =		0x35
+    PasString =		0x35
     Tag =			0x37
     SubString =		0x3F
 
@@ -635,6 +635,22 @@ class ConnectorObjectNumber(ConnectorObject):
         return ret
 
 
+class ConnectorObjectCString(ConnectorObjectVoid):
+    """ Connector with C String data
+
+    Stores no additional data, so handling is identical to Void connector.
+    """
+    pass
+
+
+class ConnectorObjectPasString(ConnectorObjectVoid):
+    """ Connector with Pascal String data
+
+    Stores no additional data, so handling is identical to Void connector.
+    """
+    pass
+
+
 class ConnectorObjectBlob(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
@@ -674,9 +690,9 @@ class ConnectorObjectBlob(ConnectorObject):
             ConnectorObject.initWithXML(self, conn_elem)
         pass
 
-    def DISAexportXML(self, conn_elem, fname_base):#TODO for the future
+    def exportXML(self, conn_elem, fname_base):
         self.parseData()
-        conn_elem.set("Prop1", "{:d}".format(self.prop1))
+        conn_elem.set("Prop1", "0x{:X}".format(self.prop1))
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
@@ -731,16 +747,26 @@ class ConnectorObjectFunction(ConnectorObject):
                 self.clients[i].flags = cli_flags
         self.parseRSRCDataFinish(bldata)
 
-    def needParseData(self):
-        return (len(self.clients) == 0)
+    def expectedRSRCSize(self):
+        ver = self.vi.getFileVersion()
+        exp_whole_len = 4
+        if isGreaterOrEqVersion(ver, major=8):
+            exp_whole_len += 2 + 2 * len(self.clients) + 4 + 2 + 4 * len(self.clients)
+        else:
+            exp_whole_len += 2 + 2 * len(self.clients) + 4 + 2 * len(self.clients)
+        if self.label is not None:
+            label_len = 1 + len(self.label)
+            if label_len % 2 > 0: # Include padding
+                label_len += 2 - (label_len % 2)
+            exp_whole_len += label_len
+        return exp_whole_len
 
     def checkSanity(self):
         ret = True
-        ver = self.vi.getFileVersion()
         if (len(self.clients) > 125):
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}"\
-                  .format(self.vi.src_fname,self.index,self.otype,self.prop1,0xFFFFFFFF))
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} clients count {:d}, expected below {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.clients),125+1))
             ret = False
         VCTP = self.vi.get('VCTP')
         if VCTP is not None:
@@ -758,14 +784,11 @@ class ConnectorObjectFunction(ConnectorObject):
                               .format(self.vi.src_fname,self.i,client.index))
                         ret = False
                 pass
-        if isGreaterOrEqVersion(ver, major=8):
-            expsize = 4 + 2 + 2 * len(self.clients) + 4 + 2 + 4 * len(self.clients)
-        else:
-            expsize = 4 + 2 + 2 * len(self.clients) + 4 + 2 * len(self.clients)
-        if len(self.raw_data) != expsize:
+        exp_whole_len = self.expectedRSRCSize()
+        if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
-                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),expsize))
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
 
@@ -818,9 +841,6 @@ class ConnectorObjectTypeDef(ConnectorObject):
         self.clients[0].nested = cli
         self.parseRSRCDataFinish(bldata)
 
-    def needParseData(self):
-        return (self.flag1 is None)
-
 
 class ConnectorObjectArray(ConnectorObject):
     def __init__(self, *args):
@@ -853,9 +873,6 @@ class ConnectorObjectArray(ConnectorObject):
         self.clients[0].index = cli_idx
         self.clients[0].flags = cli_flags
         self.parseRSRCDataFinish(bldata)
-
-    def needParseData(self):
-        return (len(self.clients) == 0)
 
     def checkSanity(self):
         ret = True
@@ -911,9 +928,6 @@ class ConnectorObjectUnit(ConnectorObject):
             self.padding1 = None
         self.prop1 = int.from_bytes(bldata.read(1), byteorder='big', signed=False) # Unknown
         self.parseRSRCDataFinish(bldata)
-
-    def needParseData(self):
-        return (self.prop1 is None)
 
     def checkSanity(self):
         ret = True
@@ -1031,9 +1045,6 @@ class ConnectorObjectRef(ConnectorObject):
         self.valflags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         pass
 
-    def needParseData(self):
-        return (self.reftype is None)
-
     def checkSanity(self):
         ret = True
         if self.refType() in [ CONNECTOR_REF_TYPE.DataLogFile,
@@ -1102,7 +1113,24 @@ class ConnectorObjectCluster(ConnectorObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             self.initWithXMLInlineStart(conn_elem)
-            # TODO implement
+
+            if (self.po.verbose > 2):
+                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.index,self.otype))
+
+            self.clients = []
+            for subelem in conn_elem:
+                if (subelem.tag == "Client"):
+                    client = SimpleNamespace()
+                    i = int(subelem.get("Index"), 0)
+                    client.index = int(subelem.get("ConnectorIndex"), 0)
+                    client.flags = 0
+                    # Grow the list if needed (the clients may be in wrong order)
+                    if i >= len(self.clients):
+                        self.clients.extend([None] * (i - len(self.clients) + 1))
+                    self.clients[i] = client
+                else:
+                    raise AttributeError("Connector contains unexpected tag")
 
             self.updateData(avoid_recompute=True)
 
@@ -1115,11 +1143,12 @@ class ConnectorObjectCluster(ConnectorObject):
 
         conn_elem.text = "\n"
 
-        for client in self.clients:
+        for i, client in enumerate(self.clients):
             subelem = ET.SubElement(conn_elem,"Client")
             subelem.tail = "\n"
 
-            subelem.set("Index", str(client.index))
+            subelem.set("Index", str(i))
+            subelem.set("ConnectorIndex", str(client.index))
 
         conn_elem.set("Format", "inline")
 
@@ -1178,7 +1207,7 @@ class ConnectorObjectMeasureData(ConnectorObject):
             ConnectorObject.initWithXML(self, conn_elem)
         pass
 
-    def DISAexportXML(self, conn_elem, fname_base):#TODO for the future
+    def exportXML(self, conn_elem, fname_base):
         self.parseData()
         conn_elem.set("ClusterFmt", "{:s}".format(stringFromValEnumOrInt(CONNECTOR_CLUSTER_FORMAT, self.clusterFmt)))
         conn_elem.set("Format", "inline")
@@ -1219,6 +1248,13 @@ def newConnectorObject(vi, idx, obj_flags, obj_type, po):
         #CONNECTOR_FULL_TYPE.FixedPoint: ConnectorObjectCluster,
         CONNECTOR_FULL_TYPE.Ptr: ConnectorObjectNumberPtr,
         #CONNECTOR_FULL_TYPE.PtrTo: ConnectorObjectNumberPtr,
+        CONNECTOR_FULL_TYPE.String: ConnectorObjectBlob,
+        CONNECTOR_FULL_TYPE.Path: ConnectorObjectBlob,
+        CONNECTOR_FULL_TYPE.Picture: ConnectorObjectBlob,
+        CONNECTOR_FULL_TYPE.CString: ConnectorObjectCString,
+        CONNECTOR_FULL_TYPE.PasString: ConnectorObjectPasString,
+        #CONNECTOR_FULL_TYPE.Tag: ConnectorObjectBlob, # 26 bytes of data, not compatible with generic blob
+        CONNECTOR_FULL_TYPE.SubString: ConnectorObjectBlob,
     }.get(obj_type, None)
     if ctor is None:
         # If no specific constructor - go by general type
@@ -1227,7 +1263,7 @@ def newConnectorObject(vi, idx, obj_flags, obj_type, po):
             CONNECTOR_MAIN_TYPE.Number: ConnectorObjectNumber,
             CONNECTOR_MAIN_TYPE.Unit: ConnectorObjectUnit,
             CONNECTOR_MAIN_TYPE.Bool: ConnectorObjectBool,
-            CONNECTOR_MAIN_TYPE.Blob: ConnectorObjectBlob,
+            CONNECTOR_MAIN_TYPE.Blob: ConnectorObject,
             CONNECTOR_MAIN_TYPE.Array: ConnectorObjectArray,
             CONNECTOR_MAIN_TYPE.Cluster: ConnectorObject,
             CONNECTOR_MAIN_TYPE.Block: ConnectorObject,
