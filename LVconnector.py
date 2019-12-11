@@ -574,6 +574,7 @@ class ConnectorObjectBool(ConnectorObjectVoid):
     """
     pass
 
+
 class ConnectorObjectNumber(ConnectorObject):
     """ Connector with single number as data
     """
@@ -586,7 +587,7 @@ class ConnectorObjectNumber(ConnectorObject):
         self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
 
         self.prop1 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-
+        # No more data inside
         self.parseRSRCDataFinish(bldata)
 
     def prepareRSRCData(self, avoid_recompute=False):
@@ -636,30 +637,6 @@ class ConnectorObjectNumber(ConnectorObject):
         return ret
 
 
-class ConnectorObjectNumberPtr(ConnectorObject):
-    def __init__(self, *args):
-        super().__init__(*args)
-
-    def parseRSRCData(self, bldata):
-        # Fields oflags,otype are set at constructor, but no harm in setting them again
-        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
-        # No more known data inside
-        self.parseRSRCDataFinish(bldata)
-
-    def needParseData(self):
-        return True
-
-    def checkSanity(self):
-        ret = True
-        expsize = 4 # We do not parse the whole chunk; complete size is larger
-        if len(self.raw_data) < expsize:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
-                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),expsize))
-            ret = False
-        return ret
-
-
 class ConnectorObjectBlob(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
@@ -673,8 +650,24 @@ class ConnectorObjectBlob(ConnectorObject):
         # No more known data inside
         self.parseRSRCDataFinish(bldata)
 
-    def needParseData(self):
-        return (self.prop1 is None)
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(self.prop1).to_bytes(4, byteorder='big')
+        return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 4 + 4
+        if self.label is not None:
+            label_len = 1 + len(self.label)
+            if label_len % 2 > 0: # Include padding
+                label_len += 2 - (label_len % 2)
+            exp_whole_len += label_len
+        return exp_whole_len
+
+    def DISAexportXML(self, conn_elem, fname_base):# for the future
+        self.parseData()
+        conn_elem.set("Prop1", "{:d}".format(self.prop1))
+        conn_elem.set("Format", "inline")
 
     def checkSanity(self):
         ret = True
@@ -683,13 +676,21 @@ class ConnectorObjectBlob(ConnectorObject):
                 eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}"\
                   .format(self.vi.src_fname,self.index,self.otype,self.prop1,0xFFFFFFFF))
             ret = False
-        expsize = 4 # We do not parse the whole chunk; complete size is larger
-        if len(self.raw_data) < expsize:
+        exp_whole_len = self.expectedRSRCSize()
+        if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),expsize))
             ret = False
         return ret
+
+
+class ConnectorObjectNumberPtr(ConnectorObjectVoid):
+    """ Connector with Number Pointer as data
+
+    Stores no additional data, so handling is identical to Void connector.
+    """
+    pass
 
 
 class ConnectorObjectFunction(ConnectorObject):
@@ -1095,6 +1096,13 @@ def newConnectorObject(vi, idx, obj_flags, obj_type, po):
         CONNECTOR_FULL_TYPE.Void: ConnectorObjectVoid,
         CONNECTOR_FULL_TYPE.Function: ConnectorObjectFunction,
         CONNECTOR_FULL_TYPE.TypeDef: ConnectorObjectTypeDef,
+        CONNECTOR_FULL_TYPE.Cluster: ConnectorObjectCluster,
+        CONNECTOR_FULL_TYPE.LVVariant: ConnectorObjectCluster,
+        CONNECTOR_FULL_TYPE.MeasureData: ConnectorObjectCluster,
+        CONNECTOR_FULL_TYPE.ComplexFixedPt: ConnectorObjectCluster,
+        CONNECTOR_FULL_TYPE.FixedPoint: ConnectorObjectCluster,
+        CONNECTOR_FULL_TYPE.Ptr: ConnectorObjectNumberPtr,
+        #CONNECTOR_FULL_TYPE.PtrTo: ConnectorObjectNumberPtr,
     }.get(obj_type, None)
     if ctor is None:
         # If no specific constructor - go by general type
@@ -1105,10 +1113,10 @@ def newConnectorObject(vi, idx, obj_flags, obj_type, po):
             CONNECTOR_MAIN_TYPE.Bool: ConnectorObjectBool,
             CONNECTOR_MAIN_TYPE.Blob: ConnectorObjectBlob,
             CONNECTOR_MAIN_TYPE.Array: ConnectorObjectArray,
-            CONNECTOR_MAIN_TYPE.Cluster: ConnectorObjectCluster,
+            CONNECTOR_MAIN_TYPE.Cluster: ConnectorObject,
             CONNECTOR_MAIN_TYPE.Block: ConnectorObject,
             CONNECTOR_MAIN_TYPE.Ref: ConnectorObjectRef,
-            CONNECTOR_MAIN_TYPE.NumberPointer: ConnectorObjectNumberPtr,
+            CONNECTOR_MAIN_TYPE.NumberPointer: ConnectorObject,
             CONNECTOR_MAIN_TYPE.Terminal: ConnectorObject,
             CONNECTOR_MAIN_TYPE.Void: ConnectorObject, # With the way we get main_type, this condition is impossible
         }.get(obj_main_type, ConnectorObject) # Void is the default type in case of no match
