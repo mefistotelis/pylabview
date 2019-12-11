@@ -507,7 +507,7 @@ class Block(object):
             data = BytesIO(decompress(data.read(size)))
         elif use_coding == BLOCK_CODING.XOR:
             size = len(raw_data_section)
-            data = BytesIO(crypto_xor(data.read(size)))
+            data = BytesIO(crypto_xor8320_decrypt(data.read(size)))
         else:
             raise ValueError("Unsupported compression type")
         return data
@@ -524,7 +524,7 @@ class Block(object):
             raw_data_section = int(size).to_bytes(4, byteorder='big')
             raw_data_section += compress(data_buf)
         elif use_coding == BLOCK_CODING.XOR:
-            raw_data_section = crypto_xor(data_buf) # TODO make proper encrypt algorithm; this one is decrypt
+            raw_data_section = crypto_xor8320_encrypt(data_buf)
         else:
             raise ValueError("Unsupported compression type")
 

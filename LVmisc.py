@@ -234,7 +234,7 @@ def importXMLBitfields(EnumClass, subelem):
         value |= ((propval << nshift) & mask.value)
     return value
 
-def crypto_xor(data):
+def crypto_xor8320_decrypt(data):
     rol = lambda val, l_bits, max_bits: \
       ((val & ((1<<max_bits-(l_bits%max_bits))-1)) << l_bits%max_bits) | \
       (val >> (max_bits-(l_bits%max_bits)) & ((1<<max_bits)-1))
@@ -243,6 +243,18 @@ def crypto_xor(data):
     for i in range(len(out)):
         nval = (key ^ out[i]) & 0xff
         out[i] = nval
+        key = nval ^ rol(key, 1, 32)
+    return out
+
+def crypto_xor8320_encrypt(data):
+    rol = lambda val, l_bits, max_bits: \
+      ((val & ((1<<max_bits-(l_bits%max_bits))-1)) << l_bits%max_bits) | \
+      (val >> (max_bits-(l_bits%max_bits)) & ((1<<max_bits)-1))
+    out = bytearray(data)
+    key = 0xEDB88320
+    for i in range(len(out)):
+        nval = out[i]
+        out[i] = (key ^ nval) & 0xff
         key = nval ^ rol(key, 1, 32)
     return out
 
