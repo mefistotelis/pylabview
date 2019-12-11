@@ -894,12 +894,75 @@ class STRG(SingleStringBlock):
         self.size_len = 4
 
 
-class STR(SingleStringBlock):
-    """ Short String
+class STR(Block):
+    """ Short String / Input definition?
+
+    This block seem to have different meaning depending on the kind of RSRC file
+    it is in. For LLBs, it is just a simple string, like a label. For VIs,
+    it contains binary data before the string.
     """
     def __init__(self, *args):
         super().__init__(*args)
-        self.size_len = 1
+        self.text = b''
+
+    def parseRSRCData(self, section_num, bldata):
+        if self.vi.ftype == FILE_FMT_TYPE.LLB:
+            string_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            self.text = bldata.read(string_len)
+        else: # File format is unknown
+            Block.parseRSRCData(self, section_num, bldata)
+
+    def updateSectionData(self, section_num=None, avoid_recompute=False):
+        if section_num is None:
+            section_num = self.section_loaded
+
+        data_buf = b''
+        if self.vi.ftype == FILE_FMT_TYPE.LLB:
+            pass # no additional data - only one string
+        else:
+            Block.updateSectionData(self, section_num=section_num, avoid_recompute=avoid_recompute)
+            return #TODO create the proper binary data for STR in other file types
+
+        data_buf += int(len(self.text)).to_bytes(1, byteorder='big')
+        data_buf += self.text
+
+        self.setData(data_buf, section_num=section_num)
+
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
+        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        return bldata
+
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+
+    def initWithXMLSection(self, section, section_elem):
+        snum = section.start.section_idx
+        fmt = section_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.ident,snum))
+
+            self.text = subelem.get("Text").encode(self.vi.textEncoding)
+
+            self.updateSectionData(section_num=snum,avoid_recompute=True)
+        else:
+            Block.initWithXMLSection(self, section, section_elem)
+        pass
+
+    def exportXMLSection(self, section_elem, snum, section, fname_base):
+        self.parseData(section_num=snum)
+
+        if self.vi.ftype == FILE_FMT_TYPE.LLB:
+            pass # no additional data - only one string
+        else:
+            Block.exportXMLSection(self, section_elem, snum, section, fname_base)
+            return #TODO create the proper XML data for STR in other file types
+
+        string_val = self.text.decode(self.vi.textEncoding)
+        section_elem.set("Text", string_val)
+
+        section_elem.set("Format", "inline")
 
 
 class DFDS(Block):
