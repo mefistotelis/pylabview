@@ -31,6 +31,8 @@ from ctypes import *
 
 from LVmisc import *
 from LVblock import *
+import LVconnectorref
+from LVconnectorref import CONNECTOR_REF_TYPE
 
 
 class CONNECTOR_MAIN_TYPE(enum.IntEnum):
@@ -128,26 +130,6 @@ class CONNECTOR_CLUSTER_FORMAT(enum.IntEnum):
     TimeStamp =		6
     Digitaldata =	7
     Dynamicdata =	9
-
-
-class CONNECTOR_REF_TYPE(enum.IntEnum):
-    DataLogFile =	0x01
-    Occurrence =	0x04
-    TCPConnection =	0x05
-    ControlRefnum =	0x08
-    DataSocket =	0x0D
-    UDPConnection =	0x10
-    NotifierRefnum =	0x11
-    Queue =				0x12
-    IrDAConnection =	0x13
-    Channel =			0x14
-    SharedVariable =	0x15
-    EventRegistration =	0x17
-    UserEvent =			0x19
-    Class =				0x1E
-    BluetoothConnectn =	0x1F
-    DataValueRef =	0x20
-    FIFORefnum =	0x21
 
 
 class CONNECTOR_FLAGS(enum.Enum):
@@ -1216,119 +1198,98 @@ class ConnectorObjectRef(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
         self.reftype = None
+        self.ref_obj = None
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
         self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
 
         self.reftype = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        parseRefType = {
-            CONNECTOR_REF_TYPE.DataLogFile: ConnectorObjectRef.parseRefQueue,
-            CONNECTOR_REF_TYPE.Occurrence: None,
-            CONNECTOR_REF_TYPE.TCPConnection: None,
-            CONNECTOR_REF_TYPE.ControlRefnum: ConnectorObjectRef.parseRefControl,
-            CONNECTOR_REF_TYPE.DataSocket: None,
-            CONNECTOR_REF_TYPE.UDPConnection: None,
-            CONNECTOR_REF_TYPE.NotifierRefnum: ConnectorObjectRef.parse_0Pre0Post,
-            CONNECTOR_REF_TYPE.Queue: ConnectorObjectRef.parseRefQueue,
-            CONNECTOR_REF_TYPE.IrDAConnection: None,
-            CONNECTOR_REF_TYPE.Channel: None,
-            CONNECTOR_REF_TYPE.SharedVariable: None,
-            CONNECTOR_REF_TYPE.EventRegistration: ConnectorObjectRef.parseRefEventRegist,
-            CONNECTOR_REF_TYPE.UserEvent: ConnectorObjectRef.parseRefQueue,
-            CONNECTOR_REF_TYPE.Class: None,
-            CONNECTOR_REF_TYPE.BluetoothConnectn: None,
-            CONNECTOR_REF_TYPE.DataValueRef: ConnectorObjectRef.parseRefDataValue,
-            CONNECTOR_REF_TYPE.FIFORefnum: ConnectorObjectRef.parse_0Pre0Post,
-        }.get(self.refType(), None)
-        if parseRefType is not None:
-            parseRefType(self, bldata)
+        self.ref_obj = LVconnectorref.newConnectorObjectRef(self.vi, self, self.reftype, self.po)
+        if self.ref_obj is not None:
+            self.ref_obj.parseRSRCData(bldata)
         self.parseRSRCDataFinish(bldata)
 
-    def parseRefQueue(self, bldata):
-        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        # Create _separate_ empty namespace for each connector
-        self.clients = [SimpleNamespace() for _ in range(count)]
-        for i in range(count):
-            cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            cli_flags = 0
-            self.clients[i].index = cli_idx
-            self.clients[i].flags = cli_flags
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(self.reftype).to_bytes(2, byteorder='big')
+        if self.ref_obj is not None:
+            data_buf += self.ref_obj.prepareRSRCData(avoid_recompute=avoid_recompute)
+        return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 4 + 2
+        if self.ref_obj is not None:
+            exp_whole_len += self.ref_obj.expectedRSRCSize()
+        if self.label is not None:
+            label_len = 1 + len(self.label)
+            if label_len % 2 > 0: # Include padding
+                label_len += 2 - (label_len % 2)
+            exp_whole_len += label_len
+        return exp_whole_len
+
+    def initWithXML(self, conn_elem):
+        fmt = conn_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.index,self.otype))
+
+            self.initWithXMLInlineStart(conn_elem)
+            self.reftype = valFromEnumOrIntString(CONNECTOR_REF_TYPE, conn_elem.get("RefType"))
+
+            self.ref_obj = LVconnectorref.newConnectorObjectRef(self.vi, self, self.reftype, self.po)
+            if self.ref_obj is not None:
+                self.ref_obj.initWithXML(conn_elem)
+
+            self.clients = []
+            for subelem in conn_elem:
+                if (subelem.tag == "Client"):
+                    client = SimpleNamespace()
+                    i = int(subelem.get("Index"), 0)
+                    client.index = int(subelem.get("ConnectorIndex"), 0)
+                    client.flags = int(subelem.get("Flags"), 0)
+                    if self.ref_obj is not None:
+                        self.ref_obj.initWithXMLClient(client, subelem)
+                    # Grow the list if needed (the clients may be in wrong order)
+                    if i >= len(self.clients):
+                        self.clients.extend([None] * (i - len(self.clients) + 1))
+                    self.clients[i] = client
+                else:
+                    raise AttributeError("Connector contains unexpected tag")
+
+            self.updateData(avoid_recompute=True)
+
+        else:
+            ConnectorObject.initWithXML(self, conn_elem)
         pass
 
-    def parseRefControl(self, bldata):
-        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        # Create _separate_ empty namespace for each connector
-        self.clients = [SimpleNamespace() for _ in range(count)]
-        for i in range(count):
-            cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            cli_flags = 0
-            self.clients[i].index = cli_idx
-            self.clients[i].flags = cli_flags
-        self.ctlflags = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        pass
+    def exportXML(self, conn_elem, fname_base):
+        if self.reftype not in [CONNECTOR_REF_TYPE.ControlRefnum]: #TODO Currently not all types support clean XML
+            return ConnectorObject.exportXML(self, conn_elem, fname_base)
+        self.parseData()
+        conn_elem.set("RefType", stringFromValEnumOrInt(CONNECTOR_REF_TYPE, self.reftype))
+        if self.ref_obj is not None:
+            self.ref_obj.exportXML(conn_elem, fname_base)
 
-    def parse_0Pre0Post(self, bldata):
-        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        # Create _separate_ empty namespace for each connector
-        self.clients = [SimpleNamespace() for _ in range(count)]
-        for i in range(count):
-            cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            cli_flags = 0
-            self.clients[i].index = cli_idx
-            self.clients[i].flags = cli_flags
-        pass
+        for i, client in enumerate(self.clients):
+            subelem = ET.SubElement(conn_elem,"Client")
+            subelem.tail = "\n"
 
-    def parseRefEventRegist(self, bldata):
-        self.tmp1 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        # Create _separate_ empty namespace for each connector
-        self.clients = [SimpleNamespace() for _ in range(count)]
-        for i in range(count):
-            # dont know this data!
-            tmp3 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            tmp4 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            tmp5 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            cli_flags = 0
-            self.clients[i].index = cli_idx
-            self.clients[i].flags = cli_flags
-            self.clients[i].tmp3 = tmp3
-            self.clients[i].tmp4 = tmp4
-            self.clients[i].tmp5 = tmp5
-        pass
+            subelem.set("Index", "{:d}".format(i))
+            subelem.set("ConnectorIndex", str(client.index))
+            subelem.set("Flags", "0x{:04X}".format(client.flags))
 
-    def parseRefDataValue(self, bldata):
-        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        # Create _separate_ empty namespace for each connector
-        self.clients = [SimpleNamespace() for _ in range(count)]
-        for i in range(count):
-            # dont know this data!
-            cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            cli_flags = 0
-            self.clients[i].index = cli_idx
-            self.clients[i].flags = cli_flags
-        self.valflags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        pass
+            if self.ref_obj is not None:
+                self.ref_obj.exportXMLClient(client, subelem, fname_base)
+
+        conn_elem.set("Format", "inline")
 
     def checkSanity(self):
         ret = True
-        if self.refType() in [ CONNECTOR_REF_TYPE.DataLogFile,
-           CONNECTOR_REF_TYPE.Queue, CONNECTOR_REF_TYPE.UserEvent,
-           CONNECTOR_REF_TYPE.ControlRefnum, CONNECTOR_REF_TYPE.NotifierRefnum,
-           CONNECTOR_REF_TYPE.DataValueRef, ]:
-            if len(self.clients) > 1:
-                if (self.po.verbose > 1):
-                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} reftype {:d} should not have clients, but it does"\
-                      .format(self.vi.src_fname,self.index,self.otype,self.reftype))
+        if self.ref_obj is not None:
+            if not self.ref_obj.checkSanity():
                 ret = False
-        elif self.refType() in [ CONNECTOR_REF_TYPE.EventRegistration ]:
-            if self.tmp1 != 0:
-                ret = False
-            if len(self.clients) < 1:
-                ret = False
-            pass
-
         for client in self.clients:
             if self.index == -1: # Are we a nested connector
                 pass
