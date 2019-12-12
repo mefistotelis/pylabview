@@ -1148,6 +1148,70 @@ class ConnectorObjectUnit(ConnectorObject):
         return ret
 
 
+class ConnectorObjectRepeatedBlock(ConnectorObject):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.prop1 = 0
+        self.prop2 = 0
+
+    def parseRSRCData(self, bldata):
+        # Fields oflags,otype are set at constructor, but no harm in setting them again
+        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+
+        self.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.prop2 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        # No more known data inside
+        self.parseRSRCDataFinish(bldata)
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(self.prop1).to_bytes(4, byteorder='big')
+        data_buf += int(self.prop2).to_bytes(2, byteorder='big')
+        return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 4 + 4 + 2
+        if self.label is not None:
+            label_len = 1 + len(self.label)
+            if label_len % 2 > 0: # Include padding
+                label_len += 2 - (label_len % 2)
+            exp_whole_len += label_len
+        return exp_whole_len
+
+    def initWithXML(self, conn_elem):
+        fmt = conn_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.index,self.otype))
+
+            self.initWithXMLInlineStart(conn_elem)
+            self.prop1 = int(conn_elem.get("Prop1"), 0)
+            self.prop2 = int(conn_elem.get("Prop2"), 0)
+
+            self.updateData(avoid_recompute=True)
+
+        else:
+            ConnectorObject.initWithXML(self, conn_elem)
+        pass
+
+    def exportXML(self, conn_elem, fname_base):
+        self.parseData()
+        conn_elem.set("Prop1", "0x{:X}".format(self.prop1))
+        conn_elem.set("Prop2", "0x{:X}".format(self.prop2))
+        conn_elem.set("Format", "inline")
+
+    def checkSanity(self):
+        ret = True
+        exp_whole_len = self.expectedRSRCSize()
+        if len(self.raw_data) != exp_whole_len:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
+            ret = False
+        return ret
+
+
 class ConnectorObjectRef(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
@@ -1459,6 +1523,7 @@ def newConnectorObject(vi, idx, obj_flags, obj_type, po):
         #CONNECTOR_FULL_TYPE.FixedPoint: ConnectorObjectCluster,
         CONNECTOR_FULL_TYPE.Ptr: ConnectorObjectNumberPtr,
         #CONNECTOR_FULL_TYPE.PtrTo: ConnectorObjectNumberPtr,
+        CONNECTOR_FULL_TYPE.RepeatedBlock: ConnectorObjectRepeatedBlock,
         CONNECTOR_FULL_TYPE.String: ConnectorObjectBlob,
         CONNECTOR_FULL_TYPE.Path: ConnectorObjectBlob,
         CONNECTOR_FULL_TYPE.Picture: ConnectorObjectBlob,
