@@ -209,6 +209,10 @@ class ConnectorObject:
         fmt = conn_elem.get("Format")
         # TODO the inline block belongs to inheriting classes, not here - move
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.index,self.otype))
+
             self.initWithXMLInlineStart(conn_elem)
 
             self.updateData(avoid_recompute=True)
@@ -541,6 +545,10 @@ class ConnectorObjectVoid(ConnectorObject):
     def initWithXML(self, conn_elem):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.index,self.otype))
+
             self.initWithXMLInlineStart(conn_elem)
 
             self.updateData(avoid_recompute=True)
@@ -605,6 +613,10 @@ class ConnectorObjectNumber(ConnectorObject):
     def initWithXML(self, conn_elem):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.index,self.otype))
+
             self.initWithXMLInlineStart(conn_elem)
             self.prop1 = int(conn_elem.get("Prop1"), 0)
 
@@ -681,6 +693,10 @@ class ConnectorObjectBlob(ConnectorObject):
     def initWithXML(self, conn_elem):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.index,self.otype))
+
             self.initWithXMLInlineStart(conn_elem)
             self.prop1 = int(conn_elem.get("Prop1"), 0)
 
@@ -755,10 +771,12 @@ class ConnectorObjectFunction(ConnectorObject):
     def expectedRSRCSize(self):
         ver = self.vi.getFileVersion()
         exp_whole_len = 4
+        exp_whole_len += 2 + 2 * len(self.clients)
+        exp_whole_len += 2 + 2
         if isGreaterOrEqVersion(ver, major=8):
-            exp_whole_len += 2 + 2 * len(self.clients) + 4 + 2 + 4 * len(self.clients)
+            exp_whole_len += 2 + 4 * len(self.clients)
         else:
-            exp_whole_len += 2 + 2 * len(self.clients) + 4 + 2 * len(self.clients)
+            exp_whole_len += 2 * len(self.clients)
         if self.label is not None:
             label_len = 1 + len(self.label)
             if label_len % 2 > 0: # Include padding
@@ -769,11 +787,11 @@ class ConnectorObjectFunction(ConnectorObject):
     def initWithXML(self, conn_elem):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
-            self.initWithXMLInlineStart(conn_elem)
             if (self.po.verbose > 2):
                 print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
+            self.initWithXMLInlineStart(conn_elem)
             self.fflags = int(conn_elem.get("FuncFlags"), 0)
             self.pattern = int(conn_elem.get("Pattern"), 0)
             tmp_val = conn_elem.get("Padding1")
@@ -901,7 +919,7 @@ class ConnectorObjectTypeDef(ConnectorObject):
         # (decreased by 4); not sure if this is correct and an issue here
         cli, cli_len = self.parseRSRCNestedConnector(bldata, pos)
         cli_flags = 0
-        self.clients[0].index = cli.index # Bested clients have index -1
+        self.clients[0].index = cli.index # Nested clients have index -1
         self.clients[0].flags = cli_flags
         self.clients[0].nested = cli
         self.parseRSRCDataFinish(bldata)
@@ -917,28 +935,33 @@ class ConnectorObjectTypeDef(ConnectorObject):
             exp_whole_len += label_len
         return exp_whole_len
 
+    def initWithXMLNestedConnector(self, conn_subelem):
+        client = SimpleNamespace()
+        i = int(conn_subelem.get("Index"), 0)
+        client.index = -1
+        client.flags = 0
+        obj_type = valFromEnumOrIntString(CONNECTOR_FULL_TYPE, conn_subelem.get("Type"))
+        obj_flags = importXMLBitfields(CONNECTOR_FLAGS, conn_subelem)
+        obj = newConnectorObject(self.vi, client.index, obj_flags, obj_type, self.po)
+        client.nested = obj
+        self.initWithXML(conn_subelem)
+        return client, i
+
     def initWithXML(self, conn_elem):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
-            self.initWithXMLInlineStart(conn_elem)
             if (self.po.verbose > 2):
                 print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
+            self.initWithXMLInlineStart(conn_elem)
             self.flag1 = int(conn_elem.get("Flag1"), 0)
 
             self.labels = []
             self.clients = []
             for subelem in conn_elem:
                 if (subelem.tag == "Client"):
-                    client = SimpleNamespace()
-                    i = int(subelem.get("Index"), 0)
-                    client.index = -1
-                    client.flags = int(subelem.get("Flags"), 0)
-                    obj_type = valFromEnumOrIntString(CONNECTOR_FULL_TYPE, subelem.get("Type"))
-                    obj_flags = importXMLBitfields(CONNECTOR_FLAGS, subelem)
-                    obj = newConnectorObject(self.vi, -1, obj_flags, obj_type, self.po)
-                    client.nested = obj
+                    client, i = self.initWithXMLNestedConnector(subelem)
                     if i != 0:
                         raise AttributeError("Connector expected to contain exactly one nested sub-connector")
                     self.clients.append(client)
@@ -972,8 +995,8 @@ class ConnectorObjectTypeDef(ConnectorObject):
             subelem.tail = "\n"
 
             subelem.set("Index", "{:d}".format(i))
-            subelem.set("ConnectorIndex", str(client.index))
-            subelem.set("Flags", "0x{:04X}".format(client.flags))
+            subelem.set("Nested", "True")
+            client.nested.exportXML(subelem, fname_base)
 
         conn_elem.set("Format", "inline")
 
@@ -1041,11 +1064,14 @@ class ConnectorObjectArray(ConnectorObject):
         if (self.dimensions[0].flags & 0x80) == 0:
             ret = False
         for client in self.clients:
-            if client.index >= self.index:
+            if self.index == -1: # Are we a nested connector
+                pass
+            elif client.index >= self.index:
                 if (self.po.verbose > 1):
                     eprint("{:s}: Warning: Connector {:d} type 0x{:02x} client {:d} is reference to higher index"\
                       .format(self.vi.src_fname,self.index,self.otype,client.index))
                 ret = False
+            pass
         return ret
 
 
@@ -1054,6 +1080,7 @@ class ConnectorObjectUnit(ConnectorObject):
         super().__init__(*args)
         self.values = []
         self.prop1 = None
+        self.padding1 = None
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
@@ -1093,11 +1120,6 @@ class ConnectorObjectUnit(ConnectorObject):
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: Unit {:d} type 0x{:02x} padding1 {}, expected zeros"\
                   .format(self.vi.src_fname,self.index,self.otype,self.padding1))
-            ret = False
-        if self.prop1 != 0:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Unit {:d} type 0x{:02x} prop1 {:d}, expected {:d}"\
-                  .format(self.vi.src_fname,self.index,self.otype,self.prop1,0))
             ret = False
         if len(self.values) < 1:
             ret = False
@@ -1270,11 +1292,11 @@ class ConnectorObjectCluster(ConnectorObject):
     def initWithXML(self, conn_elem):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
-            self.initWithXMLInlineStart(conn_elem)
-
             if (self.po.verbose > 2):
                 print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
+
+            self.initWithXMLInlineStart(conn_elem)
 
             self.clients = []
             for subelem in conn_elem:
@@ -1356,6 +1378,10 @@ class ConnectorObjectMeasureData(ConnectorObject):
     def initWithXML(self, conn_elem):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.index,self.otype))
+
             self.initWithXMLInlineStart(conn_elem)
             self.clusterFmt = valFromEnumOrIntString(CONNECTOR_CLUSTER_FORMAT, conn_elem.get("ClusterFmt"))
 
