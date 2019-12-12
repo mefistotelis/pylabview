@@ -768,6 +768,28 @@ class ConnectorObjectFunction(ConnectorObject):
         # No more known data inside
         self.parseRSRCDataFinish(bldata)
 
+    def prepareRSRCData(self, avoid_recompute=False):
+        if not avoid_recompute:
+            ver = self.vi.getFileVersion()
+        else:
+            ver = decodeVersion(0x09000000)
+        data_buf = b''
+        data_buf += int(len(self.clients)).to_bytes(2, byteorder='big')
+        for client in self.clients:
+            data_buf += int(client.index).to_bytes(2, byteorder='big')
+        data_buf += int(self.fflags).to_bytes(2, byteorder='big')
+        data_buf += int(self.pattern).to_bytes(2, byteorder='big')
+
+        if isGreaterOrEqVersion(ver, major=8):
+            data_buf += int(self.padding1).to_bytes(2, byteorder='big')
+            for client in self.clients:
+                data_buf += int(client.flags).to_bytes(4, byteorder='big')
+        else: # isLessOrEqVersion(ver, major=7)
+            for client in self.clients:
+                data_buf += int(client.flags).to_bytes(2, byteorder='big')
+
+        return data_buf
+
     def expectedRSRCSize(self):
         ver = self.vi.getFileVersion()
         exp_whole_len = 4
@@ -1232,6 +1254,9 @@ class ConnectorObjectRef(ConnectorObject):
            CONNECTOR_REF_TYPE.ControlRefnum, CONNECTOR_REF_TYPE.NotifierRefnum,
            CONNECTOR_REF_TYPE.DataValueRef, ]:
             if len(self.clients) > 1:
+                if (self.po.verbose > 1):
+                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} reftype {:d} should not have clients, but it does"\
+                      .format(self.vi.src_fname,self.index,self.otype,self.reftype))
                 ret = False
         elif self.refType() in [ CONNECTOR_REF_TYPE.EventRegistration ]:
             if self.tmp1 != 0:
@@ -1241,10 +1266,12 @@ class ConnectorObjectRef(ConnectorObject):
             pass
 
         for client in self.clients:
-            if client.index >= self.index:
+            if self.index == -1: # Are we a nested connector
+                pass
+            elif client.index >= self.index:
                 if (self.po.verbose > 1):
-                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} client {:d} is reference to higher index"\
-                      .format(self.vi.src_fname,self.index,self.otype,client.index))
+                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} reftype {:d} client {:d} is reference to higher index"\
+                      .format(self.vi.src_fname,self.index,self.otype,self.reftype,client.index))
                 ret = False
         return ret
 
