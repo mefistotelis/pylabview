@@ -1265,7 +1265,7 @@ class ConnectorObjectRef(ConnectorObject):
         pass
 
     def exportXML(self, conn_elem, fname_base):
-        if self.reftype not in [CONNECTOR_REF_TYPE.ControlRefnum]: #TODO Currently not all types support clean XML
+        if self.reftype not in []: #TODO Currently not all types support clean XML
             return ConnectorObject.exportXML(self, conn_elem, fname_base)
         self.parseData()
         conn_elem.set("RefType", stringFromValEnumOrInt(CONNECTOR_REF_TYPE, self.reftype))

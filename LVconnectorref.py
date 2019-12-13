@@ -154,7 +154,9 @@ class RefControlRefnum(RefGeneric):
             cli_flags = 0
             clients[i].index = cli_idx
             clients[i].flags = cli_flags
-        self.conn_obj.ctlflags = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.conn_obj.ctlflags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        self.conn_obj.unkcount = count # TODO figure out the count and read entries after it (example file: ConfigureFXP.vi)
         self.conn_obj.clients = clients
         pass
 
@@ -163,12 +165,13 @@ class RefControlRefnum(RefGeneric):
         data_buf += int(len(self.conn_obj.clients)).to_bytes(2, byteorder='big')
         for client in self.conn_obj.clients:
             data_buf += int(client.index).to_bytes(2, byteorder='big')
-        data_buf += int(self.conn_obj.ctlflags).to_bytes(4, byteorder='big')
+        data_buf += int(self.conn_obj.ctlflags).to_bytes(2, byteorder='big')
+        data_buf += int(self.conn_obj.unkcount).to_bytes(2, byteorder='big')
         return data_buf
 
     def expectedRSRCSize(self):
         exp_whole_len = 2 + 2 * len(self.conn_obj.clients)
-        exp_whole_len += 4
+        exp_whole_len += 2 + 2
         return exp_whole_len
 
     def initWithXML(self, conn_elem):
