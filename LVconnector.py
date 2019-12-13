@@ -1268,6 +1268,9 @@ class ConnectorObjectRef(ConnectorObject):
         if self.reftype not in []: #TODO Currently not all types support clean XML
             return ConnectorObject.exportXML(self, conn_elem, fname_base)
         self.parseData()
+        if len(self.clients) > 0:
+            conn_elem.text = "\n"
+
         conn_elem.set("RefType", stringFromValEnumOrInt(CONNECTOR_REF_TYPE, self.reftype))
         if self.ref_obj is not None:
             self.ref_obj.exportXML(conn_elem, fname_base)
