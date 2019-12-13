@@ -144,6 +144,7 @@ class RefTCPConnection(RefGeneric):
 class RefControlRefnum(RefGeneric):
     def __init__(self, *args):
         super().__init__(*args)
+        self.conn_obj.ctlflags = 0
 
     def parseRSRCData(self, bldata):
         count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
@@ -298,31 +299,67 @@ class RefSharedVariable(RefGeneric):
 class RefEventRegistration(RefGeneric):
     def __init__(self, *args):
         super().__init__(*args)
+        self.conn_obj.field0 = 0
 
     def parseRSRCData(self, bldata):
-        tmp1 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        field0 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         # Create _separate_ empty namespace for each connector
         clients = [SimpleNamespace() for _ in range(count)]
         for i in range(count):
             # dont know this data!
-            tmp3 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            tmp4 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            tmp5 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            cfield0 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            cfield2 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            cfield4 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
             cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
             cli_flags = 0
             clients[i].index = cli_idx
             clients[i].flags = cli_flags
-            clients[i].tmp3 = tmp3
-            clients[i].tmp4 = tmp4
-            clients[i].tmp5 = tmp5
-        self.conn_obj.tmp1 = tmp1
+            clients[i].cfield0 = cfield0
+            clients[i].cfield2 = cfield2
+            clients[i].cfield4 = cfield4
+        self.conn_obj.field0 = field0
         self.conn_obj.clients = clients
+        pass
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(self.conn_obj.field0).to_bytes(2, byteorder='big')
+        data_buf += int(len(self.conn_obj.clients)).to_bytes(2, byteorder='big')
+        for client in self.conn_obj.clients:
+            data_buf += int(client.cfield0).to_bytes(2, byteorder='big')
+            data_buf += int(client.cfield2).to_bytes(2, byteorder='big')
+            data_buf += int(client.cfield4).to_bytes(2, byteorder='big')
+            data_buf += int(client.index).to_bytes(2, byteorder='big')
+        return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 2 + 2 + 8 * len(self.conn_obj.clients)
+        return exp_whole_len
+
+    def initWithXML(self, conn_elem):
+        self.conn_obj.field0 = int(conn_elem.get("Field0"), 0)
+        pass
+
+    def initWithXMLClient(self, client, conn_subelem):
+        client.cfield0 = int(conn_subelem.get("CField0"), 0)
+        client.cfield2 = int(conn_subelem.get("CField2"), 0)
+        client.cfield4 = int(conn_subelem.get("CField4"), 0)
+        pass
+
+    def exportXML(self, conn_elem, fname_base):
+        conn_elem.set("Field0", "0x{:04X}".format(self.conn_obj.field0))
+        pass
+
+    def exportXMLClient(self, client, conn_subelem, fname_base):
+        conn_elem.set("CField0", "0x{:04X}".format(client.cfield0))
+        conn_elem.set("CField2", "0x{:04X}".format(client.cfield2))
+        conn_elem.set("CField4", "0x{:04X}".format(client.cfield4))
         pass
 
     def checkSanity(self):
         ret = True
-        if self.conn_obj.tmp1 != 0:
+        if self.conn_obj.field0 != 0:
             ret = False
         if len(self.conn_obj.clients) < 1:
             ret = False
