@@ -175,14 +175,8 @@ class RefControlRefnum(RefGeneric):
         self.conn_obj.ctlflags = int(conn_elem.get("CtlFlags"), 0)
         pass
 
-    def initWithXMLClient(self, client, conn_subelem):
-        pass
-
     def exportXML(self, conn_elem, fname_base):
         conn_elem.set("CtlFlags", "0x{:04X}".format(self.conn_obj.ctlflags))
-        pass
-
-    def exportXMLClient(self, client, conn_subelem, fname_base):
         pass
 
     def checkSanity(self):
@@ -221,6 +215,17 @@ class RefNotifierRefnum(RefGeneric):
         self.conn_obj.clients = clients
         pass
 
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(len(self.conn_obj.clients)).to_bytes(2, byteorder='big')
+        for client in self.conn_obj.clients:
+            data_buf += int(client.index).to_bytes(2, byteorder='big')
+        return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 2 + 2 * len(self.conn_obj.clients)
+        return exp_whole_len
+
     def checkSanity(self):
         ret = True
         if len(self.conn_obj.clients) > 1:
@@ -246,6 +251,17 @@ class RefQueue(RefGeneric):
             clients[i].flags = cli_flags
         self.conn_obj.clients = clients
         pass
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(len(self.conn_obj.clients)).to_bytes(2, byteorder='big')
+        for client in self.conn_obj.clients:
+            data_buf += int(client.index).to_bytes(2, byteorder='big')
+        return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 2 + 2 * len(self.conn_obj.clients)
+        return exp_whole_len
 
     def checkSanity(self):
         ret = True
