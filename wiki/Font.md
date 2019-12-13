@@ -13,6 +13,7 @@ First 3 are the same. 4th is an instance of Application Font
 ```
 
 Font count of the following:
+
 ```plain
  Length | Type    | Value
 --------+---------+---------
@@ -27,6 +28,7 @@ Font count of the following:
 ```
 
 Font count of the following:
+
 ```plain
  Length | Type    | Value
 --------+---------+-------
@@ -35,6 +37,7 @@ Font count of the following:
 ```
 
 A few special fonts:
+
 ```plain
  Name | Value
 ------+------------------
@@ -47,7 +50,9 @@ Bold and Size are 0x8000 when not set
 
 
 <a id="wiki-Style" />
+
 ### Style
+
 ```plain
  Mask | Value
 ------+---------------
