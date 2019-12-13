@@ -739,6 +739,17 @@ class FPSE(SingleIntBlock):
         self.signed = False
 
 
+class FPTD(SingleIntBlock):
+    """ Front Panel TD
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.byteorder = 'big'
+        self.size = 2
+        self.base = 10
+        self.signed = False
+
+
 class BDSE(SingleIntBlock):
     """ Block Diagram SE
     """
