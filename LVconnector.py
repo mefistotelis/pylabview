@@ -563,6 +563,14 @@ class ConnectorObjectBool(ConnectorObjectVoid):
     pass
 
 
+class ConnectorObjectLVVariant(ConnectorObjectVoid):
+    """ Connector with data supporting multiple types(variant type)
+
+    Stores no additional data, so handling is identical to Void connector.
+    """
+    pass
+
+
 class ConnectorObjectNumber(ConnectorObject):
     """ Connector with single number as data
     """
@@ -1481,7 +1489,7 @@ def newConnectorObject(vi, idx, obj_flags, obj_type, po):
         CONNECTOR_FULL_TYPE.Function: ConnectorObjectFunction,
         CONNECTOR_FULL_TYPE.TypeDef: ConnectorObjectTypeDef,
         CONNECTOR_FULL_TYPE.Cluster: ConnectorObjectCluster,
-        #CONNECTOR_FULL_TYPE.LVVariant: ConnectorObjectCluster,
+        CONNECTOR_FULL_TYPE.LVVariant: ConnectorObjectLVVariant,
         CONNECTOR_FULL_TYPE.MeasureData: ConnectorObjectMeasureData,
         #CONNECTOR_FULL_TYPE.ComplexFixedPt: ConnectorObjectCluster,
         #CONNECTOR_FULL_TYPE.FixedPoint: ConnectorObjectCluster,
