@@ -128,6 +128,13 @@ class RefnumBase:
         """
         pass
 
+    def initWithXMLItem(self, item, conn_subelem):
+        """ Parses XML branch to fill properties of the items associated to connector.
+
+        Should parse attributes of the tag received, filling properties in the item object.
+        """
+        raise AttributeError("Connector of this refcount type does not support item tag")
+
     def exportXML(self, conn_elem, fname_base):
         """ Fills XML branch with properties of the connector.
 
@@ -145,6 +152,13 @@ class RefnumBase:
         Should set attributes of the tag received, using properties in the client object.
         """
         pass
+
+    def exportXMLItem(self, item, conn_subelem, fname_base):
+        """ Fills XML branch to with properties of the connector item.
+
+        Should set attributes of the tag received, using properties in the item object.
+        """
+        raise AttributeError("Connector of this refcount type does not support item tag")
 
     def checkSanity(self):
         ret = True
@@ -184,12 +198,7 @@ class RefnumBase_SimpleCliList(RefnumBase):
         return exp_whole_len
 
 
-class RefnumDataLog(RefnumBase_SimpleCliList):
-    """ Data Log File Refnum Connector
-
-    Connector of "Data Log File Refnum" Front Panel control.
-    Can store only one client.
-    """
+class RefnumBase_SimpleCliSingle(RefnumBase_SimpleCliList):
     def __init__(self, *args):
         super().__init__(*args)
 
@@ -203,14 +212,31 @@ class RefnumDataLog(RefnumBase_SimpleCliList):
         return ret
 
 
+class RefnumDataLog(RefnumBase_SimpleCliSingle):
+    """ Data Log File Refnum Connector
+
+    Connector of "Data Log File Refnum" Front Panel control.
+    Can store only one client.
+    """
+    pass
+
+
+class RefnumGeneric(RefnumBase_SimpleCliSingle):
+    """ Generic Refnum Connector
+
+    Usage unknown.
+    """
+    pass
+
+
 class RefnumByteStream(RefnumBase):
     """ Byte Stream File Refnum Connector
 
     Connector of "Byte Stream File Refnum" Front Panel control.
     Used to open or create a file in one VI and perform I/O operations in another VI.
     """
-    def __init__(self, *args):
-        super().__init__(*args)
+    # This refnum has no additional data stored
+    pass
 
 
 class RefnumDevice(RefnumBase):
@@ -218,8 +244,8 @@ class RefnumDevice(RefnumBase):
 
     Usage unknown.
     """
-    def __init__(self, *args):
-        super().__init__(*args)
+    # This refnum is untested
+    pass
 
 
 class RefnumOccurrence(RefnumBase):
@@ -228,8 +254,8 @@ class RefnumOccurrence(RefnumBase):
     Connector of "Occurrence Refnum" Front Panel control.
     Used to set or wait for the occurrence function in another VI.
     """
-    def __init__(self, *args):
-        super().__init__(*args)
+    # This refnum has no additional data stored
+    pass
 
 
 class RefnumTCPNetConn(RefnumBase):
@@ -237,18 +263,88 @@ class RefnumTCPNetConn(RefnumBase):
 
     Connector of "TCP Network Connection Refnum" Front Panel control.
     """
-    def __init__(self, *args):
-        super().__init__(*args)
+    # This refnum has no additional data stored
+    pass
 
 
 class RefnumAutoRef(RefnumBase):
     """ Automation Refnum Connector
 
-    Connector of "Automation Refnum Refnum" Front Panel control.
+    Connector of "Automation Refnum" Front Panel control.
     Used to open a reference to an ActiveX Server Object and pass it as a parameter to another VI.
     """
     def __init__(self, *args):
         super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        ref_flags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        count = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        # Create _separate_ empty namespace for each connector
+        items = [SimpleNamespace() for _ in range(count)]
+        for i in range(count):
+            items[i].uid = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            items[i].classID0 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            items[i].classID4 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            items[i].classID6 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            items[i].classID8 = bldata.read(8)
+        if ref_flags != 0:
+            self.conn_obj.field20 = int.from_bytes(bldata.read(4), byteorder='big', signed=True)
+            self.conn_obj.field24 = int.from_bytes(bldata.read(4), byteorder='big', signed=True)
+        else:
+            self.conn_obj.field20 = 0
+            self.conn_obj.field24 = 0
+        self.conn_obj.items = items
+        self.conn_obj.ref_flags = ref_flags
+        pass
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(self.conn_obj.ref_flags).to_bytes(1, byteorder='big')
+        data_buf += int(len(self.conn_obj.items)).to_bytes(1, byteorder='big')
+        for guid in self.conn_obj.items:
+            data_buf += int(guid.uid).to_bytes(4, byteorder='big')
+            data_buf += int(guid.classID0).to_bytes(4, byteorder='big')
+            data_buf += int(guid.classID4).to_bytes(2, byteorder='big')
+            data_buf += int(guid.classID6).to_bytes(2, byteorder='big')
+            data_buf += guid.classID8
+        if self.conn_obj.ref_flags != 0:
+            data_buf += int(self.conn_obj.field20).to_bytes(4, byteorder='big')
+            data_buf += int(self.conn_obj.field24).to_bytes(4, byteorder='big')
+        return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 1
+        exp_whole_len += 1 + 16 * len(self.conn_obj.items)
+        if self.conn_obj.ref_flags != 0: exp_whole_len += 4 + 4
+        return exp_whole_len
+
+    def initWithXML(self, conn_elem):
+        self.conn_obj.ref_flags = int(conn_elem.get("RefFlags"), 0)
+        self.conn_obj.field20 = int(conn_elem.get("Field20"), 0)
+        self.conn_obj.field24 = int(conn_elem.get("Field24"), 0)
+        pass
+
+    def initWithXMLItem(self, item, conn_subelem):
+        item.uid = int(conn_subelem.get("UID"), 0)
+        item.classID0 = int(conn_subelem.get("ClassID0"), 0)
+        item.classID4 = int(conn_subelem.get("ClassID4"), 0)
+        item.classID6 = int(conn_subelem.get("ClassID6"), 0)
+        item.classID8 = bytes.fromhex(conn_subelem.get("ClassID8"))
+        pass
+
+    def exportXML(self, conn_elem, fname_base):
+        conn_elem.set("RefFlags", "0x{:02X}".format(self.conn_obj.ref_flags))
+        conn_elem.set("Field20", "{:d}".format(self.conn_obj.field20))
+        conn_elem.set("Field24", "{:d}".format(self.conn_obj.field24))
+        pass
+
+    def exportXMLItem(self, item, conn_subelem, fname_base):
+        conn_subelem.set("UID", "0x{:02X}".format(item.uid))
+        conn_subelem.set("ClassID0", "0x{:02X}".format(item.classID0))
+        conn_subelem.set("ClassID4", "0x{:02X}".format(item.classID4))
+        conn_subelem.set("ClassID6", "0x{:02X}".format(item.classID6))
+        conn_subelem.set("ClassID8", item.classID8.hex())
+        pass
 
 
 class RefnumLVObjCtl(RefnumBase):
@@ -260,6 +356,7 @@ class RefnumLVObjCtl(RefnumBase):
     def __init__(self, *args):
         super().__init__(*args)
         self.conn_obj.ctlflags = 0
+        self.conn_obj.unkcount = 0
 
     def parseRSRCData(self, bldata):
         count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
@@ -661,6 +758,7 @@ class RefnumTDMSFile(RefnumBase):
 
 def newConnectorObjectRef(vi, conn_obj, reftype, po):
     ctor = {
+        REFNUM_TYPE.Generic: RefnumGeneric,
         REFNUM_TYPE.DataLog: RefnumDataLog,
         REFNUM_TYPE.ByteStream: RefnumByteStream,
         REFNUM_TYPE.Device: RefnumDevice,

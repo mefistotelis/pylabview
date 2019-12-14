@@ -1207,6 +1207,7 @@ class ConnectorObjectRef(ConnectorObject):
         super().__init__(*args)
         self.reftype = None
         self.ref_obj = None
+        self.items = []
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
@@ -1251,6 +1252,7 @@ class ConnectorObjectRef(ConnectorObject):
                 self.ref_obj.initWithXML(conn_elem)
 
             self.clients = []
+            self.items = []
             for subelem in conn_elem:
                 if (subelem.tag == "Client"):
                     client = SimpleNamespace()
@@ -1263,6 +1265,15 @@ class ConnectorObjectRef(ConnectorObject):
                     if i >= len(self.clients):
                         self.clients.extend([None] * (i - len(self.clients) + 1))
                     self.clients[i] = client
+                elif (subelem.tag == "Item"):
+                    item = SimpleNamespace()
+                    i = int(subelem.get("Index"), 0)
+                    if self.ref_obj is not None:
+                        self.ref_obj.initWithXMLItem(item, subelem)
+                    # Grow the list if needed (the items may be in wrong order)
+                    if i >= len(self.items):
+                        self.items.extend([None] * (i - len(self.items) + 1))
+                    self.items[i] = item
                 else:
                     raise AttributeError("Connector contains unexpected tag")
 
@@ -1273,10 +1284,19 @@ class ConnectorObjectRef(ConnectorObject):
         pass
 
     def exportXML(self, conn_elem, fname_base):
-        if self.reftype not in [REFNUM_TYPE.DataLog]: #TODO Currently not all types support clean XML
+        if self.reftype not in [
+          REFNUM_TYPE.Generic,
+          REFNUM_TYPE.DataLog,
+          REFNUM_TYPE.ByteStream,
+          REFNUM_TYPE.Device,
+          REFNUM_TYPE.Occurrence,
+          REFNUM_TYPE.TCPNetConn,
+          REFNUM_TYPE.Unused6,
+          REFNUM_TYPE.AutoRef,
+          ]: #TODO Currently not all types support clean XML
             return ConnectorObject.exportXML(self, conn_elem, fname_base)
         self.parseData()
-        if len(self.clients) > 0:
+        if len(self.clients) > 0 or len(self.items) > 0:
             conn_elem.text = "\n"
 
         conn_elem.set("RefType", stringFromValEnumOrInt(REFNUM_TYPE, self.reftype))
@@ -1293,6 +1313,15 @@ class ConnectorObjectRef(ConnectorObject):
 
             if self.ref_obj is not None:
                 self.ref_obj.exportXMLClient(client, subelem, fname_base)
+
+        for i, item in enumerate(self.items):
+            subelem = ET.SubElement(conn_elem,"Item")
+            subelem.tail = "\n"
+
+            subelem.set("Index", "{:d}".format(i))
+
+            if self.ref_obj is not None:
+                self.ref_obj.exportXMLItem(item, subelem, fname_base)
 
         conn_elem.set("Format", "inline")
 
