@@ -33,27 +33,47 @@ from LVmisc import *
 from LVblock import *
 
 
-class CONNECTOR_REF_TYPE(enum.IntEnum):
-    DataLogFile =	0x01
-    Occurrence =	0x04
-    TCPConnection =	0x05
-    ControlRefnum =	0x08
-    DataSocket =	0x0D
-    UDPConnection =	0x10
-    NotifierRefnum =	0x11
-    Queue =	0x12
-    IrDAConnection =	0x13
-    Channel =	0x14
-    SharedVariable =	0x15
-    EventRegistration =	0x17
-    UserEvent =	0x19
-    Class =	0x1E
-    BluetoothConnectn =	0x1F
-    DataValueRef =	0x20
-    FIFORefnum =	0x21
+class REFNUM_TYPE(enum.IntEnum):
+    Generic =	0
+    DataLog =	1
+    ByteStream =	2
+    Device =	3
+    Occurrence =	4
+    TCPNetConn =	5 # TCP Network Connection
+    Unused6 =	6
+    AutoRef =	7
+    LVObjCtl =	8
+    Menu =	9
+    Unused10 =	10
+    Imaq =	11
+    Unused12 =	12
+    DataSocket =	13
+    VisaRef =	14
+    IVIRef =	15
+    UDPNetConn =	16 # UDP Network Connection
+    NotifierRef =	17
+    Queue =	18
+    IrdaNetConn =	19 # Irda Network Connnection
+    UsrDefined =	20
+    UsrDefndTag =	21 # User Defined Tag
+    Unused22 =	22
+    EventReg =	23 # Event Registration
+    DotNet =	24
+    UserEvent =	25
+    Unused26 =	26
+    Callback =	27
+    Unused28 =	28
+    UsrDefTagFlt =	29 # User Defined Tag Flatten
+    UDClassInst =	30
+    BluetoothCon =	31 # Bluetooth Connectn
+    DataValueRef =	32
+    FIFORef =	33
+    TDMSFile =	34
 
 
-class RefGeneric:
+
+
+class RefnumBase:
     """ Generic base for Connectors of type Reference.
 
     Provides methods to be overriden in inheriting classes.
@@ -131,17 +151,17 @@ class RefGeneric:
         return ret
 
 
-class RefOccurrence(RefGeneric):
+class RefnumOccurrence(RefnumBase):
     def __init__(self, *args):
         super().__init__(*args)
 
 
-class RefTCPConnection(RefGeneric):
+class RefnumTCPNetConn(RefnumBase):
     def __init__(self, *args):
         super().__init__(*args)
 
 
-class RefControlRefnum(RefGeneric):
+class RefnumLVObjCtl(RefnumBase):
     def __init__(self, *args):
         super().__init__(*args)
         self.conn_obj.ctlflags = 0
@@ -193,54 +213,17 @@ class RefControlRefnum(RefGeneric):
         return ret
 
 
-class RefDataSocket(RefGeneric):
+class RefnumDataSocket(RefnumBase):
     def __init__(self, *args):
         super().__init__(*args)
 
 
-class RefUDPConnection(RefGeneric):
+class RefnumUDPNetConn(RefnumBase):
     def __init__(self, *args):
         super().__init__(*args)
 
 
-class RefNotifierRefnum(RefGeneric):
-    def __init__(self, *args):
-        super().__init__(*args)
-
-    def parseRSRCData(self, bldata):
-        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        # Create _separate_ empty namespace for each connector
-        clients = [SimpleNamespace() for _ in range(count)]
-        for i in range(count):
-            cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            cli_flags = 0
-            clients[i].index = cli_idx
-            clients[i].flags = cli_flags
-        self.conn_obj.clients = clients
-        pass
-
-    def prepareRSRCData(self, avoid_recompute=False):
-        data_buf = b''
-        data_buf += int(len(self.conn_obj.clients)).to_bytes(2, byteorder='big')
-        for client in self.conn_obj.clients:
-            data_buf += int(client.index).to_bytes(2, byteorder='big')
-        return data_buf
-
-    def expectedRSRCSize(self):
-        exp_whole_len = 2 + 2 * len(self.conn_obj.clients)
-        return exp_whole_len
-
-    def checkSanity(self):
-        ret = True
-        if len(self.conn_obj.clients) > 1:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} reftype {:d} should not have clients, but it does"\
-                  .format(self.vi.src_fname,self.conn_obj.index,self.conn_obj.otype,self.conn_obj.reftype))
-            ret = False
-        return ret
-
-
-class RefQueue(RefGeneric):
+class RefnumNotifierRef(RefnumBase):
     def __init__(self, *args):
         super().__init__(*args)
 
@@ -277,26 +260,63 @@ class RefQueue(RefGeneric):
         return ret
 
 
-class RefDataLogFile(RefQueue):
+class RefnumQueue(RefnumBase):
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        # Create _separate_ empty namespace for each connector
+        clients = [SimpleNamespace() for _ in range(count)]
+        for i in range(count):
+            cli_idx = readVariableSizeField(bldata)
+            cli_flags = 0
+            clients[i].index = cli_idx
+            clients[i].flags = cli_flags
+        self.conn_obj.clients = clients
+        pass
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(len(self.conn_obj.clients)).to_bytes(2, byteorder='big')
+        for client in self.conn_obj.clients:
+            data_buf += int(client.index).to_bytes(2, byteorder='big')
+        return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 2 + 2 * len(self.conn_obj.clients)
+        return exp_whole_len
+
+    def checkSanity(self):
+        ret = True
+        if len(self.conn_obj.clients) > 1:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} reftype {:d} should not have clients, but it does"\
+                  .format(self.vi.src_fname,self.conn_obj.index,self.conn_obj.otype,self.conn_obj.reftype))
+            ret = False
+        return ret
+
+
+class RefnumDataLog(RefnumQueue):
     pass
 
 
-class RefIrDAConnection(RefGeneric):
+class RefnumIrdaNetConn(RefnumBase):
     def __init__(self, *args):
         super().__init__(*args)
 
 
-class RefChannel(RefGeneric):
+class RefnumUsrDefined(RefnumBase):
     def __init__(self, *args):
         super().__init__(*args)
 
 
-class RefSharedVariable(RefGeneric):
+class RefnumUsrDefndTag(RefnumBase):
     def __init__(self, *args):
         super().__init__(*args)
 
 
-class RefEventRegistration(RefGeneric):
+class RefnumEventReg(RefnumBase):
     def __init__(self, *args):
         super().__init__(*args)
         self.conn_obj.field0 = 0
@@ -366,21 +386,21 @@ class RefEventRegistration(RefGeneric):
         return ret
 
 
-class RefUserEvent(RefQueue):
+class RefnumUserEvent(RefnumQueue):
     pass
 
 
-class RefClass(RefGeneric):
+class RefnumUDClassInst(RefnumBase):
     def __init__(self, *args):
         super().__init__(*args)
 
 
-class RefBluetoothConnectn(RefGeneric):
+class RefnumBluetoothCon(RefnumBase):
     def __init__(self, *args):
         super().__init__(*args)
 
 
-class RefDataValueRef(RefGeneric):
+class RefnumDataValueRef(RefnumBase):
     def __init__(self, *args):
         super().__init__(*args)
 
@@ -408,29 +428,29 @@ class RefDataValueRef(RefGeneric):
         return ret
 
 
-class RefFIFORefnum(RefNotifierRefnum):
+class RefnumFIFORef(RefnumNotifierRef):
     pass
 
 
 def newConnectorObjectRef(vi, conn_obj, reftype, po):
     ctor = {
-        CONNECTOR_REF_TYPE.DataLogFile: RefDataLogFile,
-        CONNECTOR_REF_TYPE.Occurrence: RefOccurrence,
-        CONNECTOR_REF_TYPE.TCPConnection: RefTCPConnection,
-        CONNECTOR_REF_TYPE.ControlRefnum: RefControlRefnum,
-        CONNECTOR_REF_TYPE.DataSocket: RefDataSocket,
-        CONNECTOR_REF_TYPE.UDPConnection: RefUDPConnection,
-        CONNECTOR_REF_TYPE.NotifierRefnum: RefNotifierRefnum,
-        CONNECTOR_REF_TYPE.Queue: RefQueue,
-        CONNECTOR_REF_TYPE.IrDAConnection: RefIrDAConnection,
-        CONNECTOR_REF_TYPE.Channel: RefChannel,
-        CONNECTOR_REF_TYPE.SharedVariable: RefSharedVariable,
-        CONNECTOR_REF_TYPE.EventRegistration: RefEventRegistration,
-        CONNECTOR_REF_TYPE.UserEvent: RefUserEvent,
-        CONNECTOR_REF_TYPE.Class: RefClass,
-        CONNECTOR_REF_TYPE.BluetoothConnectn: RefBluetoothConnectn,
-        CONNECTOR_REF_TYPE.DataValueRef: RefDataValueRef,
-        CONNECTOR_REF_TYPE.FIFORefnum: RefFIFORefnum,
+        REFNUM_TYPE.DataLog: RefnumDataLog,
+        REFNUM_TYPE.Occurrence: RefnumOccurrence,
+        REFNUM_TYPE.TCPNetConn: RefnumTCPNetConn,
+        REFNUM_TYPE.LVObjCtl: RefnumLVObjCtl,
+        REFNUM_TYPE.DataSocket: RefnumDataSocket,
+        REFNUM_TYPE.UDPNetConn: RefnumUDPNetConn,
+        REFNUM_TYPE.NotifierRef: RefnumNotifierRef,
+        REFNUM_TYPE.Queue: RefnumQueue,
+        REFNUM_TYPE.IrdaNetConn: RefnumIrdaNetConn,
+        REFNUM_TYPE.UsrDefined: RefnumUsrDefined,
+        REFNUM_TYPE.UsrDefndTag: RefnumUsrDefndTag,
+        REFNUM_TYPE.EventReg: RefnumEventReg,
+        REFNUM_TYPE.UserEvent: RefnumUserEvent,
+        REFNUM_TYPE.UDClassInst: RefnumUDClassInst,
+        REFNUM_TYPE.BluetoothCon: RefnumBluetoothCon,
+        REFNUM_TYPE.DataValueRef: RefnumDataValueRef,
+        REFNUM_TYPE.FIFORef: RefnumFIFORef,
     }.get(reftype, None)
     if ctor is None:
         return None

@@ -32,7 +32,7 @@ from ctypes import *
 from LVmisc import *
 from LVblock import *
 import LVconnectorref
-from LVconnectorref import CONNECTOR_REF_TYPE
+from LVconnectorref import REFNUM_TYPE
 
 
 class CONNECTOR_MAIN_TYPE(enum.IntEnum):
@@ -1244,7 +1244,7 @@ class ConnectorObjectRef(ConnectorObject):
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
-            self.reftype = valFromEnumOrIntString(CONNECTOR_REF_TYPE, conn_elem.get("RefType"))
+            self.reftype = valFromEnumOrIntString(REFNUM_TYPE, conn_elem.get("RefType"))
 
             self.ref_obj = LVconnectorref.newConnectorObjectRef(self.vi, self, self.reftype, self.po)
             if self.ref_obj is not None:
@@ -1273,13 +1273,13 @@ class ConnectorObjectRef(ConnectorObject):
         pass
 
     def exportXML(self, conn_elem, fname_base):
-        if self.reftype not in []: #TODO Currently not all types support clean XML
+        if self.reftype not in [REFNUM_TYPE.DataLog]: #TODO Currently not all types support clean XML
             return ConnectorObject.exportXML(self, conn_elem, fname_base)
         self.parseData()
         if len(self.clients) > 0:
             conn_elem.text = "\n"
 
-        conn_elem.set("RefType", stringFromValEnumOrInt(CONNECTOR_REF_TYPE, self.reftype))
+        conn_elem.set("RefType", stringFromValEnumOrInt(REFNUM_TYPE, self.reftype))
         if self.ref_obj is not None:
             self.ref_obj.exportXML(conn_elem, fname_base)
 
@@ -1312,9 +1312,9 @@ class ConnectorObjectRef(ConnectorObject):
         return ret
 
     def refType(self):
-        if self.reftype not in set(item.value for item in CONNECTOR_REF_TYPE):
+        if self.reftype not in set(item.value for item in REFNUM_TYPE):
             return self.reftype
-        return CONNECTOR_REF_TYPE(self.reftype)
+        return REFNUM_TYPE(self.reftype)
 
 
 class ConnectorObjectCluster(ConnectorObject):
