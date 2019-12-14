@@ -221,11 +221,12 @@ class RefnumDataLog(RefnumBase_SimpleCliSingle):
     pass
 
 
-class RefnumGeneric(RefnumBase_SimpleCliSingle):
+class RefnumGeneric(RefnumBase):
     """ Generic Refnum Connector
 
     Usage unknown.
     """
+    # This refnum has no additional data stored
     pass
 
 
