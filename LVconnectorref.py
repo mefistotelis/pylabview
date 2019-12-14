@@ -74,7 +74,7 @@ class REFNUM_TYPE(enum.IntEnum):
 
 
 class RefnumBase:
-    """ Generic base for Connectors of type Reference.
+    """ Generic base for Connectors of type Refnum.
 
     Provides methods to be overriden in inheriting classes.
     """
@@ -151,17 +151,112 @@ class RefnumBase:
         return ret
 
 
+class RefnumBase_SimpleCliList(RefnumBase):
+    """ Base class for Refnum Connectors storing simple list of Client Index values
+
+    Used with the Queue Operations functions to store data in a queue.
+    Some of related controls: "Dequeue Element", "Enqueue Element", "Flush Queue", "Obtain Queue".
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        # Create _separate_ empty namespace for each connector
+        clients = [SimpleNamespace() for _ in range(count)]
+        for i in range(count):
+            cli_idx = readVariableSizeField(bldata)
+            cli_flags = 0
+            clients[i].index = cli_idx
+            clients[i].flags = cli_flags
+        self.conn_obj.clients = clients
+        pass
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(len(self.conn_obj.clients)).to_bytes(2, byteorder='big')
+        for client in self.conn_obj.clients:
+            data_buf += int(client.index).to_bytes(2, byteorder='big')
+        return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 2 + 2 * len(self.conn_obj.clients)
+        return exp_whole_len
+
+
+class RefnumDataLog(RefnumBase_SimpleCliList):
+    """ Data Log File Refnum Connector
+
+    Connector of "Data Log File Refnum" Front Panel control.
+    Can store only one client.
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def checkSanity(self):
+        ret = True
+        if len(self.conn_obj.clients) > 1:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} reftype {:d} should not have more than one client, has {}"\
+                  .format(self.vi.src_fname,self.conn_obj.index,self.conn_obj.otype,self.conn_obj.reftype,len(self.conn_obj.clients)))
+            ret = False
+        return ret
+
+
+class RefnumByteStream(RefnumBase):
+    """ Byte Stream File Refnum Connector
+
+    Connector of "Byte Stream File Refnum" Front Panel control.
+    Used to open or create a file in one VI and perform I/O operations in another VI.
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+
+class RefnumDevice(RefnumBase):
+    """ Device Refnum Connector
+
+    Usage unknown.
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+
 class RefnumOccurrence(RefnumBase):
+    """ Occurrence Refnum Connector
+
+    Connector of "Occurrence Refnum" Front Panel control.
+    Used to set or wait for the occurrence function in another VI.
+    """
     def __init__(self, *args):
         super().__init__(*args)
 
 
 class RefnumTCPNetConn(RefnumBase):
+    """ TCP Network Connection Refnum Connector
+
+    Connector of "TCP Network Connection Refnum" Front Panel control.
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+
+class RefnumAutoRef(RefnumBase):
+    """ Automation Refnum Connector
+
+    Connector of "Automation Refnum Refnum" Front Panel control.
+    Used to open a reference to an ActiveX Server Object and pass it as a parameter to another VI.
+    """
     def __init__(self, *args):
         super().__init__(*args)
 
 
 class RefnumLVObjCtl(RefnumBase):
+    """ LVObject/Control Refnum Connector
+
+    Connector of "Control Refnum" Front Panel control.
+    Used to open a reference to a front panel control/indicator and pass the reference to another VI.
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.conn_obj.ctlflags = 0
@@ -213,17 +308,71 @@ class RefnumLVObjCtl(RefnumBase):
         return ret
 
 
+class RefnumMenu(RefnumBase):
+    """ Menu Refnum Connector
+
+    Connector of "Menu Refnum" Front Panel control.
+    Used to pass a VI menu reference to a subVI.
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+
+class RefnumImaq(RefnumBase):
+    """ IMAQ Session Refnum Connector
+
+    Used with the Image Acquisition VIs.
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+
 class RefnumDataSocket(RefnumBase):
+    """ DataSocket Refnum Connector
+
+    Connector of "DataSocket Refnum" Front Panel control.
+    Used to open a reference to a data connection.
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+
+class RefnumVisaRef(RefnumBase):
+    """ Visa Refnum Connector
+
+    Usage unknown.
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+
+class RefnumIVIRef(RefnumBase):
+    """ VI Refnum Connector
+
+    Connector of "VI Refnum" Front Panel control.
+    Used to open a reference to a VI and pass it as a parameter to another VI.
+    """
     def __init__(self, *args):
         super().__init__(*args)
 
 
 class RefnumUDPNetConn(RefnumBase):
+    """ UDP Network Connection Refnum Connector
+
+    Connector of "UDP Network Connection Refnum" Front Panel control.
+    Used to uniquely identify a UDP socket.
+    """
     def __init__(self, *args):
         super().__init__(*args)
 
 
 class RefnumNotifierRef(RefnumBase):
+    """ Notifier Refnum Connector
+
+    Used with the Notifier Operations functions to suspend the execution
+    until receive data from another section or another VI.
+    Some of related controls: "Cancel Notification", "Get Notifier Status", "Obtain Notifier", "Send Notification".
+    """
     def __init__(self, *args):
         super().__init__(*args)
 
@@ -261,6 +410,11 @@ class RefnumNotifierRef(RefnumBase):
 
 
 class RefnumQueue(RefnumBase):
+    """ Queue Refnum Connector
+
+    Used with the Queue Operations functions to store data in a queue.
+    Some of related controls: "Dequeue Element", "Enqueue Element", "Flush Queue", "Obtain Queue".
+    """
     def __init__(self, *args):
         super().__init__(*args)
 
@@ -297,26 +451,39 @@ class RefnumQueue(RefnumBase):
         return ret
 
 
-class RefnumDataLog(RefnumQueue):
-    pass
-
-
 class RefnumIrdaNetConn(RefnumBase):
+    """ IrDA Network Connection Refnum Connector
+
+    Connector of "IrDA Network Connection Refnum" Front Panel control.
+    """
     def __init__(self, *args):
         super().__init__(*args)
 
 
 class RefnumUsrDefined(RefnumBase):
+    """ User Defined Refnum Connector
+
+    Usage unknown.
+    """
     def __init__(self, *args):
         super().__init__(*args)
 
 
 class RefnumUsrDefndTag(RefnumBase):
+    """ User Defined Tag Refnum Connector
+
+    Usage unknown.
+    """
     def __init__(self, *args):
         super().__init__(*args)
 
 
 class RefnumEventReg(RefnumBase):
+    """ Event Callback Refnum Connector
+
+    Connector of "Event Callback Refnum" Front Panel control.
+    Used to unregister or re-register the event callback.
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.conn_obj.field0 = 0
@@ -386,21 +553,68 @@ class RefnumEventReg(RefnumBase):
         return ret
 
 
-class RefnumUserEvent(RefnumQueue):
+class RefnumDotNet(RefnumBase):
+    """ .NET Refnum Connector
+
+    Connector of ".NET Refnum" Front Panel control.
+    Used to launch Select .NET Constructor dialog box and select an assembly.
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+
+class RefnumUserEvent(RefnumBase_SimpleCliList):
+    """ User Event Callback Refnum Connector
+
+    Usage unknown.
+    """
     pass
 
 
+class RefnumCallback(RefnumBase):
+    """ Callback Refnum Connector
+
+    Usage unknown.
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+
+class RefnumUsrDefTagFlt(RefnumBase):
+    """ User Defined Tag Flatten Refnum Connector
+
+    Usage unknown.
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+
 class RefnumUDClassInst(RefnumBase):
+    """ User Defined Class Inst Refnum Connector
+
+    Usage unknown.
+    """
     def __init__(self, *args):
         super().__init__(*args)
 
 
 class RefnumBluetoothCon(RefnumBase):
+    """ Bluetooth Network Connection Refnum Connector
+
+    Connector of "Bluetooth Network Connection Refnum" Front Panel control.
+    Used with the Bluetooth VIs and functions, to open connection.
+    """
     def __init__(self, *args):
         super().__init__(*args)
 
 
 class RefnumDataValueRef(RefnumBase):
+    """ Data Value Refnum Connector
+
+    Connector created as output of "Data Value Reference" Front Panel control.
+    Used with the In Place Element structure when you want to operate on a data value without
+    requiring the LabVIEW compiler to copy the data values and maintain those values in memory.
+    """
     def __init__(self, *args):
         super().__init__(*args)
 
@@ -429,16 +643,36 @@ class RefnumDataValueRef(RefnumBase):
 
 
 class RefnumFIFORef(RefnumNotifierRef):
+    """ FIFO Refnum Connector
+
+    Usage unknown.
+    """
     pass
+
+
+class RefnumTDMSFile(RefnumBase):
+    """ TDMS File Refnum Connector
+
+    Used with TDMS Streaming VIs and functions to read and write waveforms to binary measurement files (.tdms).
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
 
 
 def newConnectorObjectRef(vi, conn_obj, reftype, po):
     ctor = {
         REFNUM_TYPE.DataLog: RefnumDataLog,
+        REFNUM_TYPE.ByteStream: RefnumByteStream,
+        REFNUM_TYPE.Device: RefnumDevice,
         REFNUM_TYPE.Occurrence: RefnumOccurrence,
         REFNUM_TYPE.TCPNetConn: RefnumTCPNetConn,
+        REFNUM_TYPE.AutoRef: RefnumAutoRef,
         REFNUM_TYPE.LVObjCtl: RefnumLVObjCtl,
+        REFNUM_TYPE.Menu: RefnumMenu,
+        REFNUM_TYPE.Imaq: RefnumImaq,
         REFNUM_TYPE.DataSocket: RefnumDataSocket,
+        REFNUM_TYPE.VisaRef: RefnumVisaRef,
+        REFNUM_TYPE.IVIRef: RefnumIVIRef,
         REFNUM_TYPE.UDPNetConn: RefnumUDPNetConn,
         REFNUM_TYPE.NotifierRef: RefnumNotifierRef,
         REFNUM_TYPE.Queue: RefnumQueue,
@@ -446,11 +680,15 @@ def newConnectorObjectRef(vi, conn_obj, reftype, po):
         REFNUM_TYPE.UsrDefined: RefnumUsrDefined,
         REFNUM_TYPE.UsrDefndTag: RefnumUsrDefndTag,
         REFNUM_TYPE.EventReg: RefnumEventReg,
+        REFNUM_TYPE.DotNet: RefnumDotNet,
         REFNUM_TYPE.UserEvent: RefnumUserEvent,
+        REFNUM_TYPE.Callback: RefnumCallback,
+        REFNUM_TYPE.UsrDefTagFlt: RefnumUsrDefTagFlt,
         REFNUM_TYPE.UDClassInst: RefnumUDClassInst,
         REFNUM_TYPE.BluetoothCon: RefnumBluetoothCon,
         REFNUM_TYPE.DataValueRef: RefnumDataValueRef,
         REFNUM_TYPE.FIFORef: RefnumFIFORef,
+        REFNUM_TYPE.TDMSFile: RefnumTDMSFile,
     }.get(reftype, None)
     if ctor is None:
         return None
