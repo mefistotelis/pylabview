@@ -1293,6 +1293,11 @@ class ConnectorObjectRef(ConnectorObject):
           REFNUM_TYPE.TCPNetConn,
           REFNUM_TYPE.Unused6,
           REFNUM_TYPE.AutoRef,
+          REFNUM_TYPE.LVObjCtl,
+          REFNUM_TYPE.Menu,
+          REFNUM_TYPE.Unused10,
+          REFNUM_TYPE.Unused12,
+          REFNUM_TYPE.DataSocket,
           ]: #TODO Currently not all types support clean XML
             return ConnectorObject.exportXML(self, conn_elem, fname_base)
         self.parseData()

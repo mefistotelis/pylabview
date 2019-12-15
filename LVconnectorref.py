@@ -357,30 +357,62 @@ class RefnumLVObjCtl(RefnumBase):
     def __init__(self, *args):
         super().__init__(*args)
         self.conn_obj.ctlflags = 0
-        self.conn_obj.unkcount = 0
+        self.conn_obj.hasitem = 0
+        self.conn_obj.itmident = b'UNKN'
 
     def parseRSRCData(self, bldata):
+        ver = self.vi.getFileVersion()
         count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         # Create _separate_ empty namespace for each connector
         clients = [SimpleNamespace() for _ in range(count)]
         for i in range(count):
-            cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            cli_idx = readVariableSizeField(bldata)
             cli_flags = 0
             clients[i].index = cli_idx
             clients[i].flags = cli_flags
         self.conn_obj.ctlflags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        self.conn_obj.unkcount = count # TODO figure out the count and read entries after it (example file: ConfigureFXP.vi)
+        items = [ ]
+        if isGreaterOrEqVersion(ver, major=8):
+            hasitem = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        else:
+            hasitem = 0
+        if hasitem != 0:
+            # Some early versions of LV8 have the identifier in reverted endianness; probably no need to support
+            self.conn_obj.itmident = bldata.read(4)
+            count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            if count > 4095:
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} reftype {:d} claims to contain {} strings; trimmimng"\
+                  .format(self.vi.src_fname,self.conn_obj.index,self.conn_obj.otype,self.conn_obj.reftype,count))
+                count = 4095
+            items = [SimpleNamespace() for _ in range(count)]
+            for i in range(count):
+                strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+                items[i].strval = bldata.read(strlen)
+        self.conn_obj.hasitem = hasitem
         self.conn_obj.clients = clients
+        self.conn_obj.items = items
         pass
 
     def prepareRSRCData(self, avoid_recompute=False):
+        if not avoid_recompute:
+            ver = self.vi.getFileVersion()
+        else:
+            ver = decodeVersion(0x09000000)
         data_buf = b''
         data_buf += int(len(self.conn_obj.clients)).to_bytes(2, byteorder='big')
         for client in self.conn_obj.clients:
             data_buf += int(client.index).to_bytes(2, byteorder='big')
         data_buf += int(self.conn_obj.ctlflags).to_bytes(2, byteorder='big')
-        data_buf += int(self.conn_obj.unkcount).to_bytes(2, byteorder='big')
+        if not isGreaterOrEqVersion(ver, major=8):
+            # For LV versions below 8.0, the data buffer ends here
+            return data_buf
+        data_buf += int(self.conn_obj.hasitem).to_bytes(2, byteorder='big')
+        if self.conn_obj.hasitem != 0:
+            data_buf += self.conn_obj.itmident
+            data_buf += int(len(self.conn_obj.items)).to_bytes(4, byteorder='big')
+            for item in self.conn_obj.items:
+                data_buf += int(len(item.strval)).to_bytes(1, byteorder='big')
+                data_buf += item.strval
         return data_buf
 
     def expectedRSRCSize(self):
@@ -390,10 +422,30 @@ class RefnumLVObjCtl(RefnumBase):
 
     def initWithXML(self, conn_elem):
         self.conn_obj.ctlflags = int(conn_elem.get("CtlFlags"), 0)
+        self.conn_obj.hasitem = int(conn_elem.get("HasItem"), 0)
+        itmident = conn_elem.get("ItmIdent")
+        if itmident is not None:
+            self.conn_obj.itmident = getRsrcTypeFromPrettyStr(itmident)
+        elif self.conn_obj.hasitem != 0:
+            eprint("{:s}: Warning: Connector {:d} type 0x{:02x} reftype {:d} marked as HasItem, but no ItmIdent"\
+              .format(self.vi.src_fname,self.conn_obj.index,self.conn_obj.otype,self.conn_obj.reftype))
+        pass
+
+    def initWithXMLItem(self, item, conn_subelem):
+        item.strval = conn_subelem.get("Text").encode(self.vi.textEncoding)
         pass
 
     def exportXML(self, conn_elem, fname_base):
+        ver = self.vi.getFileVersion()
         conn_elem.set("CtlFlags", "0x{:04X}".format(self.conn_obj.ctlflags))
+        conn_elem.set("HasItem", "{:d}".format(self.conn_obj.hasitem))
+        if isGreaterOrEqVersion(ver, major=8):
+            if self.conn_obj.hasitem != 0:
+                conn_elem.set("ItmIdent", getPrettyStrFromRsrcType(self.conn_obj.itmident))
+        pass
+
+    def exportXMLItem(self, item, conn_subelem, fname_base):
+        conn_subelem.set("Text", "{:s}".format(item.strval.decode(self.vi.textEncoding)))
         pass
 
     def checkSanity(self):
@@ -758,6 +810,11 @@ class RefnumTDMSFile(RefnumBase):
 
 
 def newConnectorObjectRef(vi, conn_obj, reftype, po):
+    """ Calls proper constructor to create refnum connector object.
+
+    If tjis function returns NULL for a specific reftype, then refnum connector
+    of that type will not be parsed and will be stored as BIN file.
+    """
     ctor = {
         REFNUM_TYPE.Generic: RefnumGeneric,
         REFNUM_TYPE.DataLog: RefnumDataLog,
