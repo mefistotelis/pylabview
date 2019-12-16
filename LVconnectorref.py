@@ -31,6 +31,7 @@ from ctypes import *
 
 from LVmisc import *
 from LVblock import *
+import LVconnector
 
 
 class REFNUM_TYPE(enum.IntEnum):
@@ -475,6 +476,141 @@ class RefnumImaq(RefnumBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.conn_obj.ident = b'IMAQ'
+        self.conn_obj.hasclient = 0
+
+    def parseRSRCConnector(self, bldata, pos):
+        bldata.seek(pos)
+        obj_type, obj_flags, obj_len = LVconnector.ConnectorObject.parseRSRCDataHeader(bldata)
+        if (self.po.verbose > 2):
+            print("{:s}: Connector {:d} sub {:d}, at 0x{:04x}, type 0x{:02x} flags 0x{:02x} len {:d}"\
+              .format(self.vi.src_fname, self.conn_obj.index, len(self.conn_obj.clients), pos, obj_type, obj_flags, obj_len))
+        if obj_len < 4:
+            eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d} too small to be valid"\
+              .format(self.vi.src_fname, len(self.content), obj_type, obj_len))
+            obj_type = LVconnector.CONNECTOR_FULL_TYPE.Void
+        obj = LVconnector.newConnectorObject(self.vi, -1, obj_flags, obj_type, self.po)
+        client = SimpleNamespace()
+        client.flags = 0
+        client.index = -1
+        client.nested = obj
+        self.conn_obj.clients.append(client)
+        bldata.seek(pos)
+        obj.initWithRSRC(bldata, obj_len)
+        return obj.index, obj_len
+
+    def parseRSRCData(self, bldata):
+        ver = self.vi.getFileVersion()
+        strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        self.conn_obj.ident = bldata.read(strlen)
+        if ((strlen+1) % 2) > 0:
+            bldata.read(1) # Padding byte
+        if isGreaterOrEqVersion(ver, major=8, minor = 5):
+            hasclient = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        else:
+            hasclient = 0
+        self.conn_obj.hasclient = hasclient
+        self.conn_obj.clients = []
+        if hasclient != 0:
+            client = SimpleNamespace()
+            client.index = readVariableSizeField(bldata)
+            client.flags = 0
+            self.conn_obj.clients.append(client)
+        # The next thing to read here is LVVariant
+        varver = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.conn_obj.varver = varver
+        varcount = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        pos = bldata.tell()
+        for i in range(varcount):
+            obj_idx, obj_len = self.parseRSRCConnector(bldata, pos)
+            pos += obj_len
+        hasvaritem2 = readVariableSizeField(bldata)
+        self.conn_obj.hasvaritem2 = hasvaritem2
+        self.conn_obj.varitem2 = b''
+        if hasvaritem2 != 0:
+            self.conn_obj.varitem2 = bldata.read(6)
+        #TODO verify if this is proper parsing method, separate LVVariant
+        pass
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        if not avoid_recompute:
+            ver = self.vi.getFileVersion()
+        else:
+            ver = decodeVersion(0x09000000)
+        data_buf = b''
+        strlen = len(self.conn_obj.ident)
+        data_buf += int(strlen).to_bytes(1, byteorder='big')
+        data_buf += self.conn_obj.ident
+        if ((strlen+1) % 2) > 0:
+            data_buf += b'\0' # padding
+        if isGreaterOrEqVersion(ver, major=8, minor = 5):
+            hasclient = self.conn_obj.hasclient
+            data_buf += int(hasclient).to_bytes(2, byteorder='big')
+        else:
+            hasclient = 0
+        if hasclient != 0:
+            for client in self.conn_obj.clients:
+                if client.index >= 0:
+                    data_buf += int(client.index).to_bytes(2, byteorder='big')
+                    break
+        data_buf += int(self.conn_obj.varver).to_bytes(4, byteorder='big')
+        varcount = sum(1 for client in self.conn_obj.clients if client.index == -1)
+        data_buf += int(varcount).to_bytes(4, byteorder='big')
+        for client in self.conn_obj.clients:
+            if client.index != -1:
+                continue
+            client.nested.updateData(avoid_recompute=avoid_recompute)
+            data_buf += client.nested.raw_data
+        hasvaritem2 = self.conn_obj.hasvaritem2
+        data_buf += int(hasvaritem2).to_bytes(2, byteorder='big')
+        if hasvaritem2 != 0:
+            data_buf += self.conn_obj.varitem2
+        return data_buf
+
+    def initWithXML(self, conn_elem):
+        self.conn_obj.ident = conn_elem.get("Ident").encode(encoding='ascii')
+        self.conn_obj.varver = int(conn_elem.get("VarVer"), 0)
+        self.conn_obj.hasvaritem2 = int(conn_elem.get("HasVarItem2"), 0)
+        varitem2 = conn_elem.get("VarItem2")
+        if varitem2 is not None:
+            self.conn_obj.varitem2 = bytes.fromhex(varitem2)
+        pass
+
+    def initWithXMLClient(self, client, conn_subelem):
+        if client.index == -1:
+            for subelem in conn_subelem:
+                if (subelem.tag == "Connector"):
+                    obj_idx = int(subelem.get("Index"), 0)
+                    obj_type = valFromEnumOrIntString(LVconnector.CONNECTOR_FULL_TYPE, subelem.get("Type"))
+                    obj_flags = importXMLBitfields(LVconnector.CONNECTOR_FLAGS, subelem)
+                    obj = LVconnector.newConnectorObject(self.vi, obj_idx, obj_flags, obj_type, self.po)
+                    # Grow the list if needed (the connectors may be in wrong order)
+                    client.nested = obj
+                    # Set connector data based on XML properties
+                    obj.initWithXML(subelem)
+                else:
+                    raise AttributeError("Client contains unexpected tag")
+        pass
+
+    def exportXML(self, conn_elem, fname_base):
+        conn_elem.set("Ident", "{:s}".format(self.conn_obj.ident.decode(encoding='ascii')))
+        conn_elem.set("VarVer", "0x{:08X}".format(self.conn_obj.varver))
+        conn_elem.set("HasVarItem2", "{:d}".format(self.conn_obj.hasvaritem2))
+        if self.conn_obj.hasvaritem2 != 0:
+            conn_elem.set("VarItem2", "{:s}".format(self.conn_obj.varitem2.hex()))
+        pass
+
+    def exportXMLClient(self, client, conn_subelem, fname_base):
+        if client.index == -1:
+            subelem = ET.SubElement(conn_subelem,"Connector")
+
+            subelem.set("Index", str(client.nested.index))
+            subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(LVconnector.CONNECTOR_FULL_TYPE, client.nested.otype)))
+
+            client.nested.exportXML(subelem, fname_base)
+            client.nested.exportXMLFinish(subelem)
+        pass
+
 
 
 class RefnumDataSocket(RefnumBase):
