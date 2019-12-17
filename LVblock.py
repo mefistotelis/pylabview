@@ -2237,10 +2237,15 @@ class VCTP(Block):
 
         section_elem.set("Format", "inline")
 
+    def parseData(self, section_num=None):
+        # Besides the normal parsing, also parse sub-objects
+        Block.parseData(self, section_num=section_num)
+        for connobj in self.content:
+            connobj.parseData()
+
     def checkSanity(self):
         ret = True
         for connobj in self.content:
-            connobj.parseData()
             if not connobj.checkSanity():
                 ret = False
         for i, val in enumerate(self.unflatten):
