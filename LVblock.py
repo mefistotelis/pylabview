@@ -215,7 +215,7 @@ class Block(object):
             This can be overloaded to support actually parsed section formats.
 
             After this call, and then a call to initWithXMLLate(), raw_data for
-            this cection should be set. Since the 'late' method will be in most
+            this section should be set. Since the 'late' method will be in most
             cases useless for XML, it is good to set that data at end of this function.
         """
         snum = section.start.section_idx

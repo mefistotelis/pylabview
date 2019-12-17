@@ -1205,9 +1205,10 @@ class ConnectorObjectRepeatedBlock(ConnectorObject):
 class ConnectorObjectRef(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
-        self.reftype = None
+        self.reftype = int(REFNUM_TYPE.Generic)
         self.ref_obj = None
         self.items = []
+        self.objects = []
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
@@ -1296,6 +1297,7 @@ class ConnectorObjectRef(ConnectorObject):
           REFNUM_TYPE.LVObjCtl,
           REFNUM_TYPE.Menu,
           REFNUM_TYPE.Unused10,
+          REFNUM_TYPE.Imaq,
           REFNUM_TYPE.Unused12,
           REFNUM_TYPE.DataSocket,
           ]: #TODO Currently not all types support clean XML

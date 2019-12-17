@@ -99,7 +99,7 @@ class RefnumBase:
     def prepareRSRCData(self, avoid_recompute=False):
         """ Fills binary data chunk for RSRC file which is associated with the connector.
 
-        Receives file-like block data handle positioned just after RefType.
+        Creates bytes with binary data to be positioned just after RefType.
         Must create the whole data, until the expected end (or the position where label starts).
         """
         data_buf = b''
