@@ -486,6 +486,15 @@ class Block(object):
         """
         return (len(self.sections) > 0) and (self.section_loaded != self.section_requested)
 
+    def checkSanity(self):
+        """ Checks whether properties of this object and all sub-object are sane
+
+        Sane objects have values of properties within expected bounds.
+        This call expacted all the objects to be already parsed during the call.
+        """
+        ret = True
+        return ret
+
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         if section_num is None:
             section_num = self.section_requested
@@ -2144,7 +2153,6 @@ class VCTP(Block):
         for i in range(count):
             val = readVariableSizeField(bldata)
             self.unflatten.append(val)
-        self.checkSanity() #TODO move to parseData(), when all blocks have sanity checker
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)

@@ -336,8 +336,8 @@ class VI():
         self.readRSRCList(fh)
         block_headers = self.readRSRCBlockInfo(fh)
         self.readRSRCBlockData(fh, block_headers)
-
-        self.icon = self.blocks['icl8'].loadIcon() if 'icl8' in self.blocks else None
+        self.checkSanity()
+        pass
 
     def readXMLBlockData(self):
         """ Read data sections for all Blocks from the input file.
@@ -407,7 +407,7 @@ class VI():
             self.binflsthead.dataset_int2 = int(dataset_int2, 0)
 
         self.readXMLBlockData()
-
+        self.checkSanity()
         pass
 
     def updateRSRCData(self):
@@ -556,6 +556,17 @@ class VI():
             elem.append(subelem)
 
         return elem
+
+    def checkSanity(self):
+        ret = True
+        for ident, block in self.blocks.items():
+            block.parseData()
+            if not block.checkSanity():
+                if (self.po.verbose > 0):
+                    eprint("{:s}: Warning: Block {} sanity check failed!"\
+                      .format(self.src_fname,ident))
+                ret = False
+        return ret
 
     def getBlockIdByBlockName(self, ident):
         for i in range(0, len(self.blockInfo)):
