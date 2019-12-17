@@ -351,15 +351,17 @@ class ConnectorObject:
 
     def updateData(self, avoid_recompute=False):
 
+        if avoid_recompute and self.raw_data_updated:
+            return # If we have strong raw data, and new one will be weak, then leave the strong buffer
+
         data_buf = self.prepareRSRCData(avoid_recompute=avoid_recompute)
+        data_buf += self.prepareRSRCDataFinish()
 
-        data_tail = self.prepareRSRCDataFinish()
-
-        data_head = int(len(data_buf)+len(data_tail)+4).to_bytes(2, byteorder='big')
+        data_head = int(len(data_buf)+4).to_bytes(2, byteorder='big')
         data_head += int(self.oflags).to_bytes(1, byteorder='big')
         data_head += int(self.otype).to_bytes(1, byteorder='big')
 
-        self.setData(data_head+data_buf+data_tail, incomplete=avoid_recompute)
+        self.setData(data_head+data_buf, incomplete=avoid_recompute)
 
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
