@@ -25,8 +25,7 @@ All guesses at the acronyms are that. Guesses.
 * [HIST](#HIST) - History ?
 * [HLPP](#HLPP) - Help Path
 * [HLPT](#HLPT) - Help Tag
-* [icl8](#icl8) - 8-bit Icon
-* [icl4](#icl4) - 4-bit Icon
+* [icl8, icl4](#icl_) - 8-bit/4-bit Icon
 * [ICON](#ICON) - 1-bit Icon
 * [LIbd](#LIbd)
 * [LIds](#LIds)
@@ -215,17 +214,17 @@ See [[Revision History]]
 
 ***
 
-### icl8
+### icl_
 
-<b>ic</b>on ? <b>8</b> (bit) 
-See [[Icon]]
+<b>ic</b>on <b>l</b>arge <b>4/8</b> (bit) 
+See [[Icon Format]]
 
 ***
 
 ### ICON
 
 <b>ICON</b> 1bpp image 
-See [[Icon]]
+See [[Icon Format]]
 
 ***
 
@@ -266,6 +265,7 @@ Only in polymorphic VIs. Lists VIs included.
 
 ### LVSR
 
+LabVIEW Save Record  
 See [[Version Bits]]
 
 ```

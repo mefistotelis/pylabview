@@ -3,6 +3,9 @@ Icons are stored in [Apple Icon Image format](https://en.wikipedia.org/wiki/Appl
 ### icl8
 32x32 8-bit image icon, using palette below
 
+### icl4
+32x32 4-bit image icon, using palette below
+
 ### ICON
 32x32 1-bit mono icon  
 Probably a relic from the days of yore
