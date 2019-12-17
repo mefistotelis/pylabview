@@ -49,19 +49,21 @@ All guesses at the acronyms are that. Guesses.
 
 ***
 
-<a name="wiki-BDH_" />
-
-### BDHb, BDHc
+### BDH_
 
 <b>B</b>lock <b>D</b>iagram <b>H</b>eap  
 Compressed
 
-```plain
+Depending on LV version, the full name is one of: BDHP, BDHb, BDHc.
+
+```
  Length | Type    | Value
 --------+---------+-------
-      4 | uint32  | String length
-      * | string  | Content
+      4 | uint32  | Content length
+      * | binary  | Content
 ```
+
+See [[Front Panel Heap Format]] for content explanation.
 
 ***
 
@@ -69,7 +71,7 @@ Compressed
 
 <b>B</b>lock <b>D</b>iagram <b>P</b>ass<b>w</b>ord  
 
-```plain
+```
  Length | Type    | Value
 --------+---------+-------
      16 | string  | Password md5
@@ -83,13 +85,12 @@ Compressed
 
 4 bytes
 
-```plain
+```
 00 00 00 07
 ```
 
 ***
 
-<a name="wiki-BNID" />
 ### BNID
 
 12 bytes
@@ -121,7 +122,7 @@ Compressed
 2 bytes  
 Not in Controls
 
-```plain
+```
 00 01 - Normal VI
 00 08 - Polymorphic VI
 ```
@@ -181,7 +182,7 @@ Stores the actual Front Panel data
 2 bytes  
 Not in Polymorphic VIs or Controls
 
-```plain
+```
 00 09
 ```
 
@@ -197,7 +198,7 @@ Not in Polymorphic VIs or Controls
 
 13 bytes?
 
-```plain
+```
 00 00 00 00  00 00 00 00  00 00 00 00  00
 ```
 
@@ -219,7 +220,7 @@ See [[Icon]]
 
 ### ICON
 
-<b>ICON</b> 
+<b>ICON</b> 1bpp image 
 See [[Icon]]
 
 ***
@@ -243,7 +244,7 @@ Contains name of a file
 
 <b>Lib</b>rary <b>N</b>ames  
 
-```plain
+```
  Length | Type    | Value
 --------+---------+-------
       4 | uint32  | Count
@@ -263,7 +264,7 @@ Only in polymorphic VIs. Lists VIs included.
 
 See [[Version Bits]]
 
-```plain
+```
  Length | Type    | Value
 --------+---------+-------
       4 | uint32  | Version
@@ -279,7 +280,7 @@ Flags:
 ### MUID
 4 bytes
 
-```plain
+```
 00 00 00 2b
 ```
 
@@ -293,19 +294,22 @@ Flags:
 ### OBSG
 16 bytes
 
-```plain
+```
 00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00
 ```
 
 ***
 
 ### PRT
-See [[Print]]
+
+<b>PR</b>in<b>t</b> Settings  
+
+See [[Print Settings]] for details.
 
 ### RTSG
 16 bytes
 
-```plain
+```
 00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00
 ```
 
@@ -318,7 +322,7 @@ See [[Print]]
 ### SUID
 12 bytes
 
-```plain
+```
 00 00 00 02  00 00 00 00  00 00 00 00
 ```
 
@@ -344,12 +348,13 @@ See [[Print]]
 
 <b>vers</b>ion  
 12 bytes  
-See [[Version Bits]]
+
+See [[Version Bits]] for details.
 
 ```plain
  Length | Type    | Value
 --------+---------+-------
-      4 | uint32  | Version
+      4 | uint32  | Version Bits
       1 | uint8   | String length
       * | string  | Text
       1 | uint8   | String length
