@@ -2,11 +2,10 @@
 
 ***
 
-<a name="wiki-PRT" />
 ### PRT
 <b>PR</b>in<b>t</b>
 
-```plain
+```
  Length | Type    | Value
 --------+---------+-------
      37 |         |
