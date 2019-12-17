@@ -2223,8 +2223,12 @@ class VCTP(Block):
             subelem.set("Index", str(connobj.index))
             subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(CONNECTOR_FULL_TYPE, connobj.otype)))
 
-            connobj.exportXML(subelem, fname_base)
-            connobj.exportXMLFinish(subelem)
+            if not self.po.raw_connectors:
+                connobj.exportXML(subelem, fname_base)
+                connobj.exportXMLFinish(subelem)
+            else:
+                ConnectorObject.exportXML(connobj, subelem, fname_base)
+                ConnectorObject.exportXMLFinish(connobj, subelem)
 
         subelem = ET.SubElement(section_elem,"UnFlatten")
         subelem.tail = "\n"

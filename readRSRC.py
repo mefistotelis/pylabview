@@ -60,6 +60,10 @@ def main():
     parser.add_argument('-t', '--textcp', default="mac_roman", type=str,
             help="Text encoding used while loading VI file (default is \"%(default)s\")")
 
+    parser.add_argument('--raw-connectors', action='store_true',
+            help="extract all connectors into raw binary files instead of pure XML" \
+            " (works only with --extract command)")
+
     subparser = parser.add_mutually_exclusive_group(required=True)
 
     subparser.add_argument('-l', '--list', action='store_true',
