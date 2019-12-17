@@ -194,6 +194,8 @@ Not in Polymorphic VIs or Controls
 
 <b>F</b>ont <b>Tab</b>le 
 
+See [[Font Table Format]] for content explanation.
+
 ***
 
 ### GCPR
