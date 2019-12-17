@@ -217,7 +217,7 @@ class RefnumBase_RC(RefnumBase):
     def __init__(self, *args):
         super().__init__(*args)
         self.conn_obj.ident = b'UNKN'
-        self.conn_obj.hasclient = 0
+        self.conn_obj.firstclient = 0
 
     def parseRSRCConnector(self, bldata, pos):
         bldata.seek(pos)
@@ -241,17 +241,25 @@ class RefnumBase_RC(RefnumBase):
 
     def parseRSRCData(self, bldata):
         ver = self.vi.getFileVersion()
+        # The data start with a string, 1-byte length, padded to mul of 2
         strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         self.conn_obj.ident = bldata.read(strlen)
         if ((strlen+1) % 2) > 0:
             bldata.read(1) # Padding byte
+        # This value sgoyld be either 0 or 1
         if isGreaterOrEqVersion(ver, major=8, minor=5):
-            hasclient = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            firstclient = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         else:
-            hasclient = 0
-        self.conn_obj.hasclient = hasclient
+            firstclient = 0
+        self.conn_obj.firstclient = firstclient
         self.conn_obj.clients = []
-        if hasclient != 0:
+        if firstclient != 0:
+            client = SimpleNamespace()
+            client.index = readVariableSizeField(bldata)
+            client.flags = 0
+            self.conn_obj.clients.append(client)
+        cli_count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        for i in range(cli_count):
             client = SimpleNamespace()
             client.index = readVariableSizeField(bldata)
             client.flags = 0
@@ -260,10 +268,18 @@ class RefnumBase_RC(RefnumBase):
         varver = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.conn_obj.varver = varver
         varcount = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        if varcount > 4095:
+            eprint("{:s}: Warning: Connector {:d} type 0x{:02x} has {:d} clients; truncating"\
+              .format(self.vi.src_fname, self.conn_obj.index, self.conn_obj.otype, varcount))
+            varcount = 4095
         pos = bldata.tell()
         for i in range(varcount):
             obj_idx, obj_len = self.parseRSRCConnector(bldata, pos)
             pos += obj_len
+            if obj_len < 4:
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size too small for all clients"\
+                  .format(self.vi.src_fname, self.conn_obj.index, self.conn_obj.otype))
+                break
         hasvaritem2 = readVariableSizeField(bldata)
         self.conn_obj.hasvaritem2 = hasvaritem2
         self.conn_obj.varitem2 = b''
@@ -284,15 +300,27 @@ class RefnumBase_RC(RefnumBase):
         if ((strlen+1) % 2) > 0:
             data_buf += b'\0' # padding
         if isGreaterOrEqVersion(ver, major=8, minor = 5):
-            hasclient = self.conn_obj.hasclient
-            data_buf += int(hasclient).to_bytes(2, byteorder='big')
+            firstclient = self.conn_obj.firstclient
+            data_buf += int(firstclient).to_bytes(2, byteorder='big')
         else:
-            hasclient = 0
-        if hasclient != 0:
-            for client in self.conn_obj.clients:
-                if client.index >= 0:
-                    data_buf += int(client.index).to_bytes(2, byteorder='big')
-                    break
+            firstclient = 0
+        # Make list of clients which reference other connectors
+        ref_clients = []
+        for client in self.conn_obj.clients:
+            if client.index >= 0:
+                ref_clients.append(client.index)
+        if firstclient != 0 and len(ref_clients) == 0:
+            eprint("{:s}: Warning: Connector {:d} type 0x{:02x} marked as firstclient but no clients"\
+              .format(self.vi.src_fname, self.conn_obj.index, self.conn_obj.otype))
+            ref_clients.append(0)
+        if firstclient != 0:
+            data_buf += int(ref_clients[0]).to_bytes(2, byteorder='big')
+            ref_clients = ref_clients[1:]
+
+        data_buf += int(len(ref_clients)).to_bytes(2, byteorder='big')
+        for cli_index in ref_clients:
+            data_buf += int(cli_index).to_bytes(2, byteorder='big')
+        # Now LVVariant
         data_buf += int(self.conn_obj.varver).to_bytes(4, byteorder='big')
         varcount = sum(1 for client in self.conn_obj.clients if client.index == -1)
         data_buf += int(varcount).to_bytes(4, byteorder='big')
@@ -309,6 +337,7 @@ class RefnumBase_RC(RefnumBase):
 
     def initWithXML(self, conn_elem):
         self.conn_obj.ident = conn_elem.get("Ident").encode(encoding='ascii')
+        self.conn_obj.firstclient = int(conn_elem.get("FirstClient"), 0)
         self.conn_obj.varver = int(conn_elem.get("VarVer"), 0)
         self.conn_obj.hasvaritem2 = int(conn_elem.get("HasVarItem2"), 0)
         varitem2 = conn_elem.get("VarItem2")
@@ -334,6 +363,7 @@ class RefnumBase_RC(RefnumBase):
 
     def exportXML(self, conn_elem, fname_base):
         conn_elem.set("Ident", "{:s}".format(self.conn_obj.ident.decode(encoding='ascii')))
+        conn_elem.set("FirstClient", "{:d}".format(self.conn_obj.firstclient))
         conn_elem.set("VarVer", "0x{:08X}".format(self.conn_obj.varver))
         conn_elem.set("HasVarItem2", "{:d}".format(self.conn_obj.hasvaritem2))
         if self.conn_obj.hasvaritem2 != 0:
