@@ -219,6 +219,7 @@ class ConnectorObject:
             data_head += int(self.oflags).to_bytes(1, byteorder='big')
             data_head += int(self.otype).to_bytes(1, byteorder='big')
             self.setData(data_head+data_buf)
+            self.parsed_data_updated = False
         else:
             raise NotImplementedError("Unsupported Connector {} Format '{}'.".format(self.index,fmt))
         pass
@@ -358,7 +359,7 @@ class ConnectorObject:
         data_head += int(self.oflags).to_bytes(1, byteorder='big')
         data_head += int(self.otype).to_bytes(1, byteorder='big')
 
-        self.setData(data_head+data_buf+data_tail)
+        self.setData(data_head+data_buf+data_tail, incomplete=avoid_recompute)
 
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
@@ -403,10 +404,11 @@ class ConnectorObject:
         bldata = BytesIO(self.raw_data)
         return bldata
 
-    def setData(self, data_buf):
+    def setData(self, data_buf, incomplete=False):
         self.raw_data = data_buf
         self.size = len(self.raw_data)
-        self.raw_data_updated = True
+        if not incomplete:
+            self.raw_data_updated = True
 
     def checkSanity(self):
         ret = True
