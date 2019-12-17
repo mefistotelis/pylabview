@@ -227,7 +227,7 @@ class RefnumBase_RC(RefnumBase):
               .format(self.vi.src_fname, self.conn_obj.index, len(self.conn_obj.clients), pos, obj_type, obj_flags, obj_len))
         if obj_len < 4:
             eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d} too small to be valid"\
-              .format(self.vi.src_fname, len(self.conn_obj.content), obj_type, obj_len))
+              .format(self.vi.src_fname, len(self.conn_obj.clients), obj_type, obj_len))
             obj_type = LVconnector.CONNECTOR_FULL_TYPE.Void
         obj = LVconnector.newConnectorObject(self.vi, -1, obj_flags, obj_type, self.po)
         client = SimpleNamespace()
@@ -241,7 +241,6 @@ class RefnumBase_RC(RefnumBase):
 
     def parseRSRCData(self, bldata):
         ver = self.vi.getFileVersion()
-        print(" ccc 0x{:x}".format(int(ver['major'])))
         strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         self.conn_obj.ident = bldata.read(strlen)
         if ((strlen+1) % 2) > 0:
