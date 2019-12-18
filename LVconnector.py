@@ -31,6 +31,7 @@ from ctypes import *
 
 from LVmisc import *
 from LVblock import *
+import LVclasses
 import LVconnectorref
 from LVconnectorref import REFNUM_TYPE
 
@@ -1279,6 +1280,8 @@ class ConnectorObjectRef(ConnectorObject):
                     if i >= len(self.items):
                         self.items.extend([None] * (i - len(self.items) + 1))
                     self.items[i] = item
+                elif (subelem.tag == "DataType"):#TODO temp until LVVariant is a class
+                    pass
                 else:
                     raise AttributeError("Connector contains unexpected tag")
 
@@ -1304,6 +1307,8 @@ class ConnectorObjectRef(ConnectorObject):
           REFNUM_TYPE.Imaq,
           REFNUM_TYPE.Unused12,
           REFNUM_TYPE.DataSocket,
+          REFNUM_TYPE.VisaRef,
+          REFNUM_TYPE.IVIRef,
           ]: #TODO Currently not all types support clean XML
             return ConnectorObject.exportXML(self, conn_elem, fname_base)
         self.parseData()

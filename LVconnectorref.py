@@ -31,8 +31,8 @@ from ctypes import *
 
 from LVmisc import *
 from LVblock import *
+import LVclasses
 import LVconnector
-
 
 class REFNUM_TYPE(enum.IntEnum):
     Generic =	0
@@ -258,34 +258,15 @@ class RefnumBase_RC(RefnumBase):
             client.index = readVariableSizeField(bldata)
             client.flags = 0
             self.conn_obj.clients.append(client)
-        cli_count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        for i in range(cli_count):
-            client = SimpleNamespace()
-            client.index = readVariableSizeField(bldata)
-            client.flags = 0
-            self.conn_obj.clients.append(client)
+
+            cli_count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            for i in range(cli_count):
+                client = SimpleNamespace()
+                client.index = readVariableSizeField(bldata)
+                client.flags = 0
+                self.conn_obj.clients.append(client)
         # The next thing to read here is LVVariant
-        varver = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        self.conn_obj.varver = varver
-        varcount = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        if varcount > 4095:
-            eprint("{:s}: Warning: Connector {:d} type 0x{:02x} has {:d} clients; truncating"\
-              .format(self.vi.src_fname, self.conn_obj.index, self.conn_obj.otype, varcount))
-            varcount = 4095
-        pos = bldata.tell()
-        for i in range(varcount):
-            obj_idx, obj_len = self.parseRSRCConnector(bldata, pos)
-            pos += obj_len
-            if obj_len < 4:
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size too small for all clients"\
-                  .format(self.vi.src_fname, self.conn_obj.index, self.conn_obj.otype))
-                break
-        hasvaritem2 = readVariableSizeField(bldata)
-        self.conn_obj.hasvaritem2 = hasvaritem2
-        self.conn_obj.varitem2 = b''
-        if hasvaritem2 != 0:
-            self.conn_obj.varitem2 = bldata.read(6)
-        #TODO verify if this is proper parsing method, separate LVVariant
+        LVclasses.LVVariant_parseRSRCData(self.conn_obj, bldata)
         pass
 
     def prepareRSRCData(self, avoid_recompute=False):
@@ -317,27 +298,17 @@ class RefnumBase_RC(RefnumBase):
             data_buf += int(ref_clients[0]).to_bytes(2, byteorder='big')
             ref_clients = ref_clients[1:]
 
-        data_buf += int(len(ref_clients)).to_bytes(2, byteorder='big')
-        for cli_index in ref_clients:
-            data_buf += int(cli_index).to_bytes(2, byteorder='big')
+            data_buf += int(len(ref_clients)).to_bytes(2, byteorder='big')
+            for cli_index in ref_clients:
+                data_buf += int(cli_index).to_bytes(2, byteorder='big')
         # Now LVVariant
-        data_buf += int(self.conn_obj.varver).to_bytes(4, byteorder='big')
-        varcount = sum(1 for client in self.conn_obj.clients if client.index == -1)
-        data_buf += int(varcount).to_bytes(4, byteorder='big')
-        for client in self.conn_obj.clients:
-            if client.index != -1:
-                continue
-            client.nested.updateData(avoid_recompute=avoid_recompute)
-            data_buf += client.nested.raw_data
-        hasvaritem2 = self.conn_obj.hasvaritem2
-        data_buf += int(hasvaritem2).to_bytes(2, byteorder='big')
-        if hasvaritem2 != 0:
-            data_buf += self.conn_obj.varitem2
+        data_buf += LVclasses.LVVariant_prepareRSRCData(self.conn_obj, avoid_recompute=avoid_recompute)
         return data_buf
 
     def initWithXML(self, conn_elem):
         self.conn_obj.ident = conn_elem.get("Ident").encode(encoding='ascii')
         self.conn_obj.firstclient = int(conn_elem.get("FirstClient"), 0)
+        #LVclasses.LVVariant_initWithXML(self.conn_obj, conn_elem)
         self.conn_obj.varver = int(conn_elem.get("VarVer"), 0)
         self.conn_obj.hasvaritem2 = int(conn_elem.get("HasVarItem2"), 0)
         varitem2 = conn_elem.get("VarItem2")
@@ -364,6 +335,7 @@ class RefnumBase_RC(RefnumBase):
     def exportXML(self, conn_elem, fname_base):
         conn_elem.set("Ident", "{:s}".format(self.conn_obj.ident.decode(encoding='ascii')))
         conn_elem.set("FirstClient", "{:d}".format(self.conn_obj.firstclient))
+        #LVclasses.LVVariant_exportXML(self.conn_obj, conn_elem, fname_base)
         conn_elem.set("VarVer", "0x{:08X}".format(self.conn_obj.varver))
         conn_elem.set("HasVarItem2", "{:d}".format(self.conn_obj.hasvaritem2))
         if self.conn_obj.hasvaritem2 != 0:
