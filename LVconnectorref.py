@@ -239,70 +239,30 @@ class RefnumBase_RC(RefnumBase):
         obj.initWithRSRC(bldata, obj_len)
         return obj.index, obj_len
 
+    def parseRSRCTypeOMId(self, bldata):
+        pass
+
     def parseRSRCData(self, bldata):
         ver = self.vi.getFileVersion()
-        # The data start with a string, 1-byte length, padded to mul of 2
-        strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        self.conn_obj.ident = bldata.read(strlen)
-        if ((strlen+1) % 2) > 0:
-            bldata.read(1) # Padding byte
-        # This value sgoyld be either 0 or 1
-        if isGreaterOrEqVersion(ver, major=8, minor=5):
-            firstclient = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        else:
-            firstclient = 0
-        self.conn_obj.firstclient = firstclient
-        self.conn_obj.clients = []
-        if firstclient != 0:
-            client = SimpleNamespace()
-            client.index = readVariableSizeField(bldata)
-            client.flags = 0
-            self.conn_obj.clients.append(client)
-
-            cli_count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            for i in range(cli_count):
-                client = SimpleNamespace()
-                client.index = readVariableSizeField(bldata)
-                client.flags = 0
-                self.conn_obj.clients.append(client)
+        self.parseRSRCTypeOMId(bldata)
         # The next thing to read here is LVVariant
-        LVclasses.LVVariant_parseRSRCData(self.conn_obj, bldata)
+        if isGreaterOrEqVersion(ver, major=8, minor=5):
+            LVclasses.LVVariant_parseRSRCData(self.conn_obj, bldata)
         pass
+
+    def prepareRSRCTypeOMId(self, avoid_recompute=False):
+        data_buf = b''
+        return data_buf
 
     def prepareRSRCData(self, avoid_recompute=False):
         if not avoid_recompute:
             ver = self.vi.getFileVersion()
         else:
             ver = decodeVersion(0x09000000)
-        data_buf = b''
-        strlen = len(self.conn_obj.ident)
-        data_buf += int(strlen).to_bytes(1, byteorder='big')
-        data_buf += self.conn_obj.ident
-        if ((strlen+1) % 2) > 0:
-            data_buf += b'\0' # padding
-        if isGreaterOrEqVersion(ver, major=8, minor = 5):
-            firstclient = self.conn_obj.firstclient
-            data_buf += int(firstclient).to_bytes(2, byteorder='big')
-        else:
-            firstclient = 0
-        # Make list of clients which reference other connectors
-        ref_clients = []
-        for client in self.conn_obj.clients:
-            if client.index >= 0:
-                ref_clients.append(client.index)
-        if firstclient != 0 and len(ref_clients) == 0:
-            eprint("{:s}: Warning: Connector {:d} type 0x{:02x} marked as firstclient but no clients"\
-              .format(self.vi.src_fname, self.conn_obj.index, self.conn_obj.otype))
-            ref_clients.append(0)
-        if firstclient != 0:
-            data_buf += int(ref_clients[0]).to_bytes(2, byteorder='big')
-            ref_clients = ref_clients[1:]
-
-            data_buf += int(len(ref_clients)).to_bytes(2, byteorder='big')
-            for cli_index in ref_clients:
-                data_buf += int(cli_index).to_bytes(2, byteorder='big')
+        data_buf = self.prepareRSRCTypeOMId(avoid_recompute=avoid_recompute)
         # Now LVVariant
-        data_buf += LVclasses.LVVariant_prepareRSRCData(self.conn_obj, avoid_recompute=avoid_recompute)
+        if isGreaterOrEqVersion(ver, major=8, minor=5):
+            data_buf += LVclasses.LVVariant_prepareRSRCData(self.conn_obj, avoid_recompute=avoid_recompute)
         return data_buf
 
     def initWithXML(self, conn_elem):
@@ -353,6 +313,64 @@ class RefnumBase_RC(RefnumBase):
             client.nested.exportXMLFinish(subelem)
         pass
 
+class RefnumBase_RCIOOMId(RefnumBase_RC):
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCTypeOMId(self, bldata):
+        ver = self.vi.getFileVersion()
+        # The data start with a string, 1-byte length, padded to mul of 2
+        strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        self.conn_obj.ident = bldata.read(strlen)
+        if ((strlen+1) % 2) > 0:
+            bldata.read(1) # Padding byte
+        # This value should be either 0 or 1
+        if isGreaterOrEqVersion(ver, major=8, minor=5):
+            firstclient = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        else:
+            firstclient = 0
+        self.conn_obj.firstclient = firstclient
+        self.conn_obj.clients = []
+        if firstclient != 0:
+            client = SimpleNamespace()
+            client.index = readVariableSizeField(bldata)
+            client.flags = 0
+            self.conn_obj.clients.append(client)
+        pass
+
+    def prepareRSRCTypeOMId(self, avoid_recompute=False):
+        if not avoid_recompute:
+            ver = self.vi.getFileVersion()
+        else:
+            ver = decodeVersion(0x09000000)
+        data_buf = b''
+        strlen = len(self.conn_obj.ident)
+        data_buf += int(strlen).to_bytes(1, byteorder='big')
+        data_buf += self.conn_obj.ident
+        if ((strlen+1) % 2) > 0:
+            data_buf += b'\0' # padding
+        if isGreaterOrEqVersion(ver, major=8, minor = 5):
+            firstclient = self.conn_obj.firstclient
+            data_buf += int(firstclient).to_bytes(2, byteorder='big')
+        else:
+            firstclient = 0
+        # Make list of clients which reference other connectors
+        ref_clients = []
+        for client in self.conn_obj.clients:
+            if client.index >= 0:
+                ref_clients.append(client.index)
+        if firstclient != 0 and len(ref_clients) == 0:
+            eprint("{:s}: Warning: Connector {:d} type 0x{:02x} marked as firstclient but no clients"\
+              .format(self.vi.src_fname, self.conn_obj.index, self.conn_obj.otype))
+            ref_clients.append(0)
+        if firstclient != 0:
+            data_buf += int(ref_clients[0]).to_bytes(2, byteorder='big')
+            ref_clients = ref_clients[1:]
+
+            if len(ref_clients) > 0:
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} supports one client, has more"\
+                  .format(self.vi.src_fname, self.conn_obj.index, self.conn_obj.otype))
+        return data_buf
 
 
 class RefnumDataLog(RefnumBase_SimpleCliSingle):
@@ -611,7 +629,7 @@ class RefnumMenu(RefnumBase):
         super().__init__(*args)
 
 
-class RefnumImaq(RefnumBase_RC):
+class RefnumImaq(RefnumBase_RCIOOMId):
     """ IMAQ Session Refnum Connector
 
     Used with the Image Acquisition VIs.
@@ -631,13 +649,14 @@ class RefnumDataSocket(RefnumBase):
         super().__init__(*args)
 
 
-class RefnumVisaRef(RefnumBase_RC):
+class RefnumVisaRef(RefnumBase_RCIOOMId):
     """ Visa Refnum Connector
 
-    Usage unknown.
+    Usage unknown. Use example in "VISA Resource Name NI_Silver.ctl".
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.conn_obj.ident = b'Instr'
 
 
 class RefnumIVIRef(RefnumBase_RC):
@@ -648,6 +667,69 @@ class RefnumIVIRef(RefnumBase_RC):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.conn_obj.ident = b'IVI'
+
+    def parseRSRCTypeOMId(self, bldata):
+        ver = self.vi.getFileVersion()
+        # The data start with a string, 1-byte length, padded to mul of 2
+        strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        self.conn_obj.ident = bldata.read(strlen)
+        if ((strlen+1) % 2) > 0:
+            bldata.read(1) # Padding byte
+        # This value should be either 0 or 1
+        if isGreaterOrEqVersion(ver, major=8, minor=5):
+            firstclient = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        else:
+            firstclient = 0
+        self.conn_obj.firstclient = firstclient
+        self.conn_obj.clients = []
+        if firstclient != 0:
+            client = SimpleNamespace()
+            client.index = readVariableSizeField(bldata)
+            client.flags = 0
+            self.conn_obj.clients.append(client)
+
+            cli_count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            for i in range(cli_count):
+                client = SimpleNamespace()
+                client.index = readVariableSizeField(bldata)
+                client.flags = 0
+                self.conn_obj.clients.append(client)
+        pass
+
+    def prepareRSRCTypeOMId(self, avoid_recompute=False):
+        if not avoid_recompute:
+            ver = self.vi.getFileVersion()
+        else:
+            ver = decodeVersion(0x09000000)
+        data_buf = b''
+        strlen = len(self.conn_obj.ident)
+        data_buf += int(strlen).to_bytes(1, byteorder='big')
+        data_buf += self.conn_obj.ident
+        if ((strlen+1) % 2) > 0:
+            data_buf += b'\0' # padding
+        if isGreaterOrEqVersion(ver, major=8, minor = 5):
+            firstclient = self.conn_obj.firstclient
+            data_buf += int(firstclient).to_bytes(2, byteorder='big')
+        else:
+            firstclient = 0
+        # Make list of clients which reference other connectors
+        ref_clients = []
+        for client in self.conn_obj.clients:
+            if client.index >= 0:
+                ref_clients.append(client.index)
+        if firstclient != 0 and len(ref_clients) == 0:
+            eprint("{:s}: Warning: Connector {:d} type 0x{:02x} marked as firstclient but no clients"\
+              .format(self.vi.src_fname, self.conn_obj.index, self.conn_obj.otype))
+            ref_clients.append(0)
+        if firstclient != 0:
+            data_buf += int(ref_clients[0]).to_bytes(2, byteorder='big')
+            ref_clients = ref_clients[1:]
+
+            data_buf += int(len(ref_clients)).to_bytes(2, byteorder='big')
+            for cli_index in ref_clients:
+                data_buf += int(cli_index).to_bytes(2, byteorder='big')
+        return data_buf
 
 
 class RefnumUDPNetConn(RefnumBase):
@@ -656,8 +738,7 @@ class RefnumUDPNetConn(RefnumBase):
     Connector of "UDP Network Connection Refnum" Front Panel control.
     Used to uniquely identify a UDP socket.
     """
-    def __init__(self, *args):
-        super().__init__(*args)
+    pass
 
 
 class RefnumNotifierRef(RefnumBase):
