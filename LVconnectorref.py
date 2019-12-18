@@ -218,6 +218,7 @@ class RefnumBase_RC(RefnumBase):
         super().__init__(*args)
         self.conn_obj.ident = b'UNKN'
         self.conn_obj.firstclient = 0
+        self.conn_obj.clients2 = []#TODO Remove when LVVariant is ready
 
     def parseRSRCConnector(self, bldata, pos):
         bldata.seek(pos)
@@ -268,50 +269,15 @@ class RefnumBase_RC(RefnumBase):
     def initWithXML(self, conn_elem):
         self.conn_obj.ident = conn_elem.get("Ident").encode(encoding='ascii')
         self.conn_obj.firstclient = int(conn_elem.get("FirstClient"), 0)
-        #LVclasses.LVVariant_initWithXML(self.conn_obj, conn_elem)
-        self.conn_obj.varver = int(conn_elem.get("VarVer"), 0)
-        self.conn_obj.hasvaritem2 = int(conn_elem.get("HasVarItem2"), 0)
-        varitem2 = conn_elem.get("VarItem2")
-        if varitem2 is not None:
-            self.conn_obj.varitem2 = bytes.fromhex(varitem2)
-        pass
-
-    def initWithXMLClient(self, client, conn_subelem):
-        if client.index == -1:
-            for subelem in conn_subelem:
-                if (subelem.tag == "Connector"):
-                    obj_idx = int(subelem.get("Index"), 0)
-                    obj_type = valFromEnumOrIntString(LVconnector.CONNECTOR_FULL_TYPE, subelem.get("Type"))
-                    obj_flags = importXMLBitfields(LVconnector.CONNECTOR_FLAGS, subelem)
-                    obj = LVconnector.newConnectorObject(self.vi, obj_idx, obj_flags, obj_type, self.po)
-                    # Grow the list if needed (the connectors may be in wrong order)
-                    client.nested = obj
-                    # Set connector data based on XML properties
-                    obj.initWithXML(subelem)
-                else:
-                    raise AttributeError("Client contains unexpected tag")
+        LVclasses.LVVariant_initWithXML(self.conn_obj, conn_elem)
         pass
 
     def exportXML(self, conn_elem, fname_base):
         conn_elem.set("Ident", "{:s}".format(self.conn_obj.ident.decode(encoding='ascii')))
         conn_elem.set("FirstClient", "{:d}".format(self.conn_obj.firstclient))
-        #LVclasses.LVVariant_exportXML(self.conn_obj, conn_elem, fname_base)
-        conn_elem.set("VarVer", "0x{:08X}".format(self.conn_obj.varver))
-        conn_elem.set("HasVarItem2", "{:d}".format(self.conn_obj.hasvaritem2))
-        if self.conn_obj.hasvaritem2 != 0:
-            conn_elem.set("VarItem2", "{:s}".format(self.conn_obj.varitem2.hex()))
+        LVclasses.LVVariant_exportXML(self.conn_obj, conn_elem, fname_base)
         pass
 
-    def exportXMLClient(self, client, conn_subelem, fname_base):
-        if client.index == -1:
-            subelem = ET.SubElement(conn_subelem,"Connector")
-
-            subelem.set("Index", str(client.nested.index))
-            subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(LVconnector.CONNECTOR_FULL_TYPE, client.nested.otype)))
-
-            client.nested.exportXML(subelem, fname_base)
-            client.nested.exportXMLFinish(subelem)
-        pass
 
 class RefnumBase_RCIOOMId(RefnumBase_RC):
     def __init__(self, *args):
