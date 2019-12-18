@@ -283,7 +283,7 @@ class RefnumBase_RCIOOMId(RefnumBase_RC):
     def __init__(self, *args):
         super().__init__(*args)
 
-    def parseRSRCTypeOMId(self, bldata):
+    def parseRSRCTypeOMIdStart(self, bldata):
         ver = self.vi.getFileVersion()
         # The data start with a string, 1-byte length, padded to mul of 2
         strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
@@ -304,7 +304,10 @@ class RefnumBase_RCIOOMId(RefnumBase_RC):
             self.conn_obj.clients.append(client)
         pass
 
-    def prepareRSRCTypeOMId(self, avoid_recompute=False):
+    def parseRSRCTypeOMId(self, bldata):
+        self.parseRSRCTypeOMIdStart(bldata)
+
+    def prepareRSRCTypeOMIdStart(self, avoid_recompute=False):
         if not avoid_recompute:
             ver = self.vi.getFileVersion()
         else:
@@ -315,7 +318,7 @@ class RefnumBase_RCIOOMId(RefnumBase_RC):
         data_buf += self.conn_obj.ident
         if ((strlen+1) % 2) > 0:
             data_buf += b'\0' # padding
-        if isGreaterOrEqVersion(ver, major=8, minor = 5):
+        if isGreaterOrEqVersion(ver, major=8, minor=5):
             firstclient = self.conn_obj.firstclient
             data_buf += int(firstclient).to_bytes(2, byteorder='big')
         else:
@@ -332,10 +335,13 @@ class RefnumBase_RCIOOMId(RefnumBase_RC):
         if firstclient != 0:
             data_buf += int(ref_clients[0]).to_bytes(2, byteorder='big')
             ref_clients = ref_clients[1:]
+        return data_buf, ref_clients, firstclient
 
-            if len(ref_clients) > 0:
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} supports one client, has more"\
-                  .format(self.vi.src_fname, self.conn_obj.index, self.conn_obj.otype))
+    def prepareRSRCTypeOMId(self, avoid_recompute=False):
+        data_buf, ref_clients, firstclient = self.prepareRSRCTypeOMIdStart(avoid_recompute=avoid_recompute)
+        if len(ref_clients) > 0:
+            eprint("{:s}: Warning: Connector {:d} type 0x{:02x} has more clients than supported"\
+              .format(self.vi.src_fname, self.conn_obj.index, self.conn_obj.otype))
         return data_buf
 
 
@@ -625,7 +631,7 @@ class RefnumVisaRef(RefnumBase_RCIOOMId):
         self.conn_obj.ident = b'Instr'
 
 
-class RefnumIVIRef(RefnumBase_RC):
+class RefnumIVIRef(RefnumBase_RCIOOMId):
     """ VI Refnum Connector
 
     Connector of "VI Refnum" Front Panel control.
@@ -636,25 +642,8 @@ class RefnumIVIRef(RefnumBase_RC):
         self.conn_obj.ident = b'IVI'
 
     def parseRSRCTypeOMId(self, bldata):
-        ver = self.vi.getFileVersion()
-        # The data start with a string, 1-byte length, padded to mul of 2
-        strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        self.conn_obj.ident = bldata.read(strlen)
-        if ((strlen+1) % 2) > 0:
-            bldata.read(1) # Padding byte
-        # This value should be either 0 or 1
-        if isGreaterOrEqVersion(ver, major=8, minor=5):
-            firstclient = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        else:
-            firstclient = 0
-        self.conn_obj.firstclient = firstclient
-        self.conn_obj.clients = []
-        if firstclient != 0:
-            client = SimpleNamespace()
-            client.index = readVariableSizeField(bldata)
-            client.flags = 0
-            self.conn_obj.clients.append(client)
-
+        self.parseRSRCTypeOMIdStart(bldata)
+        if self.conn_obj.firstclient != 0:
             cli_count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
             for i in range(cli_count):
                 client = SimpleNamespace()
@@ -664,37 +653,14 @@ class RefnumIVIRef(RefnumBase_RC):
         pass
 
     def prepareRSRCTypeOMId(self, avoid_recompute=False):
-        if not avoid_recompute:
-            ver = self.vi.getFileVersion()
-        else:
-            ver = decodeVersion(0x09000000)
-        data_buf = b''
-        strlen = len(self.conn_obj.ident)
-        data_buf += int(strlen).to_bytes(1, byteorder='big')
-        data_buf += self.conn_obj.ident
-        if ((strlen+1) % 2) > 0:
-            data_buf += b'\0' # padding
-        if isGreaterOrEqVersion(ver, major=8, minor = 5):
-            firstclient = self.conn_obj.firstclient
-            data_buf += int(firstclient).to_bytes(2, byteorder='big')
-        else:
-            firstclient = 0
-        # Make list of clients which reference other connectors
-        ref_clients = []
-        for client in self.conn_obj.clients:
-            if client.index >= 0:
-                ref_clients.append(client.index)
-        if firstclient != 0 and len(ref_clients) == 0:
-            eprint("{:s}: Warning: Connector {:d} type 0x{:02x} marked as firstclient but no clients"\
-              .format(self.vi.src_fname, self.conn_obj.index, self.conn_obj.otype))
-            ref_clients.append(0)
+        data_buf, ref_clients, firstclient = self.prepareRSRCTypeOMIdStart(avoid_recompute=avoid_recompute)
         if firstclient != 0:
-            data_buf += int(ref_clients[0]).to_bytes(2, byteorder='big')
-            ref_clients = ref_clients[1:]
-
             data_buf += int(len(ref_clients)).to_bytes(2, byteorder='big')
             for cli_index in ref_clients:
                 data_buf += int(cli_index).to_bytes(2, byteorder='big')
+        elif len(ref_clients) > 0:
+            eprint("{:s}: Warning: Connector {:d} type 0x{:02x} has more clients than supported"\
+              .format(self.vi.src_fname, self.conn_obj.index, self.conn_obj.otype))
         return data_buf
 
 
@@ -797,8 +763,7 @@ class RefnumIrdaNetConn(RefnumBase):
 
     Connector of "IrDA Network Connection Refnum" Front Panel control.
     """
-    def __init__(self, *args):
-        super().__init__(*args)
+    pass
 
 
 class RefnumUsrDefined(RefnumBase):
@@ -880,9 +845,9 @@ class RefnumEventReg(RefnumBase):
         pass
 
     def exportXMLClient(self, client, conn_subelem, fname_base):
-        conn_elem.set("CField0", "0x{:04X}".format(client.cfield0))
-        conn_elem.set("CField2", "0x{:04X}".format(client.cfield2))
-        conn_elem.set("CField4", "0x{:04X}".format(client.cfield4))
+        conn_subelem.set("CField0", "0x{:04X}".format(client.cfield0))
+        conn_subelem.set("CField2", "0x{:04X}".format(client.cfield2))
+        conn_subelem.set("CField4", "0x{:04X}".format(client.cfield4))
         pass
 
     def checkSanity(self):

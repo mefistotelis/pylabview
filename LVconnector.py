@@ -1222,6 +1222,9 @@ class ConnectorObjectRef(ConnectorObject):
         self.reftype = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         self.ref_obj = LVconnectorref.newConnectorObjectRef(self.vi, self, self.reftype, self.po)
         if self.ref_obj is not None:
+            if (self.po.verbose > 2):
+                print("{:s}: Connector {:d} type 0x{:02x}, has ref_type=0x{:02X} class {:s}"\
+                  .format(self.vi.src_fname,self.index,self.otype,self.reftype,type(self.ref_obj).__name__))
             self.ref_obj.parseRSRCData(bldata)
         self.parseRSRCDataFinish(bldata)
 
@@ -1255,6 +1258,9 @@ class ConnectorObjectRef(ConnectorObject):
 
             self.ref_obj = LVconnectorref.newConnectorObjectRef(self.vi, self, self.reftype, self.po)
             if self.ref_obj is not None:
+                if (self.po.verbose > 2):
+                    print("{:s}: Connector {:d} type 0x{:02x}, has ref_type=0x{:02X} class {:s}"\
+                      .format(self.vi.src_fname,self.index,self.otype,self.reftype,type(self.ref_obj).__name__))
                 self.ref_obj.initWithXML(conn_elem)
 
             self.clients = []
@@ -1280,6 +1286,14 @@ class ConnectorObjectRef(ConnectorObject):
                     if i >= len(self.items):
                         self.items.extend([None] * (i - len(self.items) + 1))
                     self.items[i] = item
+                elif (subelem.tag == "LVVariant"):
+                    obj = LVclasses.LVVariant(self.vi, self.po)
+                    i = int(subelem.get("Index"), 0)
+                    # Grow the list if needed (the objects may be in wrong order)
+                    if i >= len(self.objects):
+                        self.objects.extend([None] * (i - len(self.objects) + 1))
+                    obj.initWithXML(subelem)
+                    self.objects[i] = obj
                 elif (subelem.tag == "DataType"):#TODO temp until LVVariant is a class
                     pass
                 else:
@@ -1309,6 +1323,12 @@ class ConnectorObjectRef(ConnectorObject):
           REFNUM_TYPE.DataSocket,
           REFNUM_TYPE.VisaRef,
           REFNUM_TYPE.IVIRef,
+          REFNUM_TYPE.UDPNetConn,
+          REFNUM_TYPE.NotifierRef,
+          REFNUM_TYPE.Queue,
+          REFNUM_TYPE.IrdaNetConn,
+          REFNUM_TYPE.Unused22,
+          REFNUM_TYPE.EventReg,
           ]: #TODO Currently not all types support clean XML
             return ConnectorObject.exportXML(self, conn_elem, fname_base)
         self.parseData()
@@ -1338,6 +1358,14 @@ class ConnectorObjectRef(ConnectorObject):
 
             if self.ref_obj is not None:
                 self.ref_obj.exportXMLItem(item, subelem, fname_base)
+
+        for i, obj in enumerate(self.objects):
+            subelem = ET.SubElement(conn_elem,"LVObject") # Export function from the object may overwrite the tag
+            subelem.tail = "\n"
+
+            subelem.set("Index", "{:d}".format(i))
+
+            obj.exportXML(subelem, fname_base)
 
         conn_elem.set("Format", "inline")
 
