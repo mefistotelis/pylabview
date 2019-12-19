@@ -508,6 +508,8 @@ class RefnumLVObjCtl(RefnumBase):
             cli_flags = 0
             clients[i].index = cli_idx
             clients[i].flags = cli_flags
+        self.conn_obj.clients = clients
+        # end of ContainerOMId data
         self.conn_obj.ctlflags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         items = [ ]
         if isGreaterOrEqVersion(ver, 8,0):
@@ -527,7 +529,6 @@ class RefnumLVObjCtl(RefnumBase):
                 strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
                 items[i].strval = bldata.read(strlen)
         self.conn_obj.hasitem = hasitem
-        self.conn_obj.clients = clients
         self.conn_obj.items = items
         pass
 
@@ -903,9 +904,112 @@ class RefnumDotNet(RefnumBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.conn_obj.assemblyName = None
+        self.conn_obj.dnTypeName = None
+        self.conn_obj.field0 = 0
+        self.conn_obj.dnflags = 0
+
+    def parseRSRCData(self, bldata):
+        ver = self.vi.getFileVersion()
+        self.conn_obj.assemblyName = None
+        self.conn_obj.dnTypeName = None
+        self.conn_obj.field0 = 0
+        if isGreaterOrEqVersion(ver, 8,1,1):
+            dnflags = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            self.conn_obj.dnflags = (dnflags & ~0x01)
+            if (dnflags & 0x01) != 0:
+                strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                self.conn_obj.dnTypeName = bldata.read(strlen)
+        else:
+            field0 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            dnflags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            self.conn_obj.field0 = field0
+            self.conn_obj.dnflags = (dnflags & ~0x03)
+            if (dnflags & 0x01) != 0:
+                strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+                self.conn_obj.assemblyName = bldata.read(strlen)
+                if ((strlen+1) % 2) > 0:
+                    bldata.read(1) # Padding byte
+            if (dnflags & 0x02) != 0:
+                strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+                self.conn_obj.dnTypeName = bldata.read(strlen)
+                if ((strlen+1) % 2) > 0:
+                    bldata.read(1) # Padding byte
+    pass
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        if not avoid_recompute:
+            ver = self.vi.getFileVersion()
+        else:
+            ver = decodeVersion(0x09000000)
+        data_buf = b''
+        if isGreaterOrEqVersion(ver, 8,1,1):
+            dnTypeName = self.conn_obj.dnTypeName
+
+            dnflags = (self.conn_obj.dnflags & ~0x01)
+            if dnTypeName is not None:
+                dnflags |= 0x01
+            data_buf += int(dnflags).to_bytes(4, byteorder='big')
+
+            if dnTypeName is not None:
+                data_buf += int(len(dnTypeName)).to_bytes(4, byteorder='big')
+                data_buf += dnTypeName
+        else:
+            data_buf += int(self.conn_obj.field0).to_bytes(1, byteorder='big')
+            assemblyName = self.conn_obj.assemblyName
+            dnTypeName = self.conn_obj.dnTypeName
+
+            dnflags = (self.conn_obj.dnflags & ~0x03)
+            if assemblyName is not None:
+                dnflags |= 0x01
+            if dnTypeName is not None:
+                dnflags |= 0x02
+            data_buf += int(dnflags).to_bytes(1, byteorder='big')
+
+            if assemblyName is not None:
+                strlen = len(assemblyName)
+                data_buf += int(strlen).to_bytes(1, byteorder='big')
+                data_buf += assemblyName
+                if ((strlen+1) % 2) > 0:
+                    data_buf += b'\0' # padding
+
+            if dnTypeName is not None:
+                strlen = len(dnTypeName)
+                data_buf += int(strlen).to_bytes(1, byteorder='big')
+                data_buf += dnTypeName
+                if ((strlen+1) % 2) > 0:
+                    data_buf += b'\0' # padding
+        return data_buf
+
+    def initWithXML(self, conn_elem):
+        field0 = conn_elem.get("Field0")
+        if field0 is not None:
+            self.conn_obj.field0 = int(field0, 0)
+        self.conn_obj.dnflags = int(conn_elem.get("dNetFlags"), 0)
+
+        assemblyNameStr = conn_elem.get("AssemblyName")
+        if assemblyNameStr is not None:
+            self.conn_obj.assemblyName = assemblyNameStr.encode(encoding=self.vi.textEncoding)
+
+        dnTypeNameStr = conn_elem.get("dNetTypeName")
+        if dnTypeNameStr is not None:
+            self.conn_obj.dnTypeName = dnTypeNameStr.encode(encoding=self.vi.textEncoding)
+
+        pass
+
+    def exportXML(self, conn_elem, fname_base):
+        if self.conn_obj.field0 != 0:
+            conn_elem.set("Field0", "0x{:04X}".format(self.conn_obj.field0))
+        conn_elem.set("dNetFlags", "0x{:02X}".format(self.conn_obj.dnflags))
+        if self.conn_obj.assemblyName is not None:
+            conn_elem.set("AssemblyName", self.conn_obj.assemblyName.decode(self.vi.textEncoding))
+        if self.conn_obj.dnTypeName is not None:
+            conn_elem.set("dNetTypeName", self.conn_obj.dnTypeName.decode(self.vi.textEncoding))
+        pass
 
 
-class RefnumUserEvent(RefnumBase_SimpleCliList):
+
+class RefnumUserEvent(RefnumBase_SimpleCliSingle):
     """ User Event Callback Refnum Connector
 
     Usage unknown.
