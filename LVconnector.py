@@ -1335,6 +1335,8 @@ class ConnectorObjectRef(ConnectorObject):
           REFNUM_TYPE.UserEvent,
           REFNUM_TYPE.DotNet,
           REFNUM_TYPE.Unused26,
+          REFNUM_TYPE.Callback,
+          REFNUM_TYPE.Unused28,
           ]: #TODO Currently not all types support clean XML
             return ConnectorObject.exportXML(self, conn_elem, fname_base)
         self.parseData()

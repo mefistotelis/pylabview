@@ -1017,7 +1017,7 @@ class RefnumUserEvent(RefnumBase_SimpleCliSingle):
     pass
 
 
-class RefnumCallback(RefnumBase):
+class RefnumCallback(RefnumBase_RCIOOMId):
     """ Callback Refnum Connector
 
     Usage unknown.
