@@ -248,7 +248,9 @@ class RefnumBase_RC(RefnumBase):
         self.parseRSRCTypeOMId(bldata)
         # The next thing to read here is LVVariant
         if isGreaterOrEqVersion(ver, major=8, minor=5):
-            LVclasses.LVVariant_parseRSRCData(self.conn_obj, bldata)
+            obj = LVclasses.LVVariant(len(self.conn_obj.objects), self.vi, self.po)
+            self.conn_obj.objects.append(obj)
+            obj.parseRSRCData(bldata)
         pass
 
     def prepareRSRCTypeOMId(self, avoid_recompute=False):
@@ -263,19 +265,21 @@ class RefnumBase_RC(RefnumBase):
         data_buf = self.prepareRSRCTypeOMId(avoid_recompute=avoid_recompute)
         # Now LVVariant
         if isGreaterOrEqVersion(ver, major=8, minor=5):
-            data_buf += LVclasses.LVVariant_prepareRSRCData(self.conn_obj, avoid_recompute=avoid_recompute)
+            for obj in self.conn_obj.objects:
+                if not isinstance(obj, LVclasses.LVVariant):
+                    continue
+                data_buf += obj.prepareRSRCData(avoid_recompute=avoid_recompute)
+                break
         return data_buf
 
     def initWithXML(self, conn_elem):
         self.conn_obj.ident = conn_elem.get("Ident").encode(encoding='ascii')
         self.conn_obj.firstclient = int(conn_elem.get("FirstClient"), 0)
-        LVclasses.LVVariant_initWithXML(self.conn_obj, conn_elem)
         pass
 
     def exportXML(self, conn_elem, fname_base):
         conn_elem.set("Ident", "{:s}".format(self.conn_obj.ident.decode(encoding='ascii')))
         conn_elem.set("FirstClient", "{:d}".format(self.conn_obj.firstclient))
-        LVclasses.LVVariant_exportXML(self.conn_obj, conn_elem, fname_base)
         pass
 
 

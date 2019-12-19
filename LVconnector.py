@@ -1287,15 +1287,13 @@ class ConnectorObjectRef(ConnectorObject):
                         self.items.extend([None] * (i - len(self.items) + 1))
                     self.items[i] = item
                 elif (subelem.tag == "LVVariant"):
-                    obj = LVclasses.LVVariant(self.vi, self.po)
                     i = int(subelem.get("Index"), 0)
+                    obj = LVclasses.LVVariant(i, self.vi, self.po)
                     # Grow the list if needed (the objects may be in wrong order)
                     if i >= len(self.objects):
                         self.objects.extend([None] * (i - len(self.objects) + 1))
                     obj.initWithXML(subelem)
                     self.objects[i] = obj
-                elif (subelem.tag == "DataType"):#TODO temp until LVVariant is a class
-                    pass
                 else:
                     raise AttributeError("Connector contains unexpected tag")
 

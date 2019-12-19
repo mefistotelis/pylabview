@@ -80,115 +80,110 @@ class LVObject:
 class LVVariant(LVObject):
     """ Object with variant type data
     """
-    def __init__(self, *args):
+    def __init__(self, index, *args):
         super().__init__(*args)
         self.clients2 = []
         self.varver = 0x0
         self.hasvaritem2 = 0
         self.varitem2 = None
+        self.index = index
 
-#    def parseRSRCTypeDef(self, bldata, pos):
-def LVVariant_parseRSRCConnector(conn_obj, bldata, pos):
+    def parseRSRCTypeDef(self, bldata, pos):
         bldata.seek(pos)
         obj_type, obj_flags, obj_len = LVconnector.ConnectorObject.parseRSRCDataHeader(bldata)
-        if (conn_obj.po.verbose > 2):
+        if (self.po.verbose > 2):
             print("{:s}: Connector {:d} sub {:d}, at 0x{:04x}, type 0x{:02x} flags 0x{:02x} len {:d}"\
-              .format(conn_obj.vi.src_fname, conn_obj.index, len(conn_obj.clients2), pos, obj_type, obj_flags, obj_len))
+              .format(self.vi.src_fname, self.index, len(self.clients2), pos, obj_type, obj_flags, obj_len))
         if obj_len < 4:
             eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d} too small to be valid"\
-              .format(conn_obj.vi.src_fname, len(conn_obj.clients2), obj_type, obj_len))
+              .format(self.vi.src_fname, len(self.clients2), obj_type, obj_len))
             obj_type = LVconnector.CONNECTOR_FULL_TYPE.Void
-        obj = LVconnector.newConnectorObject(conn_obj.vi, -1, obj_flags, obj_type, conn_obj.po)
+        obj = LVconnector.newConnectorObject(self.vi, -1, obj_flags, obj_type, self.po)
         client = SimpleNamespace()
         client.flags = 0
         client.index = -1
         client.nested = obj
-        conn_obj.clients2.append(client)
+        self.clients2.append(client)
         bldata.seek(pos)
         obj.initWithRSRC(bldata, obj_len)
         return obj.index, obj_len
 
-#    def parseRSRCVariant(self, bldata):
-def LVVariant_parseRSRCData(conn_obj, bldata):
+    def parseRSRCVariant(self, bldata):
         varver = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        conn_obj.varver = varver
+        self.varver = varver
         varcount = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        if varcount > conn_obj.po.connector_list_limit:
+        if varcount > self.po.connector_list_limit:
             eprint("{:s}: Warning: Connector {:d} type 0x{:02x} has {:d} clients; truncating"\
-              .format(conn_obj.vi.src_fname, conn_obj.index, conn_obj.otype, varcount))
-            varcount = conn_obj.po.connector_list_limit
+              .format(self.vi.src_fname, self.index, self.otype, varcount))
+            varcount = self.po.connector_list_limit
         pos = bldata.tell()
         for i in range(varcount):
-            obj_idx, obj_len = LVVariant_parseRSRCConnector(conn_obj, bldata, pos)
+            obj_idx, obj_len = self.parseRSRCTypeDef(bldata, pos)
             pos += obj_len
             if obj_len < 4:
                 eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size too small for all clients"\
-                  .format(conn_obj.vi.src_fname, conn_obj.index, conn_obj.otype))
+                  .format(self.vi.src_fname, self.index, self.otype))
                 break
         hasvaritem2 = readVariableSizeField(bldata)
-        conn_obj.hasvaritem2 = hasvaritem2
-        conn_obj.varitem2 = b''
+        self.hasvaritem2 = hasvaritem2
+        self.varitem2 = b''
         if hasvaritem2 != 0:
-            conn_obj.varitem2 = bldata.read(6)
+            self.varitem2 = bldata.read(6)
         pass
 
-#    def parseRSRCData(self, bldata):
-#        self.clients2 = []
-#        self.varitem2 = None
-#        self.parseRSRCVariant(bldata)
-#        pass
+    def parseRSRCData(self, bldata):
+        self.clients2 = []
+        self.varitem2 = None
+        self.parseRSRCVariant(bldata)
+        pass
 
-
-#    def prepareRSRCData(self, avoid_recompute=False):
-def LVVariant_prepareRSRCData(conn_obj, avoid_recompute=False):
-        data_buf = int(conn_obj.varver).to_bytes(4, byteorder='big')
-        varcount = sum(1 for client in conn_obj.clients2 if client.index == -1)
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = int(self.varver).to_bytes(4, byteorder='big')
+        varcount = sum(1 for client in self.clients2 if client.index == -1)
         data_buf += int(varcount).to_bytes(4, byteorder='big')
-        for client in conn_obj.clients2:
+        for client in self.clients2:
             if client.index != -1:
                 continue
             client.nested.updateData(avoid_recompute=avoid_recompute)
             data_buf += client.nested.raw_data
-        hasvaritem2 = conn_obj.hasvaritem2
+        hasvaritem2 = self.hasvaritem2
         data_buf += int(hasvaritem2).to_bytes(2, byteorder='big')
         if hasvaritem2 != 0:
-            data_buf += conn_obj.varitem2
+            data_buf += self.varitem2
         return data_buf
 
-#    def initWithXML(self, obj_elem):
-def LVVariant_initWithXML(conn_obj, obj_elem):
-        conn_obj.varver = int(obj_elem.get("VarVer"), 0)
-        conn_obj.hasvaritem2 = int(obj_elem.get("HasVarItem2"), 0)
+    def initWithXML(self, obj_elem):
+        self.varver = int(obj_elem.get("VarVer"), 0)
+        self.hasvaritem2 = int(obj_elem.get("HasVarItem2"), 0)
         varitem2 = obj_elem.get("VarItem2")
         if varitem2 is not None:
-            conn_obj.varitem2 = bytes.fromhex(varitem2)
+            self.varitem2 = bytes.fromhex(varitem2)
         for subelem in obj_elem:
             if (subelem.tag == "DataType"):
                 obj_idx = int(subelem.get("Index"), 0)
                 obj_type = valFromEnumOrIntString(LVconnector.CONNECTOR_FULL_TYPE, subelem.get("Type"))
                 obj_flags = importXMLBitfields(LVconnector.CONNECTOR_FLAGS, subelem)
-                obj = LVconnector.newConnectorObject(conn_obj.vi, obj_idx, obj_flags, obj_type, conn_obj.po)
+                obj = LVconnector.newConnectorObject(self.vi, obj_idx, obj_flags, obj_type, self.po)
                 # Grow the list if needed (the connectors may be in wrong order)
                 client = SimpleNamespace()
                 client.flags = 0
                 client.index = -1
                 client.nested = obj
-                conn_obj.clients2.append(client)
+                self.clients2.append(client)
                 # Set connector data based on XML properties
                 obj.initWithXML(subelem)
             else:
-                #raise AttributeError("LVVariant subtree contains unexpected tag")
-                pass #TODO no exception until LVVariant has its own class
+                raise AttributeError("LVVariant subtree contains unexpected tag")
         pass
 
-#    def exportXML(self, obj_elem, fname_base):
-def LVVariant_exportXML(conn_obj, obj_elem, fname_base):
-        obj_elem.set("VarVer", "0x{:08X}".format(conn_obj.varver))
-        obj_elem.set("HasVarItem2", "{:d}".format(conn_obj.hasvaritem2))
-        if conn_obj.hasvaritem2 != 0:
-            obj_elem.set("VarItem2", "{:s}".format(conn_obj.varitem2.hex()))
+    def exportXML(self, obj_elem, fname_base):
+        obj_elem.tag = "LVVariant"
+        obj_elem.set("VarVer", "0x{:08X}".format(self.varver))
+        obj_elem.set("HasVarItem2", "{:d}".format(self.hasvaritem2))
+        if self.hasvaritem2 != 0:
+            obj_elem.set("VarItem2", "{:s}".format(self.varitem2.hex()))
         idx = -1
-        for client in conn_obj.clients2:
+        for client in self.clients2:
             if client.index != -1:
                 continue
             idx += 1
