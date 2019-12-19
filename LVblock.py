@@ -509,7 +509,8 @@ class Block(object):
                             "block-size-error - size: %d" % (self.ident, section_num, size))
             usize = int.from_bytes(data.read(4), byteorder='big', signed=False)
             # Acording to zlib docs, max theoretical compression ration is 1032:1
-            if ( (size > 32) and (usize < (size*9) // 10) ) or (usize > size * 1032):
+            if ( (size > 16) and (usize < (size*5) // 10) ) or \
+               ( (size > 128) and (usize < (size*9) // 10) ) or (usize > size * 1032):
                 raise IOError("Unable to decompress section [%s:%d]: " \
                             "uncompress-size-error - size: %d - uncompress-size: %d"
                             % (self.ident, section_num, size, usize))
