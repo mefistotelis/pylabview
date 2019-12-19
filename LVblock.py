@@ -1053,7 +1053,42 @@ class CPMp(Block):
 class TM80(Block):
     """ Data Space Type Map
     """
-    pass
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.defaultBlockCoding = BLOCK_CODING.NONE
+
+    def initWithRSRCLate(self):
+        ver = self.vi.getFileVersion()
+        if isGreaterOrEqVersion(ver, 9,0):
+            # This block is encoded only in some versions of LV
+            self.defaultBlockCoding = BLOCK_CODING.ZLIB
+        super().initWithRSRCLate()
+        pass
+
+    def initWithXMLLate(self):
+        ver = self.vi.getFileVersion()
+        if isGreaterOrEqVersion(ver, 9,0):
+            # This block is encoded only in some versions of LV
+            self.defaultBlockCoding = BLOCK_CODING.ZLIB
+            for snum in self.sections:
+                # Force-encode any already stored data; otherwise we would run
+                # into decompression error when trying to get the data
+                coded_data = self.getRawData(section_num=snum)
+                if coded_data is not None:
+                    self.setData(coded_data, section_num=snum)
+        super().initWithXMLLate()
+        pass
+
+    def getData(self, section_num=None, use_coding=None):
+        if use_coding is None:
+            use_coding = self.defaultBlockCoding
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
+        return bldata
+
+    def setData(self, data_buf, section_num=None, use_coding=None):
+        if use_coding is None:
+            use_coding = self.defaultBlockCoding
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
 
 class LIvi(Block):
