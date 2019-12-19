@@ -372,7 +372,10 @@ class ConnectorObject:
             # Connector stores no additional data
             conn_elem.set("Format", "inline")
         else:
-            part_fname = "{:s}_{:04d}.{:s}".format(fname_base,self.index,"bin")
+            if self.index >= 0:
+                part_fname = "{:s}_{:04d}.{:s}".format(fname_base,self.index,"bin")
+            else:
+                part_fname = "{:s}.{:s}".format(fname_base,"bin")
             if (self.po.verbose > 2):
                 print("{:s}: For Connector {}, writing BIN file '{}'"\
                   .format(self.vi.src_fname,self.index,os.path.basename(part_fname)))
@@ -750,7 +753,7 @@ class ConnectorObjectFunction(ConnectorObject):
             self.clients[i].index = cli_idx
         self.fflags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         self.pattern = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        if isGreaterOrEqVersion(ver, major=8):
+        if isGreaterOrEqVersion(ver, 8,0):
             self.padding1 = int.from_bytes(bldata.read(2), byteorder='big', signed=False) # don't know/padding
             for i in range(count):
                 cli_flags = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
@@ -775,7 +778,7 @@ class ConnectorObjectFunction(ConnectorObject):
         data_buf += int(self.fflags).to_bytes(2, byteorder='big')
         data_buf += int(self.pattern).to_bytes(2, byteorder='big')
 
-        if isGreaterOrEqVersion(ver, major=8):
+        if isGreaterOrEqVersion(ver, 8,0):
             data_buf += int(self.padding1).to_bytes(2, byteorder='big')
             for client in self.clients:
                 data_buf += int(client.flags).to_bytes(4, byteorder='big')
@@ -790,7 +793,7 @@ class ConnectorObjectFunction(ConnectorObject):
         exp_whole_len = 4
         exp_whole_len += 2 + 2 * len(self.clients)
         exp_whole_len += 2 + 2
-        if isGreaterOrEqVersion(ver, major=8):
+        if isGreaterOrEqVersion(ver, 8,0):
             exp_whole_len += 2 + 4 * len(self.clients)
         else:
             exp_whole_len += 2 * len(self.clients)
@@ -1325,6 +1328,8 @@ class ConnectorObjectRef(ConnectorObject):
           REFNUM_TYPE.NotifierRef,
           REFNUM_TYPE.Queue,
           REFNUM_TYPE.IrdaNetConn,
+          REFNUM_TYPE.UsrDefined,
+          REFNUM_TYPE.UsrDefndTag,
           REFNUM_TYPE.Unused22,
           REFNUM_TYPE.EventReg,
           ]: #TODO Currently not all types support clean XML
@@ -1363,7 +1368,8 @@ class ConnectorObjectRef(ConnectorObject):
 
             subelem.set("Index", "{:d}".format(i))
 
-            obj.exportXML(subelem, fname_base)
+            part_fname = "{:s}_{:04d}".format(fname_base,i)
+            obj.exportXML(subelem, part_fname)
 
         conn_elem.set("Format", "inline")
 

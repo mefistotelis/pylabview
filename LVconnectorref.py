@@ -218,7 +218,6 @@ class RefnumBase_RC(RefnumBase):
         super().__init__(*args)
         self.conn_obj.ident = b'UNKN'
         self.conn_obj.firstclient = 0
-        self.conn_obj.clients2 = []#TODO Remove when LVVariant is ready
 
     def parseRSRCConnector(self, bldata, pos):
         bldata.seek(pos)
@@ -247,7 +246,8 @@ class RefnumBase_RC(RefnumBase):
         ver = self.vi.getFileVersion()
         self.parseRSRCTypeOMId(bldata)
         # The next thing to read here is LVVariant
-        if isGreaterOrEqVersion(ver, major=8, minor=5):
+        if isGreaterOrEqVersion(ver, 8,5) and \
+          (isSmallerVersion(ver, 8,5,2) or isGreaterOrEqVersion(ver, 8,6,0)):
             obj = LVclasses.LVVariant(len(self.conn_obj.objects), self.vi, self.po)
             self.conn_obj.objects.append(obj)
             obj.parseRSRCData(bldata)
@@ -264,7 +264,8 @@ class RefnumBase_RC(RefnumBase):
             ver = decodeVersion(0x09000000)
         data_buf = self.prepareRSRCTypeOMId(avoid_recompute=avoid_recompute)
         # Now LVVariant
-        if isGreaterOrEqVersion(ver, major=8, minor=5):
+        if isGreaterOrEqVersion(ver, 8,5) and \
+          (isSmallerVersion(ver, 8,5,2) or isGreaterOrEqVersion(ver, 8,6,0)):
             for obj in self.conn_obj.objects:
                 if not isinstance(obj, LVclasses.LVVariant):
                     continue
@@ -295,7 +296,7 @@ class RefnumBase_RCIOOMId(RefnumBase_RC):
         if ((strlen+1) % 2) > 0:
             bldata.read(1) # Padding byte
         # This value should be either 0 or 1
-        if isGreaterOrEqVersion(ver, major=8, minor=5):
+        if isGreaterOrEqVersion(ver, 8,5):
             firstclient = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         else:
             firstclient = 0
@@ -322,7 +323,7 @@ class RefnumBase_RCIOOMId(RefnumBase_RC):
         data_buf += self.conn_obj.ident
         if ((strlen+1) % 2) > 0:
             data_buf += b'\0' # padding
-        if isGreaterOrEqVersion(ver, major=8, minor=5):
+        if isGreaterOrEqVersion(ver, 8,5):
             firstclient = self.conn_obj.firstclient
             data_buf += int(firstclient).to_bytes(2, byteorder='big')
         else:
@@ -509,7 +510,7 @@ class RefnumLVObjCtl(RefnumBase):
             clients[i].flags = cli_flags
         self.conn_obj.ctlflags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         items = [ ]
-        if isGreaterOrEqVersion(ver, major=8):
+        if isGreaterOrEqVersion(ver, 8,0):
             hasitem = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         else:
             hasitem = 0
@@ -540,7 +541,7 @@ class RefnumLVObjCtl(RefnumBase):
         for client in self.conn_obj.clients:
             data_buf += int(client.index).to_bytes(2, byteorder='big')
         data_buf += int(self.conn_obj.ctlflags).to_bytes(2, byteorder='big')
-        if not isGreaterOrEqVersion(ver, major=8):
+        if not isGreaterOrEqVersion(ver, 8,0):
             # For LV versions below 8.0, the data buffer ends here
             return data_buf
         data_buf += int(self.conn_obj.hasitem).to_bytes(2, byteorder='big')
@@ -576,7 +577,7 @@ class RefnumLVObjCtl(RefnumBase):
         ver = self.vi.getFileVersion()
         conn_elem.set("CtlFlags", "0x{:04X}".format(self.conn_obj.ctlflags))
         conn_elem.set("HasItem", "{:d}".format(self.conn_obj.hasitem))
-        if isGreaterOrEqVersion(ver, major=8):
+        if isGreaterOrEqVersion(ver, 8,0):
             if self.conn_obj.hasitem != 0:
                 conn_elem.set("ItmIdent", getPrettyStrFromRsrcType(self.conn_obj.itmident))
         pass
@@ -770,22 +771,53 @@ class RefnumIrdaNetConn(RefnumBase):
     pass
 
 
-class RefnumUsrDefined(RefnumBase):
+class RefnumUsrDefined(RefnumBase_RCIOOMId):
     """ User Defined Refnum Connector
 
     Usage unknown.
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.conn_obj.typeName = b''
+
+    def parseRSRCTypeOMId(self, bldata):
+        self.parseRSRCTypeOMIdStart(bldata)
+        # The data continues with a string, 1-byte length, padded to mul of 2
+        strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        self.conn_obj.typeName = bldata.read(strlen)
+        if ((strlen+1) % 2) > 0:
+            bldata.read(1) # Padding byte
+        pass
+
+    def prepareRSRCTypeOMId(self, avoid_recompute=False):
+        data_buf, ref_clients, firstclient = self.prepareRSRCTypeOMIdStart(avoid_recompute=avoid_recompute)
+        if len(ref_clients) > 0:
+            eprint("{:s}: Warning: Connector {:d} type 0x{:02x} has more clients than supported"\
+              .format(self.vi.src_fname, self.conn_obj.index, self.conn_obj.otype))
+        strlen = len(self.conn_obj.typeName)
+        data_buf += int(strlen).to_bytes(1, byteorder='big')
+        data_buf += self.conn_obj.typeName
+        if ((strlen+1) % 2) > 0:
+            data_buf += b'\0' # padding
+        return data_buf
+
+    def initWithXML(self, conn_elem):
+        super().initWithXML(conn_elem)
+        self.conn_obj.typeName = conn_elem.get("TypeName").encode(encoding='ascii')
+        pass
+
+    def exportXML(self, conn_elem, fname_base):
+        super().exportXML(conn_elem, fname_base)
+        conn_elem.set("TypeName", "{:s}".format(self.conn_obj.typeName.decode(encoding='ascii')))
+        pass
 
 
-class RefnumUsrDefndTag(RefnumBase):
+class RefnumUsrDefndTag(RefnumUsrDefined):
     """ User Defined Tag Refnum Connector
 
     Usage unknown.
     """
-    def __init__(self, *args):
-        super().__init__(*args)
+    pass
 
 
 class RefnumEventReg(RefnumBase):

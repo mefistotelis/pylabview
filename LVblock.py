@@ -1149,11 +1149,11 @@ class LVSR(Block):
         # Additional data, exists only in newer versions
         # sizeof(LVSR) per version: 8.6b7->120 9.0b25->120 9.0->120 10.0b84->120 10.0->136 11.0.1->136 12.0->136 13.0->136 14.0->137
 
-        if isGreaterOrEqVersion(self.version, 10, 0, stage='release'):
+        if isGreaterOrEqVersion(self.version, 10,0, stage='release'):
             self.field78_md5 = bytes(data.field78_md5)
-        if isGreaterOrEqVersion(self.version, 14):
+        if isGreaterOrEqVersion(self.version, 14,0):
             self.inlineStg = int(data.inlineStg)
-        if isGreaterOrEqVersion(self.version, 15):
+        if isGreaterOrEqVersion(self.version, 15,0):
             self.field8C = int(data.field8C)
         # Any data added in future versions
         self.field90 = bldata.read()
@@ -1191,11 +1191,11 @@ class LVSR(Block):
         data_buf += self.libpass_md5
         data_buf += int(self.field70).to_bytes(4, byteorder='big')
         data_buf += int(self.field74).to_bytes(4, byteorder='big', signed=True)
-        if isGreaterOrEqVersion(self.version, 10, 0, stage='release'):
+        if isGreaterOrEqVersion(self.version, 10,0, stage='release'):
             data_buf += self.field78_md5
-        if isGreaterOrEqVersion(self.version, 14):
+        if isGreaterOrEqVersion(self.version, 14,0):
             data_buf += int(self.inlineStg).to_bytes(1, byteorder='big')
-        if isGreaterOrEqVersion(self.version, 15):
+        if isGreaterOrEqVersion(self.version, 15,0):
             data_buf += b'\0' * 3
             data_buf += int(self.field8C).to_bytes(4, byteorder='big')
         data_buf += self.field90
@@ -1759,12 +1759,12 @@ class BDPW(Block):
     def scanForHashSalt(self, presalt_data=b'', postsalt_data=b''):
         salt = b''
         ver = self.vi.getFileVersion()
-        if not isGreaterOrEqVersion(ver, major=1):
+        if not isGreaterOrEqVersion(ver, 1,0):
             if (po.verbose > 0):
                 eprint("{:s}: Warning: No version block found; assuming oldest format, with empty password salt".format(self.vi.src_fname))
             self.salt = salt
             return salt
-        if isGreaterOrEqVersion(ver, major=12):
+        if isGreaterOrEqVersion(ver, 12,0):
             # Figure out the salt
             salt_iface_idx = None
             VCTP = self.vi.get_or_raise('VCTP')

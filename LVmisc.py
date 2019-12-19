@@ -191,6 +191,9 @@ def isGreaterOrEqVersion(ver, major, minor = None, bugfix = None, stage = None):
 
     return True
 
+def isSmallerVersion(ver, *args, **kwargs):
+    return not isGreaterOrEqVersion(ver, *args, **kwargs)
+
 def stringFromValEnumOrInt(EnumClass, value):
     for en in EnumClass:
         if value == en.value:

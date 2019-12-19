@@ -92,10 +92,10 @@ class LVVariant(LVObject):
         bldata.seek(pos)
         obj_type, obj_flags, obj_len = LVconnector.ConnectorObject.parseRSRCDataHeader(bldata)
         if (self.po.verbose > 2):
-            print("{:s}: Connector {:d} sub {:d}, at 0x{:04x}, type 0x{:02x} flags 0x{:02x} len {:d}"\
+            print("{:s}: Object {:d} sub {:d}, at 0x{:04x}, type 0x{:02x} flags 0x{:02x} len {:d}"\
               .format(self.vi.src_fname, self.index, len(self.clients2), pos, obj_type, obj_flags, obj_len))
         if obj_len < 4:
-            eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d} too small to be valid"\
+            eprint("{:s}: Warning: Object {:d} type 0x{:02x} data size {:d} too small to be valid"\
               .format(self.vi.src_fname, len(self.clients2), obj_type, obj_len))
             obj_type = LVconnector.CONNECTOR_FULL_TYPE.Void
         obj = LVconnector.newConnectorObject(self.vi, -1, obj_flags, obj_type, self.po)
@@ -113,16 +113,16 @@ class LVVariant(LVObject):
         self.varver = varver
         varcount = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         if varcount > self.po.connector_list_limit:
-            eprint("{:s}: Warning: Connector {:d} type 0x{:02x} has {:d} clients; truncating"\
-              .format(self.vi.src_fname, self.index, self.otype, varcount))
+            eprint("{:s}: Warning: LVVariant {:d} has {:d} clients; truncating"\
+              .format(self.vi.src_fname, self.index, varcount))
             varcount = self.po.connector_list_limit
         pos = bldata.tell()
         for i in range(varcount):
             obj_idx, obj_len = self.parseRSRCTypeDef(bldata, pos)
             pos += obj_len
             if obj_len < 4:
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size too small for all clients"\
-                  .format(self.vi.src_fname, self.index, self.otype))
+                eprint("{:s}: Warning: LVVariant {:d} data size too small for all clients"\
+                  .format(self.vi.src_fname, self.index))
                 break
         hasvaritem2 = readVariableSizeField(bldata)
         self.hasvaritem2 = hasvaritem2
