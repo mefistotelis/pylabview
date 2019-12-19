@@ -219,26 +219,6 @@ class RefnumBase_RC(RefnumBase):
         self.conn_obj.ident = b'UNKN'
         self.conn_obj.firstclient = 0
 
-    def parseRSRCConnector(self, bldata, pos):
-        bldata.seek(pos)
-        obj_type, obj_flags, obj_len = LVconnector.ConnectorObject.parseRSRCDataHeader(bldata)
-        if (self.po.verbose > 2):
-            print("{:s}: Connector {:d} sub {:d}, at 0x{:04x}, type 0x{:02x} flags 0x{:02x} len {:d}"\
-              .format(self.vi.src_fname, self.conn_obj.index, len(self.conn_obj.clients), pos, obj_type, obj_flags, obj_len))
-        if obj_len < 4:
-            eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d} too small to be valid"\
-              .format(self.vi.src_fname, len(self.conn_obj.clients), obj_type, obj_len))
-            obj_type = LVconnector.CONNECTOR_FULL_TYPE.Void
-        obj = LVconnector.newConnectorObject(self.vi, -1, obj_flags, obj_type, self.po)
-        client = SimpleNamespace()
-        client.flags = 0
-        client.index = -1
-        client.nested = obj
-        self.conn_obj.clients.append(client)
-        bldata.seek(pos)
-        obj.initWithRSRC(bldata, obj_len)
-        return obj.index, obj_len
-
     def parseRSRCTypeOMId(self, bldata):
         pass
 
@@ -1025,8 +1005,16 @@ class RefnumCallback(RefnumBase_RCIOOMId):
     def __init__(self, *args):
         super().__init__(*args)
 
+    def parseRSRCData(self, bldata):
+        self.parseRSRCTypeOMId(bldata)
+        pass
 
-class RefnumUsrDefTagFlt(RefnumBase):
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = self.prepareRSRCTypeOMId(avoid_recompute=avoid_recompute)
+        return data_buf
+
+
+class RefnumUsrDefTagFlt(RefnumBase_RCIOOMId):
     """ User Defined Tag Flatten Refnum Connector
 
     Usage unknown.
