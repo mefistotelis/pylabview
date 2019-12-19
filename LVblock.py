@@ -2276,3 +2276,17 @@ class VCTP(Block):
               'compound',len(type_list['compound']),\
               'other',len(type_list['other'])))
         return type_list
+
+
+class VICD(Block):
+    """ Virtual Instrument Compiled Data
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
+        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        return bldata
+
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
+        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
