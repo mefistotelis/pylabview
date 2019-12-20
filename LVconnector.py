@@ -1195,27 +1195,94 @@ class ConnectorObjectArray(ConnectorObject):
 
         ndimensions = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         self.dimensions = [SimpleNamespace() for _ in range(ndimensions)]
-        for i in range(ndimensions):
+        for dim in self.dimensions:
             flags = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            if flags != 0xFFFFFFFF:
-                if ((flags & 0x80000000) != 0):
-                    # Array with fixed size
-                    self.dimensions[i].flags = flags >> 24
-                    self.dimensions[i].fixedSize = flags & 0x00FFFFFF
-                else:
-                    print("Warning: Unexpected flags field in connector {:d}; fixed size flag not set in 0x{:08x}.".format(self.index,flags))
-                    self.dimensions[i].flags = flags >> 24
-                    self.dimensions[i].fixedSize = flags & 0x00FFFFFF
-            else:
-                # TODO No idea what to do here... it does happen
-                self.dimensions[i].flags = flags >> 24
-                self.dimensions[i].fixedSize = flags & 0x00FFFFFF
+            dim.flags = flags >> 24
+            dim.fixedSize = flags & 0x00FFFFFF
+
         self.clients = [ SimpleNamespace() ]
-        cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        cli_flags = 0
-        self.clients[0].index = cli_idx
-        self.clients[0].flags = cli_flags
+        for client in self.clients:
+            cli_idx = readVariableSizeField(bldata)
+            cli_flags = 0
+            client.index = cli_idx
+            client.flags = cli_flags
+
         self.parseRSRCDataFinish(bldata)
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(len(self.dimensions)).to_bytes(2, byteorder='big')
+        for dim in self.dimensions:
+            flags = (dim.flags << 24) | dim.fixedSize
+            data_buf += int(flags).to_bytes(4, byteorder='big')
+        if len(self.clients) != 1:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} has unexpacted amount of clients; should have 1"\
+                  .format(self.vi.src_fname,self.index,self.otype))
+        for client in self.clients:
+            data_buf += int(client.index).to_bytes(2, byteorder='big')
+        return data_buf
+
+    def initWithXML(self, conn_elem):
+        fmt = conn_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.index,self.otype))
+
+            self.initWithXMLInlineStart(conn_elem)
+
+            self.dimensions = []
+            self.clients = []
+            for subelem in conn_elem:
+                if (subelem.tag == "Dimension"):
+                    i = int(subelem.get("Index"), 0)
+                    dim = SimpleNamespace()
+                    dim.flags = int(subelem.get("Flags"), 0)
+                    dim.fixedSize = int(subelem.get("FixedSize"), 0)
+                    # Grow the list if needed (the labels may be in wrong order)
+                    if i >= len(self.dimensions):
+                        self.dimensions.extend([None] * (i - len(self.dimensions) + 1))
+                    self.dimensions[i] = dim
+                elif (subelem.tag == "Client"):
+                    i = int(subelem.get("Index"), 0)
+                    client = SimpleNamespace()
+                    client.index = int(subelem.get("ConnectorIndex"), 0)
+                    client.flags = int(subelem.get("Flags"), 0)
+                    # Grow the list if needed (the labels may be in wrong order)
+                    if i >= len(self.clients):
+                        self.clients.extend([None] * (i - len(self.clients) + 1))
+                    self.clients[i] = client
+                else:
+                    raise AttributeError("Connector contains unexpected tag")
+
+            self.updateData(avoid_recompute=True)
+
+        else:
+            ConnectorObject.initWithXML(self, conn_elem)
+        pass
+
+    def exportXML(self, conn_elem, fname_base):
+        self.parseData()
+        conn_elem.text = "\n"
+
+        for i, dim in enumerate(self.dimensions):
+            subelem = ET.SubElement(conn_elem,"Dimension")
+            subelem.tail = "\n"
+
+            subelem.set("Index", "{:d}".format(i))
+            subelem.set("Flags", "0x{:04X}".format(dim.flags))
+            subelem.set("FixedSize", "0x{:04X}".format(dim.fixedSize))
+
+        for i, client in enumerate(self.clients):
+            subelem = ET.SubElement(conn_elem,"Client")
+            subelem.tail = "\n"
+
+            subelem.set("Index", "{:d}".format(i))
+            subelem.set("ConnectorIndex", str(client.index))
+            subelem.set("Flags", "0x{:04X}".format(client.flags))
+
+        conn_elem.set("Format", "inline")
 
     def checkSanity(self):
         ret = True
