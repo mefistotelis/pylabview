@@ -146,6 +146,17 @@ class CONNECTOR_FLAGS(enum.Enum):
     Bit7 = 1 << 7	# unknown
 
 
+class TAG_TYPE(enum.Enum):
+    """ Type of tag
+    """
+    Unknown0 = 0
+    Unknown1 = 1
+    Unknown2 = 2
+    Unknown3 = 3
+    Unknown4 = 4
+    UserDefined = 5
+
+
 class ConnectorObject:
 
     def __init__(self, vi, idx, obj_flags, obj_type, po):
@@ -659,6 +670,137 @@ class ConnectorObjectPasString(ConnectorObjectVoid):
     Stores no additional data, so handling is identical to Void connector.
     """
     pass
+
+
+class ConnectorObjectTag(ConnectorObject):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.prop1 = 0
+        self.tagType = 0
+        self.variobj = None
+        self.ident = None
+
+    def parseRSRCData(self, bldata):
+        ver = self.vi.getFileVersion()
+        # Fields oflags,otype are set at constructor, but no harm in setting them again
+        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+
+        self.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.tagType = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        if isGreaterOrEqVersion(ver, 8,2,1) and \
+          (isSmallerVersion(ver, 8,2,2) or isGreaterOrEqVersion(ver, 8,5,1)):
+            obj = LVclasses.LVVariant(0, self.vi, self.po)
+            self.variobj = obj
+            obj.parseRSRCData(bldata)
+
+        if (self.tagType == TAG_TYPE.UserDefined.value) and isGreaterOrEqVersion(ver, 8,1,1):
+            # The data start with a string, 1-byte length, padded to mul of 2
+            strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            self.ident = bldata.read(strlen)
+            if ((strlen+1) % 2) > 0:
+                bldata.read(1) # Padding byte
+
+        self.parseRSRCDataFinish(bldata)
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        if not avoid_recompute:
+            ver = self.vi.getFileVersion()
+        else:
+            ver = decodeVersion(0x09000000)
+        data_buf = b''
+        data_buf += int(self.prop1).to_bytes(4, byteorder='big')
+        data_buf += int(self.tagType).to_bytes(2, byteorder='big')
+
+        if isGreaterOrEqVersion(ver, 8,2,1) and \
+          (isSmallerVersion(ver, 8,2,2) or isGreaterOrEqVersion(ver, 8,5,1)):
+            data_buf += self.variobj.prepareRSRCData(avoid_recompute=avoid_recompute)
+
+        if (self.tagType == TAG_TYPE.UserDefined.value) and isGreaterOrEqVersion(ver, 8,1,1):
+            strlen = len(self.ident)
+            data_buf += int(strlen).to_bytes(1, byteorder='big')
+            data_buf += self.ident
+            if ((strlen+1) % 2) > 0:
+                data_buf += b'\0' # padding
+
+        return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 4 + 4
+        if self.label is not None:
+            label_len = 1 + len(self.label)
+            if label_len % 2 > 0: # Include padding
+                label_len += 2 - (label_len % 2)
+            exp_whole_len += label_len
+        return exp_whole_len
+
+    def initWithXML(self, conn_elem):
+        fmt = conn_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.index,self.otype))
+
+            self.initWithXMLInlineStart(conn_elem)
+
+            self.prop1 = int(conn_elem.get("Prop1"), 0)
+            self.tagType = valFromEnumOrIntString(TAG_TYPE, conn_elem.get("TagType"))
+            identStr = conn_elem.get("Ident")
+            if identStr is not None:
+                self.ident = identStr.encode(self.vi.textEncoding)
+            self.variobj = None
+
+            for subelem in conn_elem:
+                if (subelem.tag == "LVVariant"):
+                    i = int(subelem.get("Index"), 0)
+                    obj = LVclasses.LVVariant(i, self.vi, self.po)
+                    obj.initWithXML(subelem)
+                    self.variobj = obj
+                else:
+                    raise AttributeError("Connector contains unexpected tag")
+
+            self.updateData(avoid_recompute=True)
+
+        else:
+            ConnectorObject.initWithXML(self, conn_elem)
+        pass
+
+    def exportXML(self, conn_elem, fname_base):
+        self.parseData()
+        if self.variobj is not None:
+            conn_elem.text = "\n"
+
+        conn_elem.set("Prop1", "0x{:X}".format(self.prop1))
+        conn_elem.set("TagType", stringFromValEnumOrInt(TAG_TYPE, self.tagType))
+        if self.ident is not None:
+            conn_elem.set("Ident", self.ident.decode(self.vi.textEncoding))
+
+        if self.variobj is not None:
+            obj = self.variobj
+            i = 0
+            subelem = ET.SubElement(conn_elem,"LVObject") # Export function from the object may overwrite the tag
+            subelem.tail = "\n"
+
+            subelem.set("Index", "{:d}".format(i))
+
+            part_fname = "{:s}_{:04d}".format(fname_base,i)
+            obj.exportXML(subelem, part_fname)
+
+        conn_elem.set("Format", "inline")
+
+    def checkSanity(self):
+        ret = True
+        if self.prop1 != 0xFFFFFFFF:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}"\
+                  .format(self.vi.src_fname,self.index,self.otype,self.prop1,0xFFFFFFFF))
+            ret = False
+        exp_whole_len = self.expectedRSRCSize()
+        if len(self.raw_data) != exp_whole_len:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
+            ret = False
+        return ret
 
 
 class ConnectorObjectBlob(ConnectorObject):
@@ -1536,23 +1678,33 @@ def newConnectorObject(vi, idx, obj_flags, obj_type, po):
     # Try types for which we have specific constructors
     ctor = {
         CONNECTOR_FULL_TYPE.Void: ConnectorObjectVoid,
-        CONNECTOR_FULL_TYPE.Function: ConnectorObjectFunction,
-        CONNECTOR_FULL_TYPE.TypeDef: ConnectorObjectTypeDef,
-        CONNECTOR_FULL_TYPE.Cluster: ConnectorObjectCluster,
-        CONNECTOR_FULL_TYPE.LVVariant: ConnectorObjectLVVariant,
-        CONNECTOR_FULL_TYPE.MeasureData: ConnectorObjectMeasureData,
-        #CONNECTOR_FULL_TYPE.ComplexFixedPt: ConnectorObjectCluster,
-        #CONNECTOR_FULL_TYPE.FixedPoint: ConnectorObjectCluster,
-        CONNECTOR_FULL_TYPE.Ptr: ConnectorObjectNumberPtr,
-        #CONNECTOR_FULL_TYPE.PtrTo: ConnectorObjectNumberPtr,
-        CONNECTOR_FULL_TYPE.RepeatedBlock: ConnectorObjectRepeatedBlock,
+        #CONNECTOR_FULL_TYPE.Num*: ConnectorObjectNumber, # Handled by main type
+        #CONNECTOR_FULL_TYPE.Unit*: ConnectorObjectUnit, # Handled by main type
+        #CONNECTOR_FULL_TYPE.Boolean*: ConnectorObjectBool, # Handled by main type
         CONNECTOR_FULL_TYPE.String: ConnectorObjectBlob,
         CONNECTOR_FULL_TYPE.Path: ConnectorObjectBlob,
         CONNECTOR_FULL_TYPE.Picture: ConnectorObjectBlob,
         CONNECTOR_FULL_TYPE.CString: ConnectorObjectCString,
         CONNECTOR_FULL_TYPE.PasString: ConnectorObjectPasString,
-        #CONNECTOR_FULL_TYPE.Tag: ConnectorObjectBlob, # 26 bytes of data, not compatible with generic blob
+        CONNECTOR_FULL_TYPE.Tag: ConnectorObjectTag,
         CONNECTOR_FULL_TYPE.SubString: ConnectorObjectBlob,
+        #CONNECTOR_FULL_TYPE.*Array*: ConnectorObjectArray, # Handled by main type
+        CONNECTOR_FULL_TYPE.Cluster: ConnectorObjectCluster,
+        CONNECTOR_FULL_TYPE.LVVariant: ConnectorObjectLVVariant,
+        CONNECTOR_FULL_TYPE.MeasureData: ConnectorObjectMeasureData,
+        #CONNECTOR_FULL_TYPE.ComplexFixedPt: ConnectorObjectCluster,
+        #CONNECTOR_FULL_TYPE.FixedPoint: ConnectorObjectCluster,
+        #CONNECTOR_FULL_TYPE.Block: ConnectorObjectBlock,
+        #CONNECTOR_FULL_TYPE.TypeBlock: ConnectorObjectTypeBlock,
+        #CONNECTOR_FULL_TYPE.VoidBlock: ConnectorObjectVoidBlock,
+        #CONNECTOR_FULL_TYPE.AlignedBlock: ConnectorObjectAlignedBlock,
+        CONNECTOR_FULL_TYPE.RepeatedBlock: ConnectorObjectRepeatedBlock,
+        #CONNECTOR_FULL_TYPE.AlignmntMarker: ConnectorObjectAlignmntMarker,
+        CONNECTOR_FULL_TYPE.Ptr: ConnectorObjectNumberPtr,
+        #CONNECTOR_FULL_TYPE.PtrTo: ConnectorObjectNumberPtr,
+        CONNECTOR_FULL_TYPE.Function: ConnectorObjectFunction,
+        CONNECTOR_FULL_TYPE.TypeDef: ConnectorObjectTypeDef,
+        #CONNECTOR_FULL_TYPE.PolyVI: ConnectorObjectPolyVI,
     }.get(obj_type, None)
     if ctor is None:
         # If no specific constructor - go by general type
