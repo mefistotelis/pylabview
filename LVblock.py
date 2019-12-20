@@ -1015,6 +1015,8 @@ class GCDI(Block):
 
 
 class CPMp(Block):
+    """ Connection Points Map
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.content = []

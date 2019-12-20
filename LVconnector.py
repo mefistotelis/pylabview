@@ -1307,41 +1307,6 @@ class ConnectorObjectRef(ConnectorObject):
         pass
 
     def exportXML(self, conn_elem, fname_base):
-        if self.reftype not in [
-          REFNUM_TYPE.Generic,
-          REFNUM_TYPE.DataLog,
-          REFNUM_TYPE.ByteStream,
-          REFNUM_TYPE.Device,
-          REFNUM_TYPE.Occurrence,
-          REFNUM_TYPE.TCPNetConn,
-          REFNUM_TYPE.Unused6,
-          REFNUM_TYPE.AutoRef,
-          REFNUM_TYPE.LVObjCtl,
-          REFNUM_TYPE.Menu,
-          REFNUM_TYPE.Unused10,
-          REFNUM_TYPE.Imaq,
-          REFNUM_TYPE.Unused12,
-          REFNUM_TYPE.DataSocket,
-          REFNUM_TYPE.VisaRef,
-          REFNUM_TYPE.IVIRef,
-          REFNUM_TYPE.UDPNetConn,
-          REFNUM_TYPE.NotifierRef,
-          REFNUM_TYPE.Queue,
-          REFNUM_TYPE.IrdaNetConn,
-          REFNUM_TYPE.UsrDefined,
-          REFNUM_TYPE.UsrDefndTag,
-          REFNUM_TYPE.Unused22,
-          REFNUM_TYPE.EventReg,
-          REFNUM_TYPE.UserEvent,
-          REFNUM_TYPE.DotNet,
-          REFNUM_TYPE.Unused26,
-          REFNUM_TYPE.Callback,
-          REFNUM_TYPE.Unused28,
-          REFNUM_TYPE.UsrDefTagFlt,
-          REFNUM_TYPE.UDClassInst,
-          REFNUM_TYPE.BluetoothCon,
-          ]: #TODO Currently not all types support clean XML
-            return ConnectorObject.exportXML(self, conn_elem, fname_base)
         self.parseData()
         if len(self.clients) > 0 or len(self.items) > 0:
             conn_elem.text = "\n"
