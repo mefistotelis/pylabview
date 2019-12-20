@@ -1030,6 +1030,72 @@ class RefnumUDClassInst(RefnumBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.conn_obj.field0 = 0
+        self.conn_obj.field2 = 0
+
+    def parseRSRCData(self, bldata):
+        ver = self.vi.getFileVersion()
+        self.conn_obj.field0 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        if isSmallerVersion(ver, 8,6,1):
+            self.conn_obj.field2 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        # The data start with a string, 1-byte length, padded to mul of 2
+        items = []
+        totlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        rdlen = 0
+        while rdlen < totlen:
+            strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            rdlen += strlen + 1
+            if strlen == 0:
+                break
+            item = SimpleNamespace()
+            item.text =  bldata.read(strlen)
+            items.append(item)
+        if ((totlen+1) % 2) > 0:
+            bldata.read(1) # Padding byte
+        self.conn_obj.items = items
+        pass
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        if not avoid_recompute:
+            ver = self.vi.getFileVersion()
+        else:
+            ver = decodeVersion(0x09000000)
+        data_buf = int(self.conn_obj.field0).to_bytes(2, byteorder='big')
+        if isSmallerVersion(ver, 8,6,1):
+            data_buf += int(self.conn_obj.field2).to_bytes(4, byteorder='big')
+        items = self.conn_obj.items
+        totlen = sum( (len(item.text)+1) for item in items ) + 1
+        data_buf += int(totlen).to_bytes(1, byteorder='big')
+        for item in items:
+            strlen = len(item.text)
+            data_buf += int(strlen).to_bytes(1, byteorder='big')
+            data_buf += item.text
+        data_buf += b'\0' # empty strlen marks end of list
+        if ((totlen+1) % 2) > 0:
+            data_buf += b'\0' # Padding byte
+        return data_buf
+
+    def initWithXML(self, conn_elem):
+        self.conn_obj.field0 = int(conn_elem.get("Field0"), 0)
+        field2 = conn_elem.get("Field0")
+        if field2 is not None:
+            self.conn_obj.field2 = int(field2, 0)
+        pass
+
+    def initWithXMLItem(self, item, conn_subelem):
+        itemStr = conn_subelem.get("Text")
+        item.text = itemStr.encode(encoding=self.vi.textEncoding)
+        pass
+
+    def exportXML(self, conn_elem, fname_base):
+        conn_elem.set("Field0", "0x{:04X}".format(self.conn_obj.field0))
+        if self.conn_obj.field2 != 0:
+            conn_elem.set("Field2", "0x{:04X}".format(self.conn_obj.field2))
+        pass
+
+    def exportXMLItem(self, item, conn_subelem, fname_base):
+        conn_subelem.set("Text", item.text.decode(self.vi.textEncoding))
+        pass
 
 
 class RefnumBluetoothCon(RefnumBase):
