@@ -669,46 +669,13 @@ class RefnumNotifierRef(RefnumBase_SimpleCliSingle):
     pass
 
 
-class RefnumQueue(RefnumBase):
+class RefnumQueue(RefnumBase_SimpleCliSingle):
     """ Queue Refnum Connector
 
     Used with the Queue Operations functions to store data in a queue.
     Some of related controls: "Dequeue Element", "Enqueue Element", "Flush Queue", "Obtain Queue".
     """
-    def __init__(self, *args):
-        super().__init__(*args)
-
-    def parseRSRCData(self, bldata):
-        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        # Create _separate_ empty namespace for each connector
-        clients = [SimpleNamespace() for _ in range(count)]
-        for i in range(count):
-            cli_idx = readVariableSizeField(bldata)
-            cli_flags = 0
-            clients[i].index = cli_idx
-            clients[i].flags = cli_flags
-        self.conn_obj.clients = clients
-        pass
-
-    def prepareRSRCData(self, avoid_recompute=False):
-        data_buf = b''
-        data_buf += int(len(self.conn_obj.clients)).to_bytes(2, byteorder='big')
-        for client in self.conn_obj.clients:
-            data_buf += int(client.index).to_bytes(2, byteorder='big')
-        return data_buf
-
-    def expectedRSRCSize(self):
-        exp_whole_len = 2 + 2 * len(self.conn_obj.clients)
-        return exp_whole_len
-
-    def checkSanity(self):
-        ret = True
-        if len(self.conn_obj.clients) > 1:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} reftype {:d} should not have clients, but it does"\
-                  .format(self.vi.src_fname,self.conn_obj.index,self.conn_obj.otype,self.conn_obj.reftype))
-            ret = False
-        return ret
+    pass
 
 
 class RefnumIrdaNetConn(RefnumBase):
