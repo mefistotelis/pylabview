@@ -1032,24 +1032,42 @@ class RefnumUDClassInst(RefnumBase):
         super().__init__(*args)
         self.conn_obj.field0 = 0
         self.conn_obj.field2 = 0
+        self.conn_obj.multiItem = 0
 
     def parseRSRCData(self, bldata):
         ver = self.vi.getFileVersion()
         self.conn_obj.field0 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         if isSmallerVersion(ver, 8,6,1):
             self.conn_obj.field2 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        # The data start with a string, 1-byte length, padded to mul of 2
+        # Now there is a string, 1-byte length, padded to mul of 2; but it may consists of sub-strings
         items = []
         totlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        rdlen = 0
-        while rdlen < totlen:
-            strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-            rdlen += strlen + 1
-            if strlen == 0:
-                break
+        itempos = bldata.tell()
+        if True:
             item = SimpleNamespace()
-            item.text =  bldata.read(strlen)
+            item.text =  bldata.read(totlen)
+        if len(item.text) < 1:
+            multiItem = 0
+        elif item.text[-1] != 0:
+            multiItem = 0
+        else:
+            multiItem = 1
+        self.conn_obj.multiItem = multiItem
+        if multiItem != 0:
+            bldata.seek(itempos)
+            rdlen = 0
+            while rdlen < totlen:
+                strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+                rdlen += strlen + 1
+                if strlen == 0:
+                    break
+                item = SimpleNamespace()
+                item.text =  bldata.read(strlen)
+                items.append(item)
+        else:
+            # Just one item - and we've already loaded it
             items.append(item)
+
         if ((totlen+1) % 2) > 0:
             bldata.read(1) # Padding byte
         self.conn_obj.items = items
@@ -1064,13 +1082,26 @@ class RefnumUDClassInst(RefnumBase):
         if isSmallerVersion(ver, 8,6,1):
             data_buf += int(self.conn_obj.field2).to_bytes(4, byteorder='big')
         items = self.conn_obj.items
-        totlen = sum( (len(item.text)+1) for item in items ) + 1
-        data_buf += int(totlen).to_bytes(1, byteorder='big')
-        for item in items:
-            strlen = len(item.text)
-            data_buf += int(strlen).to_bytes(1, byteorder='big')
-            data_buf += item.text
-        data_buf += b'\0' # empty strlen marks end of list
+        if self.conn_obj.multiItem == 0:
+            if len(items) > 1:
+                self.conn_obj.multiItem = 1
+        if self.conn_obj.multiItem != 0:
+            totlen = sum( (len(item.text)+1) for item in items ) + 1
+            data_buf += int(totlen).to_bytes(1, byteorder='big')
+            for item in items:
+                strlen = len(item.text)
+                data_buf += int(strlen).to_bytes(1, byteorder='big')
+                data_buf += item.text
+            data_buf += b'\0' # empty strlen marks end of list
+        else:
+            if len(items) < 1:
+                item = SimpleNamespace()
+                item.text =  b''
+            for item in items: # we made sure there is only one item
+                strlen = len(item.text)
+                totlen = strlen
+                data_buf += int(strlen).to_bytes(1, byteorder='big')
+                data_buf += item.text
         if ((totlen+1) % 2) > 0:
             data_buf += b'\0' # Padding byte
         return data_buf
@@ -1080,6 +1111,7 @@ class RefnumUDClassInst(RefnumBase):
         field2 = conn_elem.get("Field0")
         if field2 is not None:
             self.conn_obj.field2 = int(field2, 0)
+        self.conn_obj.multiItem = int(conn_elem.get("MultiItem"), 0)
         pass
 
     def initWithXMLItem(self, item, conn_subelem):
@@ -1091,6 +1123,7 @@ class RefnumUDClassInst(RefnumBase):
         conn_elem.set("Field0", "0x{:04X}".format(self.conn_obj.field0))
         if self.conn_obj.field2 != 0:
             conn_elem.set("Field2", "0x{:04X}".format(self.conn_obj.field2))
+        conn_elem.set("MultiItem", "{:d}".format(self.conn_obj.multiItem))
         pass
 
     def exportXMLItem(self, item, conn_subelem, fname_base):

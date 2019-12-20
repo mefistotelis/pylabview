@@ -1337,6 +1337,9 @@ class ConnectorObjectRef(ConnectorObject):
           REFNUM_TYPE.Unused26,
           REFNUM_TYPE.Callback,
           REFNUM_TYPE.Unused28,
+          REFNUM_TYPE.UsrDefTagFlt,
+          REFNUM_TYPE.UDClassInst,
+          REFNUM_TYPE.BluetoothCon,
           ]: #TODO Currently not all types support clean XML
             return ConnectorObject.exportXML(self, conn_elem, fname_base)
         self.parseData()
