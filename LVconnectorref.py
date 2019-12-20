@@ -1141,7 +1141,7 @@ class RefnumBluetoothCon(RefnumBase):
         super().__init__(*args)
 
 
-class RefnumDataValueRef(RefnumBase):
+class RefnumDataValueRef(RefnumBase_SimpleCliSingle):
     """ Data Value Refnum Connector
 
     Connector created as output of "Data Value Reference" Front Panel control.
@@ -1150,28 +1150,28 @@ class RefnumDataValueRef(RefnumBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.conn_obj.isExternal = 0
 
     def parseRSRCData(self, bldata):
-        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        # Create _separate_ empty namespace for each connector
-        clients = [SimpleNamespace() for _ in range(count)]
-        for i in range(count):
-            # dont know this data!
-            cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            cli_flags = 0
-            clients[i].index = cli_idx
-            clients[i].flags = cli_flags
-        self.conn_obj.valflags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        self.conn_obj.clients = clients
+        super().parseRSRCData(bldata)
+        self.conn_obj.isExternal = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         pass
 
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = super().prepareRSRCData(avoid_recompute=avoid_recompute)
+        data_buf += int(self.conn_obj.isExternal).to_bytes(1, byteorder='big')
+        return data_buf
+
+    def initWithXML(self, conn_elem):
+        super().initWithXML(conn_elem)
+        self.conn_obj.dnflags = int(conn_elem.get("IsExternal"), 0)
+
+    def exportXML(self, conn_elem, fname_base):
+        super().exportXML(conn_elem, fname_base)
+        conn_elem.set("IsExternal", "0x{:02X}".format(self.conn_obj.isExternal))
+
     def checkSanity(self):
-        ret = True
-        if len(self.conn_obj.clients) > 1:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} reftype {:d} should not have clients, but it does"\
-                  .format(self.vi.src_fname,self.conn_obj.index,self.conn_obj.otype,self.conn_obj.reftype))
-            ret = False
+        ret = super().checkSanity()
         return ret
 
 
