@@ -1060,7 +1060,7 @@ class TM80(Block):
 
     def initWithRSRCLate(self):
         ver = self.vi.getFileVersion()
-        if isGreaterOrEqVersion(ver, 9,0):
+        if isGreaterOrEqVersion(ver, 10,0,0):
             # This block is encoded only in some versions of LV
             self.defaultBlockCoding = BLOCK_CODING.ZLIB
         super().initWithRSRCLate()
@@ -1068,7 +1068,7 @@ class TM80(Block):
 
     def initWithXMLLate(self):
         ver = self.vi.getFileVersion()
-        if isGreaterOrEqVersion(ver, 9,0):
+        if isGreaterOrEqVersion(ver, 10,0,0):
             # This block is encoded only in some versions of LV
             self.defaultBlockCoding = BLOCK_CODING.ZLIB
             for snum in self.sections:
