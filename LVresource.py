@@ -204,6 +204,7 @@ class VI():
         self.rsrc_headers = []
         self.ftype = FILE_FMT_TYPE.NONE
         self.textEncoding = text_encoding
+        self.blocks = None
 
         if rsrc_fh is not None:
             self.dataSource = "rsrc"
@@ -624,6 +625,9 @@ class VI():
         BDPW.recalculateHash1(store=True)
         BDPW.recalculateHash2(store=True)
         return BDPW
+
+    def isLoaded(self):
+        return (self.blocks is not None)
 
     def get(self, ident):
         if isinstance(ident, str):
