@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-""" LabView RSRC file format resources.
+""" LabView RSRC file parser - Resource Container.
 
-    Can read content of the main headers and list of blocks within RSRC files.
+    Can read content of the main headers and list of resources within RSRC files.
 """
 
 # Copyright (C) 2013 Jessica Creighton <jcreigh@femtobit.org>

@@ -36,7 +36,7 @@ from ctypes import *
 from LVmisc import *
 from LVconnector import *
 from LVinstrument import *
-from LVresource import *
+import LVrsrcontainer
 
 class BLOCK_CODING(enum.Enum):
     NONE = 0
@@ -616,7 +616,7 @@ class Block(object):
             section_elem.tail = "\n"
             section_elem.set("Index", str(snum))
 
-            if self.vi.ftype == FILE_FMT_TYPE.LLB:
+            if self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.LLB:
                 block_int5 = section.start.int5
             else:
                 block_int5 = None
@@ -929,7 +929,7 @@ class STR(Block):
         self.text = b''
 
     def parseRSRCData(self, section_num, bldata):
-        if self.vi.ftype == FILE_FMT_TYPE.LLB:
+        if self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.LLB:
             string_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
             self.text = bldata.read(string_len)
         else: # File format is unknown
@@ -940,7 +940,7 @@ class STR(Block):
             section_num = self.section_loaded
 
         data_buf = b''
-        if self.vi.ftype == FILE_FMT_TYPE.LLB:
+        if self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.LLB:
             pass # no additional data - only one string
         else:
             Block.updateSectionData(self, section_num=section_num, avoid_recompute=avoid_recompute)
@@ -976,7 +976,7 @@ class STR(Block):
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         self.parseData(section_num=snum)
 
-        if self.vi.ftype == FILE_FMT_TYPE.LLB:
+        if self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.LLB:
             pass # no additional data - only one string
         else:
             Block.exportXMLSection(self, section_elem, snum, section, fname_base)

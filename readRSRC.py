@@ -34,7 +34,7 @@ import xml.etree.ElementTree as ET
 
 import LVblock
 import LVconnector
-from LVresource import *
+from LVrsrcontainer import *
 from LVmisc import eprint
 
 
