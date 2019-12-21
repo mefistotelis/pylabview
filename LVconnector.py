@@ -193,6 +193,7 @@ class ConnectorObject:
         label_text = conn_elem.get("Label")
         if label_text is not None:
             self.label = label_text.encode(self.vi.textEncoding)
+        self.parsed_data_updated = True
 
     def initWithXML(self, conn_elem):
         """ Early part of connector loading from XML file
@@ -880,53 +881,107 @@ class ConnectorObjectFunction(ConnectorObject):
         super().__init__(*args)
         self.fflags = 0
         self.pattern = 0
-        self.padding1 = 0
+        self.field6 = 0
+        self.field7 = 0
+        self.hasThrall = 0
 
     def parseRSRCData(self, bldata):
         ver = self.vi.getFileVersion()
         # Fields oflags,otype are set at constructor, but no harm in setting them again
         self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
 
-        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        count = readVariableSizeField(bldata)
         # Create _separate_ empty namespace for each connector
         self.clients = [SimpleNamespace() for _ in range(count)]
         for i in range(count):
-            cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            cli_idx = readVariableSizeField(bldata)
             self.clients[i].index = cli_idx
+        # end of MultiContainer part
         self.fflags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         self.pattern = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        if isGreaterOrEqVersion(ver, 8,0):
-            self.padding1 = int.from_bytes(bldata.read(2), byteorder='big', signed=False) # don't know/padding
+
+        if isGreaterOrEqVersion(ver, 10,0,1):
             for i in range(count):
                 cli_flags = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
                 self.clients[i].flags = cli_flags
-        else: # isLessOrEqVersion(ver, major=7)
-            self.padding1 = 0
+        else:
             for i in range(count):
                 cli_flags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
                 self.clients[i].flags = cli_flags
-        # No more known data inside
+
+        for i in range(count):
+            self.clients[i].thrallSources = []
+        if isGreaterOrEqVersion(ver, 8,0,1):
+            self.hasThrall = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            if self.hasThrall != 0:
+                for i in range(count):
+                    thrallSources = []
+                    while True:
+                        k = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+                        if k == 0:
+                            break
+                        if isGreaterOrEqVersion(ver, 8,2,0):
+                            k = k - 1
+                        thrallSources.append(k)
+                    self.clients[i].thrallSources = thrallSources
+        else:
+            self.hasThrall = 0
+
+        if (self.fflags & 0x0800) != 0:
+            self.field6 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            self.field7 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        if (self.fflags & 0x8000) != 0:
+            # If the flag is set, then the last client is special - comes from here, not the standard list
+            client = SimpleNamespace()
+            client.index = readVariableSizeField(bldata)
+            client.flags = 0
+            client.thrallSources = []
+            self.clients.append(client)
+
         self.parseRSRCDataFinish(bldata)
 
     def prepareRSRCData(self, avoid_recompute=False):
         if not avoid_recompute:
             ver = self.vi.getFileVersion()
         else:
-            ver = decodeVersion(0x09000000)
+            ver = decodeVersion(0x11000000)
         data_buf = b''
-        data_buf += int(len(self.clients)).to_bytes(2, byteorder='big')
-        for client in self.clients:
-            data_buf += int(client.index).to_bytes(2, byteorder='big')
+
+        clients = self.clients.copy()
+        spec_cli = None
+        if (self.fflags & 0x8000) != 0:
+            # Store last client separately, remove it from normal list
+            spec_cli = clients.pop()
+
+        data_buf += prepareVariableSizeField(len(clients))
+        for client in clients:
+            data_buf += prepareVariableSizeField(client.index)
+        # end of MultiContainer part
         data_buf += int(self.fflags).to_bytes(2, byteorder='big')
         data_buf += int(self.pattern).to_bytes(2, byteorder='big')
 
-        if isGreaterOrEqVersion(ver, 8,0):
-            data_buf += int(self.padding1).to_bytes(2, byteorder='big')
-            for client in self.clients:
+        if isGreaterOrEqVersion(ver, 10,0,1):
+            for client in clients:
                 data_buf += int(client.flags).to_bytes(4, byteorder='big')
-        else: # isLessOrEqVersion(ver, major=7)
-            for client in self.clients:
+        else:
+            for client in clients:
                 data_buf += int(client.flags).to_bytes(2, byteorder='big')
+
+        if isGreaterOrEqVersion(ver, 8,0,1):
+            data_buf += int(self.hasThrall).to_bytes(2, byteorder='big')
+            if self.hasThrall != 0:
+                for client in clients:
+                    for k in client.thrallSources:
+                        if isGreaterOrEqVersion(ver, 8,2,0):
+                            k = k + 1
+                        data_buf += int(k).to_bytes(1, byteorder='big')
+                    data_buf += int(0).to_bytes(1, byteorder='big')
+
+        if (self.fflags & 0x0800) != 0:
+            data_buf += int(self.field6).to_bytes(4, byteorder='big')
+            data_buf += int(self.field7).to_bytes(4, byteorder='big')
+        if spec_cli is not None:
+            data_buf += prepareVariableSizeField(spec_cli.index)
 
         return data_buf
 
@@ -956,11 +1011,17 @@ class ConnectorObjectFunction(ConnectorObject):
             self.initWithXMLInlineStart(conn_elem)
             self.fflags = int(conn_elem.get("FuncFlags"), 0)
             self.pattern = int(conn_elem.get("Pattern"), 0)
-            tmp_val = conn_elem.get("Padding1")
+            self.hasThrall = int(conn_elem.get("HasThrall"), 0)
+            tmp_val = conn_elem.get("Field6")
             if tmp_val is not None:
-                self.padding1 = int(tmp_val, 0)
+                self.field6 = int(tmp_val, 0)
             else:
-                self.padding1 = 0
+                self.field6 = 0
+            tmp_val = conn_elem.get("Field7")
+            if tmp_val is not None:
+                self.field7 = int(tmp_val, 0)
+            else:
+                self.field7 = 0
 
             self.clients = []
             for subelem in conn_elem:
@@ -969,6 +1030,12 @@ class ConnectorObjectFunction(ConnectorObject):
                     i = int(subelem.get("Index"), 0)
                     client.index = int(subelem.get("ConnectorIndex"), 0)
                     client.flags = int(subelem.get("Flags"), 0)
+                    client.thrallSources = []
+                    for sub_subelem in subelem:
+                        if (sub_subelem.tag == "ThrallSources"):
+                            client.thrallSources += [int(itm,0) for itm in sub_subelem.text.split()]
+                        else:
+                            raise AttributeError("Connector Client contains unexpected tag")
                     # Grow the list if needed (the clients may be in wrong order)
                     if i >= len(self.clients):
                         self.clients.extend([None] * (i - len(self.clients) + 1))
@@ -982,14 +1049,18 @@ class ConnectorObjectFunction(ConnectorObject):
             ConnectorObject.initWithXML(self, conn_elem)
         pass
 
-    def DISAexportXML(self, conn_elem, fname_base):#TODO future
+    def exportXML(self, conn_elem, fname_base):
         self.parseData()
         conn_elem.text = "\n"
 
         conn_elem.set("FuncFlags", "0x{:X}".format(self.fflags))
         conn_elem.set("Pattern", "0x{:X}".format(self.pattern))
-        if self.padding1 != 0:
-            conn_elem.set("Padding1", "0x{:X}".format(self.padding1))
+        conn_elem.set("HasThrall", "{:d}".format(self.hasThrall))
+
+        if self.field6 != 0:
+            conn_elem.set("Field6", "0x{:X}".format(self.field6))
+        if self.field7 != 0:
+            conn_elem.set("Field7", "0x{:X}".format(self.field7))
 
         for i, client in enumerate(self.clients):
             subelem = ET.SubElement(conn_elem,"Client")
@@ -999,6 +1070,14 @@ class ConnectorObjectFunction(ConnectorObject):
             subelem.set("ConnectorIndex", str(client.index))
             subelem.set("Flags", "0x{:04X}".format(client.flags))
 
+            if len(client.thrallSources) > 0:
+                strlist = ""
+                for k, val in enumerate(client.thrallSources):
+                    strlist += " {:3d}".format(val)
+
+                sub_subelem = ET.SubElement(subelem,"ThrallSources")
+                sub_subelem.text = strlist
+
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
@@ -1007,11 +1086,6 @@ class ConnectorObjectFunction(ConnectorObject):
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: Connector {:d} type 0x{:02x} clients count {:d}, expected below {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.clients),125+1))
-            ret = False
-        if self.padding1 != 0:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} padding1 is {:d}, expected {:d}"\
-                  .format(self.vi.src_fname,self.index,self.otype,self.padding1,0))
             ret = False
         VCTP = self.vi.get('VCTP')
         if VCTP is not None:

@@ -173,6 +173,11 @@ def isGreaterOrEqVersion(ver, major, minor = None, bugfix = None, stage = None):
             return True
         if ver['minor'] < minor:
             return False
+    if bugfix is not None:
+        if ver['bugfix'] > bugfix:
+            return True
+        if ver['bugfix'] < bugfix:
+            return False
     if isinstance(stage, str):
         stage = valFromEnumOrIntString(LABVIEW_VERSION_STAGE, stage)
     if not isinstance(stage, int):
@@ -182,13 +187,6 @@ def isGreaterOrEqVersion(ver, major, minor = None, bugfix = None, stage = None):
             return True
         if ver['stage'] < stage:
             return False
-
-    if bugfix is not None:
-        if ver['bugfix'] > bugfix:
-            return True
-        if ver['bugfix'] < bugfix:
-            return False
-
     return True
 
 def isSmallerVersion(ver, *args, **kwargs):
@@ -272,3 +270,12 @@ def readVariableSizeField(bldata):
         val = ((val & 0x7FFF) << 16)
         val |= int.from_bytes(bldata.read(2), byteorder='big', signed=False)
     return val
+
+def prepareVariableSizeField(val):
+    """ Prepares data for VI field which is either 16-bit or 32-bit, depending on value
+    """
+    if val <= 0x7FFF:
+        return int(val).to_bytes(2, byteorder='big')
+    else:
+        return int(val | 0x80000000).to_bytes(4, byteorder='big')
+    pass
