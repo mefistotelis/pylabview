@@ -173,7 +173,7 @@ class ConnectorObject:
         self.raw_data = None
         # Whether RAW data has been updated and RSRC parsing is required to update properties
         self.raw_data_updated = False
-        # Whether any properties have been updated preparation of new RAW data is required
+        # Whether any properties have been updated and preparation of new RAW data is required
         self.parsed_data_updated = False
 
     def initWithRSRC(self, bldata, obj_len):

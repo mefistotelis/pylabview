@@ -120,6 +120,8 @@ class Section(object):
         self.start = BlockSectionStart(self.po)
         # Raw data of the section, from just after BlockSectionData struct; not decrypted nor decompressed
         self.raw_data = None
+        # Flag to inform whether RAW data is not complete and needs to be re-created
+        self.raw_data_incomplete = True
         # Position of BlockSectionData for this section within RSRC file
         self.block_pos = None
         # Section name text string, from Info section
@@ -276,7 +278,7 @@ class Block(object):
         """ Late part of block loading from XML file
 
         Can access some basic data from other blocks and sections.
-        Not really needed, but kept for symmetry with RSRC loading functions.
+        Useful only if data needs an update after all data is accessible.
         """
         self.section_requested = self.defaultSectionNumber()
         self.section_loaded = None
@@ -344,17 +346,21 @@ class Block(object):
 
                 data = fh.read(blksect.size)
                 section.raw_data = data
+                section.raw_data_incomplete = False
             # Set last size, padded to multiplicity of 4 bytes
             last_blksect_size = blksect.size
             if last_blksect_size % 4 > 0:
                 last_blksect_size += 4 - (last_blksect_size % 4)
 
-    def hasRawData(self, section_num=None):
+    def hasRawData(self, section_num=None, allow_incomplete=False):
         """ Returns whether given section has raw data set
         """
         if section_num is None:
             section_num = self.defaultSectionNumber()
-        return (self.sections[section_num].raw_data is not None)
+        section = self.sections[section_num]
+        if section.raw_data_incomplete and not allow_incomplete:
+            return False
+        return (section.raw_data is not None)
 
     def getRawData(self, section_num=None):
         """ Retrieves bytes object with raw data of given section
@@ -373,7 +379,7 @@ class Block(object):
             self.readRawDataSections(section_count=section_num+1)
         return self.sections[section_num].raw_data
 
-    def setRawData(self, raw_data_buf, section_num=None):
+    def setRawData(self, raw_data_buf, section_num=None, incomplete=False):
         """ Sets given bytes object as section raw data
 
             Extends the amount of sections if neccessary
@@ -390,6 +396,7 @@ class Block(object):
             self.sections[section_num] = section
         # Replace the target section
         self.sections[section_num].raw_data = raw_data_buf
+        self.sections[section_num].raw_data_incomplete = incomplete
 
     def getSection(self, section_num=None):
         """ Retrieves section of given number, or first one
@@ -413,7 +420,7 @@ class Block(object):
         pass
 
     def parseXMLData(self, section_num=None):
-        """ Implements setting block properties from properties of a section, set from XML
+        """ Implements setting block properties, from properties of a section set from XML
 
             Called by parseData() to set the specific section as loaded.
         """
@@ -434,7 +441,7 @@ class Block(object):
             self.section_requested = section_num
 
         if self.needParseData():
-            if self.vi.dataSource == "rsrc" or self.hasRawData(section_num=section_num):
+            if self.vi.dataSource == "rsrc" or self.hasRawData(section_num=section_num, allow_incomplete=True):
                 bldata = self.getData(section_num=section_num)
                 self.parseRSRCData(section_num, bldata)
             elif self.vi.dataSource == "xml":
@@ -522,7 +529,7 @@ class Block(object):
             raise ValueError("Unsupported compression type")
         return data
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.NONE):
         if section_num is None:
             section_num = self.section_requested
 
@@ -538,7 +545,7 @@ class Block(object):
         else:
             raise ValueError("Unsupported compression type")
 
-        self.setRawData(raw_data_section, section_num=section_num)
+        self.setRawData(raw_data_section, section_num=section_num, incomplete=incomplete)
 
     def saveRSRCData(self, fh, section_names):
         # Header is to be filled while saving Info part, so the value below is overwritten
@@ -656,6 +663,11 @@ class Block(object):
         """
         return min(self.sections.keys(), key=abs)
 
+    def listSectionNumbers(self):
+        """ Lists all section numbers for existing sections.
+        """
+        return self.sections.keys()
+
     def __repr__(self):
         bldata = self.getData()
         if self.size > 32:
@@ -691,14 +703,14 @@ class SingleIntBlock(Block):
             raise RuntimeError("Block {} section {} generated binary data of invalid size"\
               .format(self.ident,section_num))
 
-        self.setData(data_buf, section_num=section_num)
+        self.setData(data_buf, section_num=section_num, incomplete=avoid_recompute)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.NONE):
+        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
 
     def initWithXMLSection(self, section, section_elem):
         snum = section.start.section_idx
@@ -850,14 +862,14 @@ class SingleStringBlock(Block):
             raise RuntimeError("Block {} section {} generated binary data of invalid size"\
               .format(self.ident,section_num))
 
-        self.setData(data_buf, section_num=section_num)
+        self.setData(data_buf, section_num=section_num, incomplete=avoid_recompute)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.NONE):
+        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
 
     def initWithXMLSection(self, section, section_elem):
         snum = section.start.section_idx
@@ -949,14 +961,14 @@ class STR(Block):
         data_buf += int(len(self.text)).to_bytes(1, byteorder='big')
         data_buf += self.text
 
-        self.setData(data_buf, section_num=section_num)
+        self.setData(data_buf, section_num=section_num, incomplete=avoid_recompute)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.NONE):
+        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
 
     def initWithXMLSection(self, section, section_elem):
         snum = section.start.section_idx
@@ -998,8 +1010,8 @@ class DFDS(Block):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
-        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.ZLIB):
+        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
 
 
 class GCDI(Block):
@@ -1010,8 +1022,8 @@ class GCDI(Block):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
-        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.ZLIB):
+        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
 
 
 class CPMp(Block):
@@ -1043,14 +1055,14 @@ class CPMp(Block):
             raise RuntimeError("Block {} section {} generated binary data of invalid size"\
               .format(self.ident,section_num))
 
-        self.setData(data_buf, section_num=section_num)
+        self.setData(data_buf, section_num=section_num, incomplete=avoid_recompute)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.NONE):
+        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
 
 
 class TM80(Block):
@@ -1077,8 +1089,9 @@ class TM80(Block):
                 # Force-encode any already stored data; otherwise we would run
                 # into decompression error when trying to get the data
                 coded_data = self.getRawData(section_num=snum)
+                incomplete = not self.hasRawData(section_num=snum)
                 if coded_data is not None:
-                    self.setData(coded_data, section_num=snum)
+                    self.setData(coded_data, section_num=snum, incomplete=incomplete)
         super().initWithXMLLate()
         pass
 
@@ -1088,10 +1101,10 @@ class TM80(Block):
         bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, use_coding=None):
+    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=None):
         if use_coding is None:
             use_coding = self.defaultBlockCoding
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
+        super().setData(data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
 
 
 class LIvi(Block):
@@ -1242,14 +1255,14 @@ class LVSR(Block):
             raise RuntimeError("Block {} section {} generated binary data of invalid size"
               .format(self.ident,section_num))
 
-        self.setData(data_buf, section_num=section_num)
+        self.setData(data_buf, section_num=section_num, incomplete=avoid_recompute)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.NONE):
+        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
 
     def initWithXMLSection(self, section, section_elem):
         snum = section.start.section_idx
@@ -1458,14 +1471,14 @@ class vers(Block):
             raise RuntimeError("Block {} section {} generated binary data of invalid size"\
               .format(self.ident,section_num))
 
-        self.setData(data_buf, section_num=section_num)
+        self.setData(data_buf, section_num=section_num, incomplete=avoid_recompute)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.NONE):
+        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
 
     def initWithXMLSection(self, section, section_elem):
         snum = section.start.section_idx
@@ -1609,14 +1622,14 @@ class ICON(Block):
 
         if len(data_buf) < data_len:
             data_buf += b'\0' * (data_len - len(data_buf))
-        self.setData(data_buf, section_num=section_num)
+        self.setData(data_buf, section_num=section_num, incomplete=avoid_recompute)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.NONE):
+        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
 
     def loadIcon(self):
         self.parseData()
@@ -1721,7 +1734,7 @@ class BDPW(Block):
             raise RuntimeError("Block {} section {} generated binary data of invalid size"\
               .format(self.ident,section_num))
 
-        self.setData(data_buf, section_num=section_num)
+        self.setData(data_buf, section_num=section_num, incomplete=avoid_recompute)
 
         # In this block, sections have some additional properties besides the raw data
         section = self.sections[section_num]
@@ -1784,8 +1797,8 @@ class BDPW(Block):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.NONE):
+        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
 
     @staticmethod
     def getPasswordSaltFromTerminalCounts(numberCount, stringCount, pathCount):
@@ -1990,14 +2003,14 @@ class LIBN(Block):
             raise RuntimeError("Block {} section {} generated binary data of invalid size"\
               .format(self.ident,section_num))
 
-        self.setData(data_buf, section_num=section_num)
+        self.setData(data_buf, section_num=section_num, incomplete=avoid_recompute)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.NONE):
+        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
 
     def initWithXMLSection(self, section, section_elem):
         snum = section.start.section_idx
@@ -2052,8 +2065,8 @@ class LVzp(Block):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.XOR):
-        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.XOR):
+        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
 
 
 class BDHP(Block):
@@ -2073,8 +2086,8 @@ class BDHP(Block):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.NONE):
+        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
 
     def getContent(self):
         self.parseData()
@@ -2103,8 +2116,8 @@ class BDH(Block):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
-        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.ZLIB):
+        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
 
     def getContent(self):
         self.parseData()
@@ -2135,8 +2148,8 @@ class FPH(Block):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
-        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.ZLIB):
+        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
 
     def getContent(self):
         self.parseData()
@@ -2196,8 +2209,8 @@ class VCTP(Block):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
-        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.ZLIB):
+        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
 
     def initWithXMLSection(self, section, section_elem):
         snum = section.start.section_idx
@@ -2234,6 +2247,10 @@ class VCTP(Block):
         if section_num is None:
             section_num = self.section_loaded
 
+        for connobj in self.content:
+            if not connobj.raw_data_updated:
+                connobj.updateData(avoid_recompute=avoid_recompute)
+
         data_buf = int(len(self.content)).to_bytes(4, byteorder='big')
         for i, connobj in enumerate(self.content):
             bldata = connobj.getData()
@@ -2247,7 +2264,7 @@ class VCTP(Block):
             raise RuntimeError("Block {} section {} generated binary data of invalid size"\
               .format(self.ident,section_num))
 
-        self.setData(data_buf, section_num=section_num)
+        self.setData(data_buf, section_num=section_num, incomplete=avoid_recompute)
 
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         self.parseData(section_num=snum)
@@ -2326,5 +2343,5 @@ class VICD(Block):
         bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
-        Block.setData(self, data_buf, section_num=section_num, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.ZLIB):
+        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
