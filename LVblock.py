@@ -98,17 +98,6 @@ class BlockSectionData(RSRCStructure):
         return ret
 
 
-class versData(RSRCStructure):
-    _fields_ = [('version', c_uint32),		#0
-                ('version_text', c_uint16),	#4
-                ('version_info', c_uint16),	#8
-    ]
-
-    def __init__(self, po):
-        self.po = po
-        pass
-
-
 class Section(object):
     def __init__(self, vi, po):
         """ Creates new Section object, represention one of possible contents of a Block.
@@ -120,8 +109,10 @@ class Section(object):
         self.start = BlockSectionStart(self.po)
         # Raw data of the section, from just after BlockSectionData struct; not decrypted nor decompressed
         self.raw_data = None
-        # Flag to inform whether RAW data is not complete and needs to be re-created
-        self.raw_data_incomplete = True
+        # Whether RAW data has been updated and RSRC parsing is required to update properties
+        self.raw_data_updated = False
+        # Whether any properties have been updated and preparation of new RAW data is required
+        self.parsed_data_updated = False
         # Position of BlockSectionData for this section within RSRC file
         self.block_pos = None
         # Section name text string, from Info section
@@ -140,9 +131,9 @@ class Block(object):
         self.header = None
         self.ident = None
         self.sections = {}
-        self.section_loaded = None
-        self.section_requested = 0
-        # set by getRawData(); size of cummulative data for all sections in the block
+        # Currently active section; the block will return properties of active section
+        self.active_section_num = None
+        # Size of cummulative data for all sections in the block; set by getRawData()
         self.size = None
         if self.__doc__:
             self.full_name = " {:s} ".format(self.__doc__.split('\n')[0].strip())
@@ -150,6 +141,10 @@ class Block(object):
             self.full_name = ""
 
     def createSection(self):
+        """ Creates a new section, without adding it to block
+
+        To be overloaded for setting any initial properties, if neccessary.
+        """
         section = Section(self.vi, self.po)
         return section
 
@@ -157,10 +152,13 @@ class Block(object):
         """ Early part of block loading from RSRC file
 
         At the point it is executed, other sections are inaccessible.
+        After this call, active section will be set to default section.
+
+        :param BlockHeader header: Struct with header of this block from RSRC file
         """
         self.header = header
         self.ident = bytes(header.ident)
-        self.section_loaded = None
+        self.active_section_num = None
 
         start_pos = \
             self.vi.rsrc_headers[-1].rsrc_info_offset + \
@@ -186,7 +184,7 @@ class Block(object):
                 section.start.data_offset
             self.sections[section.start.section_idx] = section
 
-        self.section_requested = self.defaultSectionNumber()
+        self.setActiveSectionNum( self.defaultSectionNumber() )
 
         if (self.po.verbose > 2):
             print("{:s}: Block {} has {:d} sections".format(self.vi.src_fname,self.ident,len(self.sections)))
@@ -200,11 +198,11 @@ class Block(object):
         # After BlockSectionStart list, there is Block Section Names list; only some sections have a name
         names_start = self.vi.getPositionOfBlockSectionNames()
         names_end = self.vi.getPositionOfBlockInfoEnd()
-        for section in self.sections.values():
+        for snum, section in self.sections.items():
             if section.start.name_offset == 0xFFFFFFFF: # This value means no name
                 continue
             if names_start + section.start.name_offset >= names_end:
-                raise IOError("Section Name position exceeds RSRC Info size.")
+                raise IOError("Block {} section {:d} Name position exceeds RSRC Info size.".format(self.ident,snum))
             fh.seek(names_start + section.start.name_offset)
             name_text_len = int.from_bytes(fh.read(1), byteorder='big', signed=False)
             section.name_text = fh.read(name_text_len)
@@ -247,7 +245,7 @@ class Block(object):
         self.ident = getRsrcTypeFromPrettyStr(block_elem.tag)
         self.header = BlockHeader(self.po)
         self.header.ident = (c_ubyte * 4).from_buffer_copy(self.ident)
-        self.section_loaded = None
+        self.active_section_num = None
 
         self.sections = {}
         for i, section_elem in enumerate(block_elem):
@@ -268,20 +266,23 @@ class Block(object):
                 raise IOError("BlockSectionStart of given section_idx exists twice.")
             self.sections[section.start.section_idx] = section
 
-            self.section_requested = snum
+            self.active_section_num = snum
             self.initWithXMLSection(section, section_elem)
+            self.active_section_num = None
 
         self.header.count = len(self.sections) - 1
-        pass
+
+        self.setActiveSectionNum( self.defaultSectionNumber() )
+
+        if (self.po.verbose > 2):
+            print("{:s}: Block {} has {:d} sections".format(self.vi.src_fname,self.ident,len(self.sections)))
 
     def initWithXMLLate(self):
         """ Late part of block loading from XML file
 
         Can access some basic data from other blocks and sections.
-        Useful only if data needs an update after all data is accessible.
+        Useful only if properties needs an update after other blocks are accessible.
         """
-        self.section_requested = self.defaultSectionNumber()
-        self.section_loaded = None
         pass
 
     def setSizeFromBlocks(self):
@@ -302,11 +303,36 @@ class Block(object):
                 if (self != block) and (block_min_section_block_pos > self_min_section_block_pos):
                     minSize = min(minSize, block_min_section_block_pos - self_min_section_block_pos)
         self.size = minSize
+        if self.po.verbose > 1:
+            if (self.size is not None):
+                print("{:s}: Block {} max data size set to {:d} bytes".format(self.vi.src_fname,self.ident,self.size))
+            else:
+                print("{:s}: Block {} max data size not deterimed".format(self.vi.src_fname,self.ident))
+        return minSize
+
+    def setSizeFromExpectedSizes(self):
+        """ Set data size of this block
+
+         Uses expected size computation from sections.
+        """
+        expSize = 0
+        for snum, section in self.sections.items():
+            sectSize += self.expectedRSRCSize(section_num=snum)
+            expSize += sectSize
+        self.size = expSize
         if (self.po.verbose > 1):
             print("{:s}: Block {} max data size set to {:d} bytes".format(self.vi.src_fname,self.ident,self.size))
         return minSize
 
     def readRawDataSections(self, section_count=None):
+        """ Reads raw data of sections from input file, up to given number
+
+        :param int section_count: Limit of section_num values; only sections
+            with number lower that given section_count parameter are affected.
+            If not provided, the method will only read data for default section.
+            To make sure all sections are in memory and input file will no longer
+            be used, use the count of 0xffffffff.
+        """
         last_blksect_size = sum_size = 0
         if section_count is None:
             section_count = self.defaultSectionNumber() + 1
@@ -346,57 +372,53 @@ class Block(object):
 
                 data = fh.read(blksect.size)
                 section.raw_data = data
-                section.raw_data_incomplete = False
+                section.raw_data_updated = True
             # Set last size, padded to multiplicity of 4 bytes
             last_blksect_size = blksect.size
             if last_blksect_size % 4 > 0:
                 last_blksect_size += 4 - (last_blksect_size % 4)
 
-    def hasRawData(self, section_num=None, allow_incomplete=False):
+    def hasRawData(self, section_num=None):
         """ Returns whether given section has raw data set
         """
         if section_num is None:
-            section_num = self.defaultSectionNumber()
+            section_num = self.active_section_num
         section = self.sections[section_num]
-        if section.raw_data_incomplete and not allow_incomplete:
-            return False
         return (section.raw_data is not None)
 
     def getRawData(self, section_num=None):
         """ Retrieves bytes object with raw data of given section
 
-            Reads the section from input stream if neccessary
+            Reads the section from input stream if neccessary.
         """
         if section_num is None:
-            section_num = self.defaultSectionNumber()
+            section_num = self.active_section_num
         if self.size is None:
             self.setSizeFromBlocks()
 
         if section_num not in self.sections:
-                    raise IOError("Within block {} there is no section number {:d}"\
+            raise IOError("Within block {} there is no section number {:d}"\
                       .format(self.ident, section_num))
         if self.sections[section_num].raw_data is None:
             self.readRawDataSections(section_count=section_num+1)
         return self.sections[section_num].raw_data
 
-    def setRawData(self, raw_data_buf, section_num=None, incomplete=False):
+    def setRawData(self, raw_data_buf, section_num=None):
         """ Sets given bytes object as section raw data
 
             Extends the amount of sections if neccessary
         """
         if section_num is None:
-            section_num = self.defaultSectionNumber()
-        # If changing currently loaded section, mark it as not loaded anymore
-        if self.section_loaded == section_num:
-            self.section_loaded = None
-        # Insert empty bytes in any missing sections
+            section_num = self.active_section_num
+        # Insert empty structure if the requested section is missing
         if section_num not in self.sections:
             section = self.createSection()
             section.start.section_idx = section_num
             self.sections[section_num] = section
         # Replace the target section
-        self.sections[section_num].raw_data = raw_data_buf
-        self.sections[section_num].raw_data_incomplete = incomplete
+        section = self.sections[section_num]
+        section.raw_data = raw_data_buf
+        section.raw_data_updated = True
 
     def getSection(self, section_num=None):
         """ Retrieves section of given number, or first one
@@ -404,7 +426,7 @@ class Block(object):
             Does not force data read
         """
         if section_num is None:
-            section_num = self.self.defaultSectionNumber()
+            section_num = self.active_section_num
         if section_num not in self.sections:
                     raise IOError("Within block {} there is no section number {:d}"\
                       .format(self.ident, section_num))
@@ -420,12 +442,12 @@ class Block(object):
         pass
 
     def parseXMLData(self, section_num=None):
-        """ Implements setting block properties, from properties of a section set from XML
+        """ Implements setting derivate block properties, from properties of a section set from XML
 
             Called by parseData() to set the specific section as loaded.
         """
         if section_num is None:
-            section_num = self.section_loaded
+            section_num = self.active_section_num
 
         self.updateSectionData(section_num=section_num)
         pass
@@ -436,75 +458,77 @@ class Block(object):
         The given section will be set as both requested and loaded.
         """
         if section_num is None:
-            section_num = self.section_requested
+            section_num = self.active_section_num
         else:
-            self.section_requested = section_num
+            self.active_section_num = section_num
 
         if self.needParseData():
-            if self.vi.dataSource == "rsrc" or self.hasRawData(section_num=section_num, allow_incomplete=True):
+            if self.vi.dataSource == "rsrc" or self.hasRawData(section_num=section_num):
                 bldata = self.getData(section_num=section_num)
                 self.parseRSRCData(section_num, bldata)
             elif self.vi.dataSource == "xml":
                 self.parseXMLData(section_num=section_num)
+        pass
 
-        self.section_loaded = self.section_requested
-
-    def updateSectionData(self, section_num=None, avoid_recompute=False):
+    def updateSectionData(self, section_num=None):
         """ Updates RAW data stored in given section to any changes in properties
-
-        The avoid_recompute flag should be implemented to allow doing partial update,
-        without using data outside of the block. If this flag is used, then it is expected
-        that the data will be re-saved later, when other blocks will be accessible
-        and any externally dependdent values can be re-computed.
         """
         if section_num is None:
-            section_num = self.section_loaded
+            section_num = self.active_section_num
+        section = self.sections[section_num]
 
-        if self.sections[section_num].raw_data is None:
+        if section.raw_data is None:
             raise RuntimeError("Block {} section {} has no raw data generation method".format(self.ident,section_num))
         pass
 
     def updateData(self):
         """ Updates RAW data stored in the block to any changes in properties
 
-        Updates raw data for all sections. Though current change in properties
-        are only kept for current section.
+        Updates raw data for all sections.
         """
-        skip_sections = []
-        # If we already had a properly parsed section, store its data first
-        if not self.needParseData():
-            self.updateSectionData()
-            skip_sections.append(self.section_requested)
-        prev_section_num = self.section_requested
-
         for section_num in self.sections:
-            if section_num in skip_sections: continue
             self.parseData(section_num=section_num)
             self.updateSectionData(section_num=section_num)
-
-        self.section_requested = prev_section_num
         pass
 
-    def needParseData(self):
-        """ Returns if the block needs its data to be parsed
+    def needParseData(self, section_num=None):
+        """ Returns if a section needs its data to be parsed
 
             After a call to parseData(), or after filling the data manually, this should
             return True. Otherwise, False.
         """
-        return (len(self.sections) > 0) and (self.section_loaded != self.section_requested)
+        if section_num is None:
+            section_num = self.active_section_num
+        if section_num not in self.sections:
+            return False
+        section = self.sections[section_num]
+
+        # if RAW data was not even loaded yet, trigger parsing as well
+        if self.vi.dataSource == "rsrc" and not self.hasRawData():
+            return True
+
+        return section.raw_data_updated or section.parsed_data_updated
 
     def checkSanity(self):
         """ Checks whether properties of this object and all sub-object are sane
 
         Sane objects have values of properties within expected bounds.
-        This call expacted all the objects to be already parsed during the call.
+        All the objects are expected to be already parsed during the call.
         """
         ret = True
         return ret
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
+        """ Retrieve file stream with raw data of specific section of this block
+
+        This will return raw data buffer, uncompressed and decrypted if neccessary,
+        and wrapped by BytesIO.
+
+        :param int section_num: Section for which the raw data buffer will be returned.
+            If not provided, active section will be assumed.
+        """
         if section_num is None:
-            section_num = self.section_requested
+            section_num = self.active_section_num
         raw_data_section = self.getRawData(section_num)
         data = BytesIO(raw_data_section)
         if use_coding == BLOCK_CODING.NONE:
@@ -529,9 +553,17 @@ class Block(object):
             raise ValueError("Unsupported compression type")
         return data
 
-    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.NONE):
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        """ Set raw data of specific section of this block
+
+        This will set raw data buffer, and mark the buffer as requiring parsing raw data.
+        It requires the input raw data to be uncompressed and decrypted.
+
+        :param int section_num: Section for which the raw data buffer will be set.
+            If not provided, raw data for active section will be set.
+        """
         if section_num is None:
-            section_num = self.section_requested
+            section_num = self.active_section_num
 
         if use_coding == BLOCK_CODING.NONE:
             raw_data_section = data_buf
@@ -545,9 +577,15 @@ class Block(object):
         else:
             raise ValueError("Unsupported compression type")
 
-        self.setRawData(raw_data_section, section_num=section_num, incomplete=incomplete)
+        self.setRawData(raw_data_section, section_num=section_num)
 
     def saveRSRCData(self, fh, section_names):
+        """ Save raw data stored within sections to the RSRC file
+
+        This writes the raw data buffers into file handle. All sections are written.
+        If properties of any object were modified after load, then raw data must be re-created
+        before this call.
+        """
         # Header is to be filled while saving Info part, so the value below is overwritten
         self.header.count = len(self.sections) - 1
         rsrc_head = self.vi.rsrc_headers[-1]
@@ -577,7 +615,7 @@ class Block(object):
             if (self.po.verbose > 2):
                 print(section.start)
             if not section.start.checkSanity():
-                raise IOError("BlockSectionStart data sanity check failed.")
+                raise IOError("BlockSectionStart data sanity check failed in block {} section {}".format(self.ident,snum))
 
             blksect = BlockSectionData(self.po)
             blksect.size = len(section.raw_data)
@@ -605,7 +643,9 @@ class Block(object):
         section_elem.set("File", os.path.basename(block_fname))
 
     def exportXMLTree(self, simple_bin=False):
-        """ Export the file data into XML tree
+        """ Export the block properties into XML tree
+
+        All sections are exported by this method.
         """
         pretty_ident = getPrettyStrFromRsrcType(self.ident)
         block_fpath = os.path.dirname(self.po.xml)
@@ -650,7 +690,7 @@ class Block(object):
                 self.exportXMLSection(section_elem, snum, section, fname_base)
             else:
                 # Call base function, not the overloaded version for specific block
-                Block.exportXMLSection(self, section_elem, snum, section, fname_base)
+                super().exportXMLSection(section_elem, snum, section, fname_base)
 
         return elem
 
@@ -668,6 +708,38 @@ class Block(object):
         """
         return self.sections.keys()
 
+    def setActiveSectionNum(self, section_num):
+        """ Sets the currently active section.
+
+        The block will return properties of active section.
+        """
+        self.active_section_num = section_num
+
+    def __getattr__(self, name):
+        """ Access to active section properties
+        """
+        try:
+            section_num = object.__getattribute__(self,'active_section_num')
+            section = object.__getattribute__(self,'sections')[section_num]
+            if hasattr(section, name):
+                return getattr(section, name)
+        except:
+            pass
+        return super().__getattr__(name)
+
+    def __setattr__(self, name, value):
+        """ Setting of active section properties
+        """
+        try:
+            section_num = object.__getattribute__(self,'active_section_num')
+            section = object.__getattribute__(self,'sections')[section_num]
+            if hasattr(section, name):
+                setattr(section, name, value)
+                return
+        except:
+            pass
+        super().__setattr__(name, value)
+
     def __repr__(self):
         bldata = self.getData()
         if self.size > 32:
@@ -682,35 +754,39 @@ class SingleIntBlock(Block):
 
     To be used as parser for several blocks.
     """
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.value = None
-        self.byteorder = 'big'
-        self.size = 4
-        self.base = 10
-        self.signed = False
+    def createSection(self):
+        section = super().createSection()
+        section.byteorder = 'big'
+        section.size = 4
+        section.base = 10
+        section.signed = False
+        section.value = None
+        return section
 
     def parseRSRCData(self, section_num, bldata):
-        self.value = int.from_bytes(bldata.read(self.size), byteorder=self.byteorder, signed=self.signed)
+        section = self.sections[section_num]
 
-    def updateSectionData(self, section_num=None, avoid_recompute=False):
+        section.value = int.from_bytes(bldata.read(section.size), byteorder=section.byteorder, signed=section.signed)
+
+    def updateSectionData(self, section_num=None):
         if section_num is None:
-            section_num = self.section_loaded
+            section_num = self.active_section_num
+        section = self.sections[section_num]
 
-        data_buf = int(self.value).to_bytes(self.size, byteorder=self.byteorder)
+        data_buf = int(section.value).to_bytes(section.size, byteorder=section.byteorder)
 
-        if (len(data_buf) != self.size) and not avoid_recompute:
+        if (len(data_buf) != section.size):
             raise RuntimeError("Block {} section {} generated binary data of invalid size"\
               .format(self.ident,section_num))
 
-        self.setData(data_buf, section_num=section_num, incomplete=avoid_recompute)
+        self.setData(data_buf, section_num=section_num)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.NONE):
-        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
     def initWithXMLSection(self, section, section_elem):
         snum = section.start.section_idx
@@ -719,9 +795,7 @@ class SingleIntBlock(Block):
             if (self.po.verbose > 2):
                 print("{:s}: For Block {} section {:d}, reading inline XML data"\
                   .format(self.vi.src_fname,self.ident,snum))
-            self.value = int(section_elem.get("Value"), 0)
-
-            self.updateSectionData(section_num=snum,avoid_recompute=True)
+            section.value = int(section_elem.get("Value"), 0)
         else:
             Block.initWithXMLSection(self, section, section_elem)
         pass
@@ -729,10 +803,10 @@ class SingleIntBlock(Block):
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         self.parseData(section_num=snum)
 
-        if self.base == 16:
-            section_elem.set("Value", "0x{:x}".format(self.value))
+        if section.base == 16:
+            section_elem.set("Value", "0x{:x}".format(section.value))
         else:
-            section_elem.set("Value", "{:d}".format(self.value))
+            section_elem.set("Value", "{:d}".format(section.value))
 
         section_elem.set("Format", "inline")
 
@@ -742,74 +816,81 @@ class SingleIntBlock(Block):
 
 
 class MUID(SingleIntBlock):
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.byteorder = 'big'
-        self.size = 4
-        self.base = 10
-        self.signed = False
+    def createSection(self):
+        section = super().createSection()
+        section.byteorder = 'big'
+        section.size = 4
+        section.base = 10
+        section.signed = False
+        return section
 
 
 class FPSE(SingleIntBlock):
     """ Front Panel SE
     """
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.byteorder = 'big'
-        self.size = 4
-        self.base = 10
-        self.signed = False
+    def createSection(self):
+        section = super().createSection()
+        section.byteorder = 'big'
+        section.size = 4
+        section.base = 10
+        section.signed = False
+        return section
 
 
 class FPTD(SingleIntBlock):
     """ Front Panel TD
     """
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.byteorder = 'big'
-        self.size = 2
-        self.base = 10
-        self.signed = False
+    def createSection(self):
+        section = super().createSection()
+        section.byteorder = 'big'
+        section.size = 2
+        section.base = 10
+        section.signed = False
+        return section
 
 
 class BDSE(SingleIntBlock):
     """ Block Diagram SE
     """
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.byteorder = 'big'
-        self.size = 4
-        self.base = 10
-        self.signed = False
+    def createSection(self):
+        section = super().createSection()
+        section.byteorder = 'big'
+        section.size = 4
+        section.base = 10
+        section.signed = False
+        return section
 
 
 class CONP(SingleIntBlock):
     """ Connector type map
     """
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.byteorder = 'big'
-        self.size = 2
-        self.base = 10
-        self.signed = False
+    def createSection(self):
+        section = super().createSection()
+        section.byteorder = 'big'
+        section.size = 2
+        section.base = 10
+        section.signed = False
+        return section
 
 
 class CPC2(SingleIntBlock):
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.byteorder = 'big'
-        self.size = 2
-        self.base = 10
-        self.signed = False
+    def createSection(self):
+        section = super().createSection()
+        section.byteorder = 'big'
+        section.size = 2
+        section.base = 10
+        section.signed = False
+        return section
 
 
 class FLAG(SingleIntBlock):
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.byteorder = 'big'
-        self.size = 1
-        self.base = 16
-        self.signed = False
+    def createSection(self):
+        section = super().createSection()
+        section.byteorder = 'big'
+        section.size = 1
+        section.base = 16
+        section.signed = False
+        return section
 
 
 class SingleStringBlock(Block):
@@ -817,15 +898,18 @@ class SingleStringBlock(Block):
 
     To be used as parser for several blocks.
     """
-    def __init__(self, *args):
-        super().__init__(*args)
+    def createSection(self):
+        section = super().createSection()
         # Amount of bytes the size of this string uses
-        self.size_len = 1
-        self.content = []
-        self.eoln = '\r\n'
+        section.size_len = 1
+        section.content = []
+        section.eoln = '\r\n'
+        return section
 
     def parseRSRCData(self, section_num, bldata):
-        string_len = int.from_bytes(bldata.read(self.size_len), byteorder='big', signed=False)
+        section = self.sections[section_num]
+
+        string_len = int.from_bytes(bldata.read(section.size_len), byteorder='big', signed=False)
         content = bldata.read(string_len)
         # Need to divide decoded string, as single \n or \r may be there only due to the endoding
         # Also, ignore encoding errors - some strings are encoded with exotic code pages, as they
@@ -834,42 +918,43 @@ class SingleStringBlock(Block):
         # Somehow, these strings can contain various EOLN chars, even if \r\n is the most often used one
         # To avoid creating different files from XML, we have to detect the proper EOLN to use
         if content_str.count('\r\n') > content_str.count('\n\r'):
-            self.eoln = '\r\n'
+            section.eoln = '\r\n'
         elif content_str.count('\n\r') > 0:
-            self.eoln = '\n\r'
+            section.eoln = '\n\r'
         elif content_str.count('\n') > content_str.count('\r'):
-            self.eoln = '\n'
+            section.eoln = '\n'
         elif content_str.count('\r') > 0:
-            self.eoln = '\r'
+            section.eoln = '\r'
         else:
             # Set the most often used one as default
-            self.eoln = '\r\n'
+            section.eoln = '\r\n'
 
-        self.content = [s.encode(self.vi.textEncoding) for s in content_str.split(self.eoln)]
+        section.content = [s.encode(self.vi.textEncoding) for s in content_str.split(section.eoln)]
 
-    def updateSectionData(self, section_num=None, avoid_recompute=False):
+    def updateSectionData(self, section_num=None):
         if section_num is None:
-            section_num = self.section_loaded
+            section_num = self.active_section_num
+        section = self.sections[section_num]
 
         # There is no need to decode while joining
-        content_bytes = self.eoln.encode(self.vi.textEncoding).join(self.content)
-        data_buf = int(len(content_bytes)).to_bytes(self.size_len, byteorder='big')
+        content_bytes = section.eoln.encode(self.vi.textEncoding).join(section.content)
+        data_buf = int(len(content_bytes)).to_bytes(section.size_len, byteorder='big')
         data_buf += content_bytes
 
-        expect_str_len = sum(len(line) for line in self.content)
-        expect_eoln_len = len(self.eoln) * max(len(self.content)-1,0)
-        if (len(data_buf) != self.size_len+expect_str_len+expect_eoln_len) and not avoid_recompute:
+        expect_str_len = sum(len(line) for line in section.content)
+        expect_eoln_len = len(section.eoln) * max(len(section.content)-1,0)
+        if (len(data_buf) != section.size_len+expect_str_len+expect_eoln_len):
             raise RuntimeError("Block {} section {} generated binary data of invalid size"\
               .format(self.ident,section_num))
 
-        self.setData(data_buf, section_num=section_num, incomplete=avoid_recompute)
+        self.setData(data_buf, section_num=section_num)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.NONE):
-        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
     def initWithXMLSection(self, section, section_elem):
         snum = section.start.section_idx
@@ -878,19 +963,17 @@ class SingleStringBlock(Block):
             if (self.po.verbose > 2):
                 print("{:s}: For Block {} section {:d}, reading inline XML data"\
                   .format(self.vi.src_fname,self.ident,snum))
-            self.eoln = section_elem.get("EOLN").replace("CR",'\r').replace("LF",'\n')
-            self.content = []
+            section.eoln = section_elem.get("EOLN").replace("CR",'\r').replace("LF",'\n')
+            section.content = []
 
             for i, subelem in enumerate(section_elem):
                 if (subelem.tag == "String"):
                     if subelem.text is not None:
-                        self.content.append(subelem.text.encode(self.vi.textEncoding))
+                        section.content.append(subelem.text.encode(self.vi.textEncoding))
                     else:
-                        self.content.append(b'')
+                        section.content.append(b'')
                 else:
                     raise AttributeError("Section contains unexpected tag")
-
-            self.updateSectionData(section_num=snum,avoid_recompute=True)
         else:
             Block.initWithXMLSection(self, section, section_elem)
         pass
@@ -901,10 +984,10 @@ class SingleStringBlock(Block):
         section_elem.text = "\n"
 
         # Store the EOLN used as an attribute
-        EOLN_type = self.eoln.replace('\r',"CR").replace('\n',"LF")
+        EOLN_type = section.eoln.replace('\r',"CR").replace('\n',"LF")
         section_elem.set("EOLN", "{:s}".format(EOLN_type))
 
-        for line in self.content:
+        for line in section.content:
             subelem = ET.SubElement(section_elem,"String")
             subelem.tail = "\n"
 
@@ -916,17 +999,19 @@ class SingleStringBlock(Block):
 class TITL(SingleStringBlock):
     """ Title
     """
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.size_len = 1
+    def createSection(self):
+        section = super().createSection()
+        section.size_len = 1
+        return section
 
 
 class STRG(SingleStringBlock):
     """ String description
     """
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.size_len = 4
+    def createSection(self):
+        section = super().createSection()
+        section.size_len = 4
+        return section
 
 
 class STR(Block):
@@ -936,39 +1021,43 @@ class STR(Block):
     it is in. For LLBs, it is just a simple string, like a label. For VIs,
     it contains binary data before the string.
     """
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.text = b''
+    def createSection(self):
+        section = super().createSection()
+        section.text = b''
+        return section
 
     def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+
         if self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.LLB:
             string_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-            self.text = bldata.read(string_len)
+            section.text = bldata.read(string_len)
         else: # File format is unknown
             Block.parseRSRCData(self, section_num, bldata)
 
-    def updateSectionData(self, section_num=None, avoid_recompute=False):
+    def updateSectionData(self, section_num=None):
         if section_num is None:
-            section_num = self.section_loaded
+            section_num = self.active_section_num
+        section = self.sections[section_num]
 
         data_buf = b''
         if self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.LLB:
             pass # no additional data - only one string
         else:
-            Block.updateSectionData(self, section_num=section_num, avoid_recompute=avoid_recompute)
+            Block.updateSectionData(self, section_num=section_num)
             return #TODO create the proper binary data for STR in other file types
 
-        data_buf += int(len(self.text)).to_bytes(1, byteorder='big')
-        data_buf += self.text
+        data_buf += int(len(section.text)).to_bytes(1, byteorder='big')
+        data_buf += section.text
 
-        self.setData(data_buf, section_num=section_num, incomplete=avoid_recompute)
+        self.setData(data_buf, section_num=section_num)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.NONE):
-        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
     def initWithXMLSection(self, section, section_elem):
         snum = section.start.section_idx
@@ -978,9 +1067,7 @@ class STR(Block):
                 print("{:s}: For Block {} section {:d}, reading inline XML data"\
                   .format(self.vi.src_fname,self.ident,snum))
 
-            self.text = section_elem.get("Text").encode(self.vi.textEncoding)
-
-            self.updateSectionData(section_num=snum,avoid_recompute=True)
+            section.text = section_elem.get("Text").encode(self.vi.textEncoding)
         else:
             Block.initWithXMLSection(self, section, section_elem)
         pass
@@ -991,10 +1078,10 @@ class STR(Block):
         if self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.LLB:
             pass # no additional data - only one string
         else:
-            Block.exportXMLSection(self, section_elem, snum, section, fname_base)
+            super().exportXMLSection(section_elem, snum, section, fname_base)
             return #TODO create the proper XML data for STR in other file types
 
-        string_val = self.text.decode(self.vi.textEncoding)
+        string_val = section.text.decode(self.vi.textEncoding)
         section_elem.set("Text", string_val)
 
         section_elem.set("Format", "inline")
@@ -1003,66 +1090,72 @@ class STR(Block):
 class DFDS(Block):
     """ Default Fill of Data Space
     """
-    def __init__(self, *args):
-        super().__init__(*args)
+    def createSection(self):
+        section = super().createSection()
+        return section
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
-        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.ZLIB):
-        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
 
 class GCDI(Block):
-    def __init__(self, *args):
-        super().__init__(*args)
+    def createSection(self):
+        section = super().createSection()
+        return section
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
-        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.ZLIB):
-        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
 
 class CPMp(Block):
     """ Connection Points Map
     """
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.content = []
-        self.field1 = 0
+    def createSection(self):
+        section = super().createSection()
+        section.content = []
+        section.field1 = 0
+        return section
 
     def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+
         count = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        self.field1 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        self.content = []
+        section.field1 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        section.content = []
         for i in range(count):
             value = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            self.content.append(value)
+            section.content.append(value)
 
-    def updateSectionData(self, section_num=None, avoid_recompute=False):
+    def updateSectionData(self, section_num=None):
         if section_num is None:
-            section_num = self.section_loaded
+            section_num = self.active_section_num
+        section = self.sections[section_num]
 
-        data_buf = int(len(self.content)).to_bytes(1, byteorder='big')
-        data_buf += int(self.field1).to_bytes(1, byteorder='big')
-        for value in self.content:
+        data_buf = int(len(section.content)).to_bytes(1, byteorder='big')
+        data_buf += int(section.field1).to_bytes(1, byteorder='big')
+        for value in section.content:
             data_buf += int(value).to_bytes(2, byteorder='big')
 
-        if (len(data_buf) != 2+2*len(self.content)) and not avoid_recompute:
+        if (len(data_buf) != 2+2*len(section.content)):
             raise RuntimeError("Block {} section {} generated binary data of invalid size"\
               .format(self.ident,section_num))
 
-        self.setData(data_buf, section_num=section_num, incomplete=avoid_recompute)
+        self.setData(data_buf, section_num=section_num)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.NONE):
-        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
 
 class TM80(Block):
@@ -1071,6 +1164,10 @@ class TM80(Block):
     def __init__(self, *args):
         super().__init__(*args)
         self.defaultBlockCoding = BLOCK_CODING.NONE
+
+    def createSection(self):
+        section = super().createSection()
+        return section
 
     def initWithRSRCLate(self):
         ver = self.vi.getFileVersion()
@@ -1089,9 +1186,8 @@ class TM80(Block):
                 # Force-encode any already stored data; otherwise we would run
                 # into decompression error when trying to get the data
                 coded_data = self.getRawData(section_num=snum)
-                incomplete = not self.hasRawData(section_num=snum)
                 if coded_data is not None:
-                    self.setData(coded_data, section_num=snum, incomplete=incomplete)
+                    self.setData(coded_data, section_num=snum)
         super().initWithXMLLate()
         pass
 
@@ -1101,10 +1197,10 @@ class TM80(Block):
         bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=None):
+    def setData(self, data_buf, section_num=None, use_coding=None):
         if use_coding is None:
             use_coding = self.defaultBlockCoding
-        super().setData(data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
 
 class LIvi(Block):
@@ -1129,140 +1225,144 @@ class LVSR(Block):
 
     Structure named SAVERECORD is LV6 sources.
     """
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.version = []
-        self.execFlags = 0
-        self.protected = False
-        self.field08 = 0
-        self.field0C = 0
-        self.flags10 = 0
-        self.field12 = 0
-        self.buttonsHidden = 0
-        self.frontpFlags = 0
-        self.instrState = 0
-        self.execState = 0
-        self.execPrio = 0
-        self.viType = 0
-        self.field24 = 0
-        self.field28 = 0
-        self.field2C = 0
-        self.field30 = 0
-        self.viSignature = b''
-        self.field44 = 0
-        self.field48 = 0
-        self.field4C = 0
-        self.field4E = 0
-        self.field50_md5 = b''
-        self.libpass_text = None
-        self.libpass_md5 = b''
-        self.field70 = 0
-        self.field74 = 0
-        self.field78_md5 = b''
-        self.inlineStg = 0
-        self.field8C = 0
-        self.field90 = b''
+    def createSection(self):
+        section = super().createSection()
+        section.version = []
+        section.execFlags = 0
+        section.protected = False
+        section.field08 = 0
+        section.field0C = 0
+        section.flags10 = 0
+        section.field12 = 0
+        section.buttonsHidden = 0
+        section.frontpFlags = 0
+        section.instrState = 0
+        section.execState = 0
+        section.execPrio = 0
+        section.viType = 0
+        section.field24 = 0
+        section.field28 = 0
+        section.field2C = 0
+        section.field30 = 0
+        section.viSignature = b''
+        section.field44 = 0
+        section.field48 = 0
+        section.field4C = 0
+        section.field4E = 0
+        section.field50_md5 = b''
+        section.libpass_text = None
+        section.libpass_md5 = b''
+        section.field70 = 0
+        section.field74 = 0
+        section.field78_md5 = b''
+        section.inlineStg = 0
+        section.field8C = 0
+        section.field90 = b''
+        return section
 
     def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+
         # Size of the data seem to be 120, 136 or 137
         # Data before byte 120 does not move - so it's always safe to read
         data = LVSRData(self.po)
         if bldata.readinto(data) not in [120, 136, 137, sizeof(LVSRData)]:
             raise EOFError("Data block too short for parsing {} data.".format(self.ident))
 
-        self.version = decodeVersion(data.version)
-        self.protected = ((data.execFlags & VI_EXEC_FLAGS.LibProtected.value) != 0)
-        self.execFlags = data.execFlags & (~VI_EXEC_FLAGS.LibProtected.value)
-        self.field08 = int(data.field08)
-        self.field0C = int(data.field0C)
-        self.flags10 = int(data.flags10)
-        self.field12 = int(data.field12)
-        self.buttonsHidden = int(data.buttonsHidden)
-        self.frontpFlags = int(data.frontpFlags)
-        self.instrState = int(data.instrState)
-        self.execState = int(data.execState)
-        self.execPrio = int(data.execPrio)
-        self.viType = int(data.viType)
-        self.field24 = int(data.field24)
-        self.field28 = int(data.field28)
-        self.field2C = int(data.field2C)
-        self.field30 = int(data.field30)
-        self.viSignature = bytes(data.viSignature)
-        self.field44 = int(data.field44)
-        self.field48 = int(data.field48)
-        self.field4C = int(data.field4C)
-        self.field4E = int(data.field4E)
-        self.field50_md5 = bytes(data.field50_md5)
-        self.libpass_md5 = bytes(data.libpass_md5)
-        self.libpass_text = None
-        self.field70 = int(data.field70)
-        self.field74 = int(data.field74)
+        section.version = decodeVersion(data.version)
+        section.protected = ((data.execFlags & VI_EXEC_FLAGS.LibProtected.value) != 0)
+        section.execFlags = data.execFlags & (~VI_EXEC_FLAGS.LibProtected.value)
+        section.field08 = int(data.field08)
+        section.field0C = int(data.field0C)
+        section.flags10 = int(data.flags10)
+        section.field12 = int(data.field12)
+        section.buttonsHidden = int(data.buttonsHidden)
+        section.frontpFlags = int(data.frontpFlags)
+        section.instrState = int(data.instrState)
+        section.execState = int(data.execState)
+        section.execPrio = int(data.execPrio)
+        section.viType = int(data.viType)
+        section.field24 = int(data.field24)
+        section.field28 = int(data.field28)
+        section.field2C = int(data.field2C)
+        section.field30 = int(data.field30)
+        section.viSignature = bytes(data.viSignature)
+        section.field44 = int(data.field44)
+        section.field48 = int(data.field48)
+        section.field4C = int(data.field4C)
+        section.field4E = int(data.field4E)
+        section.field50_md5 = bytes(data.field50_md5)
+        section.libpass_md5 = bytes(data.libpass_md5)
+        section.libpass_text = None
+        section.field70 = int(data.field70)
+        section.field74 = int(data.field74)
         # Additional data, exists only in newer versions
         # sizeof(LVSR) per version: 8.6b7->120 9.0b25->120 9.0->120 10.0b84->120 10.0->136 11.0.1->136 12.0->136 13.0->136 14.0->137
 
-        if isGreaterOrEqVersion(self.version, 10,0, stage='release'):
-            self.field78_md5 = bytes(data.field78_md5)
-        if isGreaterOrEqVersion(self.version, 14,0):
-            self.inlineStg = int(data.inlineStg)
-        if isGreaterOrEqVersion(self.version, 15,0):
-            self.field8C = int(data.field8C)
+        if isGreaterOrEqVersion(section.version, 10,0, stage='release'):
+            section.field78_md5 = bytes(data.field78_md5)
+        if isGreaterOrEqVersion(section.version, 14,0):
+            section.inlineStg = int(data.inlineStg)
+        if isGreaterOrEqVersion(section.version, 15,0):
+            section.field8C = int(data.field8C)
         # Any data added in future versions
-        self.field90 = bldata.read()
+        section.field90 = bldata.read()
 
-    def updateSectionData(self, section_num=None, avoid_recompute=False):
+    def updateSectionData(self, section_num=None):
         if section_num is None:
-            section_num = self.section_loaded
+            section_num = self.active_section_num
+        section = self.sections[section_num]
 
-        data_buf = int(encodeVersion(self.version)).to_bytes(4, byteorder='big')
-        data_execFlags = (self.execFlags & (~VI_EXEC_FLAGS.LibProtected.value)) | \
-          (VI_EXEC_FLAGS.LibProtected.value if self.protected else 0)
+        data_buf = int(encodeVersion(section.version)).to_bytes(4, byteorder='big')
+        data_execFlags = (section.execFlags & (~VI_EXEC_FLAGS.LibProtected.value)) | \
+          (VI_EXEC_FLAGS.LibProtected.value if section.protected else 0)
         data_buf += int(data_execFlags).to_bytes(4, byteorder='big')
-        data_buf += int(self.field08).to_bytes(4, byteorder='big')
-        data_buf += int(self.field0C).to_bytes(4, byteorder='big')
-        data_buf += int(self.flags10).to_bytes(2, byteorder='big')
-        data_buf += int(self.field12).to_bytes(2, byteorder='big')
-        data_buf += int(self.buttonsHidden).to_bytes(2, byteorder='big')
-        data_buf += int(self.frontpFlags).to_bytes(2, byteorder='big')
-        data_buf += int(self.instrState).to_bytes(4, byteorder='big')
-        data_buf += int(self.execState).to_bytes(4, byteorder='big')
-        data_buf += int(self.execPrio).to_bytes(2, byteorder='big')
-        data_buf += int(self.viType).to_bytes(2, byteorder='big')
-        data_buf += int(self.field24).to_bytes(4, byteorder='big', signed=True)
-        data_buf += int(self.field28).to_bytes(4, byteorder='big')
-        data_buf += int(self.field2C).to_bytes(4, byteorder='big')
-        data_buf += int(self.field30).to_bytes(4, byteorder='big')
-        data_buf += self.viSignature
-        data_buf += int(self.field44).to_bytes(4, byteorder='big')
-        data_buf += int(self.field48).to_bytes(4, byteorder='big')
-        data_buf += int(self.field4C).to_bytes(2, byteorder='big')
-        data_buf += int(self.field4E).to_bytes(2, byteorder='big')
-        data_buf += self.field50_md5
-        if self.libpass_text is not None:
+        data_buf += int(section.field08).to_bytes(4, byteorder='big')
+        data_buf += int(section.field0C).to_bytes(4, byteorder='big')
+        data_buf += int(section.flags10).to_bytes(2, byteorder='big')
+        data_buf += int(section.field12).to_bytes(2, byteorder='big')
+        data_buf += int(section.buttonsHidden).to_bytes(2, byteorder='big')
+        data_buf += int(section.frontpFlags).to_bytes(2, byteorder='big')
+        data_buf += int(section.instrState).to_bytes(4, byteorder='big')
+        data_buf += int(section.execState).to_bytes(4, byteorder='big')
+        data_buf += int(section.execPrio).to_bytes(2, byteorder='big')
+        data_buf += int(section.viType).to_bytes(2, byteorder='big')
+        data_buf += int(section.field24).to_bytes(4, byteorder='big', signed=True)
+        data_buf += int(section.field28).to_bytes(4, byteorder='big')
+        data_buf += int(section.field2C).to_bytes(4, byteorder='big')
+        data_buf += int(section.field30).to_bytes(4, byteorder='big')
+        data_buf += section.viSignature
+        data_buf += int(section.field44).to_bytes(4, byteorder='big')
+        data_buf += int(section.field48).to_bytes(4, byteorder='big')
+        data_buf += int(section.field4C).to_bytes(2, byteorder='big')
+        data_buf += int(section.field4E).to_bytes(2, byteorder='big')
+        data_buf += section.field50_md5
+        if section.libpass_text is not None:
             pass #TODO re-compute md5 from pass
-        data_buf += self.libpass_md5
-        data_buf += int(self.field70).to_bytes(4, byteorder='big')
-        data_buf += int(self.field74).to_bytes(4, byteorder='big', signed=True)
-        if isGreaterOrEqVersion(self.version, 10,0, stage='release'):
-            data_buf += self.field78_md5
-        if isGreaterOrEqVersion(self.version, 14,0):
-            data_buf += int(self.inlineStg).to_bytes(1, byteorder='big')
-        if isGreaterOrEqVersion(self.version, 15,0):
+        data_buf += section.libpass_md5
+        data_buf += int(section.field70).to_bytes(4, byteorder='big')
+        data_buf += int(section.field74).to_bytes(4, byteorder='big', signed=True)
+        if isGreaterOrEqVersion(section.version, 10,0, stage='release'):
+            data_buf += section.field78_md5
+        if isGreaterOrEqVersion(section.version, 14,0):
+            data_buf += int(section.inlineStg).to_bytes(1, byteorder='big')
+        if isGreaterOrEqVersion(section.version, 15,0):
             data_buf += b'\0' * 3
-            data_buf += int(self.field8C).to_bytes(4, byteorder='big')
-        data_buf += self.field90
+            data_buf += int(section.field8C).to_bytes(4, byteorder='big')
+        data_buf += section.field90
 
-        if len(data_buf) not in [120, 136, 137, sizeof(LVSRData)+len(self.field90)] and not avoid_recompute:
+        if len(data_buf) not in [120, 136, 137, sizeof(LVSRData)+len(section.field90)]:
             raise RuntimeError("Block {} section {} generated binary data of invalid size"
               .format(self.ident,section_num))
 
-        self.setData(data_buf, section_num=section_num, incomplete=avoid_recompute)
+        self.setData(data_buf, section_num=section_num)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.NONE):
-        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
     def initWithXMLSection(self, section, section_elem):
         snum = section.start.section_idx
@@ -1271,7 +1371,7 @@ class LVSR(Block):
             if (self.po.verbose > 2):
                 print("{:s}: For Block {} section {:d}, reading inline XML data"\
                   .format(self.vi.src_fname,self.ident,snum))
-            self.field90 = b''
+            section.field90 = b''
 
             # We really expect only one of each sub-elements
             for i, subelem in enumerate(section_elem):
@@ -1283,58 +1383,58 @@ class LVSR(Block):
                     ver['stage_text'] = subelem.get("Stage")
                     ver['build'] = int(subelem.get("Build"), 0)
                     ver['flags'] = int(subelem.get("Flags"), 0)
-                    self.version = ver
+                    section.version = ver
                 elif (subelem.tag == "Library"):
-                    self.protected = int(subelem.get("Protected"), 0)
+                    section.protected = int(subelem.get("Protected"), 0)
                     password_text = subelem.get("Password")
                     password_hash = subelem.get("PasswordHash")
                     if password_text is not None:
                         password_bin = password_text.encode(self.vi.textEncoding)
-                        self.libpass_text = password_text
-                        self.libpass_md5 = md5(password_bin).digest()
+                        section.libpass_text = password_text
+                        section.libpass_md5 = md5(password_bin).digest()
                     else:
-                        self.libpass_md5 = bytes.fromhex(password_hash)
+                        section.libpass_md5 = bytes.fromhex(password_hash)
                     pass
                 elif (subelem.tag == "Execution"):
-                    self.execState = int(subelem.get("State"), 0)
-                    self.execPrio = int(subelem.get("Priority"), 0)
-                    self.execFlags = importXMLBitfields(VI_EXEC_FLAGS, subelem)
+                    section.execState = int(subelem.get("State"), 0)
+                    section.execPrio = int(subelem.get("Priority"), 0)
+                    section.execFlags = importXMLBitfields(VI_EXEC_FLAGS, subelem)
                 elif (subelem.tag == "ButtonsHidden"):
-                    self.buttonsHidden = importXMLBitfields(VI_BTN_HIDE_FLAGS, subelem)
+                    section.buttonsHidden = importXMLBitfields(VI_BTN_HIDE_FLAGS, subelem)
                 elif (subelem.tag == "Instrument"):
-                    self.viType = valFromEnumOrIntString(VI_TYPE, subelem.get("Type"))
+                    section.viType = valFromEnumOrIntString(VI_TYPE, subelem.get("Type"))
                     tmphash = subelem.get("Signature")
-                    self.viSignature = bytes.fromhex(tmphash)
-                    self.instrState = importXMLBitfields(VI_IN_ST_FLAGS, subelem)
+                    section.viSignature = bytes.fromhex(tmphash)
+                    section.instrState = importXMLBitfields(VI_IN_ST_FLAGS, subelem)
                 elif (subelem.tag == "FrontPanel"):
-                    self.frontpFlags = importXMLBitfields(VI_FP_FLAGS, subelem)
+                    section.frontpFlags = importXMLBitfields(VI_FP_FLAGS, subelem)
                 elif (subelem.tag == "Unknown"):
-                    self.field08 = int(subelem.get("Field08"), 0)
-                    self.field0C = int(subelem.get("Field0C"), 0)
-                    self.flags10 = int(subelem.get("Flags10"), 0)
-                    self.field12 = int(subelem.get("Field12"), 0)
-                    self.field24 = int(subelem.get("Field24"), 0)
-                    self.field28 = int(subelem.get("Field28"), 0)
-                    self.field2C = int(subelem.get("Field2C"), 0)
-                    self.field30 = int(subelem.get("Field30"), 0)
-                    self.field44 = int(subelem.get("Field44"), 0)
-                    self.field48 = int(subelem.get("Field48"), 0)
-                    self.field4C = int(subelem.get("Field4C"), 0)
-                    self.field4E = int(subelem.get("Field4E"), 0)
+                    section.field08 = int(subelem.get("Field08"), 0)
+                    section.field0C = int(subelem.get("Field0C"), 0)
+                    section.flags10 = int(subelem.get("Flags10"), 0)
+                    section.field12 = int(subelem.get("Field12"), 0)
+                    section.field24 = int(subelem.get("Field24"), 0)
+                    section.field28 = int(subelem.get("Field28"), 0)
+                    section.field2C = int(subelem.get("Field2C"), 0)
+                    section.field30 = int(subelem.get("Field30"), 0)
+                    section.field44 = int(subelem.get("Field44"), 0)
+                    section.field48 = int(subelem.get("Field48"), 0)
+                    section.field4C = int(subelem.get("Field4C"), 0)
+                    section.field4E = int(subelem.get("Field4E"), 0)
                     field50_hash = subelem.get("Field50Hash")
-                    self.field50_md5 = bytes.fromhex(field50_hash)
-                    self.field70 = int(subelem.get("Field70"), 0)
-                    self.field74 = int(subelem.get("Field74"), 0)
+                    section.field50_md5 = bytes.fromhex(field50_hash)
+                    section.field70 = int(subelem.get("Field70"), 0)
+                    section.field74 = int(subelem.get("Field74"), 0)
                     # Additional data, exists only in some versions
                     field78_hash = subelem.get("Field78Hash")
                     if field78_hash is not None:
-                        self.field78_md5 = bytes.fromhex(field78_hash)
+                        section.field78_md5 = bytes.fromhex(field78_hash)
                     inlineStg = subelem.get("InlineStg")
                     if inlineStg is not None:
-                        self.inlineStg = int(inlineStg, 0)
+                        section.inlineStg = int(inlineStg, 0)
                     field8C = subelem.get("Field8C")
                     if field8C is not None:
-                        self.field8C = int(field8C, 0)
+                        section.field8C = int(field8C, 0)
 
                 elif (subelem.tag == "Field90"):
                     bin_path = os.path.dirname(self.vi.src_fname)
@@ -1343,11 +1443,9 @@ class LVSR(Block):
                     else:
                         bin_fname = subelem.get("File")
                     with open(bin_fname, "rb") as part_fh:
-                        self.field90 = part_fh.read()
+                        section.field90 = part_fh.read()
                 else:
                     raise AttributeError("Section contains unexpected tag")
-
-            self.updateSectionData(section_num=snum,avoid_recompute=True)
         else:
             Block.initWithXMLSection(self, section, section_elem)
         pass
@@ -1358,71 +1456,71 @@ class LVSR(Block):
         section_elem.text = "\n"
         subelem = ET.SubElement(section_elem,"Version")
         subelem.tail = "\n"
-        subelem.set("Major", "{:d}".format(self.version['major']))
-        subelem.set("Minor", "{:d}".format(self.version['minor']))
-        subelem.set("Bugfix", "{:d}".format(self.version['bugfix']))
-        subelem.set("Stage", "{:s}".format(self.version['stage_text']))
-        subelem.set("Build", "{:d}".format(self.version['build']))
-        subelem.set("Flags", "0x{:X}".format(self.version['flags']))
+        subelem.set("Major", "{:d}".format(section.version['major']))
+        subelem.set("Minor", "{:d}".format(section.version['minor']))
+        subelem.set("Bugfix", "{:d}".format(section.version['bugfix']))
+        subelem.set("Stage", "{:s}".format(section.version['stage_text']))
+        subelem.set("Build", "{:d}".format(section.version['build']))
+        subelem.set("Flags", "0x{:X}".format(section.version['flags']))
 
         subelem = ET.SubElement(section_elem,"Library")
         subelem.tail = "\n"
-        subelem.set("Protected", "{:d}".format(self.protected))
-        subelem.set("PasswordHash", self.libpass_md5.hex())
+        subelem.set("Protected", "{:d}".format(section.protected))
+        subelem.set("PasswordHash", section.libpass_md5.hex())
         subelem.set("HashType", "MD5")
 
         subelem = ET.SubElement(section_elem,"Execution")
         subelem.tail = "\n"
-        subelem.set("State", "{:d}".format(self.execState))
-        subelem.set("Priority", "{:d}".format(self.execPrio))
-        exportXMLBitfields(VI_EXEC_FLAGS, subelem, self.execFlags, \
+        subelem.set("State", "{:d}".format(section.execState))
+        subelem.set("Priority", "{:d}".format(section.execPrio))
+        exportXMLBitfields(VI_EXEC_FLAGS, subelem, section.execFlags, \
           skip_mask=VI_EXEC_FLAGS.LibProtected.value)
 
         subelem = ET.SubElement(section_elem,"ButtonsHidden")
         subelem.tail = "\n"
-        exportXMLBitfields(VI_BTN_HIDE_FLAGS, subelem, self.buttonsHidden)
+        exportXMLBitfields(VI_BTN_HIDE_FLAGS, subelem, section.buttonsHidden)
 
         subelem = ET.SubElement(section_elem,"Instrument")
         subelem.tail = "\n"
-        subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(VI_TYPE, self.viType)))
-        subelem.set("Signature", self.viSignature.hex())
-        exportXMLBitfields(VI_IN_ST_FLAGS, subelem, self.instrState)
+        subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(VI_TYPE, section.viType)))
+        subelem.set("Signature", section.viSignature.hex())
+        exportXMLBitfields(VI_IN_ST_FLAGS, subelem, section.instrState)
 
         subelem = ET.SubElement(section_elem,"FrontPanel")
         subelem.tail = "\n"
-        exportXMLBitfields(VI_FP_FLAGS, subelem, self.frontpFlags)
+        exportXMLBitfields(VI_FP_FLAGS, subelem, section.frontpFlags)
 
         subelem = ET.SubElement(section_elem,"Unknown")
         subelem.tail = "\n"
 
-        subelem.set("Field08", "{:d}".format(self.field08))
-        subelem.set("Field0C", "{:d}".format(self.field0C))
-        subelem.set("Flags10", "{:d}".format(self.flags10))
-        subelem.set("Field12", "{:d}".format(self.field12))
-        subelem.set("Field24", "{:d}".format(self.field24))
-        subelem.set("Field28", "{:d}".format(self.field28))
-        subelem.set("Field2C", "{:d}".format(self.field2C))
-        subelem.set("Field30", "{:d}".format(self.field30))
-        subelem.set("Field44", "{:d}".format(self.field44))
-        subelem.set("Field48", "{:d}".format(self.field48))
-        subelem.set("Field4C", "{:d}".format(self.field4C))
-        subelem.set("Field4E", "{:d}".format(self.field4E))
-        subelem.set("Field50Hash", self.field50_md5.hex())
-        subelem.set("Field70", "{:d}".format(self.field70))
-        subelem.set("Field74", "{:d}".format(self.field74))
+        subelem.set("Field08", "{:d}".format(section.field08))
+        subelem.set("Field0C", "{:d}".format(section.field0C))
+        subelem.set("Flags10", "{:d}".format(section.flags10))
+        subelem.set("Field12", "{:d}".format(section.field12))
+        subelem.set("Field24", "{:d}".format(section.field24))
+        subelem.set("Field28", "{:d}".format(section.field28))
+        subelem.set("Field2C", "{:d}".format(section.field2C))
+        subelem.set("Field30", "{:d}".format(section.field30))
+        subelem.set("Field44", "{:d}".format(section.field44))
+        subelem.set("Field48", "{:d}".format(section.field48))
+        subelem.set("Field4C", "{:d}".format(section.field4C))
+        subelem.set("Field4E", "{:d}".format(section.field4E))
+        subelem.set("Field50Hash", section.field50_md5.hex())
+        subelem.set("Field70", "{:d}".format(section.field70))
+        subelem.set("Field74", "{:d}".format(section.field74))
         # Additional data, exists only in some versions
-        subelem.set("Field78Hash", self.field78_md5.hex())
+        subelem.set("Field78Hash", section.field78_md5.hex())
         # Additional data, exists only in some versions
-        subelem.set("InlineStg", "{:d}".format(self.inlineStg))
-        subelem.set("Field8C", "{:d}".format(self.field8C))
+        subelem.set("InlineStg", "{:d}".format(section.inlineStg))
+        subelem.set("Field8C", "{:d}".format(section.field8C))
 
-        if len(self.field90) > 0:
+        if len(section.field90) > 0:
             subelem = ET.SubElement(section_elem,"Field90")
             subelem.tail = "\n"
 
             part_fname = "{:s}_{:s}.{:s}".format(fname_base,subelem.tag,"bin")
             with open(part_fname, "wb") as part_fd:
-                part_fd.write(self.field90)
+                part_fd.write(section.field90)
             subelem.set("Format", "bin")
             subelem.set("File", os.path.basename(part_fname))
 
@@ -1436,49 +1534,53 @@ class LVSR(Block):
 class vers(Block):
     """ Version block
     """
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.version = []
-        self.version_text = b''
-        self.version_info = b''
+    def createSection(self):
+        section = super().createSection()
+        section.version = []
+        section.version_text = b''
+        section.version_info = b''
+        return section
 
     def parseRSRCData(self, section_num, bldata):
-        self.version = decodeVersion(int.from_bytes(bldata.read(4), byteorder='big', signed=False))
+        section = self.sections[section_num]
+
+        section.version = decodeVersion(int.from_bytes(bldata.read(4), byteorder='big', signed=False))
         version_text_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        self.version_text = bldata.read(version_text_len)
+        section.version_text = bldata.read(version_text_len)
         # TODO Is the string null-terminated? or that's length of another string?
         version_unk_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         if version_unk_len != 0:
             raise AttributeError("Always zero value 1 is not zero")
         version_info_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        self.version_info = bldata.read(version_info_len)
+        section.version_info = bldata.read(version_info_len)
         # TODO Is the string null-terminated? or that's length of another string?
         version_unk_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         if version_unk_len != 0:
             raise AttributeError("Always zero value 2 is not zero")
 
-    def updateSectionData(self, section_num=None, avoid_recompute=False):
+    def updateSectionData(self, section_num=None):
         if section_num is None:
-            section_num = self.section_loaded
+            section_num = self.active_section_num
+        section = self.sections[section_num]
 
-        data_buf = int(encodeVersion(self.version)).to_bytes(4, byteorder='big')
-        data_buf += int(len(self.version_text)).to_bytes(1, byteorder='big')
-        data_buf += self.version_text + b'\0'
-        data_buf += int(len(self.version_info)).to_bytes(1, byteorder='big')
-        data_buf += self.version_info + b'\0'
+        data_buf = int(encodeVersion(section.version)).to_bytes(4, byteorder='big')
+        data_buf += int(len(section.version_text)).to_bytes(1, byteorder='big')
+        data_buf += section.version_text + b'\0'
+        data_buf += int(len(section.version_info)).to_bytes(1, byteorder='big')
+        data_buf += section.version_info + b'\0'
 
-        if (len(data_buf) != 4 + 2+len(self.version_text) + 2+len(self.version_info)) and not avoid_recompute:
+        if (len(data_buf) != 4 + 2+len(section.version_text) + 2+len(section.version_info)):
             raise RuntimeError("Block {} section {} generated binary data of invalid size"\
               .format(self.ident,section_num))
 
-        self.setData(data_buf, section_num=section_num, incomplete=avoid_recompute)
+        self.setData(data_buf, section_num=section_num)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.NONE):
-        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
     def initWithXMLSection(self, section, section_elem):
         snum = section.start.section_idx
@@ -1500,11 +1602,9 @@ class vers(Block):
                 ver['stage_text'] = subelem.get("Stage")
                 ver['build'] = int(subelem.get("Build"), 0)
                 ver['flags'] = int(subelem.get("Flags"), 0)
-                self.version_text = subelem.get("Text").encode(self.vi.textEncoding)
-                self.version_info = subelem.get("Info").encode(self.vi.textEncoding)
-                self.version = ver
-
-            self.updateSectionData(section_num=snum,avoid_recompute=True)
+                section.version_text = subelem.get("Text").encode(self.vi.textEncoding)
+                section.version_info = subelem.get("Info").encode(self.vi.textEncoding)
+                section.version = ver
         else:
             Block.initWithXMLSection(self, section, section_elem)
         pass
@@ -1516,14 +1616,14 @@ class vers(Block):
         subelem = ET.SubElement(section_elem,"Version")
         subelem.tail = "\n"
 
-        subelem.set("Major", "{:d}".format(self.version['major']))
-        subelem.set("Minor", "{:d}".format(self.version['minor']))
-        subelem.set("Bugfix", "{:d}".format(self.version['bugfix']))
-        subelem.set("Stage", "{:s}".format(self.version['stage_text']))
-        subelem.set("Build", "{:d}".format(self.version['build']))
-        subelem.set("Flags", "0x{:X}".format(self.version['flags']))
-        subelem.set("Text", "{:s}".format(self.version_text.decode(self.vi.textEncoding)))
-        subelem.set("Info", "{:s}".format(self.version_info.decode(self.vi.textEncoding)))
+        subelem.set("Major", "{:d}".format(section.version['major']))
+        subelem.set("Minor", "{:d}".format(section.version['minor']))
+        subelem.set("Bugfix", "{:d}".format(section.version['bugfix']))
+        subelem.set("Stage", "{:s}".format(section.version['stage_text']))
+        subelem.set("Build", "{:d}".format(section.version['build']))
+        subelem.set("Flags", "0x{:X}".format(section.version['flags']))
+        subelem.set("Text", "{:s}".format(section.version_text.decode(self.vi.textEncoding)))
+        subelem.set("Info", "{:s}".format(section.version_info.decode(self.vi.textEncoding)))
 
         section_elem.set("Format", "inline")
 
@@ -1543,19 +1643,22 @@ class vers(Block):
 class ICON(Block):
     """ Icon 32x32 1bpp
     """
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.width = 32
-        self.height = 32
-        self.bpp = 1
-        self.icon = None
+    def createSection(self):
+        section = super().createSection()
+        section.width = 32
+        section.height = 32
+        section.bpp = 1
+        section.icon = None
+        return section
 
     def parseRSRCData(self, section_num, bldata):
-        icon = Image.new("P", (self.width, self.height))
+        section = self.sections[section_num]
+
+        icon = Image.new("P", (section.width, section.height))
         img_palette = [ 0 ] * (3*256)
-        if self.bpp == 8:
+        if section.bpp == 8:
             lv_color_palette = LABVIEW_COLOR_PALETTE_256
-        elif self.bpp == 4:
+        elif section.bpp == 4:
             lv_color_palette = LABVIEW_COLOR_PALETTE_16
         else:
             lv_color_palette = LABVIEW_COLOR_PALETTE_2
@@ -1564,17 +1667,17 @@ class ICON(Block):
             img_palette[3*i+1] = (rgb >>  8) & 0xFF
             img_palette[3*i+2] = (rgb >>  0) & 0xFF
         icon.putpalette(img_palette, rawmode='RGB')
-        img_data = bldata.read(int(self.width * self.height * self.bpp / 8))
-        if self.bpp == 8:
+        img_data = bldata.read(int(section.width * section.height * section.bpp / 8))
+        if section.bpp == 8:
             pass
-        elif self.bpp == 4:
-            img_data8 = bytearray(self.width * self.height)
+        elif section.bpp == 4:
+            img_data8 = bytearray(section.width * section.height)
             for i, px in enumerate(img_data):
                 img_data8[2*i+0] = (px >> 4) & 0xF
                 img_data8[2*i+1] = (px >> 0) & 0xF
             img_data = img_data8
-        elif self.bpp == 1:
-            img_data8 = bytearray(self.width * self.height)
+        elif section.bpp == 1:
+            img_data8 = bytearray(section.width * section.height)
             for i, px in enumerate(img_data):
                 img_data8[8*i+0] = (px >> 7) & 0x1
                 img_data8[8*i+1] = (px >> 6) & 0x1
@@ -1590,26 +1693,27 @@ class ICON(Block):
 
         icon.putdata(img_data)
         # Pixel-by-pixel method, for reference (slower than all-at-once)
-        #for y in range(0, self.height):
-        #    for x in range(0, self.width):
+        #for y in range(0, section.height):
+        #    for x in range(0, section.width):
         #        icon.putpixel((x, y), bldata.read(1))
-        self.icon = icon
+        section.icon = icon
 
-    def updateSectionData(self, section_num=None, avoid_recompute=False):
+    def updateSectionData(self, section_num=None):
         if section_num is None:
-            section_num = self.section_loaded
+            section_num = self.active_section_num
+        section = self.sections[section_num]
 
-        data_buf = bytes(self.icon.getdata())
-        data_len = (self.width * self.height * self.bpp) // 8
+        data_buf = bytes(section.icon.getdata())
+        data_len = (section.width * section.height * section.bpp) // 8
 
-        if self.bpp == 8:
+        if section.bpp == 8:
             pass
-        elif self.bpp == 4:
+        elif section.bpp == 4:
             data_buf8 = bytearray(data_len)
             for i in range(data_len):
                 data_buf8[i] = (data_buf[2*i+0] << 4) | (data_buf[2*i+1] << 0)
             data_buf = data_buf8
-        elif self.bpp == 1:
+        elif section.bpp == 1:
             data_buf8 = bytearray(data_len)
             for i in range(data_len):
                 data_buf8[i] = (data_buf[8*i+0] << 7) | (data_buf[8*i+1] << 6) | \
@@ -1622,14 +1726,14 @@ class ICON(Block):
 
         if len(data_buf) < data_len:
             data_buf += b'\0' * (data_len - len(data_buf))
-        self.setData(data_buf, section_num=section_num, incomplete=avoid_recompute)
+        self.setData(data_buf, section_num=section_num)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.NONE):
-        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
     def loadIcon(self):
         self.parseData()
@@ -1640,7 +1744,7 @@ class ICON(Block):
 
         self.parseData(section_num=snum)
         with open(block_fname, "wb") as block_fd:
-            self.icon.save(block_fd, format="PNG")
+            section.icon.save(block_fd, format="PNG")
 
         section_elem.set("Format", "png")
         section_elem.set("File", os.path.basename(block_fname))
@@ -1659,9 +1763,8 @@ class ICON(Block):
                 bin_fname = section_elem.get("File")
             with open(bin_fname, "rb") as png_fh:
                 icon = Image.open(png_fh)
-                self.icon = icon
+                section.icon = icon
                 icon.getdata() # to make sure the file gets loaded
-            self.updateSectionData(section_num=snum,avoid_recompute=True)
         else:
             Block.initWithXMLSection(self, section, section_elem)
         pass
@@ -1670,96 +1773,82 @@ class ICON(Block):
 class icl8(ICON):
     """ Icon Large 32x32 8bpp
     """
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.width = 32
-        self.height = 32
-        self.bpp = 8
+    def createSection(self):
+        section = super().createSection()
+        section.width = 32
+        section.height = 32
+        section.bpp = 8
+        return section
 
 
 class icl4(ICON):
     """ Icon Large 32x32 4bpp
     """
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.width = 32
-        self.height = 32
-        self.bpp = 4
+    def createSection(self):
+        section = super().createSection()
+        section.width = 32
+        section.height = 32
+        section.bpp = 4
+        return section
 
 
 class BDPW(Block):
     """ Block Diagram Password
     """
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.password = None
-        self.password_md5 = b''
-        self.hash_1 = b''
-        self.hash_2 = b''
-        self.salt_iface_idx = None
-        self.salt = None
-
     def createSection(self):
-        section = Section(self.vi, self.po)
-        # In this block, sections have some additional properties besides the raw data
+        section = super().createSection()
         section.password = None
+        section.password_md5 = b''
+        section.hash_1 = b''
+        section.hash_2 = b''
         section.salt_iface_idx = None
         section.salt = None
         return section
 
     def parseRSRCData(self, section_num, bldata):
-        self.password_md5 = bldata.read(16)
-        self.hash_1 = bldata.read(16)
-        self.hash_2 = bldata.read(16)
-
-        # In this block, sections have some additional properties besides the raw data
         section = self.sections[section_num]
-        self.password = section.password
-        self.salt_iface_idx = section.salt_iface_idx
-        self.salt = section.salt
 
-    def updateSectionData(self, section_num=None, avoid_recompute=False):
+        section.password_md5 = bldata.read(16)
+        section.hash_1 = bldata.read(16)
+        section.hash_2 = bldata.read(16)
+
+    def updateSectionData(self, section_num=None):
         if section_num is None:
-            section_num = self.section_loaded
+            section_num = self.active_section_num
+        section = self.sections[section_num]
 
-        if not avoid_recompute:
-            self.recalculateHash1()
-            self.recalculateHash2()
+        if True:
+            self.recalculateHash1(section_num=section_num)
+            self.recalculateHash2(section_num=section_num)
 
-        data_buf = self.password_md5
-        data_buf += self.hash_1
-        data_buf += self.hash_2
+        data_buf = section.password_md5
+        data_buf += section.hash_1
+        data_buf += section.hash_2
 
-        if (len(data_buf) != 48) and not avoid_recompute:
+        if (len(data_buf) != 48):
             raise RuntimeError("Block {} section {} generated binary data of invalid size"\
               .format(self.ident,section_num))
 
-        self.setData(data_buf, section_num=section_num, incomplete=avoid_recompute)
-
-        # In this block, sections have some additional properties besides the raw data
-        section = self.sections[section_num]
-        section.password = self.password
-        section.salt_iface_idx = self.salt_iface_idx
-        section.salt = self.salt
+        self.setData(data_buf, section_num=section_num)
 
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         self.parseData(section_num=snum)
-        self.recalculateHash1(store=False) # this is needed to find salt
-        self.recognizePassword()
+        self.recalculateHash1(section_num=snum, store=False) # this is needed to find salt
+        self.recognizePassword(section_num=snum)
 
         section_elem.text = "\n"
         subelem = ET.SubElement(section_elem,"Password")
         subelem.tail = "\n"
 
-        if self.password is not None:
-            subelem.set("Text", self.password)
+        if section.password is not None:
+            subelem.set("Text", section.password)
         else:
-            subelem.set("Hash", self.password_md5.hex())
+            subelem.set("Hash", section.password_md5.hex())
             subelem.set("HashType", "MD5")
-        if self.salt_iface_idx is not None:
-            subelem.set("SaltSource", str(self.salt_iface_idx))
+        if section.salt_iface_idx is not None:
+            subelem.set("SaltSource", str(section.salt_iface_idx))
         else:
-            subelem.set("SaltData", self.salt.hex())
+            subelem.set("SaltData", section.salt.hex())
 
         section_elem.set("Format", "inline")
 
@@ -1778,27 +1867,26 @@ class BDPW(Block):
                 pass_text = subelem.get("Text")
                 pass_hash = subelem.get("Hash")
                 if pass_text is not None:
-                    self.setPassword(password_text=pass_text)
+                    self.setPassword(section_num=snum, password_text=pass_text)
                 else:
-                    self.setPassword(password_md5=bytes.fromhex(pass_hash))
+                    self.setPassword(section_num=snum, password_md5=bytes.fromhex(pass_hash))
 
                 salt_iface_idx = subelem.get("SaltSource")
                 salt_data = subelem.get("SaltData")
                 if salt_iface_idx is not None:
-                    self.salt_iface_idx = int(salt_iface_idx, 0)
+                    section.salt_iface_idx = int(salt_iface_idx, 0)
                 else:
-                    self.salt = bytes.fromhex(salt_data)
-            self.updateSectionData(section_num=snum,avoid_recompute=True)
+                    section.salt = bytes.fromhex(salt_data)
         else:
             Block.initWithXMLSection(self, section, section_elem)
         pass
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.NONE):
-        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
     @staticmethod
     def getPasswordSaltFromTerminalCounts(numberCount, stringCount, pathCount):
@@ -1807,13 +1895,15 @@ class BDPW(Block):
         salt += int(pathCount).to_bytes(4, byteorder='little')
         return salt
 
-    def scanForHashSalt(self, presalt_data=b'', postsalt_data=b''):
+    def scanForHashSalt(self, section_num, presalt_data=b'', postsalt_data=b''):
+        section = self.sections[section_num]
+
         salt = b''
         ver = self.vi.getFileVersion()
         if not isGreaterOrEqVersion(ver, 1,0):
             if (po.verbose > 0):
                 eprint("{:s}: Warning: No version block found; assuming oldest format, with empty password salt".format(self.vi.src_fname))
-            self.salt = salt
+            section.salt = salt
             return salt
         if isGreaterOrEqVersion(ver, 12,0):
             # Figure out the salt
@@ -1825,13 +1915,13 @@ class BDPW(Block):
                 term_connectors = VCTP.getClientConnectorsByType(iface_obj)
                 salt = BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
                 md5_hash_1 = md5(presalt_data + salt + postsalt_data).digest()
-                if md5_hash_1 == self.hash_1:
+                if md5_hash_1 == section.hash_1:
                     if (self.po.verbose > 1):
                         print("{:s}: Found matching salt {}, interface {:d}/{:d}".format(self.vi.src_fname,salt.hex(),i+1,len(interfaceEnumerate)))
                     salt_iface_idx = iface_idx
                     break
 
-            self.salt_iface_idx = salt_iface_idx
+            section.salt_iface_idx = salt_iface_idx
 
             if salt_iface_idx is not None:
                 term_connectors = VCTP.getClientConnectorsByType(VCTP.content[salt_iface_idx])
@@ -1850,54 +1940,60 @@ class BDPW(Block):
                         pathCount   |= (i & (2 ** (3*b+2))) >> (2*b+2)
                     salt = BDPW.getPasswordSaltFromTerminalCounts(numberCount, stringCount, pathCount)
                     md5_hash_1 = md5(presalt_data + salt + postsalt_data).digest()
-                    if md5_hash_1 == self.hash_1:
+                    if md5_hash_1 == section.hash_1:
                         if (self.po.verbose > 1):
                             print("{:s}: Found matching salt {} via brute-force".format(self.vi.src_fname,salt.hex()))
                         break
-        self.salt = salt
+        section.salt = salt
         return salt
 
-    def findHashSalt(self, password_md5, LIBN_content, LVSR_content, force_scan=False):
+    def findHashSalt(self, section_num, password_md5, LIBN_content, LVSR_content, force_scan=False):
+        section = self.sections[section_num]
+
         if force_scan:
-            self.salt_iface_idx = None
-            self.salt = None
-        if self.salt_iface_idx is not None:
+            section.salt_iface_idx = None
+            section.salt = None
+        if section.salt_iface_idx is not None:
             # If we've previously found an interface on which the salt is based, use that interface
             VCTP = self.vi.get_or_raise('VCTP')
             VCTP_content = VCTP.getContent()
-            term_connectors = VCTP.getClientConnectorsByType(VCTP_content[self.salt_iface_idx])
+            term_connectors = VCTP.getClientConnectorsByType(VCTP_content[section.salt_iface_idx])
             salt = BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
-        elif self.salt is not None:
+        elif section.salt is not None:
             # If we've previously brute-forced the salt, use that same salt
-            salt = self.salt
+            salt = section.salt
         else:
             # If we didn't determined the salt yet, do  a scan
-            salt = self.scanForHashSalt(presalt_data=password_md5+LIBN_content+LVSR_content)
+            salt = self.scanForHashSalt(section_num, presalt_data=password_md5+LIBN_content+LVSR_content)
         return salt
 
-    def setPassword(self, password_text=None, password_md5=None, store=True):
+    def setPassword(self, section_num, password_text=None, password_md5=None, store=True):
         """ Sets new password, without recalculating hashes
         """
+        section = self.sections[section_num]
+
         if password_text is not None:
             if store:
-                self.password = password_text
+                section.password = password_text
             newPassBin = password_text.encode(self.vi.textEncoding)
             password_md5 = md5(newPassBin).digest()
         else:
             if store:
-                self.password = None
+                section.password = None
         if password_md5 is None:
             raise ValueError("Requested to set password, but no new password provided in text nor md5 form")
         if store:
-            self.password_md5 = password_md5
+            section.password_md5 = password_md5
         return password_md5
 
 
-    def recognizePassword(self, password_md5=None, store=True):
+    def recognizePassword(self, section_num, password_md5=None, store=True):
         """ Gets password from MD5 hash, if the password is a common one
         """
+        section = self.sections[section_num]
+
         if password_md5 is None:
-            password_md5 = self.password_md5
+            password_md5 = section.password_md5
         found_pass = None
         for test_pass in ['', 'qwerty', 'password', '111111', '12345678', 'abc123', '1234567', 'password1', '12345', '123']:
             test_pass_bin = test_pass.encode(self.vi.textEncoding)
@@ -1906,19 +2002,23 @@ class BDPW(Block):
                 found_pass = test_pass
                 break
         if (store):
-            self.password = found_pass
+            section.password = found_pass
         return found_pass
 
 
-    def recalculateHash1(self, password_md5=None, store=True):
+    def recalculateHash1(self, section_num=None, password_md5=None, store=True):
         """ Calculates the value of hash_1, either stores it or only returns
 
             Re-calculation is made using previously computed salt if available, or newly computed on first run.
             Supplying custom password on first run will lead to inability to find salt; fortunately,
             first run is quite early, during validation of parsed data.
         """
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+
         if password_md5 is None:
-            password_md5 = self.password_md5
+            password_md5 = section.password_md5
         # get VI-versions container;
         # 'LVSR' for Version 6,7,8,...
         # 'LVIN' for Version 5
@@ -1937,23 +2037,27 @@ class BDPW(Block):
             print("{:s}: LIBN_content: {}".format(self.vi.src_fname,LIBN_content))
             print("{:s}: LVSR_content md5: {:s}".format(self.vi.src_fname,md5(LVSR_content).digest().hex()))
 
-        salt = self.findHashSalt(password_md5, LIBN_content, LVSR_content)
+        salt = self.findHashSalt(section_num, password_md5, LIBN_content, LVSR_content)
 
         hash1_data = password_md5 + LIBN_content + LVSR_content + salt
 
         md5_hash_1 = md5(hash1_data).digest()
         if store:
-            self.hash_1 = md5_hash_1
+            section.hash_1 = md5_hash_1
         return md5_hash_1
 
-    def recalculateHash2(self, md5_hash_1=None, store=True):
+    def recalculateHash2(self, section_num=None, md5_hash_1=None, store=True):
         """ Calculates the value of hash_2, either stores it or only returns
 
             Re-calculation is made using previously computed hash_1
             and BDH block if the VI file
         """
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+
         if md5_hash_1 is None:
-            md5_hash_1 = self.hash_1
+            md5_hash_1 = section.hash_1
 
         # get block-diagram container;
         # 'BDHc' for LV 10,11,12
@@ -1970,7 +2074,7 @@ class BDPW(Block):
 
         md5_hash_2 = md5(hash2_data).digest()
         if store:
-            self.hash_2 = md5_hash_2
+            section.hash_2 = md5_hash_2
         return md5_hash_2
 
 
@@ -1979,38 +2083,42 @@ class LIBN(Block):
 
     Stores names of libraries which contain this RSRC file.
     """
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.content = None
+    def createSection(self):
+        section = super().createSection()
+        section.content = None
+        return section
 
     def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        self.content = []
+        section.content = []
         for i in range(count):
             content_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-            self.content.append(bldata.read(content_len))
+            section.content.append(bldata.read(content_len))
 
-    def updateSectionData(self, section_num=None, avoid_recompute=False):
+    def updateSectionData(self, section_num=None):
         if section_num is None:
-            section_num = self.section_loaded
+            section_num = self.active_section_num
+        section = self.sections[section_num]
 
-        data_buf = int(len(self.content)).to_bytes(4, byteorder='big')
-        for name in self.content:
+        data_buf = int(len(section.content)).to_bytes(4, byteorder='big')
+        for name in section.content:
             data_buf += int(len(name)).to_bytes(1, byteorder='big')
             data_buf += name
 
-        if (len(data_buf) < 5) and not avoid_recompute:
+        if (len(data_buf) < 5):
             raise RuntimeError("Block {} section {} generated binary data of invalid size"\
               .format(self.ident,section_num))
 
-        self.setData(data_buf, section_num=section_num, incomplete=avoid_recompute)
+        self.setData(data_buf, section_num=section_num)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.NONE):
-        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
     def initWithXMLSection(self, section, section_elem):
         snum = section.start.section_idx
@@ -2019,16 +2127,14 @@ class LIBN(Block):
             if (self.po.verbose > 2):
                 print("{:s}: For Block {} section {:d}, reading inline XML data"\
                   .format(self.vi.src_fname,self.ident,snum))
-            self.content = []
+            section.content = []
             # There can be multiple "Library" sub-elements
             for i, subelem in enumerate(section_elem):
                 if (subelem.tag != "Library"):
                     raise AttributeError("Section contains something else than 'Library'")
 
                 name_text = subelem.get("Name")
-                self.content.append(name_text.encode(self.vi.textEncoding))
-
-            self.updateSectionData(section_num=snum,avoid_recompute=True)
+                section.content.append(name_text.encode(self.vi.textEncoding))
         else:
             Block.initWithXMLSection(self, section, section_elem)
         pass
@@ -2037,7 +2143,7 @@ class LIBN(Block):
         self.parseData(section_num=snum)
 
         section_elem.text = "\n"
-        for name in self.content:
+        for name in section.content:
             subelem = ET.SubElement(section_elem,"Library")
             subelem.tail = "\n"
             subelem.set("Name", name.decode(self.vi.textEncoding))
@@ -2058,15 +2164,16 @@ class LVzp(Block):
     In LV from circa 2009 and before, the ZIP was stored in plain form.
     In newer LV versions, it is encrypted by simple xor-based algorithm.
     """
-    def __init__(self, *args):
-        super().__init__(*args)
+    def createSection(self):
+        section = super().createSection()
+        return section
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.XOR):
-        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.XOR):
-        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.XOR):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
 
 class BDHP(Block):
@@ -2074,20 +2181,23 @@ class BDHP(Block):
 
     This block is spcific to LV 7beta and older.
     """
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.content = None
+    def createSection(self):
+        section = super().createSection()
+        section.content = None
+        return section
 
     def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        self.content = bldata.read(content_len)
+        section.content = bldata.read(content_len)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.NONE):
-        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
     def getContent(self):
         self.parseData()
@@ -2104,20 +2214,23 @@ class BDH(Block):
     structures. They use a kind of "xml-tags" to open and close objects.
     This block is specific to LV 7 and newer.
     """
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.content = None
+    def createSection(self):
+        section = super().createSection()
+        section.content = None
+        return section
 
     def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        self.content = bldata.read(content_len)
+        section.content = bldata.read(content_len)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
-        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.ZLIB):
-        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
     def getContent(self):
         self.parseData()
@@ -2136,20 +2249,23 @@ class FPH(Block):
     Stored in "FPHx"-block.
     This implementation is for LV 7 and newer.
     """
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.content = None
+    def createSection(self):
+        section = super().createSection()
+        section.content = None
+        return section
 
     def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        self.content = bldata.read(content_len)
+        section.content = bldata.read(content_len)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
-        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.ZLIB):
-        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
     def getContent(self):
         self.parseData()
@@ -2169,55 +2285,60 @@ class VCTP(Block):
     every element and than add a cluster-object with a index-table containing
     all previously defined elements used by the cluster.
     """
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.content = []
-        self.unflatten = []
+    def createSection(self):
+        section = super().createSection()
+        section.content = []
+        section.unflatten = []
+        return section
 
-    def parseRSRCConnector(self, bldata, pos):
+    def parseRSRCConnector(self, section_num, bldata, pos):
+        section = self.sections[section_num]
+
         bldata.seek(pos)
         obj_type, obj_flags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
         if (self.po.verbose > 2):
             print("{:s}: Block {} connector {:d}, at 0x{:04x}, type 0x{:02x} flags 0x{:02x} len {:d}"\
-              .format(self.vi.src_fname, self.ident, len(self.content), pos, obj_type, obj_flags, obj_len))
+              .format(self.vi.src_fname, self.ident, len(section.content), pos, obj_type, obj_flags, obj_len))
         if obj_len < 4:
             eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d} too small to be valid"\
-              .format(self.vi.src_fname, len(self.content), obj_type, obj_len))
+              .format(self.vi.src_fname, len(section.content), obj_type, obj_len))
             obj_type = CONNECTOR_FULL_TYPE.Void
-        obj = newConnectorObject(self.vi, len(self.content), obj_flags, obj_type, self.po)
-        self.content.append(obj)
+        obj = newConnectorObject(self.vi, len(section.content), obj_flags, obj_type, self.po)
+        section.content.append(obj)
         bldata.seek(pos)
         obj.initWithRSRC(bldata, obj_len)
         return obj.index, obj_len
 
     def parseRSRCData(self, section_num, bldata):
-        self.content = []
+        section = self.sections[section_num]
+
+        section.content = []
         # First we have count of connectors, and then the connectors themselves
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         pos = bldata.tell()
         for i in range(count):
-            obj_idx, obj_len = self.parseRSRCConnector(bldata, pos)
+            obj_idx, obj_len = self.parseRSRCConnector(section_num, bldata, pos)
             pos += obj_len
         # After that,there is a list
-        self.unflatten = []
+        section.unflatten = []
         count = readVariableSizeField(bldata)
         for i in range(count):
             val = readVariableSizeField(bldata)
-            self.unflatten.append(val)
+            section.unflatten.append(val)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
-        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.ZLIB):
-        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
     def initWithXMLSection(self, section, section_elem):
         snum = section.start.section_idx
         fmt = section_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
-            self.content = []
-            self.unflatten = []
+            section.content = []
+            section.unflatten = []
             if (self.po.verbose > 2):
                 print("{:s}: For Block {} section {:d}, reading inline XML data"\
                   .format(self.vi.src_fname,self.ident,snum))
@@ -2228,50 +2349,49 @@ class VCTP(Block):
                     obj_flags = importXMLBitfields(CONNECTOR_FLAGS, subelem)
                     obj = newConnectorObject(self.vi, obj_idx, obj_flags, obj_type, self.po)
                     # Grow the list if needed (the connectors may be in wrong order)
-                    if obj_idx >= len(self.content):
-                        self.content.extend([None] * (obj_idx - len(self.content) + 1))
-                    self.content[obj_idx] = obj
+                    if obj_idx >= len(section.content):
+                        section.content.extend([None] * (obj_idx - len(section.content) + 1))
+                    section.content[obj_idx] = obj
                     # Set connector data based on XML properties
                     obj.initWithXML(subelem)
                 elif (subelem.tag == "UnFlatten"):
-                    self.unflatten += [int(itm,0) for itm in subelem.text.split()]
+                    section.unflatten += [int(itm,0) for itm in subelem.text.split()]
                 else:
                     raise AttributeError("Section contains unexpected tag")
-
-            self.updateSectionData(section_num=snum,avoid_recompute=True)
         else:
             Block.initWithXMLSection(self, section, section_elem)
         pass
 
-    def updateSectionData(self, section_num=None, avoid_recompute=False):
+    def updateSectionData(self, section_num=None):
         if section_num is None:
-            section_num = self.section_loaded
+            section_num = self.active_section_num
+        section = self.sections[section_num]
 
-        for connobj in self.content:
+        for connobj in section.content:
             if not connobj.raw_data_updated:
-                connobj.updateData(avoid_recompute=avoid_recompute)
+                connobj.updateData()
 
-        data_buf = int(len(self.content)).to_bytes(4, byteorder='big')
-        for i, connobj in enumerate(self.content):
+        data_buf = int(len(section.content)).to_bytes(4, byteorder='big')
+        for i, connobj in enumerate(section.content):
             bldata = connobj.getData()
             data_buf += bldata.read()
 
-        data_buf += int(len(self.unflatten)).to_bytes(2, byteorder='big')
-        for i, val in enumerate(self.unflatten):
+        data_buf += int(len(section.unflatten)).to_bytes(2, byteorder='big')
+        for i, val in enumerate(section.unflatten):
             data_buf += int(val).to_bytes(2, byteorder='big')
 
-        if (len(data_buf) < 4 + 4*len(self.content)) and not avoid_recompute:
+        if (len(data_buf) < 4 + 4*len(section.content)):
             raise RuntimeError("Block {} section {} generated binary data of invalid size"\
               .format(self.ident,section_num))
 
-        self.setData(data_buf, section_num=section_num, incomplete=avoid_recompute)
+        self.setData(data_buf, section_num=section_num)
 
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         self.parseData(section_num=snum)
 
         section_elem.text = "\n"
 
-        for connobj in self.content:
+        for connobj in section.content:
             subelem = ET.SubElement(section_elem,"Connector")
             subelem.tail = "\n"
 
@@ -2289,7 +2409,7 @@ class VCTP(Block):
         subelem.tail = "\n"
 
         strlist = ""
-        for i, val in enumerate(self.unflatten):
+        for i, val in enumerate(section.unflatten):
             if i % 16 == 0: strlist += "\n"
             strlist += " {:3d}".format(val)
         subelem.text = strlist
@@ -2297,21 +2417,29 @@ class VCTP(Block):
         section_elem.set("Format", "inline")
 
     def parseData(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+
         # Besides the normal parsing, also parse sub-objects
         Block.parseData(self, section_num=section_num)
-        for connobj in self.content:
+        for connobj in section.content:
             connobj.parseData()
 
-    def checkSanity(self):
+    def checkSanity(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+
         ret = True
-        for connobj in self.content:
+        for connobj in section.content:
             if not connobj.checkSanity():
                 ret = False
-        for i, val in enumerate(self.unflatten):
-            if val >= len(self.content):
+        for i, val in enumerate(section.unflatten):
+            if val >= len(section.content):
                 if (self.po.verbose > 1):
                     eprint("{:s}: Warning: Unflatten index {:d} exceeds connectors count {:d}"\
-                      .format(self.vi.src_fname,i,len(self.content)))
+                      .format(self.vi.src_fname,i,len(section.content)))
                 ret = False
         return ret
 
@@ -2336,12 +2464,13 @@ class VCTP(Block):
 class VICD(Block):
     """ Virtual Instrument Compiled Data
     """
-    def __init__(self, *args):
-        super().__init__(*args)
+    def createSection(self):
+        section = super().createSection()
+        return section
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
-        bldata = Block.getData(self, section_num=section_num, use_coding=use_coding)
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
-    def setData(self, data_buf, section_num=None, incomplete=False, use_coding=BLOCK_CODING.ZLIB):
-        Block.setData(self, data_buf, section_num=section_num, incomplete=incomplete, use_coding=use_coding)
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
