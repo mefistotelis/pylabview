@@ -260,6 +260,21 @@ class ConnectorObject:
 
         self.parseRSRCDataFinish(bldata)
 
+    @staticmethod
+    def validLabelLength(whole_data, i):
+        # Strip padding at the end
+        #whole_data = whole_data.rstrip(b'\0')
+        ending_zeros = 0
+        if whole_data[-1] == 0:
+            ending_zeros += 1
+        if ending_zeros > 0:
+            whole_data = whole_data[:-ending_zeros]
+        # Check if this position can be a label start
+        label_len = int.from_bytes(whole_data[i:i+1], byteorder='big', signed=False)
+        if (len(whole_data)-i == label_len+1) and all((bt in b'\r\n\t') or (bt >= 32) for bt in whole_data[i+1:]):
+            return label_len
+        return 0
+
     def parseRSRCDataFinish(self, bldata):
         """ Does generic part of RSRC connector parsing and marks the parse as finished
 
@@ -271,13 +286,11 @@ class ConnectorObject:
             min_pos = bldata.tell() # We receive the file with pos set at minimal - the label can't start before it
             # The data should be smaller than 256 bytes; but it is still wise to make some restriction on it
             whole_data = bldata.read(1024*1024)
-            # Strip padding at the end (would be better to limit padding to up to 3 chars.. but not a big deal)
-            whole_data = whole_data.rstrip(b'\0')
             # Find a proper position to read the label; try the current position first (if the data after current is not beyond 255)
             for i in range(max(len(whole_data)-256,0), len(whole_data)):
-                label_len = int.from_bytes(whole_data[i:i+1], byteorder='big', signed=False)
-                if (len(whole_data)-i == label_len+1) and all((bt in b'\r\n\t') or (bt >= 32) for bt in whole_data[i+1:]):
-                    self.label = whole_data[i+1:]
+                label_len = ConnectorObject.validLabelLength(whole_data, i)
+                if label_len > 0:
+                    self.label = whole_data[i+1:i+label_len+1]
                     break
             if self.label is None:
                 if (self.po.verbose > 0):
@@ -288,7 +301,6 @@ class ConnectorObject:
                 if (self.po.verbose > 0):
                     eprint("{:s}: Warning: Connector {:d} type 0x{:02x} has label not immediatelly following data"\
                       .format(self.vi.src_fname, self.index, self.otype))
-
         self.raw_data_updated = False
 
     def parseXMLData(self):
@@ -335,12 +347,10 @@ class ConnectorObject:
         # Remove label from the end - use the algorithm from parseRSRCDataFinish() for consistency
         if (self.oflags & CONNECTOR_FLAGS.HasLabel.value) != 0:
             whole_data = data_buf
-            # Strip padding at the end (would be better to limit padding to up to 3 chars.. but not a big deal)
-            whole_data = whole_data.rstrip(b'\0')
             # Find a proper position to read the label; try the current position first (if the data after current is not beyond 255)
             for i in range(max(len(whole_data)-256,0), len(whole_data)):
-                label_len = int.from_bytes(whole_data[i:i+1], byteorder='big', signed=False)
-                if (len(whole_data)-i == label_len+1) and all((bt in b'\r\n') or (bt >= 32) for bt in whole_data[i+1:]):
+                label_len = ConnectorObject.validLabelLength(whole_data, i)
+                if label_len > 0:
                     data_buf = data_buf[:i]
                     break
         # Done - got the data part only
@@ -1397,6 +1407,7 @@ class ConnectorObjectUnit(ConnectorObject):
         if self.fullType() in [ CONNECTOR_FULL_TYPE.NumUInt8, CONNECTOR_FULL_TYPE.NumUInt16, CONNECTOR_FULL_TYPE.NumUInt32 ]:
             isTextEnum = True
 
+        pos = bldata.tell() #TODO remove when we know end of the data
         # Create _separate_ empty namespace for each connector
         self.values = [SimpleNamespace() for _ in range(count)]
         for i in range(count):
@@ -1417,6 +1428,7 @@ class ConnectorObjectUnit(ConnectorObject):
         else:
             self.padding1 = None
         self.prop1 = int.from_bytes(bldata.read(1), byteorder='big', signed=False) # Unknown
+        bldata.seek(pos) #TODO backing a bit to make sure label won't be skipped - remove when everything is parsed properly
         self.parseRSRCDataFinish(bldata)
 
     def checkSanity(self):
