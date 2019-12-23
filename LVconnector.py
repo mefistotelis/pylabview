@@ -912,7 +912,7 @@ class ConnectorObjectFunction(ConnectorObject):
         self.fflags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         self.pattern = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
 
-        if isGreaterOrEqVersion(ver, 10,0,1):
+        if isGreaterOrEqVersion(ver, 10,0,0,stage="alpha"):
             for i in range(count):
                 cli_flags = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
                 self.clients[i].flags = cli_flags
@@ -923,7 +923,7 @@ class ConnectorObjectFunction(ConnectorObject):
 
         for i in range(count):
             self.clients[i].thrallSources = []
-        if isGreaterOrEqVersion(ver, 8,0,1):
+        if isGreaterOrEqVersion(ver, 8,0,0,stage="beta"):
             self.hasThrall = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
             if self.hasThrall != 0:
                 for i in range(count):
@@ -932,7 +932,7 @@ class ConnectorObjectFunction(ConnectorObject):
                         k = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
                         if k == 0:
                             break
-                        if isGreaterOrEqVersion(ver, 8,2,0):
+                        if isGreaterOrEqVersion(ver, 8,2,0,stage="beta"):
                             k = k - 1
                         thrallSources.append(k)
                     self.clients[i].thrallSources = thrallSources
@@ -972,19 +972,19 @@ class ConnectorObjectFunction(ConnectorObject):
         data_buf += int(self.fflags).to_bytes(2, byteorder='big')
         data_buf += int(self.pattern).to_bytes(2, byteorder='big')
 
-        if isGreaterOrEqVersion(ver, 10,0,1):
+        if isGreaterOrEqVersion(ver, 10,0,0,stage="alpha"):
             for client in clients:
                 data_buf += int(client.flags).to_bytes(4, byteorder='big')
         else:
             for client in clients:
                 data_buf += int(client.flags).to_bytes(2, byteorder='big')
 
-        if isGreaterOrEqVersion(ver, 8,0,1):
+        if isGreaterOrEqVersion(ver, 8,0,0,stage="beta"):
             data_buf += int(self.hasThrall).to_bytes(2, byteorder='big')
             if self.hasThrall != 0:
                 for client in clients:
                     for k in client.thrallSources:
-                        if isGreaterOrEqVersion(ver, 8,2,0):
+                        if isGreaterOrEqVersion(ver, 8,2,0,stage="beta"):
                             k = k + 1
                         data_buf += int(k).to_bytes(1, byteorder='big')
                     data_buf += int(0).to_bytes(1, byteorder='big')
