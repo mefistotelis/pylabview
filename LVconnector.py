@@ -379,6 +379,13 @@ class ConnectorObject:
 
         return data_buf
 
+    def expectedRSRCSize(self):
+        if self.raw_data is not None:
+            exp_whole_len = len(self.raw_data) - 4
+        else:
+            exp_whole_len = 0
+        return exp_whole_len
+
     def updateData(self, avoid_recompute=False):
 
         if avoid_recompute and self.raw_data_updated:
@@ -1209,7 +1216,8 @@ class ConnectorObjectTypeDef(ConnectorObject):
     def expectedRSRCSize(self):
         exp_whole_len = 4
         exp_whole_len += 4 + sum((1+len(s)) for s in self.labels)
-        #TODO count size of the nested connector
+        for client in self.clients:
+            exp_whole_len += client.nested.expectedRSRCSize()
         if self.label is not None:
             label_len = 1 + len(self.label)
             if label_len % 2 > 0: # Include padding
@@ -1353,6 +1361,17 @@ class ConnectorObjectArray(ConnectorObject):
         for client in self.clients:
             data_buf += int(client.index).to_bytes(2, byteorder='big')
         return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 2 + 4 * len(self.dimensions)
+        for client in self.clients:
+            exp_whole_len += ( 2 if (client.index <= 0x7fff) else 4 )
+        if self.label is not None:
+            label_len = 1 + len(self.label)
+            if label_len % 2 > 0: # Include padding
+                label_len += 2 - (label_len % 2)
+            exp_whole_len += label_len
+        return exp_whole_len
 
     def initWithXML(self, conn_elem):
         fmt = conn_elem.get("Format")
