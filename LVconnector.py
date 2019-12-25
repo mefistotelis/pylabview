@@ -324,6 +324,11 @@ class ConnectorObject:
                 self.parseRSRCData(bldata)
             elif self.vi.dataSource == "xml":
                 self.parseXMLData()
+            for i, client in enumerate(self.clients):
+                if client.index != -1: # this is how we mark nested client
+                    continue
+                conn_obj = client.nested
+                conn_obj.parseData()
         pass
 
     def needParseData(self):
@@ -795,7 +800,10 @@ class ConnectorObjectTag(ConnectorObject):
 
             subelem.set("Index", "{:d}".format(i))
 
-            part_fname = "{:s}_{:04d}".format(fname_base,i)
+            if self.index >= 0:
+                part_fname = "{:s}_{:04d}_lvo{:02d}".format(fname_base,self.index,i)
+            else:
+                part_fname = "{:s}_lvo{:02d}".format(fname_base,i)
             obj.exportXML(subelem, part_fname)
 
         conn_elem.set("Format", "inline")
@@ -1147,7 +1155,9 @@ class ConnectorObjectTypeDef(ConnectorObject):
 
         obj = newConnectorObject(self.vi, -1, obj_flags, obj_type, self.po)
         bldata.seek(pos)
-        obj.initWithRSRC(bldata, obj_len)
+        # The object length of this nested connector is 4 bytes larger than real thing.
+        # Not everyone is aiming for consistency.
+        obj.initWithRSRC(bldata, obj_len-4)
         return obj, obj_len
 
     def parseRSRCData(self, bldata):
@@ -1172,6 +1182,30 @@ class ConnectorObjectTypeDef(ConnectorObject):
         self.clients[0].nested = cli
         self.parseRSRCDataFinish(bldata)
 
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(self.flag1).to_bytes(4, byteorder='big')
+        data_buf += int(len(self.labels)).to_bytes(4, byteorder='big')
+        for label in self.labels:
+            data_buf += int(len(label)).to_bytes(1, byteorder='big')
+            data_buf += label
+        if len(self.clients) != 1:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} has unexpacted amount of clients; should have 1"\
+                  .format(self.vi.src_fname,self.index,self.otype))
+        for client in self.clients:
+            cli_data_buf = client.nested.prepareRSRCData(avoid_recompute=avoid_recompute)
+            cli_data_buf += client.nested.prepareRSRCDataFinish()
+
+            # size of nested connector is computed differently than in main connector
+            cli_data_head = int(len(cli_data_buf)+8).to_bytes(2, byteorder='big')
+            cli_data_head += int(client.nested.oflags).to_bytes(1, byteorder='big')
+            cli_data_head += int(client.nested.otype).to_bytes(1, byteorder='big')
+
+            data_buf += cli_data_head + cli_data_buf
+
+        return data_buf
+
     def expectedRSRCSize(self):
         exp_whole_len = 4
         exp_whole_len += 4 + sum((1+len(s)) for s in self.labels)
@@ -1192,7 +1226,7 @@ class ConnectorObjectTypeDef(ConnectorObject):
         obj_flags = importXMLBitfields(CONNECTOR_FLAGS, conn_subelem)
         obj = newConnectorObject(self.vi, client.index, obj_flags, obj_type, self.po)
         client.nested = obj
-        self.initWithXML(conn_subelem)
+        obj.initWithXML(conn_subelem)
         return client, i
 
     def initWithXML(self, conn_elem):
@@ -1229,22 +1263,33 @@ class ConnectorObjectTypeDef(ConnectorObject):
             ConnectorObject.initWithXML(self, conn_elem)
         pass
 
-    def DISAexportXML(self, conn_elem, fname_base):#TODO future
+    def exportXML(self, conn_elem, fname_base):
         self.parseData()
         conn_elem.text = "\n"
 
-        conn_elem.set("FuncFlags", "0x{:X}".format(self.fflags))
-        conn_elem.set("Pattern", "0x{:X}".format(self.pattern))
-        if self.padding1 != 0:
-            conn_elem.set("Padding1", "0x{:X}".format(self.padding1))
+        conn_elem.set("Flag1", "0x{:X}".format(self.flag1))
 
         for i, client in enumerate(self.clients):
             subelem = ET.SubElement(conn_elem,"Client")
             subelem.tail = "\n"
 
             subelem.set("Index", "{:d}".format(i))
+            subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(CONNECTOR_FULL_TYPE, client.nested.otype)))
             subelem.set("Nested", "True")
-            client.nested.exportXML(subelem, fname_base)
+            if self.index >= 0:
+                part_fname = "{:s}_{:04d}_cli{:02d}".format(fname_base,self.index,i)
+            else:
+                part_fname = "{:s}_cli{:02d}".format(fname_base,i)
+            client.nested.exportXML(subelem, part_fname)
+            client.nested.exportXMLFinish(subelem)
+
+        for i, label in enumerate(self.labels):
+            subelem = ET.SubElement(conn_elem,"Label")
+            subelem.tail = "\n"
+
+            subelem.set("Index", "{:d}".format(i))
+            label_text = label.decode(self.vi.textEncoding)
+            subelem.set("Text", "{:s}".format(label_text))
 
         conn_elem.set("Format", "inline")
 
@@ -1629,8 +1674,13 @@ class ConnectorObjectRef(ConnectorObject):
 
             subelem.set("Index", "{:d}".format(i))
 
+            if self.index >= 0:
+                part_fname = "{:s}_{:04d}_itm{:02d}".format(fname_base,self.index,i)
+            else:
+                part_fname = "{:s}_itm{:02d}".format(fname_base,i)
+
             if self.ref_obj is not None:
-                self.ref_obj.exportXMLItem(item, subelem, fname_base)
+                self.ref_obj.exportXMLItem(item, subelem, part_fname)
 
         for i, obj in enumerate(self.objects):
             subelem = ET.SubElement(conn_elem,"LVObject") # Export function from the object may overwrite the tag
@@ -1638,7 +1688,11 @@ class ConnectorObjectRef(ConnectorObject):
 
             subelem.set("Index", "{:d}".format(i))
 
-            part_fname = "{:s}_{:04d}".format(fname_base,i)
+            if self.index >= 0:
+                part_fname = "{:s}_{:04d}_lvo{:02d}".format(fname_base,self.index,i)
+            else:
+                part_fname = "{:s}_lvo{:02d}".format(fname_base,i)
+
             obj.exportXML(subelem, part_fname)
 
         conn_elem.set("Format", "inline")
