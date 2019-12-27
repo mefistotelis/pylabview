@@ -13,6 +13,7 @@
 
 
 import enum
+import struct
 
 from hashlib import md5
 from io import BytesIO
@@ -687,9 +688,12 @@ class ConnectorObjectNumber(ConnectorObject):
     def prepareRSRCUnitsAttr(self, avoid_recompute=False):
         data_buf = b''
         data_buf += int(len(self.values)).to_bytes(2, byteorder='big')
-        for value in self.values:
+        for i, value in enumerate(self.values):
             data_buf += int(value.intval1).to_bytes(2, byteorder='big')
             data_buf += int(value.intval2).to_bytes(2, byteorder='big')
+            if (self.po.verbose > 2):
+                print("{:s}: Connector {:d} type 0x{:02x} Units Attr {} are 0x{:02X} 0x{:02X}"\
+                  .format(self.vi.src_fname,self.index,self.otype,i,value.intval1,value.intval2))
         return data_buf
 
     def prepareRSRCData(self, avoid_recompute=False):
@@ -738,6 +742,9 @@ class ConnectorObjectNumber(ConnectorObject):
                 value.intval1 = int(subelem.get("UnitVal1"), 0)
                 value.intval2 = int(subelem.get("UnitVal2"), 0)
                 value.label = "0x{:02X}:0x{:02X}".format(value.intval1,value.intval2)
+                if (self.po.verbose > 2):
+                    print("{:s}: Connector {:d} type 0x{:02x} Units Attr {} are 0x{:02X} 0x{:02X}"\
+                      .format(self.vi.src_fname,self.index,self.otype,i,value.intval1,value.intval2))
                 # Grow the list if needed (the values may be in wrong order)
                 if i >= len(self.values):
                     self.values.extend([None] * (i - len(self.values) + 1))
@@ -2013,6 +2020,7 @@ class ConnectorObjectMeasureData(ConnectorObject):
 class ConnectorObjectFixedPoint(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
+        self.ranges = []
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
@@ -2032,26 +2040,25 @@ class ConnectorObjectFixedPoint(ConnectorObject):
         self.field1E = field1E
         self.field20 = field20
 
-        self.rangeA = None
-        self.rangeB = None
-        self.rangeI = None
-        self.rangeJ = None
-        self.rangeK = None
-        if self.rangeFormat == 0:
-            self.rangeA = struct.unpack('>d', bldata.read(8))
-            self.rangeB = struct.unpack('>d', bldata.read(8))
-            self.rangeC = struct.unpack('>d', bldata.read(8))
-        elif self.rangeFormat == 1:
-            if (self.field1E > 0x40) or (self.dataVersion > 0):
-                self.rangeI = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-                self.rangeJ = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-                self.rangeK = int.from_bytes(bldata.read(4), byteorder='big', signed=True)
-                self.rangeC = struct.unpack('>d', bldata.read(8))
-            else:
-                self.rangeA = struct.unpack('>d', bldata.read(8))
-                self.rangeB = struct.unpack('>d', bldata.read(8))
-                self.rangeC = struct.unpack('>d', bldata.read(8))
+        count = 3
+        ranges = [SimpleNamespace() for _ in range(count)]
+        for i, rang in enumerate(ranges):
+            rang.prop1 = None
+            rang.prop2 = None
+            rang.prop3 = None
+            if self.rangeFormat == 0:
+                valtup = struct.unpack('>d', bldata.read(8))
+            elif self.rangeFormat == 1:
+                if (self.field1E > 0x40) or (self.dataVersion > 0):
+                    rang.prop1 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+                    rang.prop2 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+                    rang.prop3 = int.from_bytes(bldata.read(4), byteorder='big', signed=True)
+                    valtup = struct.unpack('>d', bldata.read(8))
+                else:
+                    valtup = struct.unpack('>d', bldata.read(8))
+            rang.value = valtup[0]
             pass
+        self.ranges = ranges
         # No more data inside
         self.parseRSRCDataFinish(bldata)
 
@@ -2070,20 +2077,17 @@ class ConnectorObjectFixedPoint(ConnectorObject):
         data_buf += int(self.field1E).to_bytes(2, byteorder='big')
         data_buf += int(self.field20).to_bytes(4, byteorder='big')
 
-        if self.rangeFormat == 0:
-            data_buf += struct.pack('>d', self.rangeA)
-            data_buf += struct.pack('>d', self.rangeB)
-            data_buf += struct.pack('>d', self.rangeC)
-        elif self.rangeFormat == 1:
-            if (self.field1E > 0x40) or (self.dataVersion > 0):
-                data_buf += int(self.rangeI).to_bytes(2, byteorder='big')
-                data_buf += int(self.rangeJ).to_bytes(2, byteorder='big')
-                data_buf += int(self.rangeK).to_bytes(4, byteorder='big')
-                data_buf += struct.pack('>d', self.rangeC)
-            else:
-                data_buf += struct.pack('>d', self.rangeA)
-                data_buf += struct.pack('>d', self.rangeB)
-                data_buf += struct.pack('>d', self.rangeC)
+        for i, rang in enumerate(self.ranges):
+            if self.rangeFormat == 0:
+                data_buf += struct.pack('>d', rang.value)
+            elif self.rangeFormat == 1:
+                if (self.field1E > 0x40) or (self.dataVersion > 0):
+                    data_buf += int(rang.prop1).to_bytes(2, byteorder='big')
+                    data_buf += int(rang.prop2).to_bytes(2, byteorder='big')
+                    data_buf += int(rang.prop3).to_bytes(4, byteorder='big')
+                    data_buf += struct.pack('>d', rang.value)
+                else:
+                    data_buf += struct.pack('>d', rang.value)
             pass
         return data_buf
 
@@ -2106,36 +2110,42 @@ class ConnectorObjectFixedPoint(ConnectorObject):
             self.initWithXMLInlineStart(conn_elem)
 
 
-            self.dataVersion = int(subelem.get("DataVersion"), 0)
-            self.rangeFormat = int(subelem.get("RangeFormat"), 0)
-            self.dataEncoding = int(subelem.get("DataEncoding"), 0)
-            self.dataEndianness = int(subelem.get("DataEndianness"), 0)
-            self.dataUnit = int(subelem.get("DataUnit"), 0)
-            self.allocOv = int(subelem.get("AllocOv"), 0)
-            self.leftovFlags = int(subelem.get("LeftovFlags"), 0)
-            self.field1E = int(subelem.get("Field1E"), 0)
-            self.field20 = int(subelem.get("Field20"), 0)
+            self.dataVersion = int(conn_elem.get("DataVersion"), 0)
+            self.rangeFormat = int(conn_elem.get("RangeFormat"), 0)
+            self.dataEncoding = int(conn_elem.get("DataEncoding"), 0)
+            self.dataEndianness = int(conn_elem.get("DataEndianness"), 0)
+            self.dataUnit = int(conn_elem.get("DataUnit"), 0)
+            self.allocOv = int(conn_elem.get("AllocOv"), 0)
+            self.leftovFlags = int(conn_elem.get("LeftovFlags"), 0)
+            self.field1E = int(conn_elem.get("Field1E"), 0)
+            self.field20 = int(conn_elem.get("Field20"), 0)
 
+            self.ranges = []
             for subelem in conn_elem:
                 if (subelem.tag == "Range"):
-                    rangeA = subelem.get("A")
-                    if rangeA is not None:
-                        self.rangeA = float(rangeA)
-                    rangeB = subelem.get("B")
-                    if rangeB is not None:
-                        self.rangeB = float(rangeB)
-                    rangeC = subelem.get("C")
-                    if rangeC is not None:
-                        self.rangeC = float(rangeC)
-                    rangeI = subelem.get("I")
-                    if rangeI is not None:
-                        self.rangeI = int(rangeI, 0)
-                    rangeJ = subelem.get("J")
-                    if rangeJ is not None:
-                        self.rangeJ = int(rangeJ, 0)
-                    rangeK = subelem.get("K")
-                    if rangeK is not None:
-                        self.rangeK = int(rangeK, 0)
+                    i = int(subelem.get("Index"), 0)
+                    rang = SimpleNamespace()
+                    rang.prop1 = None
+                    rang.prop2 = None
+                    rang.prop3 = None
+
+                    prop1 = subelem.get("Prop1")
+                    if prop1 is not None:
+                        rang.prop1 = int(prop1, 0)
+                    prop2 = subelem.get("Prop2")
+                    if prop2 is not None:
+                        rang.prop2 = int(prop2, 0)
+                    prop3 = subelem.get("Prop3")
+                    if prop3 is not None:
+                        rang.prop3 = int(prop3, 0)
+                    valstr = subelem.get("Value")
+                    if valstr is not None:
+                        rang.value = float(valstr)
+
+                    # Grow the list if needed (the rangs may be in wrong order)
+                    if i >= len(self.ranges):
+                        self.ranges.extend([None] * (i - len(self.ranges) + 1))
+                    self.ranges[i] = rang
                 else:
                     raise AttributeError("Connector contains unexpected tag")
 
@@ -2160,23 +2170,22 @@ class ConnectorObjectFixedPoint(ConnectorObject):
         conn_elem.set("Field1E", "{:d}".format(self.field1E))
         conn_elem.set("Field20", "{:d}".format(self.field20))
 
-        subelem = ET.SubElement(conn_elem,"Range")
-        subelem.tail = "\n"
+        for i, rang in enumerate(self.ranges):
+            subelem = ET.SubElement(conn_elem,"Range")
+            subelem.tail = "\n"
 
-        if self.rangeFormat == 0:
-            subelem.set("A", "{:f}".format(self.rangeA))
-            subelem.set("B", "{:f}".format(self.rangeB))
-            subelem.set("C", "{:f}".format(self.rangeC))
-        elif self.rangeFormat == 1:
-            if (self.field1E > 0x40) or (self.dataVersion > 0):
-                subelem.set("I", "{:d}".format(self.rangeI))
-                subelem.set("J", "{:d}".format(self.rangeJ))
-                subelem.set("K", "{:d}".format(self.rangeK))
-                subelem.set("C", "{:f}".format(self.rangeC))
-            else:
-                subelem.set("A", "{:f}".format(self.rangeA))
-                subelem.set("B", "{:f}".format(self.rangeB))
-                subelem.set("C", "{:f}".format(self.rangeC))
+            subelem.set("Index", "{:d}".format(i))
+            if self.rangeFormat == 0:
+                subelem.set("Value", "{:g}".format(rang.value))
+            elif self.rangeFormat == 1:
+                if (self.field1E > 0x40) or (self.dataVersion > 0):
+                    subelem.set("Prop1", "{:d}".format(rang.prop1))
+                    subelem.set("Prop2", "{:d}".format(rang.prop2))
+                    subelem.set("Prop3", "{:d}".format(rang.prop3))
+                    subelem.set("Value", "{:g}".format(rang.value))
+                else:
+                    subelem.set("Value", "{:g}".format(rang.value))
+            pass
 
         conn_elem.set("Format", "inline")
 

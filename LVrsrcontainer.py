@@ -451,7 +451,7 @@ class VI():
 
         for block in all_blocks:
             if (self.po.verbose > 0):
-                print("{}: Writing RSRC Info block {} header".format(self.src_fname,bytes(block.header.ident)))
+                print("{}: Writing RSRC Info block {} header at 0x{:04X}".format(self.src_fname,bytes(block.header.ident),fh.tell()))
             if (self.po.verbose > 2):
                 print(block.header)
             if not block.header.checkSanity():
@@ -460,13 +460,13 @@ class VI():
 
         for block in all_blocks:
             if (self.po.verbose > 0):
-                print("{}: Writing RSRC Info block {} section starts".format(self.src_fname,bytes(block.header.ident)))
+                print("{}: Writing RSRC Info block {} section starts at 0x{:04X}".format(self.src_fname,bytes(block.header.ident),fh.tell()))
             for s, sect_start in enumerate(block.header.starts):
                 fh.write((c_ubyte * sizeof(sect_start)).from_buffer_copy(sect_start))
 
         # Section names as Pascal strings
         if (self.po.verbose > 0):
-            print("{}: Writing RSRC Info section names".format(self.src_fname))
+            print("{}: Writing RSRC Info section names at 0x{:04X}".format(self.src_fname,fh.tell()))
         fh.write(section_names)
 
         rsrchead.rsrc_info_offset = self.rsrc_headers[0].rsrc_info_offset
