@@ -147,6 +147,19 @@ class TAG_TYPE(enum.Enum):
     UserDefined = 5
 
 
+class NUMBER_UNIT(enum.IntEnum):
+    Radians =	0
+    Steradians =	1
+    Seconds =	2
+    Meters =	3
+    Kilograms =	4
+    Amperes =	5
+    Kelvins =	6
+    Moles =	7
+    Candelas =	8
+    Invalid =	9
+
+
 class ConnectorObject:
 
     def __init__(self, vi, idx, obj_flags, obj_type, po):
@@ -607,21 +620,87 @@ class ConnectorObjectLVVariant(ConnectorObjectVoid):
 
 class ConnectorObjectNumber(ConnectorObject):
     """ Connector with single number as data
+
+        The number can be a clear math value, but also can be physical value with
+        a specific unit, or may come from an enum with each value having a label.
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.values = []
         self.prop1 = None
+        self.padding1 = b''
+
+    def parseRSRCEnumAttr(self, bldata):
+        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        # Create _separate_ empty namespace for each connector
+        self.values = [SimpleNamespace() for _ in range(count)]
+        whole_len = 0
+        for i in range(count):
+            label_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            self.values[i].label = bldata.read(label_len)
+            self.values[i].intval1 = None
+            self.values[i].intval2 = None
+            whole_len += label_len + 1
+        if (whole_len % 2) != 0:
+            self.padding1 = bldata.read(1)
+        pass
+
+    def parseRSRCUnitsAttr(self, bldata):
+        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        # Create _separate_ empty namespace for each connector
+        self.values = [SimpleNamespace() for _ in range(count)]
+        for i in range(count):
+            intval1 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            intval2 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            self.values[i].label = "0x{:02X}:0x{:02X}".format(intval1,intval2)
+            self.values[i].intval1 = intval1
+            self.values[i].intval2 = intval2
+        pass
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
         self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+        self.padding1 = b''
+        self.values = []
+
+        if self.isEnum():
+            self.parseRSRCEnumAttr(bldata)
+
+        if self.isPhys():
+            self.parseRSRCUnitsAttr(bldata)
 
         self.prop1 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         # No more data inside
         self.parseRSRCDataFinish(bldata)
 
+    def prepareRSRCEnumAttr(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(len(self.values)).to_bytes(2, byteorder='big')
+        for value in self.values:
+            data_buf += int(len(value.label)).to_bytes(1, byteorder='big')
+            data_buf += value.label
+        if len(data_buf) % 2 > 0:
+            padding_len = 2 - (len(data_buf) % 2)
+            data_buf += (b'\0' * padding_len)
+        return data_buf
+
+    def prepareRSRCUnitsAttr(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(len(self.values)).to_bytes(2, byteorder='big')
+        for value in self.values:
+            data_buf += int(value.intval1).to_bytes(2, byteorder='big')
+            data_buf += int(value.intval2).to_bytes(2, byteorder='big')
+        return data_buf
+
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
+
+        if self.isEnum():
+            data_buf += self.prepareRSRCEnumAttr(avoid_recompute=avoid_recompute)
+
+        if self.isPhys():
+            data_buf += self.prepareRSRCUnitsAttr(avoid_recompute=avoid_recompute)
+
         data_buf += int(self.prop1).to_bytes(1, byteorder='big')
         return data_buf
 
@@ -634,6 +713,39 @@ class ConnectorObjectNumber(ConnectorObject):
             exp_whole_len += label_len
         return exp_whole_len
 
+    def initWithXMLEnumAttr(self, conn_elem):
+        for subelem in conn_elem:
+            if (subelem.tag == "Value"):
+                i = int(subelem.get("Index"), 0)
+                value = SimpleNamespace()
+                label_str = subelem.get("EnumLabel")
+                value.label = label_str.encode(self.vi.textEncoding)
+                value.intval1 = None
+                value.intval2 = None
+                # Grow the list if needed (the values may be in wrong order)
+                if i >= len(self.values):
+                    self.values.extend([None] * (i - len(self.values) + 1))
+                self.values[i] = value
+            else:
+                raise AttributeError("Connector contains unexpected tag")
+        pass
+
+    def initWithXMLUnitsAttr(self, conn_elem):
+        for subelem in conn_elem:
+            if (subelem.tag == "Value"):
+                i = int(subelem.get("Index"), 0)
+                value = SimpleNamespace()
+                value.intval1 = int(subelem.get("UnitVal1"), 0)
+                value.intval2 = int(subelem.get("UnitVal2"), 0)
+                value.label = "0x{:02X}:0x{:02X}".format(value.intval1,value.intval2)
+                # Grow the list if needed (the values may be in wrong order)
+                if i >= len(self.values):
+                    self.values.extend([None] * (i - len(self.values) + 1))
+                self.values[i] = value
+            else:
+                raise AttributeError("Connector contains unexpected tag")
+        pass
+
     def initWithXML(self, conn_elem):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
@@ -643,6 +755,13 @@ class ConnectorObjectNumber(ConnectorObject):
 
             self.initWithXMLInlineStart(conn_elem)
             self.prop1 = int(conn_elem.get("Prop1"), 0)
+            self.padding1 = b''
+            self.values = []
+
+            if self.isEnum():
+                self.initWithXMLEnumAttr(conn_elem)
+            if self.isPhys():
+                self.initWithXMLUnitsAttr(conn_elem)
 
             self.updateData(avoid_recompute=True)
 
@@ -650,25 +769,79 @@ class ConnectorObjectNumber(ConnectorObject):
             ConnectorObject.initWithXML(self, conn_elem)
         pass
 
+    def exportXMLEnumAttr(self, conn_elem, fname_base):
+        for i, value in enumerate(self.values):
+            subelem = ET.SubElement(conn_elem,"Value")
+            subelem.tail = "\n"
+
+            subelem.set("Index", "{:d}".format(i))
+            label_str = value.label.decode(self.vi.textEncoding)
+            subelem.set("EnumLabel", label_str)
+        pass
+
+    def exportXMLUnitsAttr(self, conn_elem, fname_base):
+        for i, value in enumerate(self.values):
+            subelem = ET.SubElement(conn_elem,"Value")
+            subelem.tail = "\n"
+
+            subelem.set("Index", "{:d}".format(i))
+            subelem.set("UnitVal1", "{:d}".format(value.intval1))
+            subelem.set("UnitVal2", "{:d}".format(value.intval2))
+        pass
+
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
         conn_elem.set("Prop1", "{:d}".format(self.prop1))
+        if len(self.values) > 0:
+            conn_elem.text = "\n"
+        if self.isEnum():
+            self.exportXMLEnumAttr(conn_elem, fname_base)
+        if self.isPhys():
+            self.exportXMLUnitsAttr(conn_elem, fname_base)
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
         ret = True
         if (self.prop1 != 0):
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 {:d}, expected {:d}"\
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02X} property1 {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,self.prop1,0))
+            ret = False
+        if (self.isEnum() or self.isPhys()):
+            if len(self.values) < 1:
+                if (self.po.verbose > 1):
+                    eprint("{:s}: Warning: Connector {:d} type 0x{:02X} has empty values list"\
+                      .format(self.vi.src_fname,self.index,self.otype))
+                ret = False
+        if len(self.padding1) > 0 and (self.padding1 != b'\0'):
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02X} padding1 {}, expected zeros"\
+                  .format(self.vi.src_fname,self.index,self.otype,self.padding1))
             ret = False
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02X} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
+
+    def isEnum(self):
+        return self.fullType() in [
+          CONNECTOR_FULL_TYPE.UnitUInt8,
+          CONNECTOR_FULL_TYPE.UnitUInt16,
+          CONNECTOR_FULL_TYPE.UnitUInt32,
+        ]
+
+    def isPhys(self):
+        return self.fullType() in [
+          CONNECTOR_FULL_TYPE.UnitFloat32,
+          CONNECTOR_FULL_TYPE.UnitFloat64,
+          CONNECTOR_FULL_TYPE.UnitFloatExt,
+          CONNECTOR_FULL_TYPE.UnitComplex64,
+          CONNECTOR_FULL_TYPE.UnitComplex128,
+          CONNECTOR_FULL_TYPE.UnitComplexExt,
+        ]
 
 
 class ConnectorObjectCString(ConnectorObjectVoid):
@@ -1444,59 +1617,6 @@ class ConnectorObjectArray(ConnectorObject):
         return ret
 
 
-class ConnectorObjectUnit(ConnectorObject):
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.values = []
-        self.prop1 = None
-        self.padding1 = None
-
-    def parseRSRCData(self, bldata):
-        # Fields oflags,otype are set at constructor, but no harm in setting them again
-        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
-
-        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False) # unit/item count
-
-        isTextEnum = False
-        if self.fullType() in [ CONNECTOR_FULL_TYPE.NumUInt8, CONNECTOR_FULL_TYPE.NumUInt16, CONNECTOR_FULL_TYPE.NumUInt32 ]:
-            isTextEnum = True
-
-        pos = bldata.tell() #TODO remove when we know end of the data
-        # Create _separate_ empty namespace for each connector
-        self.values = [SimpleNamespace() for _ in range(count)]
-        for i in range(count):
-            if isTextEnum:
-                label_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-                self.values[i].label = bldata.read(label_len)
-                self.values[i].intval = None
-                self.values[i].size = label_len + 1
-            else:
-                label_val = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-                self.values[i].label = "0x{:X}".format(label_val)
-                self.values[i].intval = label_val
-                self.values[i].size = 4
-            self.values[i].otype = CONNECTOR_FULL_TYPE.EnumValue
-            self.values[i].index = i
-        if (bldata.tell() % 2) != 0:
-            self.padding1 = bldata.read(1)
-        else:
-            self.padding1 = None
-        self.prop1 = int.from_bytes(bldata.read(1), byteorder='big', signed=False) # Unknown
-        bldata.seek(pos) #TODO backing a bit to make sure label won't be skipped - remove when everything is parsed properly
-        self.parseRSRCDataFinish(bldata)
-
-    def checkSanity(self):
-        ret = True
-        if (self.padding1 is not None) and (self.padding1 != b'\0'):
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Unit {:d} type 0x{:02x} padding1 {}, expected zeros"\
-                  .format(self.vi.src_fname,self.index,self.otype,self.padding1))
-            ret = False
-        if len(self.values) < 1:
-            ret = False
-        return ret
-
-
 class ConnectorObjectRepeatedBlock(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
@@ -1897,7 +2017,7 @@ def newConnectorObject(vi, idx, obj_flags, obj_type, po):
     ctor = {
         CONNECTOR_FULL_TYPE.Void: ConnectorObjectVoid,
         #CONNECTOR_FULL_TYPE.Num*: ConnectorObjectNumber, # Handled by main type
-        #CONNECTOR_FULL_TYPE.Unit*: ConnectorObjectUnit, # Handled by main type
+        #CONNECTOR_FULL_TYPE.Unit*: ConnectorObjectNumber, # Handled by main type
         #CONNECTOR_FULL_TYPE.Boolean*: ConnectorObjectBool, # Handled by main type
         CONNECTOR_FULL_TYPE.String: ConnectorObjectBlob,
         CONNECTOR_FULL_TYPE.Path: ConnectorObjectBlob,
@@ -1929,7 +2049,7 @@ def newConnectorObject(vi, idx, obj_flags, obj_type, po):
         obj_main_type = obj_type >> 4
         ctor = {
             CONNECTOR_MAIN_TYPE.Number: ConnectorObjectNumber,
-            CONNECTOR_MAIN_TYPE.Unit: ConnectorObjectUnit,
+            CONNECTOR_MAIN_TYPE.Unit: ConnectorObjectNumber,
             CONNECTOR_MAIN_TYPE.Bool: ConnectorObjectBool,
             CONNECTOR_MAIN_TYPE.Blob: ConnectorObject,
             CONNECTOR_MAIN_TYPE.Array: ConnectorObjectArray,
