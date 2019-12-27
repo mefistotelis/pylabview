@@ -2010,6 +2010,192 @@ class ConnectorObjectMeasureData(ConnectorObject):
         return CONNECTOR_CLUSTER_FORMAT(self.clusterFmt)
 
 
+class ConnectorObjectFixedPoint(ConnectorObject):
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        # Fields oflags,otype are set at constructor, but no harm in setting them again
+        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+
+        field1C = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        field1E = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        field20 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+        self.dataVersion = (field1C) & 0x0F
+        self.rangeFormat = (field1C >> 4) & 0x03
+        self.dataEncoding = (field1C >> 6) & 0x01
+        self.dataEndianness = (field1C >> 7) & 0x01
+        self.dataUnit = (field1C >> 8) & 0x07
+        self.allocOv = (field1C >> 11) & 0x01
+        self.leftovFlags = (field1C >> 8) & 0xF6
+        self.field1E = field1E
+        self.field20 = field20
+
+        self.rangeA = None
+        self.rangeB = None
+        self.rangeI = None
+        self.rangeJ = None
+        self.rangeK = None
+        if self.rangeFormat == 0:
+            self.rangeA = struct.unpack('>d', bldata.read(8))
+            self.rangeB = struct.unpack('>d', bldata.read(8))
+            self.rangeC = struct.unpack('>d', bldata.read(8))
+        elif self.rangeFormat == 1:
+            if (self.field1E > 0x40) or (self.dataVersion > 0):
+                self.rangeI = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+                self.rangeJ = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+                self.rangeK = int.from_bytes(bldata.read(4), byteorder='big', signed=True)
+                self.rangeC = struct.unpack('>d', bldata.read(8))
+            else:
+                self.rangeA = struct.unpack('>d', bldata.read(8))
+                self.rangeB = struct.unpack('>d', bldata.read(8))
+                self.rangeC = struct.unpack('>d', bldata.read(8))
+            pass
+        # No more data inside
+        self.parseRSRCDataFinish(bldata)
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+
+        field1C = \
+          ((self.dataVersion & 0x0F)) | \
+          ((self.rangeFormat & 0x03) << 4) | \
+          ((self.dataEncoding & 0x01) << 6) | \
+          ((self.dataEndianness & 0x01) << 7) | \
+          ((self.dataUnit & 0x07) << 8) | \
+          ((self.allocOv & 0x01) << 11) | \
+          ((self.leftovFlags & 0xF6) << 8)
+        data_buf += int(field1C).to_bytes(2, byteorder='big')
+        data_buf += int(self.field1E).to_bytes(2, byteorder='big')
+        data_buf += int(self.field20).to_bytes(4, byteorder='big')
+
+        if self.rangeFormat == 0:
+            data_buf += struct.pack('>d', self.rangeA)
+            data_buf += struct.pack('>d', self.rangeB)
+            data_buf += struct.pack('>d', self.rangeC)
+        elif self.rangeFormat == 1:
+            if (self.field1E > 0x40) or (self.dataVersion > 0):
+                data_buf += int(self.rangeI).to_bytes(2, byteorder='big')
+                data_buf += int(self.rangeJ).to_bytes(2, byteorder='big')
+                data_buf += int(self.rangeK).to_bytes(4, byteorder='big')
+                data_buf += struct.pack('>d', self.rangeC)
+            else:
+                data_buf += struct.pack('>d', self.rangeA)
+                data_buf += struct.pack('>d', self.rangeB)
+                data_buf += struct.pack('>d', self.rangeC)
+            pass
+        return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 4 + 2 + 2
+        if self.label is not None:
+            label_len = 1 + len(self.label)
+            if label_len % 2 > 0: # Include padding
+                label_len += 2 - (label_len % 2)
+            exp_whole_len += label_len
+        return exp_whole_len
+
+    def initWithXML(self, conn_elem):
+        fmt = conn_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.index,self.otype))
+
+            self.initWithXMLInlineStart(conn_elem)
+
+
+            self.dataVersion = int(subelem.get("DataVersion"), 0)
+            self.rangeFormat = int(subelem.get("RangeFormat"), 0)
+            self.dataEncoding = int(subelem.get("DataEncoding"), 0)
+            self.dataEndianness = int(subelem.get("DataEndianness"), 0)
+            self.dataUnit = int(subelem.get("DataUnit"), 0)
+            self.allocOv = int(subelem.get("AllocOv"), 0)
+            self.leftovFlags = int(subelem.get("LeftovFlags"), 0)
+            self.field1E = int(subelem.get("Field1E"), 0)
+            self.field20 = int(subelem.get("Field20"), 0)
+
+            for subelem in conn_elem:
+                if (subelem.tag == "Range"):
+                    rangeA = subelem.get("A")
+                    if rangeA is not None:
+                        self.rangeA = float(rangeA)
+                    rangeB = subelem.get("B")
+                    if rangeB is not None:
+                        self.rangeB = float(rangeB)
+                    rangeC = subelem.get("C")
+                    if rangeC is not None:
+                        self.rangeC = float(rangeC)
+                    rangeI = subelem.get("I")
+                    if rangeI is not None:
+                        self.rangeI = int(rangeI, 0)
+                    rangeJ = subelem.get("J")
+                    if rangeJ is not None:
+                        self.rangeJ = int(rangeJ, 0)
+                    rangeK = subelem.get("K")
+                    if rangeK is not None:
+                        self.rangeK = int(rangeK, 0)
+                else:
+                    raise AttributeError("Connector contains unexpected tag")
+
+            self.updateData(avoid_recompute=True)
+
+        else:
+            ConnectorObject.initWithXML(self, conn_elem)
+        pass
+
+    def exportXML(self, conn_elem, fname_base):
+        self.parseData()
+
+        conn_elem.text = "\n"
+
+        conn_elem.set("DataVersion", "{:d}".format(self.dataVersion))
+        conn_elem.set("RangeFormat", "{:d}".format(self.rangeFormat))
+        conn_elem.set("DataEncoding", "{:d}".format(self.dataEncoding))
+        conn_elem.set("DataEndianness", "{:d}".format(self.dataEndianness))
+        conn_elem.set("DataUnit", "{:d}".format(self.dataUnit))
+        conn_elem.set("AllocOv", "{:d}".format(self.allocOv))
+        conn_elem.set("LeftovFlags", "{:d}".format(self.leftovFlags))
+        conn_elem.set("Field1E", "{:d}".format(self.field1E))
+        conn_elem.set("Field20", "{:d}".format(self.field20))
+
+        subelem = ET.SubElement(conn_elem,"Range")
+        subelem.tail = "\n"
+
+        if self.rangeFormat == 0:
+            subelem.set("A", "{:f}".format(self.rangeA))
+            subelem.set("B", "{:f}".format(self.rangeB))
+            subelem.set("C", "{:f}".format(self.rangeC))
+        elif self.rangeFormat == 1:
+            if (self.field1E > 0x40) or (self.dataVersion > 0):
+                subelem.set("I", "{:d}".format(self.rangeI))
+                subelem.set("J", "{:d}".format(self.rangeJ))
+                subelem.set("K", "{:d}".format(self.rangeK))
+                subelem.set("C", "{:f}".format(self.rangeC))
+            else:
+                subelem.set("A", "{:f}".format(self.rangeA))
+                subelem.set("B", "{:f}".format(self.rangeB))
+                subelem.set("C", "{:f}".format(self.rangeC))
+
+        conn_elem.set("Format", "inline")
+
+    def checkSanity(self):
+        ret = True
+        if len(self.clients) > 500:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} has {:d} clients, expected below {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.clients),500+1))
+            ret = False
+        exp_whole_len = self.expectedRSRCSize()
+        if len(self.raw_data) != exp_whole_len:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
+            ret = False
+        return ret
+
+
 def newConnectorObject(vi, idx, obj_flags, obj_type, po):
     """ Creates and returns new terminal object with given parameters
     """
@@ -2030,8 +2216,8 @@ def newConnectorObject(vi, idx, obj_flags, obj_type, po):
         CONNECTOR_FULL_TYPE.Cluster: ConnectorObjectCluster,
         CONNECTOR_FULL_TYPE.LVVariant: ConnectorObjectLVVariant,
         CONNECTOR_FULL_TYPE.MeasureData: ConnectorObjectMeasureData,
-        #CONNECTOR_FULL_TYPE.ComplexFixedPt: ConnectorObjectCluster,
-        #CONNECTOR_FULL_TYPE.FixedPoint: ConnectorObjectCluster,
+        CONNECTOR_FULL_TYPE.ComplexFixedPt: ConnectorObjectFixedPoint,
+        CONNECTOR_FULL_TYPE.FixedPoint: ConnectorObjectFixedPoint,
         #CONNECTOR_FULL_TYPE.Block: ConnectorObjectBlock,
         #CONNECTOR_FULL_TYPE.TypeBlock: ConnectorObjectTypeBlock,
         #CONNECTOR_FULL_TYPE.VoidBlock: ConnectorObjectVoidBlock,
