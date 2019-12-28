@@ -2335,7 +2335,7 @@ def newConnectorObject(vi, idx, obj_flags, obj_type, po):
         CONNECTOR_FULL_TYPE.MeasureData: ConnectorObjectMeasureData,
         CONNECTOR_FULL_TYPE.ComplexFixedPt: ConnectorObjectFixedPoint,
         CONNECTOR_FULL_TYPE.FixedPoint: ConnectorObjectFixedPoint,
-        #CONNECTOR_FULL_TYPE.Block: ConnectorObjectBlock,
+        CONNECTOR_FULL_TYPE.Block: ConnectorObjectBlob,
         CONNECTOR_FULL_TYPE.TypeBlock: ConnectorObjectSingleContainer,
         CONNECTOR_FULL_TYPE.VoidBlock: ConnectorObjectSingleContainer,
         CONNECTOR_FULL_TYPE.AlignedBlock: ConnectorObjectRepeatedBlock,
@@ -2345,7 +2345,7 @@ def newConnectorObject(vi, idx, obj_flags, obj_type, po):
         CONNECTOR_FULL_TYPE.PtrTo: ConnectorObjectSingleContainer,
         CONNECTOR_FULL_TYPE.Function: ConnectorObjectFunction,
         CONNECTOR_FULL_TYPE.TypeDef: ConnectorObjectTypeDef,
-        #CONNECTOR_FULL_TYPE.PolyVI: ConnectorObjectPolyVI,
+        CONNECTOR_FULL_TYPE.PolyVI: ConnectorObjectBlob,
     }.get(obj_type, None)
     if ctor is None:
         # If no specific constructor - go by general type
