@@ -1634,7 +1634,7 @@ class ConnectorObjectRepeatedBlock(ConnectorObject):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
         self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
 
-        self.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False) # block data size?
         self.prop2 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         # No more known data inside
         self.parseRSRCDataFinish(bldata)
@@ -2313,7 +2313,6 @@ class ConnectorObjectSingleContainer(ConnectorObject):
         return ret
 
 
-
 def newConnectorObject(vi, idx, obj_flags, obj_type, po):
     """ Creates and returns new terminal object with given parameters
     """
@@ -2339,7 +2338,7 @@ def newConnectorObject(vi, idx, obj_flags, obj_type, po):
         #CONNECTOR_FULL_TYPE.Block: ConnectorObjectBlock,
         CONNECTOR_FULL_TYPE.TypeBlock: ConnectorObjectSingleContainer,
         CONNECTOR_FULL_TYPE.VoidBlock: ConnectorObjectSingleContainer,
-        #CONNECTOR_FULL_TYPE.AlignedBlock: ConnectorObjectAlignedBlock,
+        CONNECTOR_FULL_TYPE.AlignedBlock: ConnectorObjectRepeatedBlock,
         CONNECTOR_FULL_TYPE.RepeatedBlock: ConnectorObjectRepeatedBlock,
         CONNECTOR_FULL_TYPE.AlignmntMarker: ConnectorObjectSingleContainer,
         CONNECTOR_FULL_TYPE.Ptr: ConnectorObjectNumberPtr,
