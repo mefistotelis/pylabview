@@ -2204,6 +2204,115 @@ class ConnectorObjectFixedPoint(ConnectorObject):
             ret = False
         return ret
 
+class ConnectorObjectSingleContainer(ConnectorObject):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.prop1 = 0
+        self.clients = []
+
+    def parseRSRCData(self, bldata):
+        # Fields oflags,otype are set at constructor, but no harm in setting them again
+        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+
+        self.clients = []
+        if True:
+            client = SimpleNamespace()
+            client.index = readVariableSizeField(bldata)
+            client.flags = 0
+            self.clients.append(client)
+
+        # No more data inside
+        self.parseRSRCDataFinish(bldata)
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        for client in self.clients:
+            data_buf += prepareVariableSizeField(client.index)
+            break # only one client is supported
+
+        return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 0
+        for client in self.clients:
+            exp_whole_len += ( 2 if (client.index <= 0x7fff) else 4 )
+            break # only one client is valid
+        return exp_whole_len
+
+    def initWithXML(self, conn_elem):
+        fmt = conn_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.index,self.otype))
+
+            self.initWithXMLInlineStart(conn_elem)
+            self.clients = []
+            for subelem in conn_elem:
+                if (subelem.tag == "Client"):
+                    client = SimpleNamespace()
+                    i = int(subelem.get("Index"), 0)
+                    client.index = int(subelem.get("ConnectorIndex"), 0)
+                    client.flags = int(subelem.get("Flags"), 0)
+                    # Grow the list if needed (the clients may be in wrong order)
+                    if i >= len(self.clients):
+                        self.clients.extend([None] * (i - len(self.clients) + 1))
+                    self.clients[i] = client
+                else:
+                    raise AttributeError("Connector contains unexpected tag")
+
+            self.updateData(avoid_recompute=True)
+
+        else:
+            ConnectorObject.initWithXML(self, conn_elem)
+        pass
+
+    def exportXML(self, conn_elem, fname_base):
+        self.parseData()
+        conn_elem.text = "\n"
+
+        for i, client in enumerate(self.clients):
+            subelem = ET.SubElement(conn_elem,"Client")
+            subelem.tail = "\n"
+
+            subelem.set("Index", "{:d}".format(i))
+            subelem.set("ConnectorIndex", str(client.index))
+            subelem.set("Flags", "0x{:04X}".format(client.flags))
+
+        conn_elem.set("Format", "inline")
+
+    def checkSanity(self):
+        ret = True
+        if (len(self.clients) != 1):
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} clients count {:d}, expected exactly {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.clients),1))
+            ret = False
+        VCTP = self.vi.get('VCTP')
+        if VCTP is not None:
+            for i, client in enumerate(self.clients):
+                if client.index == -1: # Special case this is how we mark nested client
+                    if client.nested is None:
+                        if (self.po.verbose > 1):
+                            eprint("{:s}: Warning: Connector {:d} nested client {:d} does not exist"\
+                              .format(self.vi.src_fname,self.index,i))
+                        ret = False
+                else:
+                    if client.index >= len(VCTP.content):
+                        if (self.po.verbose > 1):
+                            eprint("{:s}: Warning: Connector {:d} client {:d} references outranged connector {:d}"\
+                              .format(self.vi.src_fname,self.index,i,client.index))
+                        ret = False
+                pass
+        exp_whole_len = self.expectedRSRCSize()
+        if len(self.raw_data) != exp_whole_len:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
+            ret = False
+        return ret
+
+
 
 def newConnectorObject(vi, idx, obj_flags, obj_type, po):
     """ Creates and returns new terminal object with given parameters
@@ -2228,13 +2337,13 @@ def newConnectorObject(vi, idx, obj_flags, obj_type, po):
         CONNECTOR_FULL_TYPE.ComplexFixedPt: ConnectorObjectFixedPoint,
         CONNECTOR_FULL_TYPE.FixedPoint: ConnectorObjectFixedPoint,
         #CONNECTOR_FULL_TYPE.Block: ConnectorObjectBlock,
-        #CONNECTOR_FULL_TYPE.TypeBlock: ConnectorObjectTypeBlock,
-        #CONNECTOR_FULL_TYPE.VoidBlock: ConnectorObjectVoidBlock,
+        CONNECTOR_FULL_TYPE.TypeBlock: ConnectorObjectSingleContainer,
+        CONNECTOR_FULL_TYPE.VoidBlock: ConnectorObjectSingleContainer,
         #CONNECTOR_FULL_TYPE.AlignedBlock: ConnectorObjectAlignedBlock,
         CONNECTOR_FULL_TYPE.RepeatedBlock: ConnectorObjectRepeatedBlock,
-        #CONNECTOR_FULL_TYPE.AlignmntMarker: ConnectorObjectAlignmntMarker,
+        CONNECTOR_FULL_TYPE.AlignmntMarker: ConnectorObjectSingleContainer,
         CONNECTOR_FULL_TYPE.Ptr: ConnectorObjectNumberPtr,
-        #CONNECTOR_FULL_TYPE.PtrTo: ConnectorObjectNumberPtr,
+        CONNECTOR_FULL_TYPE.PtrTo: ConnectorObjectSingleContainer,
         CONNECTOR_FULL_TYPE.Function: ConnectorObjectFunction,
         CONNECTOR_FULL_TYPE.TypeDef: ConnectorObjectTypeDef,
         #CONNECTOR_FULL_TYPE.PolyVI: ConnectorObjectPolyVI,
