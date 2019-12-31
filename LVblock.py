@@ -108,6 +108,21 @@ class Section(object):
         self.name_text = None
 
 
+class HeapNode(object):
+    def __init__(self, vi, po, TreePos, tagType):
+        """ Creates new Section object, represention one of possible contents of a Block.
+
+        Support of a section is mostly implemented in Block, so there isn't much here.
+        """
+        self.vi = vi
+        self.po = po
+        self.propertyCount = 0
+        self.parent = TreePos
+        self.Data_Position = -1#DataPos
+        self.tagType = tagType
+        self.childs = []
+
+
 class Block(object):
     """ Generic block
     """
@@ -815,7 +830,7 @@ class MUID(SingleIntBlock):
 
 
 class FPSE(SingleIntBlock):
-    """ Front Panel SE
+    """ Front Panel Size Estimate
     """
     def createSection(self):
         section = super().createSection()
@@ -839,7 +854,7 @@ class FPTD(SingleIntBlock):
 
 
 class BDSE(SingleIntBlock):
-    """ Block Diagram SE
+    """ Block Diagram Size Estimate
     """
     def createSection(self):
         section = super().createSection()
@@ -2257,8 +2272,10 @@ class FPH(Block):
         super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
     def getContent(self):
-        self.parseData()
-        return self.content
+        bldata = self.getData()
+        content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        content = bldata.read(content_len)
+        return content
 
 FPHc = FPHb = FPH
 
