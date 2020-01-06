@@ -12,6 +12,7 @@
 
 
 import enum
+import re
 
 from hashlib import md5
 from io import BytesIO
@@ -19,8 +20,10 @@ from types import SimpleNamespace
 from ctypes import *
 
 import LVconnector
+import LVmisc
+from LVmisc import eprint
 
-class HEAP_FORMAT(enum.IntEnum):
+class HEAP_FORMAT(enum.Enum):
     """ Heap storage formats
     """
     Unknown = 0
@@ -31,7 +34,7 @@ class HEAP_FORMAT(enum.IntEnum):
     BinVerC = 5
 
 
-class NODE_SCOPE(enum.Enum):
+class NODE_SCOPE(enum.IntEnum):
     """ Heap node scope
     """
     TagOpen = 0 # Opening of a tag
@@ -699,11 +702,155 @@ class HeapNode(object):
         self.tagId = tagId
         self.scopeInfo = scopeInfo
         self.childs = []
+        self.raw_data = None
+        # Whether RAW data has been updated and RSRC parsing is required to update properties
+        self.raw_data_updated = False
+        # Whether any properties have been updated and preparation of new RAW data is required
+        self.parsed_data_updated = False
 
     def getScopeInfo(self):
         if self.scopeInfo not in set(item.value for item in NODE_SCOPE):
             return self.scopeInfo
         return NODE_SCOPE(self.scopeInfo)
+
+    def parseRSRCData(self, bldata, hasAttrList, sizeSpec):
+        attribs = []
+        if hasAttrList != 0:
+            count = LVmisc.readVariableSizeFieldU124(bldata)
+
+            if (self.po.verbose > 2):
+                print("{:s}: Heap Container start id=0x{:02X} scopeInfo={:d} sizeSpec={:d} attrCount={:d}"\
+                  .format(self.vi.src_fname, self.tagId, self.scopeInfo, sizeSpec, count))
+            attribs = [SimpleNamespace() for _ in range(count)]
+            for attr in attribs:
+                attr.atType = LVmisc.readVariableSizeFieldS124(bldata)
+                attr.atVal = LVmisc.readVariableSizeFieldS24(bldata)
+        else:
+            if (self.po.verbose > 2):
+                print("{:s}: Heap Container id=0x{:02X} scopeInfo={:d} sizeSpec={:d} noAttr"\
+                  .format(self.vi.src_fname, self.tagId, self.scopeInfo, sizeSpec))
+
+        # Read size of data, unless sizeSpec identifies the size completely
+        dataSize = 0;
+        if sizeSpec == 0 or sizeSpec == 7: # bool data
+            dataSize = 0
+        elif sizeSpec <= 4:
+            dataSize = sizeSpec
+        elif sizeSpec == 6:
+            dataSize = LVmisc.readVariableSizeFieldU124(bldata)
+        else:
+            dataSize = 0
+            eprint("{:s}: Warning: Unexpected value of SizeSpec={:d} on heap"\
+              .format(self.vi.src_fname, sizeSpec))
+
+        data = None
+        if dataSize > 0:
+            data = bldata.read(dataSize)
+        elif sizeSpec == 0:
+            data = False
+        elif sizeSpec == 7:
+            data = True
+
+        self.properties = attribs
+        self.data = data
+
+    def getData(self):
+        bldata = BytesIO(self.raw_data)
+        return bldata
+
+    def setData(self, data_buf, incomplete=False):
+        self.raw_data = data_buf
+        self.size = len(self.raw_data)
+        if not incomplete:
+            self.raw_data_updated = True
+
+    def updateData(self, avoid_recompute=False):
+
+        if avoid_recompute and self.raw_data_updated:
+            return # If we have strong raw data, and new one will be weak, then leave the strong buffer
+
+        data_buf = b''
+
+        hasAttrList = 1 if len(self.properties) > 0 else 0
+
+        if hasAttrList != 0:
+            data_buf += LVmisc.prepareVariableSizeFieldU124(len(self.properties))
+            for attr in self.properties:
+                data_buf += LVmisc.prepareVariableSizeFieldS124(attr.atType)
+                data_buf += LVmisc.prepareVariableSizeFieldS24(attr.atVal)
+
+        if self.data is None:
+            sizeSpec = 0
+        elif isinstance(self.data, bool):
+            if self.data == True:
+                sizeSpec = 7
+            else:
+                sizeSpec = 0
+        elif isinstance(self.data, bytes):
+            if len(self.data) <= 4:
+                sizeSpec = len(self.data)
+            else:
+                sizeSpec = 6
+        else:
+            eprint("{:s}: Warning: Unexpected type of data on heap"\
+              .format(self.vi.src_fname))
+
+        if sizeSpec == 6:
+            data_buf += LVmisc.prepareVariableSizeFieldU124(len(self.data))
+
+        if sizeSpec in [1,2,3,4,6]:
+            data_buf += self.data
+
+        if (self.po.verbose > 2):
+            print("{:s}: Heap Container id=0x{:02X} scopeInfo={:d} sizeSpec={:d} attrCount={:d}"\
+              .format(self.vi.src_fname, self.tagId, self.scopeInfo, sizeSpec, len(self.properties)))
+
+        if (self.tagId + 31) < 1023:
+            rawTagId = self.tagId + 31
+        else:
+            rawTagId = 1023
+
+        data_head = bytearray(2)
+        data_head[0] = ((sizeSpec & 7) << 5) | ((hasAttrList & 1) << 4) | ((self.scopeInfo & 3) << 2) | ((rawTagId >> 8) & 3)
+        data_head[1] = (rawTagId & 0xFF)
+        if rawTagId == 1023:
+            data_head += int(self.tagId).to_bytes(4, byteorder='big', signed=True)
+
+        self.setData(data_head+data_buf, incomplete=avoid_recompute)
+
+    def initWithXML(self, elem):
+        attribs = []
+        for name, value in elem.attrib.items():
+            attr = SimpleNamespace()
+
+            if name in ["ScopeInfo"]: # TODO compute scopeInfo instead of reading XML
+                scopeInfo = int(value, 0)
+                self.scopeInfo = scopeInfo
+                continue
+            elif "SL__"+name in SL_SYSTEM_ATTRIB_TAGS.__members__:
+                propId = SL_SYSTEM_ATTRIB_TAGS["SL__"+name].value
+            else:
+                nameParse = re.match("^Prop([0-9A-F]{4,8})$", name)
+                if nameParse is not None:
+                    propId = int(nameParse[1], 16)
+                else:
+                    raise AttributeError("Unrecognized attrib in heap XML, '{}'".format(name))
+            attr.atType = propId
+            attr.atVal = int(value, 0)
+            attribs.append(attr)
+        self.properties = attribs
+
+        data = None
+        if elem.text is not None:
+            tagData = elem.text.strip()
+            if tagData == "":
+                pass # no data
+            elif tagData in ["True", "False"]:
+                data = (tagData == "True")
+            else:
+                data = bytes.fromhex(tagData)
+        self.data = data
+        pass
 
 
 def getFrontPanelHeapIdent(hfmt):
@@ -728,4 +875,35 @@ def recognizePanelHeapFmtFromIdent(heap_ident):
         if len(curr_heap_id) > 0 and (curr_heap_id == heap_id):
             return hfmt
     return HEAP_FORMAT.Unknown
+
+def createObjectNode(vi, po, tagId, scopeInfo):
+    """ create new Heap Node
+
+    Acts as a factory which selects object class based on tagId.
+    """
+    if isinstance(tagId, str):
+        if tagId in SL_SYSTEM_TAGS.__members__:
+            tagId = SL_SYSTEM_TAGS[tagId].value
+        elif "OF__"+tagId in OBJ_FIELD_TAGS.__members__:
+            tagId = OBJ_FIELD_TAGS["OF__"+tagId].value
+        else:
+            tagParse = re.match("^Tag([0-9A-F]{4,8})$", tagId)
+            if tagParse is not None:
+                tagId = int(tagParse[1], 16)
+            else:
+                raise AttributeError("Unrecognized tag in heap XML, '{}'".format(tagId))
+    obj = HeapNode(vi, po, None, tagId, scopeInfo)
+    return obj
+
+def addObjectNodeToTree(section, parentIdx, objectIdx):
+    """ put object node into tree struct
+    """
+    obj = section.objects[objectIdx]
+    # Add node to parent
+    if parentIdx > 0:
+        parent = section.objects[parentIdx]
+        parent.childs.append(objectIdx)
+    else:
+        parent = None
+    obj.parent = parent
 

@@ -2241,30 +2241,11 @@ class FPH(Block):
     """
     def __init__(self, *args):
         super().__init__(*args)
-        self.objects = []
 
     def createSection(self):
         section = super().createSection()
+        section.objects = []
         return section
-
-    def createObjectNode(self, tagId, scopeInfo):
-        """ create new Node
-        """
-        obj = LVheap.HeapNode(self.vi, self.po, None, tagId, scopeInfo)
-        self.objects.append(obj)
-        return obj
-
-    def addObjectNodeToTree(self, parentIdx, objectIdx):
-        """ put object node into tree struct
-        """
-        obj = self.objects[objectIdx]
-        # Add node to parent
-        if parentIdx > 0:
-          parent = self.objects[parentIdx]
-          parent.childs.append(objectIdx)
-        else:
-          parent = None
-        obj.parent = parent
 
     def parseRSRCHeap(self, section, bldata):
         startPos = bldata.tell()
@@ -2280,67 +2261,102 @@ class FPH(Block):
         else:
             tagId = tagId - 31
 
-        attribs = []
-        if hasAttrList != 0:
-            # Container Start: [ <object> ]
-            count = readVariableSizeFieldU124(bldata)
+        obj = LVheap.createObjectNode(self.vi, self.po, tagId, scopeInfo)
+        section.objects.append(obj)
+        obj.parseRSRCData(bldata, hasAttrList, sizeSpec)
+        dataLen = bldata.tell() - startPos
 
-            if (self.po.verbose > 2):
-                print("{:s}: Block {} Container start id=0x{:02X} scopeInfo=0x{:02X} sizeSpec={:d} attrCount={:d}"\
-                  .format(self.vi.src_fname, self.ident, tagId, scopeInfo, sizeSpec, count))
-            attribs = [SimpleNamespace() for _ in range(count)]
-            for attr in attribs:
-                attr.atType = readVariableSizeFieldS124(bldata)
-                attr.atVal = readVariableSizeFieldS24(bldata)
-        else:
-            if (self.po.verbose > 2):
-                print("{:s}: Block {} Container id=0x{:02X} scopeInfo=0x{:02X} sizeSpec={:d} noAttr"\
-                  .format(self.vi.src_fname, self.ident, tagId, scopeInfo, sizeSpec))
+        # TODO Should we re-read the bytes and set raw data inside the obj?
+        #bldata.seek(startPos)
+        #dataBuf = bldata.read(dataLen)
 
-        # Read size of data, unless sizeSpec identifies the size completely
-        dataSize = 0;
-        if sizeSpec == 0 or sizeSpec == 7: # bool data
-            dataSize = 0
-        elif sizeSpec <= 4:
-            dataSize = sizeSpec
-        elif sizeSpec == 6:
-            dataSize = readVariableSizeFieldU124(bldata)
-        else:
-            dataSize = 0
-            eprint("{:s}: Warning: Unexpected value of SizeSpec={:d} on heap"\
-              .format(self.vi.src_fname, sizeSpec))
-
-        data = None
-        if dataSize > 0:
-            data = bldata.read(dataSize)
-        elif sizeSpec == 0:
-            data = False
-        elif sizeSpec == 7:
-            data = True
-
-        obj = self.createObjectNode(tagId, scopeInfo)
-        obj.properties = attribs
-        obj.data = data
-
-        return bldata.tell() - startPos
+        return dataLen
 
     def parseRSRCData(self, section_num, bldata):
         section = self.sections[section_num]
 
+        section.objects = []
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
         tot_len = 0
         while tot_len < content_len:
             entry_len = self.parseRSRCHeap(section, bldata)
+            if entry_len <= 0:
+                print("{:s}: Block {} section {:d}, has not enough data for complete heap"\
+                  .format(self.vi.src_fname,self.ident,section_num))
+                break
             tot_len += entry_len
 
-    def DISAexportXMLSection(self, section_elem, snum, section, fname_base): # TODO
+    def updateSectionData(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+
+        for obj in section.objects:
+            if not obj.raw_data_updated:
+                obj.updateData()
+
+        data_buf = b''
+        for i, obj in enumerate(section.objects):
+            bldata = obj.getData()
+            data_buf += bldata.read()
+
+        data_buf = int(len(data_buf)).to_bytes(4, byteorder='big') + data_buf
+
+        if (len(data_buf) < 4 + 2*len(section.objects)):
+            raise RuntimeError("Block {} section {} generated binary data of invalid size"\
+              .format(self.ident,section_num))
+
+        self.setData(data_buf, section_num=section_num)
+
+    def initWithXMLHeap(self, section, elem):
+
+        if len(elem) > 0:
+            scopeInfo = LVheap.NODE_SCOPE.TagOpen.value
+        else:
+            scopeInfo = LVheap.NODE_SCOPE.TagLeaf.value
+
+        obj = LVheap.createObjectNode(self.vi, self.po, elem.tag, scopeInfo)
+        section.objects.append(obj)
+
+        obj.initWithXML(elem)
+
+        for subelem in elem:
+            self.initWithXMLHeap(section, subelem)
+
+        if obj.scopeInfo == LVheap.NODE_SCOPE.TagOpen.value:
+            scopeInfo = LVheap.NODE_SCOPE.TagClose.value
+            obj = LVheap.createObjectNode(self.vi, self.po, elem.tag, scopeInfo)
+            section.objects.append(obj)
+            #obj.initWithXML(elem)
+
+
+    def initWithXMLSection(self, section, section_elem):
+        snum = section.start.section_idx
+        fmt = section_elem.get("Format")
+        if fmt == "xml": # Format="xml" - the content is stored in a separate XML file
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading separate XML file '{}'"\
+                  .format(self.vi.src_fname,self.ident,snum,section_elem.get("File")))
+            xml_path = os.path.dirname(self.vi.src_fname)
+            if len(xml_path) > 0:
+                xml_fname = xml_path + '/' + section_elem.get("File")
+            else:
+                xml_fname = section_elem.get("File")
+            tree = ET.parse(xml_fname)
+            section.objects = []
+            self.initWithXMLHeap(section, tree.getroot())
+        else:
+            Block.initWithXMLSection(self, section, section_elem)
+        pass
+
+    def exportXMLSection(self, section_elem, snum, section, fname_base):
         block_fname = "{:s}.{:s}".format(fname_base,"xml")
 
         root = None
         parent_elems = []
         elem = None
-        for obj in self.objects:
+        for obj in section.objects:
 
             if obj.tagId in set(itm.value for itm in LVheap.SL_SYSTEM_TAGS):
                 tagName = LVheap.SL_SYSTEM_TAGS(obj.tagId).name
@@ -2361,6 +2377,9 @@ class FPH(Block):
                       .format(self.vi.src_fname, self.ident, tagName, elem.tag))
             else:
                 elem = ET.SubElement(parent_elems[-1], tagName)
+
+            if scopeInfo != LVheap.NODE_SCOPE.TagClose:
+                elem.set("ScopeInfo", "{:d}".format(scopeInfo.value)) # TODO remove when possible
 
             for prop in obj.properties:
                 if prop.atType in set(itm.value for itm in LVheap.SL_SYSTEM_ATTRIB_TAGS):
