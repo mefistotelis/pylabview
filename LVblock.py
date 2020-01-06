@@ -2357,14 +2357,7 @@ class FPH(Block):
         parent_elems = []
         elem = None
         for obj in section.objects:
-
-            if obj.tagId in set(itm.value for itm in LVheap.SL_SYSTEM_TAGS):
-                tagName = LVheap.SL_SYSTEM_TAGS(obj.tagId).name
-            elif obj.tagId in set(itm.value for itm in LVheap.OBJ_FIELD_TAGS):
-                tagName = LVheap.OBJ_FIELD_TAGS(obj.tagId).name[4:]
-            else:
-                tagName = 'Tag{:04X}'.format(obj.tagId)
-
+            tagName = LVheap.tagIdToName(obj.tagId)
             scopeInfo = obj.getScopeInfo()
             if elem is None:
                 elem = ET.Element(tagName)
@@ -2378,7 +2371,8 @@ class FPH(Block):
             else:
                 elem = ET.SubElement(parent_elems[-1], tagName)
 
-            if scopeInfo != LVheap.NODE_SCOPE.TagClose:
+            if (scopeInfo == LVheap.NODE_SCOPE.TagOpen) or \
+               (scopeInfo == LVheap.NODE_SCOPE.TagLeaf):
                 elem.set("ScopeInfo", "{:d}".format(scopeInfo.value)) # TODO remove when possible
 
             for prop in obj.properties:

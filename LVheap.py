@@ -825,7 +825,10 @@ class HeapNode(object):
 
             if name in ["ScopeInfo"]: # TODO compute scopeInfo instead of reading XML
                 scopeInfo = int(value, 0)
-                self.scopeInfo = scopeInfo
+                if self.scopeInfo != scopeInfo:
+                    eprint("{:s}: Warning: Tag '{}' 0x{:04X} automatic scopeInfo={:d} bad, replaced by {:d}"\
+                      .format(self.vi.src_fname, tagIdToName(self.tagId), self.tagId, self.scopeInfo, scopeInfo))
+                    self.scopeInfo = scopeInfo
                 continue
             elif "SL__"+name in SL_SYSTEM_ATTRIB_TAGS.__members__:
                 propId = SL_SYSTEM_ATTRIB_TAGS["SL__"+name].value
@@ -876,22 +879,38 @@ def recognizePanelHeapFmtFromIdent(heap_ident):
             return hfmt
     return HEAP_FORMAT.Unknown
 
+def tagIdToName(tagId):
+    if tagId in set(itm.value for itm in SL_SYSTEM_TAGS):
+        tagName = SL_SYSTEM_TAGS(tagId).name
+    elif tagId in set(itm.value for itm in OBJ_FIELD_TAGS):
+        tagName = OBJ_FIELD_TAGS(tagId).name[4:]
+    else:
+        tagName = 'Tag{:04X}'.format(tagId)
+    return tagName
+
+def tagNameToId(tagName):
+    if tagName in SL_SYSTEM_TAGS.__members__:
+        tagId = SL_SYSTEM_TAGS[tagName].value
+    elif "OF__"+tagName in OBJ_FIELD_TAGS.__members__:
+        tagId = OBJ_FIELD_TAGS["OF__"+tagName].value
+    else:
+        tagParse = re.match("^Tag([0-9A-F]{4,8})$", tagName)
+        if tagParse is not None:
+            tagId = int(tagParse[1], 16)
+        else:
+            tagId = None
+    return tagId
+
 def createObjectNode(vi, po, tagId, scopeInfo):
     """ create new Heap Node
 
     Acts as a factory which selects object class based on tagId.
     """
     if isinstance(tagId, str):
-        if tagId in SL_SYSTEM_TAGS.__members__:
-            tagId = SL_SYSTEM_TAGS[tagId].value
-        elif "OF__"+tagId in OBJ_FIELD_TAGS.__members__:
-            tagId = OBJ_FIELD_TAGS["OF__"+tagId].value
-        else:
-            tagParse = re.match("^Tag([0-9A-F]{4,8})$", tagId)
-            if tagParse is not None:
-                tagId = int(tagParse[1], 16)
-            else:
-                raise AttributeError("Unrecognized tag in heap XML, '{}'".format(tagId))
+        tagName = tagId
+        tagId = tagNameToId(tagName)
+        if tagId is None:
+            raise AttributeError("Unrecognized tag in heap XML, '{}'".format(tagName))
     obj = HeapNode(vi, po, None, tagId, scopeInfo)
     return obj
 
@@ -906,4 +925,3 @@ def addObjectNodeToTree(section, parentIdx, objectIdx):
     else:
         parent = None
     obj.parent = parent
-
