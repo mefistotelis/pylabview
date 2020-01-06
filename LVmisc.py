@@ -282,7 +282,7 @@ def prepareVariableSizeFieldS24(val):
     """ Prepares data for VI field which is either 16-bit or 16+32-bit signed int, depending on value
     """
     if val > 0x7FFF or val < -0x8000:
-        return int(-0x8000).to_bytes(2, byteorder='big') + int(val).to_bytes(4, byteorder='big', signed=True)
+        return int(-0x8000).to_bytes(2, byteorder='big', signed=True) + int(val).to_bytes(4, byteorder='big', signed=True)
     else:
         return int(val).to_bytes(2, byteorder='big', signed=True)
     pass
@@ -301,9 +301,9 @@ def prepareVariableSizeFieldS124(val):
     """ Prepares data for VI field which is either 8, 8+16 or 8+32-bit signed int, depending on value
     """
     if val > 0x7FFF or val < -0x8000:
-        return int(-128).to_bytes(1, byteorder='big') + int(val).to_bytes(4, byteorder='big', signed=True)
+        return int(-128).to_bytes(1, byteorder='big', signed=True) + int(val).to_bytes(4, byteorder='big', signed=True)
     elif val > 127 or val <= -127:
-        return int(-127).to_bytes(1, byteorder='big') + int(val).to_bytes(2, byteorder='big', signed=True)
+        return int(-127).to_bytes(1, byteorder='big', signed=True) + int(val).to_bytes(2, byteorder='big', signed=True)
     else:
         return int(val).to_bytes(1, byteorder='big', signed=True)
     pass
@@ -322,9 +322,9 @@ def prepareVariableSizeFieldU124(val):
     """ Prepares data for VI field which is either 8, 8+16 or 8+32-bit unsigned int, depending on value
     """
     if val >= 0xFFFF:
-        return int(254).to_bytes(1, byteorder='big') + int(val).to_bytes(4, byteorder='big', signed=False)
+        return int(254).to_bytes(1, byteorder='big', signed=False) + int(val).to_bytes(4, byteorder='big', signed=False)
     elif val >= 0xFE:
-        return int(255).to_bytes(1, byteorder='big') + int(val).to_bytes(2, byteorder='big', signed=False)
+        return int(255).to_bytes(1, byteorder='big', signed=False) + int(val).to_bytes(2, byteorder='big', signed=False)
     else:
         return int(val).to_bytes(1, byteorder='big', signed=False)
     pass
