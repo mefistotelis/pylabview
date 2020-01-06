@@ -170,7 +170,7 @@ class RefnumBase_SimpleCliList(RefnumBase):
         # Create _separate_ empty namespace for each connector
         clients = [SimpleNamespace() for _ in range(count)]
         for i in range(count):
-            cli_idx = readVariableSizeField(bldata)
+            cli_idx = readVariableSizeFieldU2p2(bldata)
             cli_flags = 0
             clients[i].index = cli_idx
             clients[i].flags = cli_flags
@@ -274,7 +274,7 @@ class RefnumBase_RCIOOMId(RefnumBase_RC):
         self.conn_obj.clients = []
         if firstclient != 0:
             client = SimpleNamespace()
-            client.index = readVariableSizeField(bldata)
+            client.index = readVariableSizeFieldU2p2(bldata)
             client.flags = 0
             self.conn_obj.clients.append(client)
         pass
@@ -474,7 +474,7 @@ class RefnumLVObjCtl(RefnumBase):
         # Create _separate_ empty namespace for each connector
         clients = [SimpleNamespace() for _ in range(count)]
         for i in range(count):
-            cli_idx = readVariableSizeField(bldata)
+            cli_idx = readVariableSizeFieldU2p2(bldata)
             cli_flags = 0
             clients[i].index = cli_idx
             clients[i].flags = cli_flags
@@ -623,7 +623,7 @@ class RefnumIVIRef(RefnumBase_RCIOOMId):
             cli_count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
             for i in range(cli_count):
                 client = SimpleNamespace()
-                client.index = readVariableSizeField(bldata)
+                client.index = readVariableSizeFieldU2p2(bldata)
                 client.flags = 0
                 self.conn_obj.clients.append(client)
         pass

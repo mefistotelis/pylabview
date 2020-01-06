@@ -25,6 +25,7 @@ from ctypes import *
 from LVmisc import *
 from LVconnector import *
 from LVinstrument import *
+import LVheap
 import LVrsrcontainer
 
 class BLOCK_CODING(enum.Enum):
@@ -106,21 +107,6 @@ class Section(object):
         self.block_pos = None
         # Section name text string, from Info section
         self.name_text = None
-
-
-class HeapNode(object):
-    def __init__(self, vi, po, TreePos, tagType):
-        """ Creates new Section object, represention one of possible contents of a Block.
-
-        Support of a section is mostly implemented in Block, so there isn't much here.
-        """
-        self.vi = vi
-        self.po = po
-        self.propertyCount = 0
-        self.parent = TreePos
-        self.Data_Position = -1#DataPos
-        self.tagType = tagType
-        self.childs = []
 
 
 class Block(object):
@@ -2253,16 +2239,155 @@ class FPH(Block):
     Stored in "FPHx"-block.
     This implementation is for LV 7 and newer.
     """
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.objects = []
+
     def createSection(self):
         section = super().createSection()
-        section.content = None
         return section
+
+    def createObjectNode(self, tagId, scopeInfo):
+        """ create new Node
+        """
+        obj = LVheap.HeapNode(self.vi, self.po, None, tagId, scopeInfo)
+        self.objects.append(obj)
+        return obj
+
+    def addObjectNodeToTree(self, parentIdx, objectIdx):
+        """ put object node into tree struct
+        """
+        obj = self.objects[objectIdx]
+        # Add node to parent
+        if parentIdx > 0:
+          parent = self.objects[parentIdx]
+          parent.childs.append(objectIdx)
+        else:
+          parent = None
+        obj.parent = parent
+
+    def parseRSRCHeap(self, section, bldata):
+        startPos = bldata.tell()
+        cmd = bldata.read(2)
+
+        sizeSpec = (cmd[0] >> 5) & 7
+        hasAttrList = (cmd[0] >> 4) & 1
+        scopeInfo = (cmd[0] >> 2) & 3
+        tagId = cmd[1] | ((cmd[0] & 3) << 8)
+
+        if tagId == 1023:
+            tagId = int.from_bytes(bldata.read(4), byteorder='big', signed=True)
+        else:
+            tagId = tagId - 31
+
+        attribs = []
+        if hasAttrList != 0:
+            # Container Start: [ <object> ]
+            count = readVariableSizeFieldU124(bldata)
+
+            if (self.po.verbose > 2):
+                print("{:s}: Block {} Container start id=0x{:02X} scopeInfo=0x{:02X} sizeSpec={:d} attrCount={:d}"\
+                  .format(self.vi.src_fname, self.ident, tagId, scopeInfo, sizeSpec, count))
+            attribs = [SimpleNamespace() for _ in range(count)]
+            for attr in attribs:
+                attr.atType = readVariableSizeFieldS124(bldata)
+                attr.atVal = readVariableSizeFieldS24(bldata)
+        else:
+            if (self.po.verbose > 2):
+                print("{:s}: Block {} Container id=0x{:02X} scopeInfo=0x{:02X} sizeSpec={:d} noAttr"\
+                  .format(self.vi.src_fname, self.ident, tagId, scopeInfo, sizeSpec))
+
+        # Read size of data, unless sizeSpec identifies the size completely
+        dataSize = 0;
+        if sizeSpec == 0 or sizeSpec == 7: # bool data
+            dataSize = 0
+        elif sizeSpec <= 4:
+            dataSize = sizeSpec
+        elif sizeSpec == 6:
+            dataSize = readVariableSizeFieldU124(bldata)
+        else:
+            dataSize = 0
+            eprint("{:s}: Warning: Unexpected value of SizeSpec={:d} on heap"\
+              .format(self.vi.src_fname, sizeSpec))
+
+        data = None
+        if dataSize > 0:
+            data = bldata.read(dataSize)
+        elif sizeSpec == 0:
+            data = False
+        elif sizeSpec == 7:
+            data = True
+
+        obj = self.createObjectNode(tagId, scopeInfo)
+        obj.properties = attribs
+        obj.data = data
+
+        return bldata.tell() - startPos
 
     def parseRSRCData(self, section_num, bldata):
         section = self.sections[section_num]
 
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        section.content = bldata.read(content_len)
+
+        tot_len = 0
+        while tot_len < content_len:
+            entry_len = self.parseRSRCHeap(section, bldata)
+            tot_len += entry_len
+
+    def DISAexportXMLSection(self, section_elem, snum, section, fname_base): # TODO
+        block_fname = "{:s}.{:s}".format(fname_base,"xml")
+
+        root = None
+        parent_elems = []
+        elem = None
+        for obj in self.objects:
+
+            if obj.tagId in set(itm.value for itm in LVheap.SL_SYSTEM_TAGS):
+                tagName = LVheap.SL_SYSTEM_TAGS(obj.tagId).name
+            elif obj.tagId in set(itm.value for itm in LVheap.OBJ_FIELD_TAGS):
+                tagName = LVheap.OBJ_FIELD_TAGS(obj.tagId).name[4:]
+            else:
+                tagName = 'Tag{:04X}'.format(obj.tagId)
+
+            scopeInfo = obj.getScopeInfo()
+            if elem is None:
+                elem = ET.Element(tagName)
+                root = elem
+                parent_elems.append(root)
+            elif scopeInfo == LVheap.NODE_SCOPE.TagClose:
+                elem = parent_elems.pop()
+                if elem.tag != tagName:
+                    eprint("{}: Warning: In block {}, closing tag {} instead of {}"\
+                      .format(self.vi.src_fname, self.ident, tagName, elem.tag))
+            else:
+                elem = ET.SubElement(parent_elems[-1], tagName)
+
+            for prop in obj.properties:
+                if prop.atType in set(itm.value for itm in LVheap.SL_SYSTEM_ATTRIB_TAGS):
+                    propName = LVheap.SL_SYSTEM_ATTRIB_TAGS(prop.atType).name[4:]
+                else:
+                    propName = 'Prop{:04X}'.format(prop.atType)
+                elem.set(propName, "{:d}".format(prop.atVal))
+
+            if obj.data is not None:
+                if isinstance(obj.data, (bytes, bytearray)):
+                    elem.text = obj.data.hex()
+                elif obj.data is not False:
+                    elem.text = str(obj.data)
+
+            if scopeInfo == LVheap.NODE_SCOPE.TagOpen:
+                parent_elems.append(elem)
+
+        prettyElementTree(root)
+
+        if (self.po.verbose > 1):
+            print("{}: Writing XML for block {}".format(self.vi.src_fname, self.ident))
+        tree = ET.ElementTree(root)
+        with open(block_fname, "wb") as block_fd:
+            tree.write(block_fd, encoding='utf-8', xml_declaration=True)
+
+        section_elem.set("Format", "xml")
+        section_elem.set("File", os.path.basename(block_fname))
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
         bldata = super().getData(section_num=section_num, use_coding=use_coding)
@@ -2327,9 +2452,9 @@ class VCTP(Block):
             pos += obj_len
         # After that,there is a list
         section.unflatten = []
-        count = readVariableSizeField(bldata)
+        count = readVariableSizeFieldU2p2(bldata)
         for i in range(count):
-            val = readVariableSizeField(bldata)
+            val = readVariableSizeFieldU2p2(bldata)
             section.unflatten.append(val)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):

@@ -245,7 +245,7 @@ class ConnectorObject:
 
     @staticmethod
     def parseRSRCDataHeader(bldata):
-        obj_len = readVariableSizeField(bldata)
+        obj_len = readVariableSizeFieldU2p2(bldata)
         obj_flags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         obj_type = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         return obj_type, obj_flags, obj_len
@@ -1087,11 +1087,11 @@ class ConnectorObjectFunction(ConnectorObject):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
         self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
 
-        count = readVariableSizeField(bldata)
+        count = readVariableSizeFieldU2p2(bldata)
         # Create _separate_ empty namespace for each connector
         self.clients = [SimpleNamespace() for _ in range(count)]
         for i in range(count):
-            cli_idx = readVariableSizeField(bldata)
+            cli_idx = readVariableSizeFieldU2p2(bldata)
             self.clients[i].index = cli_idx
         # end of MultiContainer part
         self.fflags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
@@ -1130,7 +1130,7 @@ class ConnectorObjectFunction(ConnectorObject):
         if (self.fflags & 0x8000) != 0:
             # If the flag is set, then the last client is special - comes from here, not the standard list
             client = SimpleNamespace()
-            client.index = readVariableSizeField(bldata)
+            client.index = readVariableSizeFieldU2p2(bldata)
             client.flags = 0
             client.thrallSources = []
             self.clients.append(client)
@@ -1150,9 +1150,9 @@ class ConnectorObjectFunction(ConnectorObject):
             # Store last client separately, remove it from normal list
             spec_cli = clients.pop()
 
-        data_buf += prepareVariableSizeField(len(clients))
+        data_buf += prepareVariableSizeFieldU2p2(len(clients))
         for client in clients:
-            data_buf += prepareVariableSizeField(client.index)
+            data_buf += prepareVariableSizeFieldU2p2(client.index)
         # end of MultiContainer part
         data_buf += int(self.fflags).to_bytes(2, byteorder='big')
         data_buf += int(self.pattern).to_bytes(2, byteorder='big')
@@ -1178,7 +1178,7 @@ class ConnectorObjectFunction(ConnectorObject):
             data_buf += int(self.field6).to_bytes(4, byteorder='big')
             data_buf += int(self.field7).to_bytes(4, byteorder='big')
         if spec_cli is not None:
-            data_buf += prepareVariableSizeField(spec_cli.index)
+            data_buf += prepareVariableSizeFieldU2p2(spec_cli.index)
 
         return data_buf
 
@@ -1511,7 +1511,7 @@ class ConnectorObjectArray(ConnectorObject):
 
         self.clients = [ SimpleNamespace() ]
         for client in self.clients:
-            cli_idx = readVariableSizeField(bldata)
+            cli_idx = readVariableSizeFieldU2p2(bldata)
             cli_flags = 0
             client.index = cli_idx
             client.flags = cli_flags
@@ -2217,7 +2217,7 @@ class ConnectorObjectSingleContainer(ConnectorObject):
         self.clients = []
         if True:
             client = SimpleNamespace()
-            client.index = readVariableSizeField(bldata)
+            client.index = readVariableSizeFieldU2p2(bldata)
             client.flags = 0
             self.clients.append(client)
 
@@ -2227,7 +2227,7 @@ class ConnectorObjectSingleContainer(ConnectorObject):
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
         for client in self.clients:
-            data_buf += prepareVariableSizeField(client.index)
+            data_buf += prepareVariableSizeFieldU2p2(client.index)
             break # only one client is supported
 
         return data_buf

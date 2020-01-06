@@ -249,7 +249,7 @@ def crypto_xor8320_encrypt(data):
         key = nval ^ rol(key, 1, 32)
     return out
 
-def readVariableSizeField(bldata):
+def readVariableSizeFieldU2p2(bldata):
     """ Reads VI field which is either 16-bit or 32-bit, depending on first bit
 
     Variable size blocks are often used within RSRC files. Usually the size is
@@ -261,11 +261,78 @@ def readVariableSizeField(bldata):
         val |= int.from_bytes(bldata.read(2), byteorder='big', signed=False)
     return val
 
-def prepareVariableSizeField(val):
+def prepareVariableSizeFieldU2p2(val):
     """ Prepares data for VI field which is either 16-bit or 32-bit, depending on value
     """
     if val <= 0x7FFF:
         return int(val).to_bytes(2, byteorder='big')
     else:
         return int(val | 0x80000000).to_bytes(4, byteorder='big')
+    pass
+
+def readVariableSizeFieldS24(bldata):
+    """ Reads VI field which is either 16-bit or 16+32-bit signed int, depending on first value
+    """
+    val = int.from_bytes(bldata.read(2), byteorder='big', signed=True)
+    if val == -0x8000:
+        val = int.from_bytes(bldata.read(4), byteorder='big', signed=True)
+    return val
+
+def prepareVariableSizeFieldS24(val):
+    """ Prepares data for VI field which is either 16-bit or 16+32-bit signed int, depending on value
+    """
+    if val > 0x7FFF or val < -0x8000:
+        return int(-0x8000).to_bytes(2, byteorder='big') + int(val).to_bytes(4, byteorder='big')
+    else:
+        return int(val).to_bytes(2, byteorder='big')
+    pass
+
+def readVariableSizeFieldS124(bldata):
+    """ Reads VI field which is either 8, 8+16 or 8+32-bit signed int, depending on first byte
+    """
+    val = int.from_bytes(bldata.read(1), byteorder='big', signed=True)
+    if val == -128: # 0x80
+        val = int.from_bytes(bldata.read(2), byteorder='big', signed=True)
+    elif val == -127: # 0x81
+        val = int.from_bytes(bldata.read(4), byteorder='big', signed=True)
+    return val
+
+def prepareVariableSizeFieldS124(val):
+    """ Prepares data for VI field which is either 8, 8+16 or 8+32-bit signed int, depending on value
+    """
+    if val > 0x7FFF or val < -0x8000:
+        return int(-128).to_bytes(1, byteorder='big') + int(val).to_bytes(4, byteorder='big')
+    elif val > 127 or val <= -127:
+        return int(-127).to_bytes(1, byteorder='big') + int(val).to_bytes(2, byteorder='big')
+    else:
+        return int(val).to_bytes(1, byteorder='big')
+    pass
+
+def readVariableSizeFieldU124(bldata):
+    """ Reads VI field which is either 8, 8+16 or 8+32-bit unsigned int, depending on first byte
+    """
+    val = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+    if val == 255:
+        val = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+    elif val == 254:
+        val = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+    return val
+
+def prepareVariableSizeFieldU124(val):
+    """ Prepares data for VI field which is either 8, 8+16 or 8+32-bit unsigned int, depending on value
+    """
+    if val >= 0xFFFF:
+        return int(254).to_bytes(1, byteorder='big') + int(val).to_bytes(4, byteorder='big')
+    elif val >= 0xFE:
+        return int(255).to_bytes(1, byteorder='big') + int(val).to_bytes(2, byteorder='big')
+    else:
+        return int(val).to_bytes(1, byteorder='big')
+    pass
+
+def prettyElementTree(elem, level=0):
+    elem.tail = "\n" + "".join([ "  " * level ])
+    if len(elem) > 0 and elem.text is None:
+        elem.text = "\n" + "".join([ "  " * (level+1) ])
+    for subelem in elem:
+        prettyElementTree(subelem, level+1)
     pass

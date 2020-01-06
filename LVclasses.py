@@ -114,7 +114,7 @@ class LVVariant(LVObject):
                 eprint("{:s}: Warning: LVVariant {:d} data size too small for all clients"\
                   .format(self.vi.src_fname, self.index))
                 break
-        hasvaritem2 = readVariableSizeField(bldata)
+        hasvaritem2 = readVariableSizeFieldU2p2(bldata)
         self.hasvaritem2 = hasvaritem2
         self.varitem2 = b''
         if hasvaritem2 != 0:
