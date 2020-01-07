@@ -1033,7 +1033,7 @@ class HeapNode(object):
         self.vi = vi
         self.po = po
         self.properties = []
-        self.data = None
+        self.content = None
         self.parent = parentNode
         self.tagId = tagId
         self.scopeInfo = scopeInfo
@@ -1067,28 +1067,28 @@ class HeapNode(object):
                   .format(self.vi.src_fname, self.tagId, self.scopeInfo, sizeSpec))
 
         # Read size of data, unless sizeSpec identifies the size completely
-        dataSize = 0;
+        contentSize = 0;
         if sizeSpec == 0 or sizeSpec == 7: # bool data
-            dataSize = 0
+            contentSize = 0
         elif sizeSpec <= 4:
-            dataSize = sizeSpec
+            contentSize = sizeSpec
         elif sizeSpec == 6:
-            dataSize = LVmisc.readVariableSizeFieldU124(bldata)
+            contentSize = LVmisc.readVariableSizeFieldU124(bldata)
         else:
-            dataSize = 0
+            contentSize = 0
             eprint("{:s}: Warning: Unexpected value of SizeSpec={:d} on heap"\
               .format(self.vi.src_fname, sizeSpec))
 
-        data = None
-        if dataSize > 0:
-            data = bldata.read(dataSize)
+        content = None
+        if contentSize > 0:
+            content = bldata.read(contentSize)
         elif sizeSpec == 0:
-            data = False
+            content = False
         elif sizeSpec == 7:
-            data = True
+            content = True
 
         self.properties = attribs
-        self.data = data
+        self.content = content
 
     def getData(self):
         bldata = BytesIO(self.raw_data)
@@ -1115,27 +1115,27 @@ class HeapNode(object):
                 data_buf += LVmisc.prepareVariableSizeFieldS124(attr.atType)
                 data_buf += LVmisc.prepareVariableSizeFieldS24(attr.atVal)
 
-        if self.data is None:
+        if self.content is None:
             sizeSpec = 0
-        elif isinstance(self.data, bool):
-            if self.data == True:
+        elif isinstance(self.content, bool):
+            if self.content == True:
                 sizeSpec = 7
             else:
                 sizeSpec = 0
-        elif isinstance(self.data, bytes):
-            if len(self.data) <= 4:
-                sizeSpec = len(self.data)
+        elif isinstance(self.content, (bytes, bytearray,)):
+            if len(self.content) <= 4:
+                sizeSpec = len(self.content)
             else:
                 sizeSpec = 6
         else:
-            eprint("{:s}: Warning: Unexpected type of data on heap"\
+            eprint("{:s}: Warning: Unexpected type of tag content on heap"\
               .format(self.vi.src_fname))
 
         if sizeSpec == 6:
-            data_buf += LVmisc.prepareVariableSizeFieldU124(len(self.data))
+            data_buf += LVmisc.prepareVariableSizeFieldU124(len(self.content))
 
         if sizeSpec in [1,2,3,4,6]:
-            data_buf += self.data
+            data_buf += self.content
 
         if (self.po.verbose > 2):
             print("{:s}: Heap Container id=0x{:02X} scopeInfo={:d} sizeSpec={:d} attrCount={:d}"\
@@ -1154,6 +1154,9 @@ class HeapNode(object):
 
         self.setData(data_head+data_buf, incomplete=avoid_recompute)
 
+    def exportXML(fname_base):
+        pass
+
     def initWithXML(self, elem):
         attribs = []
         for name, value in elem.attrib.items():
@@ -1170,16 +1173,16 @@ class HeapNode(object):
             attribs.append(attr)
         self.properties = attribs
 
-        data = None
+        content  = None
         if elem.text is not None:
             tagData = elem.text.strip()
             if tagData == "":
                 pass # no data
             elif tagData in ["True", "False"]:
-                data = (tagData == "True")
+                content  = (tagData == "True")
             else:
-                data = bytes.fromhex(tagData)
-        self.data = data
+                content  = bytes.fromhex(tagData)
+        self.content = content
         pass
 
 

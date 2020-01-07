@@ -2370,11 +2370,11 @@ class FPH(Block):
                 propName = LVheap.attributeIdToName(prop.atType)
                 elem.set(propName, LVheap.attributeValueIntToStr(prop.atType, prop.atVal))
 
-            if obj.data is not None:
-                if isinstance(obj.data, (bytes, bytearray)):
-                    elem.text = obj.data.hex()
-                elif obj.data is not False:
-                    elem.text = str(obj.data)
+            if obj.content is not None:
+                if isinstance(obj.content, (bytes, bytearray)):
+                    elem.text = obj.content.hex()
+                elif obj.content is not False:
+                    elem.text = str(obj.content)
 
             if scopeInfo == LVheap.NODE_SCOPE.TagClose:
                 # Our automativc algorithm sometimes gives TagLeaf instead of TagOpen; this code
