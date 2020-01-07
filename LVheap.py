@@ -1166,14 +1166,9 @@ class HeapNode(object):
                       .format(self.vi.src_fname, tagIdToName(self.tagId), self.tagId, self.scopeInfo, scopeInfo))
                     self.scopeInfo = scopeInfo
                 continue
-            elif "SL__"+name in SL_SYSTEM_ATTRIB_TAGS.__members__:
-                propId = SL_SYSTEM_ATTRIB_TAGS["SL__"+name].value
-            else:
-                nameParse = re.match("^Prop([0-9A-F]{4,8})$", name)
-                if nameParse is not None:
-                    propId = int(nameParse[1], 16)
-                else:
-                    raise AttributeError("Unrecognized attrib in heap XML, '{}'".format(name))
+            propId = attributeNameToId(name)
+            if propId is None:
+                raise AttributeError("Unrecognized attrib in heap XML, '{}'".format(name))
             attr.atType = propId
             attr.atVal = int(value, 0)
             attribs.append(attr)
@@ -1236,6 +1231,24 @@ def tagNameToId(tagName):
         else:
             tagId = None
     return tagId
+
+def attributeIdToName(attrId):
+    if attrId in set(itm.value for itm in SL_SYSTEM_ATTRIB_TAGS):
+        attrName = SL_SYSTEM_ATTRIB_TAGS(attrId).name[4:]
+    else:
+        attrName = 'Prop{:04X}'.format(attrId)
+    return attrName
+
+def attributeNameToId(attrName):
+    if "SL__"+attrName in SL_SYSTEM_ATTRIB_TAGS.__members__:
+        attrId = SL_SYSTEM_ATTRIB_TAGS["SL__"+attrName].value
+    else:
+        nameParse = re.match("^Prop([0-9A-F]{4,8})$", attrName)
+        if nameParse is not None:
+            attrId = int(nameParse[1], 16)
+        else:
+            attrId = None
+    return attrId
 
 def classIdToName(classId):
     if classId in set(itm.value for itm in SL_CLASS_TAGS):

@@ -2376,10 +2376,7 @@ class FPH(Block):
                 elem.set("ScopeInfo", "{:d}".format(scopeInfo.value)) # TODO remove when possible
 
             for prop in obj.properties:
-                if prop.atType in set(itm.value for itm in LVheap.SL_SYSTEM_ATTRIB_TAGS):
-                    propName = LVheap.SL_SYSTEM_ATTRIB_TAGS(prop.atType).name[4:]
-                else:
-                    propName = 'Prop{:04X}'.format(prop.atType)
+                propName = LVheap.attributeIdToName(prop.atType)
                 elem.set(propName, "{:d}".format(prop.atVal))
 
             if obj.data is not None:
