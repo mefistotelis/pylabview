@@ -1159,12 +1159,7 @@ class HeapNode(object):
         for name, value in elem.attrib.items():
             attr = SimpleNamespace()
 
-            if name in ["ScopeInfo"]: # TODO compute scopeInfo instead of reading XML
-                scopeInfo = int(value, 0)
-                if self.scopeInfo != scopeInfo:
-                    eprint("{:s}: Warning: Tag '{}' 0x{:04X} automatic scopeInfo={:d} bad, replaced by {:d}"\
-                      .format(self.vi.src_fname, tagIdToName(self.tagId), self.tagId, self.scopeInfo, scopeInfo))
-                    self.scopeInfo = scopeInfo
+            if name in ["ScopeInfo"]: # Tags to ignore at this point
                 continue
             attr.atType = attributeNameToId(name)
             if attr.atType is None:
@@ -1211,7 +1206,18 @@ def recognizePanelHeapFmtFromIdent(heap_ident):
             return hfmt
     return HEAP_FORMAT.Unknown
 
+def tagIdToEnum(tagId):
+    if tagId in set(itm.value for itm in SL_SYSTEM_TAGS):
+        tagEn = SL_SYSTEM_TAGS(tagId)
+    elif tagId in set(itm.value for itm in OBJ_FIELD_TAGS):
+        tagEn = OBJ_FIELD_TAGS(tagId)
+    else:
+        tagEn = None
+    return tagEn
+
 def tagIdToName(tagId):
+    # Cannot use tagIdToEnum() because for some enums we are
+    # cutting out part of the name.
     if tagId in set(itm.value for itm in SL_SYSTEM_TAGS):
         tagName = SL_SYSTEM_TAGS(tagId).name
     elif tagId in set(itm.value for itm in OBJ_FIELD_TAGS):
@@ -1220,11 +1226,19 @@ def tagIdToName(tagId):
         tagName = 'Tag{:04X}'.format(tagId)
     return tagName
 
-def tagNameToId(tagName):
+def tagNameToEnum(tagName):
     if tagName in SL_SYSTEM_TAGS.__members__:
-        tagId = SL_SYSTEM_TAGS[tagName].value
+        tagEn = SL_SYSTEM_TAGS[tagName]
     elif "OF__"+tagName in OBJ_FIELD_TAGS.__members__:
-        tagId = OBJ_FIELD_TAGS["OF__"+tagName].value
+        tagEn = OBJ_FIELD_TAGS["OF__"+tagName]
+    else:
+        tagEn = None
+    return tagEn
+
+def tagNameToId(tagName):
+    tagEn = tagNameToEnum(tagName)
+    if tagEn is not None:
+        tagId = tagEn.value
     else:
         tagParse = re.match("^Tag([0-9A-F]{4,8})$", tagName)
         if tagParse is not None:
@@ -1282,6 +1296,16 @@ def attributeValueStrToInt(attrId, attrStr):
     else:
         attrVal = int(attrStr, 0)
     return attrVal
+
+def autoScopeInfoFromET(elem):
+    # If scopeInfo is forced by XML tag, use the one from XML
+    scopeStr = elem.get("ScopeInfo")
+    if scopeStr is not None:
+        scopeInfo = int(scopeStr, 0)
+        return NODE_SCOPE(scopeInfo)
+    if len(elem) == 0:
+        return NODE_SCOPE.TagLeaf
+    return NODE_SCOPE.TagOpen
 
 def createObjectNode(vi, po, tagId, scopeInfo):
     """ create new Heap Node

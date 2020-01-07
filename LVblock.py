@@ -2310,12 +2310,7 @@ class FPH(Block):
         self.setData(data_buf, section_num=section_num)
 
     def initWithXMLHeap(self, section, elem):
-
-        if len(elem) > 0:
-            scopeInfo = LVheap.NODE_SCOPE.TagOpen.value
-        else:
-            scopeInfo = LVheap.NODE_SCOPE.TagLeaf.value
-
+        scopeInfo = LVheap.autoScopeInfoFromET(elem)
         obj = LVheap.createObjectNode(self.vi, self.po, elem.tag, scopeInfo)
         section.objects.append(obj)
 
@@ -2371,10 +2366,6 @@ class FPH(Block):
             else:
                 elem = ET.SubElement(parent_elems[-1], tagName)
 
-            if (scopeInfo == LVheap.NODE_SCOPE.TagOpen) or \
-               (scopeInfo == LVheap.NODE_SCOPE.TagLeaf):
-                elem.set("ScopeInfo", "{:d}".format(scopeInfo.value)) # TODO remove when possible
-
             for prop in obj.properties:
                 propName = LVheap.attributeIdToName(prop.atType)
                 elem.set(propName, LVheap.attributeValueIntToStr(prop.atType, prop.atVal))
@@ -2384,6 +2375,18 @@ class FPH(Block):
                     elem.text = obj.data.hex()
                 elif obj.data is not False:
                     elem.text = str(obj.data)
+
+            if scopeInfo == LVheap.NODE_SCOPE.TagClose:
+                # Our automativc algorithm sometimes gives TagLeaf instead of TagOpen; this code
+                # makes sure such anomalies are stored in XML and re-created while reading XML
+                # The code is executed when closing the tag - all properties of the Element are
+                # already set at this point.
+                scopeInfoAuto = LVheap.autoScopeInfoFromET(elem)
+                scopeInfoForce = LVheap.NODE_SCOPE.TagOpen
+                if scopeInfoAuto != scopeInfoForce:
+                    eprint("{}: Warning: Tag '{}' automatic scopeInfo={:d} bad, forcing {:d}"\
+                      .format(self.vi.src_fname, elem.tag, scopeInfoAuto.value, scopeInfoForce.value))
+                    elem.set("ScopeInfo", "{:d}".format(scopeInfoForce.value))
 
             if scopeInfo == LVheap.NODE_SCOPE.TagOpen:
                 parent_elems.append(elem)
