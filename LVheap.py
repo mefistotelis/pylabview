@@ -1166,11 +1166,12 @@ class HeapNode(object):
                       .format(self.vi.src_fname, tagIdToName(self.tagId), self.tagId, self.scopeInfo, scopeInfo))
                     self.scopeInfo = scopeInfo
                 continue
-            propId = attributeNameToId(name)
-            if propId is None:
-                raise AttributeError("Unrecognized attrib in heap XML, '{}'".format(name))
-            attr.atType = propId
-            attr.atVal = int(value, 0)
+            attr.atType = attributeNameToId(name)
+            if attr.atType is None:
+                raise AttributeError("Unrecognized attrib name in heap XML, '{}'".format(name))
+            attr.atVal = attributeValueStrToInt(attr.atType, value)
+            if attr.atVal is None:
+                raise AttributeError("Unrecognized attrib value in heap XML for name '{}'".format(name))
             attribs.append(attr)
         self.properties = attribs
 
@@ -1267,6 +1268,20 @@ def classNameToId(className):
         else:
             classId = None
     return classId
+
+def attributeValueIntToStr(attrId, attrVal):
+    if attrId == SL_SYSTEM_ATTRIB_TAGS.SL__class.value:
+        attrStr = classIdToName(attrVal)
+    else:
+        attrStr = '{:d}'.format(attrVal)
+    return attrStr
+
+def attributeValueStrToInt(attrId, attrStr):
+    if attrId == SL_SYSTEM_ATTRIB_TAGS.SL__class.value:
+        attrVal = classNameToId(attrStr)
+    else:
+        attrVal = int(attrStr, 0)
+    return attrVal
 
 def createObjectNode(vi, po, tagId, scopeInfo):
     """ create new Heap Node

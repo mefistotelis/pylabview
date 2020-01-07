@@ -2377,7 +2377,7 @@ class FPH(Block):
 
             for prop in obj.properties:
                 propName = LVheap.attributeIdToName(prop.atType)
-                elem.set(propName, "{:d}".format(prop.atVal))
+                elem.set(propName, LVheap.attributeValueIntToStr(prop.atType, prop.atVal))
 
             if obj.data is not None:
                 if isinstance(obj.data, (bytes, bytearray)):
