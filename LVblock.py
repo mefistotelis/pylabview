@@ -2412,7 +2412,24 @@ class FPH(Block):
         content = bldata.read(content_len)
         return content
 
-FPHc = FPHb = FPH
+FPHb = FPH
+
+
+class FPHc(Block):
+    """ Front Panel Heap ver c
+    """
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
+        return bldata
+
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
+
+    def getContent(self):
+        bldata = self.getData()
+        content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        content = bldata.read(content_len)
+        return content
 
 
 class VCTP(Block):
