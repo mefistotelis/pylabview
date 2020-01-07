@@ -5,7 +5,7 @@ Tools for extracting, changing, and re-creating LabVIEV RSRC files, like VIs or 
 # Motivation
 
 LabView environment is unneccessarily closed. Its mechanisms prevent the developers
-from dodifying projects outside of the GUI, which makes scalability painful.
+from modifying projects outside of the GUI, which makes scalability painful.
 
 If you want to modify something in 1000 of files, and you're not really into
 clicking through all that, this might be the tool for you.
@@ -31,6 +31,49 @@ If you want to verify whrther your specific file will be handled correctly by th
 Note that many LLB files created by the tool will not be binary identical to the originals; this is because some items in these files are not ordered, and the order depends on specific timing between threads while the file was saved.
 
 A few example files are included in the project.
+
+# Use cases
+
+Several things you can do with these tools are listed below.
+One caveat worth noticing is that these tasks are not fully automated. To use
+these functions, you must know what you're doing, and modify the scripts where
+apropriate.
+
+### Look at the data inside VI file
+
+If you don't have a LabVIEW license, and want to look inside some VIs, these
+tools can help. You can convert your VIs to XML format, and then look at the XML.
+It is possible to write a viewer, which displays the XML data in graphical
+form, like they look in LabVIEW.
+
+### Batch process VIs
+
+You can extract, modify and re-create VIs. So as long as you can write a script
+which does proper modification to XMLs, you can automatically apply a change
+to thousands of VI files, without the need of clicking through LabVIEW GUI.
+
+### Reverse a compiled VI project
+
+You can look into internals of a compiled VI project. You can also, to some
+extent, convert the EXE cack to source form. Though at the moment, the tools
+will not allow you to automatically recover Block Diagram and Front Panel,
+which are lost during VIs compilation process.
+
+It is possible to write a tool which recovers these items, though.
+
+### Fix damaged VI files
+
+The extractor can be modified to ignore errors and read damaged VI file. Then
+it can re-create the VI from XML, and it will use proper format required by
+LabVIEW. So it can be used to fix a VI file, though there is no premade
+parameter which will do it for you.
+
+### Backport VI files
+
+You can modify version numbers in XML files, and the tools will re-create
+VIs using structures from the updated version markings. There is no automated
+version changer though - if the switch requires some blocks to be renamed,
+or some data added - you will have to do it manually.
 
 # Reversing EXE back to buildable project
 
@@ -140,4 +183,4 @@ Example code pages you could use:
 
 # File format
 
-To learn abot file format, check out wiki of this project.
+To learn about file format, check out wiki of this project.
