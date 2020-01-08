@@ -1049,6 +1049,9 @@ class HeapNode(object):
             return self.scopeInfo
         return NODE_SCOPE(self.scopeInfo)
 
+    def parseRSRCContent(self):
+        pass
+
     def parseRSRCData(self, bldata, hasAttrList, sizeSpec):
         attribs = []
         if hasAttrList != 0:
@@ -1090,6 +1093,8 @@ class HeapNode(object):
         self.properties = attribs
         self.content = content
 
+        self.parseRSRCContent()
+
     def getData(self):
         bldata = BytesIO(self.raw_data)
         return bldata
@@ -1100,10 +1105,15 @@ class HeapNode(object):
         if not incomplete:
             self.raw_data_updated = True
 
+    def updateContent(self):
+        pass
+
     def updateData(self, avoid_recompute=False):
 
         if avoid_recompute and self.raw_data_updated:
             return # If we have strong raw data, and new one will be weak, then leave the strong buffer
+
+        self.updateContent()
 
         data_buf = b''
 
@@ -1154,8 +1164,45 @@ class HeapNode(object):
 
         self.setData(data_head+data_buf, incomplete=avoid_recompute)
 
-    def exportXML(fname_base):
+    def prepareContentXML(self, fname_base):
+        tagText = None
+        if self.content is not None:
+            if isinstance(self.content, (bytes, bytearray)):
+                tagText = self.content.hex()
+            elif self.content is not False:
+                tagText = str(self.content)
+        return tagText
+
+    def exportXML(self, elem, scopeInfo, fname_base):
+        for prop in self.properties:
+            propName = attributeIdToName(prop.atType)
+            elem.set(propName, attributeValueIntToStr(prop.atType, prop.atVal))
+
+        tagText = self.prepareContentXML(fname_base)
+        if tagText is not None:
+                elem.text = tagText
+
+        if scopeInfo == NODE_SCOPE.TagClose:
+            # Our automativc algorithm sometimes gives TagLeaf instead of TagOpen; this code
+            # makes sure such anomalies are stored in XML and re-created while reading XML
+            # The code is executed when closing the tag - all properties of the Element are
+            # already set at this point.
+            scopeInfoAuto = autoScopeInfoFromET(elem)
+            scopeInfoForce = NODE_SCOPE.TagOpen
+            if scopeInfoAuto != scopeInfoForce:
+                eprint("{}: Warning: Tag '{}' automatic scopeInfo={:d} bad, forcing {:d}"\
+                  .format(self.vi.src_fname, elem.tag, scopeInfoAuto.value, scopeInfoForce.value))
+                elem.set("ScopeInfo", "{:d}".format(scopeInfoForce.value))
         pass
+
+    def initContentWithXML(self, tagText):
+        if tagText == "":
+            content  = None
+        elif tagText in ["True", "False"]:
+            content  = (tagText == "True")
+        else:
+            content  = bytes.fromhex(tagText)
+        self.content = content
 
     def initWithXML(self, elem):
         attribs = []
@@ -1173,17 +1220,52 @@ class HeapNode(object):
             attribs.append(attr)
         self.properties = attribs
 
-        content  = None
         if elem.text is not None:
-            tagData = elem.text.strip()
-            if tagData == "":
-                pass # no data
-            elif tagData in ["True", "False"]:
-                content  = (tagData == "True")
-            else:
-                content  = bytes.fromhex(tagData)
-        self.content = content
+            tagText = elem.text.strip()
+        else:
+            tagText = ""
+        self.initContentWithXML(tagText)
         pass
+
+
+class HeapNodeRect(HeapNode):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.left = 0
+        self.top = 0
+        self.right = 0
+        self.bottom = 0
+
+    def parseRSRCContent(self):
+        bldata = BytesIO(self.content)
+        self.left = int.from_bytes(bldata.read(2), byteorder='big', signed=True)
+        self.top = int.from_bytes(bldata.read(2), byteorder='big', signed=True)
+        self.right = int.from_bytes(bldata.read(2), byteorder='big', signed=True)
+        self.bottom = int.from_bytes(bldata.read(2), byteorder='big', signed=True)
+
+    def updateContent(self):
+        content = b''
+        content += int(self.left).to_bytes(2, byteorder='big', signed=True)
+        content += int(self.top).to_bytes(2, byteorder='big', signed=True)
+        content += int(self.right).to_bytes(2, byteorder='big', signed=True)
+        content += int(self.bottom).to_bytes(2, byteorder='big', signed=True)
+        #self.content = content # TODO enable when tested
+
+    def prepareContentXML(self, fname_base):
+        return self.content.hex() # TODO remove when tested
+        return "({:d}, {:d}, {:d}, {:d})".format(self.left, self.top, self.right, self.bottom)
+
+    def initContentWithXML(self, tagText):
+        self.content  = bytes.fromhex(tagText)
+        return # TODO remove when tested
+        tagParse = re.match("^\([ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+)[ ]*\)$", tagText)
+        if tagParse is None:
+            raise AttributeError("Tag '{}' content contains unrecognized Rect definition".format(tagIdToName(self.tagId)))
+        self.left = int(tagParse[1], 0)
+        self.top = int(tagParse[2], 0)
+        self.right = int(tagParse[3], 0)
+        self.bottom = int(tagParse[4], 0)
+        self.updateContent()
 
 
 def getFrontPanelHeapIdent(hfmt):
@@ -1320,7 +1402,13 @@ def createObjectNode(vi, po, tagId, scopeInfo):
         tagId = tagNameToId(tagName)
         if tagId is None:
             raise AttributeError("Unrecognized tag in heap XML, '{}'".format(tagName))
-    obj = HeapNode(vi, po, None, tagId, scopeInfo)
+    if tagId in [OBJ_FIELD_TAGS.OF__bounds.value,
+      OBJ_FIELD_TAGS.OF__dBounds.value,
+      OBJ_FIELD_TAGS.OF__pBounds.value,
+      ]:
+        obj = HeapNodeRect(vi, po, None, tagId, scopeInfo)
+    else:
+        obj = HeapNode(vi, po, None, tagId, scopeInfo)
     return obj
 
 def addObjectNodeToTree(section, parentIdx, objectIdx):

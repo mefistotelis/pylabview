@@ -2351,7 +2351,7 @@ class FPH(Block):
         root = None
         parent_elems = []
         elem = None
-        for obj in section.objects:
+        for i, obj in enumerate(section.objects):
             tagName = LVheap.tagIdToName(obj.tagId)
             scopeInfo = obj.getScopeInfo()
             if elem is None:
@@ -2366,27 +2366,7 @@ class FPH(Block):
             else:
                 elem = ET.SubElement(parent_elems[-1], tagName)
 
-            for prop in obj.properties:
-                propName = LVheap.attributeIdToName(prop.atType)
-                elem.set(propName, LVheap.attributeValueIntToStr(prop.atType, prop.atVal))
-
-            if obj.content is not None:
-                if isinstance(obj.content, (bytes, bytearray)):
-                    elem.text = obj.content.hex()
-                elif obj.content is not False:
-                    elem.text = str(obj.content)
-
-            if scopeInfo == LVheap.NODE_SCOPE.TagClose:
-                # Our automativc algorithm sometimes gives TagLeaf instead of TagOpen; this code
-                # makes sure such anomalies are stored in XML and re-created while reading XML
-                # The code is executed when closing the tag - all properties of the Element are
-                # already set at this point.
-                scopeInfoAuto = LVheap.autoScopeInfoFromET(elem)
-                scopeInfoForce = LVheap.NODE_SCOPE.TagOpen
-                if scopeInfoAuto != scopeInfoForce:
-                    eprint("{}: Warning: Tag '{}' automatic scopeInfo={:d} bad, forcing {:d}"\
-                      .format(self.vi.src_fname, elem.tag, scopeInfoAuto.value, scopeInfoForce.value))
-                    elem.set("ScopeInfo", "{:d}".format(scopeInfoForce.value))
+            obj.exportXML(elem, scopeInfo, "{:s}_{:04d}".format(fname_base,i))
 
             if scopeInfo == LVheap.NODE_SCOPE.TagOpen:
                 parent_elems.append(elem)
