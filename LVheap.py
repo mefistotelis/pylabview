@@ -1032,7 +1032,7 @@ class HeapNode(object):
         """
         self.vi = vi
         self.po = po
-        self.properties = []
+        self.properties = {}
         self.content = None
         self.parent = parentNode
         self.tagId = tagId
@@ -1053,17 +1053,19 @@ class HeapNode(object):
         pass
 
     def parseRSRCData(self, bldata, hasAttrList, sizeSpec):
-        attribs = []
+        attribs = {}
         if hasAttrList != 0:
             count = LVmisc.readVariableSizeFieldU124(bldata)
 
             if (self.po.verbose > 2):
                 print("{:s}: Heap Container start id=0x{:02X} scopeInfo={:d} sizeSpec={:d} attrCount={:d}"\
                   .format(self.vi.src_fname, self.tagId, self.scopeInfo, sizeSpec, count))
-            attribs = [SimpleNamespace() for _ in range(count)]
-            for attr in attribs:
+            attribs = {}
+            for i in range(count):
+                attr = SimpleNamespace()
                 attr.atType = LVmisc.readVariableSizeFieldS124(bldata)
                 attr.atVal = LVmisc.readVariableSizeFieldS24(bldata)
+                attribs[attr.atType] = attr
         else:
             if (self.po.verbose > 2):
                 print("{:s}: Heap Container id=0x{:02X} scopeInfo={:d} sizeSpec={:d} noAttr"\
@@ -1121,7 +1123,7 @@ class HeapNode(object):
 
         if hasAttrList != 0:
             data_buf += LVmisc.prepareVariableSizeFieldU124(len(self.properties))
-            for attr in self.properties:
+            for atType, attr in self.properties.items():
                 data_buf += LVmisc.prepareVariableSizeFieldS124(attr.atType)
                 data_buf += LVmisc.prepareVariableSizeFieldS24(attr.atVal)
 
@@ -1174,7 +1176,7 @@ class HeapNode(object):
         return tagText
 
     def exportXML(self, elem, scopeInfo, fname_base):
-        for prop in self.properties:
+        for atType, prop in self.properties.items():
             propName = attributeIdToName(prop.atType)
             elem.set(propName, attributeValueIntToStr(prop.atType, prop.atVal))
 
@@ -1205,7 +1207,7 @@ class HeapNode(object):
         self.content = content
 
     def initWithXML(self, elem):
-        attribs = []
+        attribs = {}
         for name, value in elem.attrib.items():
             attr = SimpleNamespace()
 
@@ -1217,7 +1219,7 @@ class HeapNode(object):
             attr.atVal = attributeValueStrToInt(attr.atType, value)
             if attr.atVal is None:
                 raise AttributeError("Unrecognized attrib value in heap XML for name '{}'".format(name))
-            attribs.append(attr)
+            attribs[attr.atType] = attr
         self.properties = attribs
 
         if elem.text is not None:
@@ -1291,7 +1293,7 @@ def recognizePanelHeapFmtFromIdent(heap_ident):
             return hfmt
     return HEAP_FORMAT.Unknown
 
-def tagIdToEnum(tagId):
+def tagIdToEnum(tagId, classId=0):
     if tagId in set(itm.value for itm in SL_SYSTEM_TAGS):
         tagEn = SL_SYSTEM_TAGS(tagId)
     elif tagId in set(itm.value for itm in OBJ_FIELD_TAGS):
@@ -1300,7 +1302,7 @@ def tagIdToEnum(tagId):
         tagEn = None
     return tagEn
 
-def tagIdToName(tagId):
+def tagIdToName(tagId, classId=0):
     # Cannot use tagIdToEnum() because for some enums we are
     # cutting out part of the name.
     if tagId in set(itm.value for itm in SL_SYSTEM_TAGS):
@@ -1311,7 +1313,7 @@ def tagIdToName(tagId):
         tagName = 'Tag{:04X}'.format(tagId)
     return tagName
 
-def tagNameToEnum(tagName):
+def tagNameToEnum(tagName, classId=0):
     if tagName in SL_SYSTEM_TAGS.__members__:
         tagEn = SL_SYSTEM_TAGS[tagName]
     elif "OF__"+tagName in OBJ_FIELD_TAGS.__members__:
@@ -1320,8 +1322,8 @@ def tagNameToEnum(tagName):
         tagEn = None
     return tagEn
 
-def tagNameToId(tagName):
-    tagEn = tagNameToEnum(tagName)
+def tagNameToId(tagName, classId=0):
+    tagEn = tagNameToEnum(tagName, classId)
     if tagEn is not None:
         tagId = tagEn.value
     else:
