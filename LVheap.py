@@ -42,13 +42,7 @@ class NODE_SCOPE(enum.IntEnum):
     TagClose = 2 # Closing of a tag
 
 
-class SL_SYSTEM_TAGS(enum.Enum):
-    SL__object = -3
-    SL__array = -4
-    SL__reference = -5
-    SL__arrayElement = -6
-    SL__rootObject = -7
-
+class ENUM_TAGS(enum.Enum):
     @classmethod
     def has_value(cls, value):
         #return tagId in set(itm.value for itm in cls) # slower
@@ -58,7 +52,15 @@ class SL_SYSTEM_TAGS(enum.Enum):
     def has_name(cls, name):
         return name in cls.__members__
 
-class SL_SYSTEM_ATTRIB_TAGS(enum.Enum):
+
+class SL_SYSTEM_TAGS(ENUM_TAGS):
+    SL__object = -3
+    SL__array = -4
+    SL__reference = -5
+    SL__arrayElement = -6
+    SL__rootObject = -7
+
+class SL_SYSTEM_ATTRIB_TAGS(ENUM_TAGS):
     SL__class = -2
     SL__uid = -3
     SL__stockObj = -4
@@ -66,16 +68,8 @@ class SL_SYSTEM_ATTRIB_TAGS(enum.Enum):
     SL__index = -6
     SL__stockSource = -7
 
-    @classmethod
-    def has_value(cls, value):
-        return value in cls._value2member_map_
 
-    @classmethod
-    def has_name(cls, name):
-        return name in cls.__members__
-
-
-class OBJ_FIELD_TAGS(enum.Enum):
+class OBJ_FIELD_TAGS(ENUM_TAGS):
     OF__activeDiag = 1
     OF__activeMarker = 2
     OF__activePlot = 3
@@ -703,16 +697,8 @@ class OBJ_FIELD_TAGS(enum.Enum):
     OF__kSLHFieldDefaultValueMatchesCtlVI = 625
     OF__FpgaEnableBoundsMux = 626
 
-    @classmethod
-    def has_value(cls, value):
-        return value in cls._value2member_map_
 
-    @classmethod
-    def has_name(cls, name):
-        return name in cls.__members__
-
-
-class SL_CLASS_TAGS(enum.Enum):
+class SL_CLASS_TAGS(ENUM_TAGS):
     SL__badProc = 0
     SL__prNodeList = 3
     SL__prFrameList = 4
@@ -1047,31 +1033,233 @@ class SL_CLASS_TAGS(enum.Enum):
     SL__dexChannelShutdownNode = 373
     SL__lpTunConditionDCO = 374
     SL__attachment = 375
+    SL__ComplexScalar = 550
+    SL__Time128 = 551
     SL__Image = 600
+    SL__EmbedObject = 900
+    SL__SceneView = 902
+    SL__SceneColor = 903
+    SL__SceneEyePoint = 904
+    SL__TableAttribute = 905
+    SL__BrowseOptions = 906
+    SL__StorageRowCol = 907
+    SL__ColorPair = 908
+    SL__TreeNode = 909
+    SL__RelativeRowCol = 910
+    SL__TabInfoItem = 911
+    SL__PageInfoItem = 912
+    SL__MappedPoint = 917
+    SL__PlotData = 918
+    SL__CursorData = 919
+    SL__PlotImages = 920
+    SL__CursorButtonsRec = 921
+    SL__PlotLegendData = 922
+    SL__DigitlaBusOrgClust = 923
+    SL__ScaleLegendData = 924
+    SL__ScaleData = 925
 
-    @classmethod
-    def has_value(cls, value):
-        return value in cls._value2member_map_
 
-    @classmethod
-    def has_name(cls, name):
-        return name in cls.__members__
+class OBJ_COMPLEX_SCALAR_TAGS(ENUM_TAGS):
+    OF__real = 0
+    OF__imaginary = 1
 
 
-class OBJ_IMAGE_TAGS(enum.Enum):
+class OBJ_TIME128_TAGS(ENUM_TAGS):
+    OF__Seconds = 0
+    OF__FractionalSeconds = 1
+
+
+class OBJ_IMAGE_TAGS(ENUM_TAGS):
     OF__ImageResID = 0
     OF__ImageInternalsResID = 1
     OF__ImageData1 = 2
     OF__ImageData2 = 3
     OF__ImageData3 = 4
 
-    @classmethod
-    def has_value(cls, value):
-        return value in cls._value2member_map_
 
-    @classmethod
-    def has_name(cls, name):
-        return name in cls.__members__
+class OBJ_EMBED_OBJECT_TAGS(ENUM_TAGS):
+    OF__Type = 0
+    OF__Flags = 1
+
+
+class OBJ_SCENE_GRAPH_TAGS(ENUM_TAGS):
+    OF__ModelView = 0
+    OF__Projection = 1
+    OF__BackgroundColor = 2
+    OF__CameraController = 3
+    OF__AutoProjection = 4
+    OF__Zoom = 5
+    OF__EyePoint = 6
+
+
+class OBJ_SCENE_COLOR_TAGS(ENUM_TAGS):
+    OF__red = 0
+    OF__green = 1
+    OF__blue = 2
+    OF__alpha = 3
+
+
+class OBJ_SCENE_EYE_POINT_TAGS(ENUM_TAGS):
+    OF__eyePoint_X = 0
+    OF__eyePoint_Y = 1
+    OF__eyePoint_Z = 2
+
+
+class OBJ_ATTRIBUTE_LIST_ITEM_TAGS(ENUM_TAGS):
+    OF__cellPosRow = 403
+    OF__cellPosCol = 404
+    OF__font = 405
+    OF__mode = 406
+    OF__fgColor = 80
+    OF__bgColor = 9
+    OF__width = 292
+    OF__height = 407
+    OF__flags = 409
+    OF__glyphIndex = 408
+
+
+class OBJ_BROWSE_OPTIONS_TAGS(ENUM_TAGS):
+    OF__pattern = 0
+    OF__matchPattern = 1
+    OF__mode = 2
+    OF__startPath = 3
+    OF__patternLabel = 4
+    OF__buttonLabel = 5
+
+
+class OBJ_ROW_COL_TAGS(ENUM_TAGS):
+    OF__row = 0
+    OF__col = 1
+
+
+class OBJ_COLOR_PAIR_TAGS(ENUM_TAGS):
+    OF__value = 0
+    OF__color = 1
+
+
+class OBJ_TREE_NODE_TAGS(ENUM_TAGS):
+    OF__nodeFlags = 0
+    OF__tag = 1
+    OF__indentLevel = 2
+
+
+class OBJ_TAB_INFO_ITEM_TAGS(ENUM_TAGS):
+    OF__itemFlags = 0
+    OF__textWidth = 1
+    OF__caption = 2
+    OF__fg = 3
+    OF__bg = 4
+
+
+class OBJ_PAGE_INFO_ITEM_TAGS(ENUM_TAGS):
+    OF__itemFlags = 0
+    OF__caption = 1
+    OF__fg = 2
+    OF__bg = 3
+
+
+class OBJ_MAPPED_POINT_TAGS(ENUM_TAGS):
+    OF__y = 0
+    OF__x = 1
+
+
+class OBJ_PLOT_DATA_TAGS(ENUM_TAGS):
+    OF__color = 0
+    OF__flags = 1
+    OF__interp = 2
+    OF__lineStyle = 3
+    OF__pointStyle = 4
+    OF__fillStyle = 5
+    OF__width = 6
+    OF__plotFlags = 7
+    OF__plotName = 8
+    OF__cnt = 9
+    OF__mapped = 10
+    OF__pointColor = 11
+    OF__fillColor = 12
+    OF__xScale = 13
+    OF__yScale = 14
+    OF__mBits = 15
+    OF__gtoIndex = 16
+    OF__unused = 17
+    OF__fxpWordLength = 18
+    OF__fxpIntegerLength = 19
+    OF__fxpIsSigned = 20
+    OF__fxpFracDigits = 21
+    OF__fxpStyle = 22
+
+
+class OBJ_CURSOR_DATA_TAGS(ENUM_TAGS):
+    OF__flags = 0
+    OF__plot = 1
+    OF__glyph = 2
+    OF__lineStyle = 3
+    OF__lineWidth = 4
+    OF__color = 5
+    OF__name = 6
+    OF__x = 7
+    OF__y = 8
+    OF__z = 9
+    OF__index = 10
+    OF__loc = 11
+    OF__font = 12
+    OF__mode = 13
+    OF__txSize = 14
+    OF__txOffset = 15
+    OF__active = 16
+    OF__port = 17
+    OF__xScale = 18
+    OF__yScale = 19
+    OF__watchPlots = 20
+    OF__txOffsetX = 21
+    OF__txOffsetY = 22
+    OF__loc32 = 23
+    OF__txOffset32 = 24
+
+
+class OBJ_PLOT_IMAGES_TAGS(ENUM_TAGS):
+    OF__plotPicBg = 0
+    OF__plotPicMg = 1
+    OF__plotPicFg = 2
+
+
+class OBJ_CURS_BUTTONS_REC_TAGS(ENUM_TAGS):
+    OF__left = 0
+    OF__right = 1
+    OF__up = 2
+    OF__down = 3
+
+
+class OBJ_PLOT_LEGEND_DATA_TAGS(ENUM_TAGS):
+    OF__name = 0
+    OF__menu = 1
+    OF__visBool = 2
+
+
+class OBJ_DIGITAL_BUS_ORG_CLUST_TAGS(ENUM_TAGS):
+    OF__arrayHandle = 0
+    OF__isBus = 1
+    OF__pData = 2
+
+
+class OBJ_SCALE_LEGEND_DATA_TAGS(ENUM_TAGS):
+    OF__name = 0
+    OF__autoScaleLock = 1
+    OF__autoScale = 2
+    OF__formatButton = 3
+
+
+class OBJ_SCALE_DATA_TAGS(ENUM_TAGS):
+    OF__partID = 0
+    OF__partOrder = 1
+    OF__flags = 2
+    OF__gridMaxColor = 3
+    OF__gridMinColor = 4
+    OF__gridMaxLineStyle = 5
+    OF__gridMinLineStyle = 6
+    OF__scaleRect = 7
+    OF__port = 8
+    OF__scaleFlavor = 9
 
 
 class HeapNode(object):
@@ -1349,6 +1537,75 @@ def tagIdToEnum(tagId, classId=SL_CLASS_TAGS.SL__generic.value):
     elif classId == SL_CLASS_TAGS.SL__Image.value:
         if OBJ_IMAGE_TAGS.has_value(tagId):
             tagEn = OBJ_IMAGE_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__EmbedObject.value:
+        if OBJ_EMBED_OBJECT_TAGS.has_value(tagId):
+            tagEn = OBJ_EMBED_OBJECT_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__SceneView.value:
+        if OBJ_SCENE_GRAPH_TAGS.has_value(tagId):
+            tagEn = OBJ_SCENE_GRAPH_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__SceneColor.value:
+        if OBJ_SCENE_COLOR_TAGS.has_value(tagId):
+            tagEn = OBJ_SCENE_COLOR_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__SceneEyePoint.value:
+        if OBJ_SCENE_EYE_POINT_TAGS.has_value(tagId):
+            tagEn = OBJ_SCENE_EYE_POINT_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__ComplexScalar.value:
+        if OBJ_COMPLEX_SCALAR_TAGS.has_value(tagId):
+            tagEn = OBJ_COMPLEX_SCALAR_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__TableAttribute.value:
+        if OBJ_ATTRIBUTE_LIST_ITEM_TAGS.has_value(tagId) and False:# conflict
+            tagEn = OBJ_ATTRIBUTE_LIST_ITEM_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__Time128.value:
+        if OBJ_TIME128_TAGS.has_value(tagId):
+            tagEn = OBJ_TIME128_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__BrowseOptions.value:
+        if OBJ_BROWSE_OPTIONS_TAGS.has_value(tagId) and False:# conflict
+            tagEn = OBJ_BROWSE_OPTIONS_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__StorageRowCol.value:
+        if OBJ_ROW_COL_TAGS.has_value(tagId):
+            tagEn = OBJ_ROW_COL_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__ColorPair.value:
+        if OBJ_COLOR_PAIR_TAGS.has_value(tagId) and False:# conflict
+            tagEn = OBJ_COLOR_PAIR_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__TreeNode.value:
+        if OBJ_TREE_NODE_TAGS.has_value(tagId):
+            tagEn = OBJ_TREE_NODE_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__RelativeRowCol.value:
+        if OBJ_ROW_COL_TAGS.has_value(tagId):
+            tagEn = OBJ_ROW_COL_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__TabInfoItem.value:
+        if OBJ_TAB_INFO_ITEM_TAGS.has_value(tagId):
+            tagEn = OBJ_TAB_INFO_ITEM_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__PageInfoItem.value:
+        if OBJ_PAGE_INFO_ITEM_TAGS.has_value(tagId) and False:# conflict
+            tagEn = OBJ_PAGE_INFO_ITEM_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__MappedPoint.value:
+        if OBJ_MAPPED_POINT_TAGS.has_value(tagId):
+            tagEn = OBJ_MAPPED_POINT_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__PlotData.value:
+        if OBJ_PLOT_DATA_TAGS.has_value(tagId) and False:# conflict
+            tagEn = OBJ_PLOT_DATA_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__CursorData.value:
+        if OBJ_CURSOR_DATA_TAGS.has_value(tagId) and False:# conflict
+            tagEn = OBJ_CURSOR_DATA_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__PlotImages.value:
+        if OBJ_PLOT_IMAGES_TAGS.has_value(tagId):
+            tagEn = OBJ_PLOT_IMAGES_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__CursorButtonsRec.value:
+        if OBJ_CURS_BUTTONS_REC_TAGS.has_value(tagId):
+            tagEn = OBJ_CURS_BUTTONS_REC_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__PlotLegendData.value:
+        if OBJ_PLOT_LEGEND_DATA_TAGS.has_value(tagId) and False:# conflict
+            tagEn = OBJ_PLOT_LEGEND_DATA_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__DigitlaBusOrgClust.value:
+        if OBJ_DIGITAL_BUS_ORG_CLUST_TAGS.has_value(tagId):
+            tagEn = OBJ_DIGITAL_BUS_ORG_CLUST_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__ScaleLegendData.value:
+        if OBJ_SCALE_LEGEND_DATA_TAGS.has_value(tagId) and False:# conflict
+            tagEn = OBJ_SCALE_LEGEND_DATA_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__ScaleData.value:
+        if OBJ_SCALE_DATA_TAGS.has_value(tagId) and False:# conflict
+            tagEn = OBJ_SCALE_DATA_TAGS(tagId)
     else:
         if OBJ_FIELD_TAGS.has_value(tagId):
             tagEn = OBJ_FIELD_TAGS(tagId)
@@ -1373,6 +1630,52 @@ def tagNameToEnum(tagName, classId=SL_CLASS_TAGS.SL__generic.value):
         tagEn = OBJ_FIELD_TAGS["OF__"+tagName]
     elif OBJ_IMAGE_TAGS.has_name("OF__"+tagName):
         tagEn = OBJ_IMAGE_TAGS["OF__"+tagName]
+    elif OBJ_EMBED_OBJECT_TAGS.has_name("OF__"+tagName):
+        tagEn = OBJ_EMBED_OBJECT_TAGS["OF__"+tagName]
+    elif OBJ_SCENE_GRAPH_TAGS.has_name("OF__"+tagName):
+        tagEn = OBJ_SCENE_GRAPH_TAGS["OF__"+tagName]
+    elif OBJ_SCENE_COLOR_TAGS.has_name("OF__"+tagName):
+        tagEn = OBJ_SCENE_COLOR_TAGS["OF__"+tagName]
+    elif OBJ_SCENE_EYE_POINT_TAGS.has_name("OF__"+tagName):
+        tagEn = OBJ_SCENE_EYE_POINT_TAGS["OF__"+tagName]
+    elif OBJ_COMPLEX_SCALAR_TAGS.has_name("OF__"+tagName):
+        tagEn = OBJ_COMPLEX_SCALAR_TAGS["OF__"+tagName]
+    elif OBJ_ATTRIBUTE_LIST_ITEM_TAGS.has_name("OF__"+tagName) and False:# conflict
+        tagEn = OBJ_ATTRIBUTE_LIST_ITEM_TAGS["OF__"+tagName]
+    elif OBJ_TIME128_TAGS.has_name("OF__"+tagName):
+        tagEn = OBJ_TIME128_TAGS["OF__"+tagName]
+    elif OBJ_BROWSE_OPTIONS_TAGS.has_name("OF__"+tagName) and False:# conflict
+        tagEn = OBJ_BROWSE_OPTIONS_TAGS["OF__"+tagName]
+    elif OBJ_ROW_COL_TAGS.has_name("OF__"+tagName):#SL__StorageRowCol
+        tagEn = OBJ_ROW_COL_TAGS["OF__"+tagName]
+    elif OBJ_COLOR_PAIR_TAGS.has_name("OF__"+tagName) and False:# conflict
+        tagEn = OBJ_COLOR_PAIR_TAGS["OF__"+tagName]
+    elif OBJ_TREE_NODE_TAGS.has_name("OF__"+tagName):
+        tagEn = OBJ_TREE_NODE_TAGS["OF__"+tagName]
+    elif OBJ_ROW_COL_TAGS.has_name("OF__"+tagName):#SL__RelativeRowCol
+        tagEn = OBJ_ROW_COL_TAGS["OF__"+tagName]
+    elif OBJ_TAB_INFO_ITEM_TAGS.has_name("OF__"+tagName):
+        tagEn = OBJ_TAB_INFO_ITEM_TAGS["OF__"+tagName]
+    elif OBJ_PAGE_INFO_ITEM_TAGS.has_name("OF__"+tagName) and False:# conflict
+        tagEn = OBJ_PAGE_INFO_ITEM_TAGS["OF__"+tagName]
+    elif OBJ_MAPPED_POINT_TAGS.has_name("OF__"+tagName):
+        tagEn = OBJ_MAPPED_POINT_TAGS["OF__"+tagName]
+    elif OBJ_PLOT_DATA_TAGS.has_name("OF__"+tagName) and False:# conflict
+        tagEn = OBJ_PLOT_DATA_TAGS["OF__"+tagName]
+    elif OBJ_CURSOR_DATA_TAGS.has_name("OF__"+tagName) and False:# conflict
+        tagEn = OBJ_CURSOR_DATA_TAGS["OF__"+tagName]
+    elif OBJ_PLOT_IMAGES_TAGS.has_name("OF__"+tagName):
+        tagEn = OBJ_PLOT_IMAGES_TAGS["OF__"+tagName]
+    elif OBJ_CURS_BUTTONS_REC_TAGS.has_name("OF__"+tagName):
+        tagEn = OBJ_CURS_BUTTONS_REC_TAGS["OF__"+tagName]
+    elif OBJ_PLOT_LEGEND_DATA_TAGS.has_name("OF__"+tagName) and False:# conflict
+        tagEn = OBJ_PLOT_LEGEND_DATA_TAGS["OF__"+tagName]
+    elif OBJ_DIGITAL_BUS_ORG_CLUST_TAGS.has_name("OF__"+tagName):
+        tagEn = OBJ_DIGITAL_BUS_ORG_CLUST_TAGS["OF__"+tagName]
+    elif OBJ_SCALE_LEGEND_DATA_TAGS.has_name("OF__"+tagName) and False:# conflict
+        tagEn = OBJ_SCALE_LEGEND_DATA_TAGS["OF__"+tagName]
+    elif OBJ_SCALE_DATA_TAGS.has_name("OF__"+tagName) and False:# conflict
+        tagEn = OBJ_SCALE_DATA_TAGS["OF__"+tagName]
     else:
         tagEn = None
     return tagEn
