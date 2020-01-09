@@ -1082,7 +1082,7 @@ class HeapNode(object):
         """
         self.vi = vi
         self.po = po
-        self.properties = {}
+        self.attribs = {}
         self.content = None
         self.parent = parentNode
         self.tagId = tagId
@@ -1112,10 +1112,9 @@ class HeapNode(object):
                   .format(self.vi.src_fname, self.tagId, self.scopeInfo, sizeSpec, count))
             attribs = {}
             for i in range(count):
-                attr = SimpleNamespace()
-                attr.atType = LVmisc.readVariableSizeFieldS124(bldata)
-                attr.atVal = LVmisc.readVariableSizeFieldS24(bldata)
-                attribs[attr.atType] = attr
+                atId = LVmisc.readVariableSizeFieldS124(bldata)
+                atVal = LVmisc.readVariableSizeFieldS24(bldata)
+                attribs[atId] = atVal
         else:
             if (self.po.verbose > 2):
                 print("{:s}: Heap Container id=0x{:02X} scopeInfo={:d} sizeSpec={:d} noAttr"\
@@ -1142,7 +1141,7 @@ class HeapNode(object):
         elif sizeSpec == 7:
             content = True
 
-        self.properties = attribs
+        self.attribs = attribs
         self.content = content
 
         self.parseRSRCContent()
@@ -1169,13 +1168,13 @@ class HeapNode(object):
 
         data_buf = b''
 
-        hasAttrList = 1 if len(self.properties) > 0 else 0
+        hasAttrList = 1 if len(self.attribs) > 0 else 0
 
         if hasAttrList != 0:
-            data_buf += LVmisc.prepareVariableSizeFieldU124(len(self.properties))
-            for atType, attr in self.properties.items():
-                data_buf += LVmisc.prepareVariableSizeFieldS124(attr.atType)
-                data_buf += LVmisc.prepareVariableSizeFieldS24(attr.atVal)
+            data_buf += LVmisc.prepareVariableSizeFieldU124(len(self.attribs))
+            for atId, atVal in self.attribs.items():
+                data_buf += LVmisc.prepareVariableSizeFieldS124(atId)
+                data_buf += LVmisc.prepareVariableSizeFieldS24(atVal)
 
         if self.content is None:
             sizeSpec = 0
@@ -1201,7 +1200,7 @@ class HeapNode(object):
 
         if (self.po.verbose > 2):
             print("{:s}: Heap Container id=0x{:02X} scopeInfo={:d} sizeSpec={:d} attrCount={:d}"\
-              .format(self.vi.src_fname, self.tagId, self.scopeInfo, sizeSpec, len(self.properties)))
+              .format(self.vi.src_fname, self.tagId, self.scopeInfo, sizeSpec, len(self.attribs)))
 
         if (self.tagId + 31) < 1023:
             rawTagId = self.tagId + 31
@@ -1226,9 +1225,9 @@ class HeapNode(object):
         return tagText
 
     def exportXML(self, elem, scopeInfo, fname_base):
-        for atType, prop in self.properties.items():
-            propName = attributeIdToName(prop.atType)
-            elem.set(propName, attributeValueIntToStr(prop.atType, prop.atVal))
+        for atId, atVal in self.attribs.items():
+            propName = attributeIdToName(atId)
+            elem.set(propName, attributeValueIntToStr(atId, atVal))
 
         tagText = self.prepareContentXML(fname_base)
         if tagText is not None:
@@ -1259,18 +1258,16 @@ class HeapNode(object):
     def initWithXML(self, elem):
         attribs = {}
         for name, value in elem.attrib.items():
-            attr = SimpleNamespace()
-
             if name in ["ScopeInfo"]: # Tags to ignore at this point
                 continue
-            attr.atType = attributeNameToId(name)
-            if attr.atType is None:
+            atId = attributeNameToId(name)
+            if atId is None:
                 raise AttributeError("Unrecognized attrib name in heap XML, '{}'".format(name))
-            attr.atVal = attributeValueStrToInt(attr.atType, value)
-            if attr.atVal is None:
+            atVal = attributeValueStrToInt(atId, value)
+            if atVal is None:
                 raise AttributeError("Unrecognized attrib value in heap XML for name '{}'".format(name))
-            attribs[attr.atType] = attr
-        self.properties = attribs
+            attribs[atId] = atVal
+        self.attribs = attribs
 
         if elem.text is not None:
             tagText = elem.text.strip()
@@ -1370,10 +1367,12 @@ def tagIdToName(tagId, classId=SL_CLASS_TAGS.SL__generic.value):
     return tagName
 
 def tagNameToEnum(tagName, classId=SL_CLASS_TAGS.SL__generic.value):
-    if tagName in SL_SYSTEM_TAGS.__members__:
+    if SL_SYSTEM_TAGS.has_name(tagName):
         tagEn = SL_SYSTEM_TAGS[tagName]
-    elif "OF__"+tagName in OBJ_FIELD_TAGS.__members__:
+    elif OBJ_FIELD_TAGS.has_name("OF__"+tagName):
         tagEn = OBJ_FIELD_TAGS["OF__"+tagName]
+    elif OBJ_IMAGE_TAGS.has_name("OF__"+tagName):
+        tagEn = OBJ_IMAGE_TAGS["OF__"+tagName]
     else:
         tagEn = None
     return tagEn
@@ -1398,7 +1397,7 @@ def attributeIdToName(attrId):
     return attrName
 
 def attributeNameToId(attrName):
-    if SL_SYSTEM_ATTRIB_TAGS.has_name("SL__"+className):
+    if SL_SYSTEM_ATTRIB_TAGS.has_name("SL__"+attrName):
         attrId = SL_SYSTEM_ATTRIB_TAGS["SL__"+attrName].value
     else:
         nameParse = re.match("^Prop([0-9A-F]{4,8})$", attrName)

@@ -2353,8 +2353,8 @@ class FPH(Block):
         """
         for i in reversed(obj_idx):
             obj = section.objects[i]
-            if LVheap.SL_SYSTEM_ATTRIB_TAGS.SL__class.value in obj.properties:
-                return obj.properties[LVheap.SL_SYSTEM_ATTRIB_TAGS.SL__class.value].atVal
+            if LVheap.SL_SYSTEM_ATTRIB_TAGS.SL__class.value in obj.attribs:
+                return obj.attribs[LVheap.SL_SYSTEM_ATTRIB_TAGS.SL__class.value]
         return LVheap.SL_CLASS_TAGS.SL__oHExt.value
 
     def exportXMLSection(self, section_elem, snum, section, fname_base):
