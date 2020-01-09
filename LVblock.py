@@ -2247,7 +2247,19 @@ class FPH(Block):
         section.objects = []
         return section
 
-    def parseRSRCHeap(self, section, bldata):
+    def getTopClassId(self, section, obj_idx):
+        """ Return classId of top object with class
+
+        From a list of object indexes, this function will return class id
+        of the one nearest to top which has a 'class' attribute.
+        """
+        for i in reversed(obj_idx):
+            obj = section.objects[i]
+            if LVheap.SL_SYSTEM_ATTRIB_TAGS.SL__class.value in obj.attribs:
+                return obj.attribs[LVheap.SL_SYSTEM_ATTRIB_TAGS.SL__class.value]
+        return LVheap.SL_CLASS_TAGS.SL__oHExt.value
+
+    def parseRSRCHeap(self, section, bldata, parent_obj_idx):
         startPos = bldata.tell()
         cmd = bldata.read(2)
 
@@ -2261,16 +2273,23 @@ class FPH(Block):
         else:
             tagId = tagId - 31
 
-        obj = LVheap.createObjectNode(self.vi, self.po, tagId, scopeInfo)
+        classId = self.getTopClassId(section, parent_obj_idx)
+        i = len(section.objects)
+
+        obj = LVheap.createObjectNode(self.vi, self.po, tagId, classId, scopeInfo)
         section.objects.append(obj)
+        if scopeInfo != LVheap.NODE_SCOPE.TagClose:
+            parent_obj_idx.append(i)
         obj.parseRSRCData(bldata, hasAttrList, sizeSpec)
+        if scopeInfo != LVheap.NODE_SCOPE.TagOpen:
+            parent_obj_idx.pop()
         dataLen = bldata.tell() - startPos
 
         # TODO Should we re-read the bytes and set raw data inside the obj?
         #bldata.seek(startPos)
         #dataBuf = bldata.read(dataLen)
 
-        return dataLen
+        return obj, dataLen
 
     def parseRSRCData(self, section_num, bldata):
         section = self.sections[section_num]
@@ -2278,9 +2297,10 @@ class FPH(Block):
         section.objects = []
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
+        parent_obj_idx = []
         tot_len = 0
         while tot_len < content_len:
-            entry_len = self.parseRSRCHeap(section, bldata)
+            obj, entry_len = self.parseRSRCHeap(section, bldata, parent_obj_idx)
             if entry_len <= 0:
                 print("{:s}: Block {} section {:d}, has not enough data for complete heap"\
                   .format(self.vi.src_fname,self.ident,section_num))
@@ -2315,7 +2335,7 @@ class FPH(Block):
             raise AttributeError("Unrecognized tag in heap XML, '{}', class 0x{:04X}"\
               .format(elem.tag, classId))
         scopeInfo = LVheap.autoScopeInfoFromET(elem)
-        obj = LVheap.createObjectNode(self.vi, self.po, tagId, scopeInfo)
+        obj = LVheap.createObjectNode(self.vi, self.po, tagId, classId, scopeInfo)
         section.objects.append(obj)
 
         obj.initWithXML(elem)
@@ -2330,7 +2350,7 @@ class FPH(Block):
 
         if obj.scopeInfo == LVheap.NODE_SCOPE.TagOpen.value:
             scopeInfo = LVheap.NODE_SCOPE.TagClose.value
-            obj = LVheap.createObjectNode(self.vi, self.po, tagId, scopeInfo)
+            obj = LVheap.createObjectNode(self.vi, self.po, tagId, classId, scopeInfo)
             section.objects.append(obj)
             #obj.initWithXML(elem)
 
@@ -2354,28 +2374,15 @@ class FPH(Block):
             Block.initWithXMLSection(self, section, section_elem)
         pass
 
-    def getTopClassId(self, section, obj_idx):
-        """ Return classId of top object with class
-
-        From a list of object indexes, this function will return class id
-        of the one nearest to top which has a 'class' attribute.
-        """
-        for i in reversed(obj_idx):
-            obj = section.objects[i]
-            if LVheap.SL_SYSTEM_ATTRIB_TAGS.SL__class.value in obj.attribs:
-                return obj.attribs[LVheap.SL_SYSTEM_ATTRIB_TAGS.SL__class.value]
-        return LVheap.SL_CLASS_TAGS.SL__oHExt.value
-
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         block_fname = "{:s}.{:s}".format(fname_base,"xml")
 
         root = None
         parent_elems = []
-        parent_obj_idx = []
         elem = None
         for i, obj in enumerate(section.objects):
             scopeInfo = obj.getScopeInfo()
-            classId = self.getTopClassId(section, parent_obj_idx)
+            classId = obj.parentClassId
             tagName = LVheap.tagIdToName(obj.tagId, classId)
             if elem is None:
                 elem = ET.Element(tagName)
@@ -2389,11 +2396,7 @@ class FPH(Block):
             else:
                 elem = ET.SubElement(parent_elems[-1], tagName)
 
-            if scopeInfo != LVheap.NODE_SCOPE.TagClose:
-                parent_obj_idx.append(i)
             obj.exportXML(elem, scopeInfo, "{:s}_{:04d}".format(fname_base,i))
-            if scopeInfo != LVheap.NODE_SCOPE.TagOpen:
-                parent_obj_idx.pop()
 
             if scopeInfo == LVheap.NODE_SCOPE.TagOpen:
                 parent_elems.append(elem)

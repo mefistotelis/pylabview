@@ -1263,7 +1263,7 @@ class OBJ_SCALE_DATA_TAGS(ENUM_TAGS):
 
 
 class HeapNode(object):
-    def __init__(self, vi, po, parentNode, tagId, scopeInfo):
+    def __init__(self, vi, po, parentNode, tagId, parentClassId, scopeInfo):
         """ Creates new Section object, represention one of possible contents of a Block.
 
         Support of a section is mostly implemented in Block, so there isn't much here.
@@ -1274,6 +1274,7 @@ class HeapNode(object):
         self.content = None
         self.parent = parentNode
         self.tagId = tagId
+        self.parentClassId = parentClassId
         self.scopeInfo = scopeInfo
         self.childs = []
         self.raw_data = None
@@ -1752,18 +1753,19 @@ def autoScopeInfoFromET(elem):
         return NODE_SCOPE.TagLeaf
     return NODE_SCOPE.TagOpen
 
-def createObjectNode(vi, po, tagId, scopeInfo):
+def createObjectNode(vi, po, tagId, classId, scopeInfo):
     """ create new Heap Node
 
     Acts as a factory which selects object class based on tagId.
     """
-    if tagId in [OBJ_FIELD_TAGS.OF__bounds.value,
-      OBJ_FIELD_TAGS.OF__dBounds.value,
-      OBJ_FIELD_TAGS.OF__pBounds.value,
+    tagEn = tagIdToEnum(tagId, classId)
+    if tagEn in [OBJ_FIELD_TAGS.OF__bounds,
+      OBJ_FIELD_TAGS.OF__dBounds,
+      OBJ_FIELD_TAGS.OF__pBounds,
       ]:
-        obj = HeapNodeRect(vi, po, None, tagId, scopeInfo)
+        obj = HeapNodeRect(vi, po, None, tagId, classId, scopeInfo)
     else:
-        obj = HeapNode(vi, po, None, tagId, scopeInfo)
+        obj = HeapNode(vi, po, None, tagId, classId, scopeInfo)
     return obj
 
 def addObjectNodeToTree(section, parentIdx, objectIdx):
