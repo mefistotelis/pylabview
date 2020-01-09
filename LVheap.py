@@ -700,6 +700,7 @@ class OBJ_FIELD_TAGS(ENUM_TAGS):
 
 class SL_CLASS_TAGS(ENUM_TAGS):
     SL__badProc = 0
+    SL__textHair = 1
     SL__prNodeList = 3
     SL__prFrameList = 4
     SL__prVIPartList = 5
@@ -1057,6 +1058,20 @@ class SL_CLASS_TAGS(ENUM_TAGS):
     SL__DigitlaBusOrgClust = 923
     SL__ScaleLegendData = 924
     SL__ScaleData = 925
+
+
+class OBJ_TEXT_HAIR_TAGS(ENUM_TAGS):
+    OF__textRecObject = 0
+    OF__flags = 1
+    OF__mode = 2
+    OF__text = 3
+    OF__view = 4
+    OF__bgColor = 5
+    OF__fr = 6
+    OF__curfr = 7
+    OF__fontofst = 8
+    OF__fontid = 9
+    OF__fontcolor = 10
 
 
 class OBJ_COMPLEX_SCALAR_TAGS(ENUM_TAGS):
@@ -1466,6 +1481,31 @@ class HeapNode(object):
         pass
 
 
+class HeapNodeStdInt(HeapNode):
+    def __init__(self, *args, btlen=2, signed=True):
+        super().__init__(*args)
+        self.btlen = btlen
+        self.signed = signed
+        self.value = 0
+
+    def parseRSRCContent(self):
+        bldata = BytesIO(self.content)
+        self.left = int.from_bytes(bldata.read(self.btlen), byteorder='big', signed=self.signed)
+
+    def updateContent(self):
+        self.content = int(self.value).to_bytes(self.btlen, byteorder='big', signed=self.signed)
+
+    def prepareContentXML(self, fname_base):
+        return "{:d}".format(self.value)
+
+    def initContentWithXML(self, tagText):
+        tagParse = re.match("^([0-9A-Fx-]+)$", tagText)
+        if tagParse is None:
+            raise AttributeError("Tag 0x{:04X} content contains bad Integer value".format(self.tagId))
+        self.value = int(tagParse[1], 0)
+        self.updateContent()
+
+
 class HeapNodeRect(HeapNode):
     def __init__(self, *args):
         super().__init__(*args)
@@ -1532,6 +1572,9 @@ def tagIdToEnum(tagId, classId=SL_CLASS_TAGS.SL__generic.value):
     tagEn = None
     if SL_SYSTEM_TAGS.has_value(tagId):
         tagEn = SL_SYSTEM_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__textHair.value:
+        if OBJ_TEXT_HAIR_TAGS.has_value(tagId):
+            tagEn = OBJ_TEXT_HAIR_TAGS(tagId)
     elif classId == SL_CLASS_TAGS.SL__Image.value:
         if OBJ_IMAGE_TAGS.has_value(tagId):
             tagEn = OBJ_IMAGE_TAGS(tagId)
@@ -1625,6 +1668,9 @@ def tagNameToEnum(tagName, classId=SL_CLASS_TAGS.SL__generic.value):
     tagEn = None
     if SL_SYSTEM_TAGS.has_name(tagName):
         tagEn = SL_SYSTEM_TAGS[tagName]
+    elif classId == SL_CLASS_TAGS.SL__textHair.value:
+        if OBJ_TEXT_HAIR_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_TEXT_HAIR_TAGS["OF__"+tagName]
     elif classId == SL_CLASS_TAGS.SL__Image.value:
         if OBJ_IMAGE_TAGS.has_name("OF__"+tagName):
             tagEn = OBJ_IMAGE_TAGS["OF__"+tagName]
@@ -1783,6 +1829,8 @@ def createObjectNode(vi, po, tagId, classId, scopeInfo):
     if tagEn in [OBJ_FIELD_TAGS.OF__bounds,
       OBJ_FIELD_TAGS.OF__dBounds,
       OBJ_FIELD_TAGS.OF__pBounds,
+      OBJ_FIELD_TAGS.OF__docBounds,
+      OBJ_FIELD_TAGS.OF__dynBounds,
       ]:
         obj = HeapNodeRect(vi, po, None, tagId, classId, scopeInfo)
     else:
