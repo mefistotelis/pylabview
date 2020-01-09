@@ -1551,19 +1551,19 @@ def tagIdToEnum(tagId, classId=SL_CLASS_TAGS.SL__generic.value):
         if OBJ_COMPLEX_SCALAR_TAGS.has_value(tagId):
             tagEn = OBJ_COMPLEX_SCALAR_TAGS(tagId)
     elif classId == SL_CLASS_TAGS.SL__TableAttribute.value:
-        if OBJ_ATTRIBUTE_LIST_ITEM_TAGS.has_value(tagId) and False:# conflict
+        if OBJ_ATTRIBUTE_LIST_ITEM_TAGS.has_value(tagId):
             tagEn = OBJ_ATTRIBUTE_LIST_ITEM_TAGS(tagId)
     elif classId == SL_CLASS_TAGS.SL__Time128.value:
         if OBJ_TIME128_TAGS.has_value(tagId):
             tagEn = OBJ_TIME128_TAGS(tagId)
     elif classId == SL_CLASS_TAGS.SL__BrowseOptions.value:
-        if OBJ_BROWSE_OPTIONS_TAGS.has_value(tagId) and False:# conflict
+        if OBJ_BROWSE_OPTIONS_TAGS.has_value(tagId):
             tagEn = OBJ_BROWSE_OPTIONS_TAGS(tagId)
     elif classId == SL_CLASS_TAGS.SL__StorageRowCol.value:
         if OBJ_ROW_COL_TAGS.has_value(tagId):
             tagEn = OBJ_ROW_COL_TAGS(tagId)
     elif classId == SL_CLASS_TAGS.SL__ColorPair.value:
-        if OBJ_COLOR_PAIR_TAGS.has_value(tagId) and False:# conflict
+        if OBJ_COLOR_PAIR_TAGS.has_value(tagId):
             tagEn = OBJ_COLOR_PAIR_TAGS(tagId)
     elif classId == SL_CLASS_TAGS.SL__TreeNode.value:
         if OBJ_TREE_NODE_TAGS.has_value(tagId):
@@ -1575,16 +1575,16 @@ def tagIdToEnum(tagId, classId=SL_CLASS_TAGS.SL__generic.value):
         if OBJ_TAB_INFO_ITEM_TAGS.has_value(tagId):
             tagEn = OBJ_TAB_INFO_ITEM_TAGS(tagId)
     elif classId == SL_CLASS_TAGS.SL__PageInfoItem.value:
-        if OBJ_PAGE_INFO_ITEM_TAGS.has_value(tagId) and False:# conflict
+        if OBJ_PAGE_INFO_ITEM_TAGS.has_value(tagId):
             tagEn = OBJ_PAGE_INFO_ITEM_TAGS(tagId)
     elif classId == SL_CLASS_TAGS.SL__MappedPoint.value:
         if OBJ_MAPPED_POINT_TAGS.has_value(tagId):
             tagEn = OBJ_MAPPED_POINT_TAGS(tagId)
     elif classId == SL_CLASS_TAGS.SL__PlotData.value:
-        if OBJ_PLOT_DATA_TAGS.has_value(tagId) and False:# conflict
+        if OBJ_PLOT_DATA_TAGS.has_value(tagId):
             tagEn = OBJ_PLOT_DATA_TAGS(tagId)
     elif classId == SL_CLASS_TAGS.SL__CursorData.value:
-        if OBJ_CURSOR_DATA_TAGS.has_value(tagId) and False:# conflict
+        if OBJ_CURSOR_DATA_TAGS.has_value(tagId):
             tagEn = OBJ_CURSOR_DATA_TAGS(tagId)
     elif classId == SL_CLASS_TAGS.SL__PlotImages.value:
         if OBJ_PLOT_IMAGES_TAGS.has_value(tagId):
@@ -1593,16 +1593,16 @@ def tagIdToEnum(tagId, classId=SL_CLASS_TAGS.SL__generic.value):
         if OBJ_CURS_BUTTONS_REC_TAGS.has_value(tagId):
             tagEn = OBJ_CURS_BUTTONS_REC_TAGS(tagId)
     elif classId == SL_CLASS_TAGS.SL__PlotLegendData.value:
-        if OBJ_PLOT_LEGEND_DATA_TAGS.has_value(tagId) and False:# conflict
+        if OBJ_PLOT_LEGEND_DATA_TAGS.has_value(tagId):
             tagEn = OBJ_PLOT_LEGEND_DATA_TAGS(tagId)
     elif classId == SL_CLASS_TAGS.SL__DigitlaBusOrgClust.value:
         if OBJ_DIGITAL_BUS_ORG_CLUST_TAGS.has_value(tagId):
             tagEn = OBJ_DIGITAL_BUS_ORG_CLUST_TAGS(tagId)
     elif classId == SL_CLASS_TAGS.SL__ScaleLegendData.value:
-        if OBJ_SCALE_LEGEND_DATA_TAGS.has_value(tagId) and False:# conflict
+        if OBJ_SCALE_LEGEND_DATA_TAGS.has_value(tagId):
             tagEn = OBJ_SCALE_LEGEND_DATA_TAGS(tagId)
     elif classId == SL_CLASS_TAGS.SL__ScaleData.value:
-        if OBJ_SCALE_DATA_TAGS.has_value(tagId) and False:# conflict
+        if OBJ_SCALE_DATA_TAGS.has_value(tagId):
             tagEn = OBJ_SCALE_DATA_TAGS(tagId)
     else:
         if OBJ_FIELD_TAGS.has_value(tagId):
@@ -1622,60 +1622,84 @@ def tagIdToName(tagId, classId=SL_CLASS_TAGS.SL__generic.value):
     return tagName
 
 def tagNameToEnum(tagName, classId=SL_CLASS_TAGS.SL__generic.value):
+    tagEn = None
     if SL_SYSTEM_TAGS.has_name(tagName):
         tagEn = SL_SYSTEM_TAGS[tagName]
-    elif OBJ_FIELD_TAGS.has_name("OF__"+tagName):
-        tagEn = OBJ_FIELD_TAGS["OF__"+tagName]
-    elif OBJ_IMAGE_TAGS.has_name("OF__"+tagName):
-        tagEn = OBJ_IMAGE_TAGS["OF__"+tagName]
-    elif OBJ_EMBED_OBJECT_TAGS.has_name("OF__"+tagName):
-        tagEn = OBJ_EMBED_OBJECT_TAGS["OF__"+tagName]
-    elif OBJ_SCENE_GRAPH_TAGS.has_name("OF__"+tagName):
-        tagEn = OBJ_SCENE_GRAPH_TAGS["OF__"+tagName]
-    elif OBJ_SCENE_COLOR_TAGS.has_name("OF__"+tagName):
-        tagEn = OBJ_SCENE_COLOR_TAGS["OF__"+tagName]
-    elif OBJ_SCENE_EYE_POINT_TAGS.has_name("OF__"+tagName):
-        tagEn = OBJ_SCENE_EYE_POINT_TAGS["OF__"+tagName]
-    elif OBJ_COMPLEX_SCALAR_TAGS.has_name("OF__"+tagName):
-        tagEn = OBJ_COMPLEX_SCALAR_TAGS["OF__"+tagName]
-    elif OBJ_ATTRIBUTE_LIST_ITEM_TAGS.has_name("OF__"+tagName) and False:# conflict
-        tagEn = OBJ_ATTRIBUTE_LIST_ITEM_TAGS["OF__"+tagName]
-    elif OBJ_TIME128_TAGS.has_name("OF__"+tagName):
-        tagEn = OBJ_TIME128_TAGS["OF__"+tagName]
-    elif OBJ_BROWSE_OPTIONS_TAGS.has_name("OF__"+tagName) and False:# conflict
-        tagEn = OBJ_BROWSE_OPTIONS_TAGS["OF__"+tagName]
-    elif OBJ_ROW_COL_TAGS.has_name("OF__"+tagName):#SL__StorageRowCol
-        tagEn = OBJ_ROW_COL_TAGS["OF__"+tagName]
-    elif OBJ_COLOR_PAIR_TAGS.has_name("OF__"+tagName) and False:# conflict
-        tagEn = OBJ_COLOR_PAIR_TAGS["OF__"+tagName]
-    elif OBJ_TREE_NODE_TAGS.has_name("OF__"+tagName):
-        tagEn = OBJ_TREE_NODE_TAGS["OF__"+tagName]
-    elif OBJ_ROW_COL_TAGS.has_name("OF__"+tagName):#SL__RelativeRowCol
-        tagEn = OBJ_ROW_COL_TAGS["OF__"+tagName]
-    elif OBJ_TAB_INFO_ITEM_TAGS.has_name("OF__"+tagName):
-        tagEn = OBJ_TAB_INFO_ITEM_TAGS["OF__"+tagName]
-    elif OBJ_PAGE_INFO_ITEM_TAGS.has_name("OF__"+tagName) and False:# conflict
-        tagEn = OBJ_PAGE_INFO_ITEM_TAGS["OF__"+tagName]
-    elif OBJ_MAPPED_POINT_TAGS.has_name("OF__"+tagName):
-        tagEn = OBJ_MAPPED_POINT_TAGS["OF__"+tagName]
-    elif OBJ_PLOT_DATA_TAGS.has_name("OF__"+tagName) and False:# conflict
-        tagEn = OBJ_PLOT_DATA_TAGS["OF__"+tagName]
-    elif OBJ_CURSOR_DATA_TAGS.has_name("OF__"+tagName) and False:# conflict
-        tagEn = OBJ_CURSOR_DATA_TAGS["OF__"+tagName]
-    elif OBJ_PLOT_IMAGES_TAGS.has_name("OF__"+tagName):
-        tagEn = OBJ_PLOT_IMAGES_TAGS["OF__"+tagName]
-    elif OBJ_CURS_BUTTONS_REC_TAGS.has_name("OF__"+tagName):
-        tagEn = OBJ_CURS_BUTTONS_REC_TAGS["OF__"+tagName]
-    elif OBJ_PLOT_LEGEND_DATA_TAGS.has_name("OF__"+tagName) and False:# conflict
-        tagEn = OBJ_PLOT_LEGEND_DATA_TAGS["OF__"+tagName]
-    elif OBJ_DIGITAL_BUS_ORG_CLUST_TAGS.has_name("OF__"+tagName):
-        tagEn = OBJ_DIGITAL_BUS_ORG_CLUST_TAGS["OF__"+tagName]
-    elif OBJ_SCALE_LEGEND_DATA_TAGS.has_name("OF__"+tagName) and False:# conflict
-        tagEn = OBJ_SCALE_LEGEND_DATA_TAGS["OF__"+tagName]
-    elif OBJ_SCALE_DATA_TAGS.has_name("OF__"+tagName) and False:# conflict
-        tagEn = OBJ_SCALE_DATA_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__Image.value:
+        if OBJ_IMAGE_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_IMAGE_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__EmbedObject.value:
+        if OBJ_EMBED_OBJECT_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_EMBED_OBJECT_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__SceneView.value:
+        if OBJ_SCENE_GRAPH_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_SCENE_GRAPH_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__SceneColor.value:
+        if OBJ_SCENE_COLOR_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_SCENE_COLOR_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__SceneEyePoint.value:
+        if OBJ_SCENE_EYE_POINT_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_SCENE_EYE_POINT_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__ComplexScalar.value:
+        if OBJ_COMPLEX_SCALAR_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_COMPLEX_SCALAR_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__TableAttribute.value:
+        if OBJ_ATTRIBUTE_LIST_ITEM_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_ATTRIBUTE_LIST_ITEM_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__Time128.value:
+        if OBJ_TIME128_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_TIME128_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__BrowseOptions.value:
+        if OBJ_BROWSE_OPTIONS_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_BROWSE_OPTIONS_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__StorageRowCol.value:
+        if OBJ_ROW_COL_TAGS.has_name("OF__"+tagName):#SL__StorageRowCol
+            tagEn = OBJ_ROW_COL_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__ColorPair.value:
+        if OBJ_COLOR_PAIR_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_COLOR_PAIR_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__TreeNode.value:
+        if OBJ_TREE_NODE_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_TREE_NODE_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__RelativeRowCol.value:
+        if OBJ_ROW_COL_TAGS.has_name("OF__"+tagName):#SL__RelativeRowCol
+            tagEn = OBJ_ROW_COL_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__TabInfoItem.value:
+        if OBJ_TAB_INFO_ITEM_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_TAB_INFO_ITEM_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__PageInfoItem.value:
+        if OBJ_PAGE_INFO_ITEM_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_PAGE_INFO_ITEM_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__MappedPoint.value:
+        if OBJ_MAPPED_POINT_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_MAPPED_POINT_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__PlotData.value:
+        if OBJ_PLOT_DATA_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_PLOT_DATA_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__CursorData.value:
+        if OBJ_CURSOR_DATA_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_CURSOR_DATA_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__PlotImages.value:
+        if OBJ_PLOT_IMAGES_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_PLOT_IMAGES_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__CursorButtonsRec.value:
+        if OBJ_CURS_BUTTONS_REC_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_CURS_BUTTONS_REC_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__PlotLegendData.value:
+        if OBJ_PLOT_LEGEND_DATA_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_PLOT_LEGEND_DATA_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__DigitlaBusOrgClust.value:
+        if OBJ_DIGITAL_BUS_ORG_CLUST_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_DIGITAL_BUS_ORG_CLUST_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__ScaleLegendData.value:
+        if OBJ_SCALE_LEGEND_DATA_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_SCALE_LEGEND_DATA_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__ScaleData.value:
+        if OBJ_SCALE_DATA_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_SCALE_DATA_TAGS["OF__"+tagName]
     else:
-        tagEn = None
+        if OBJ_FIELD_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_FIELD_TAGS["OF__"+tagName]
     return tagEn
 
 def tagNameToId(tagName, classId=SL_CLASS_TAGS.SL__generic.value):
