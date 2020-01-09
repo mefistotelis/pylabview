@@ -2307,6 +2307,10 @@ class FPH(Block):
                 break
             tot_len += entry_len
 
+        if len(parent_obj_idx) > 0:
+            eprint("{}: Warning: In block {}, heap did not closed all tags; {} still open"\
+              .format(self.vi.src_fname, self.ident, len(parent_obj_idx)))
+
     def updateSectionData(self, section_num=None):
         if section_num is None:
             section_num = self.active_section_num

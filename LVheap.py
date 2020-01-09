@@ -1487,15 +1487,12 @@ class HeapNodeRect(HeapNode):
         content += int(self.top).to_bytes(2, byteorder='big', signed=True)
         content += int(self.right).to_bytes(2, byteorder='big', signed=True)
         content += int(self.bottom).to_bytes(2, byteorder='big', signed=True)
-        #self.content = content # TODO enable when tested
+        self.content = content
 
     def prepareContentXML(self, fname_base):
-        return self.content.hex() # TODO remove when tested
         return "({:d}, {:d}, {:d}, {:d})".format(self.left, self.top, self.right, self.bottom)
 
     def initContentWithXML(self, tagText):
-        self.content  = bytes.fromhex(tagText)
-        return # TODO remove when tested
         tagParse = re.match("^\([ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+)[ ]*\)$", tagText)
         if tagParse is None:
             raise AttributeError("Tag 0x{:04X} content contains unrecognized Rect definition".format(self.tagId))
