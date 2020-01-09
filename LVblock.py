@@ -2345,15 +2345,29 @@ class FPH(Block):
             Block.initWithXMLSection(self, section, section_elem)
         pass
 
+    def getTopClassId(self, section, obj_idx):
+        """ Return classId of top object with class
+
+        From a list of object indexes, this function will return class id
+        of the one nearest to top which has a 'class' attribute.
+        """
+        for i in reversed(obj_idx):
+            obj = section.objects[i]
+            if LVheap.SL_SYSTEM_ATTRIB_TAGS.SL__class.value in obj.properties:
+                return obj.properties[LVheap.SL_SYSTEM_ATTRIB_TAGS.SL__class.value].atVal
+        return LVheap.SL_CLASS_TAGS.SL__oHExt.value
+
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         block_fname = "{:s}.{:s}".format(fname_base,"xml")
 
         root = None
         parent_elems = []
+        parent_obj_idx = []
         elem = None
         for i, obj in enumerate(section.objects):
-            tagName = LVheap.tagIdToName(obj.tagId)
             scopeInfo = obj.getScopeInfo()
+            classId = self.getTopClassId(section, parent_obj_idx)
+            tagName = LVheap.tagIdToName(obj.tagId, classId)
             if elem is None:
                 elem = ET.Element(tagName)
                 root = elem
@@ -2366,7 +2380,11 @@ class FPH(Block):
             else:
                 elem = ET.SubElement(parent_elems[-1], tagName)
 
+            if scopeInfo != LVheap.NODE_SCOPE.TagClose:
+                parent_obj_idx.append(i)
             obj.exportXML(elem, scopeInfo, "{:s}_{:04d}".format(fname_base,i))
+            if scopeInfo != LVheap.NODE_SCOPE.TagOpen:
+                parent_obj_idx.pop()
 
             if scopeInfo == LVheap.NODE_SCOPE.TagOpen:
                 parent_elems.append(elem)

@@ -49,6 +49,14 @@ class SL_SYSTEM_TAGS(enum.Enum):
     SL__arrayElement = -6
     SL__rootObject = -7
 
+    @classmethod
+    def has_value(cls, value):
+        #return tagId in set(itm.value for itm in cls) # slower
+        return value in cls._value2member_map_
+
+    @classmethod
+    def has_name(cls, name):
+        return name in cls.__members__
 
 class SL_SYSTEM_ATTRIB_TAGS(enum.Enum):
     SL__class = -2
@@ -57,6 +65,14 @@ class SL_SYSTEM_ATTRIB_TAGS(enum.Enum):
     SL__elements = -5
     SL__index = -6
     SL__stockSource = -7
+
+    @classmethod
+    def has_value(cls, value):
+        return value in cls._value2member_map_
+
+    @classmethod
+    def has_name(cls, name):
+        return name in cls.__members__
 
 
 class OBJ_FIELD_TAGS(enum.Enum):
@@ -687,6 +703,15 @@ class OBJ_FIELD_TAGS(enum.Enum):
     OF__kSLHFieldDefaultValueMatchesCtlVI = 625
     OF__FpgaEnableBoundsMux = 626
 
+    @classmethod
+    def has_value(cls, value):
+        return value in cls._value2member_map_
+
+    @classmethod
+    def has_name(cls, name):
+        return name in cls.__members__
+
+
 class SL_CLASS_TAGS(enum.Enum):
     SL__badProc = 0
     SL__prNodeList = 3
@@ -1022,6 +1047,31 @@ class SL_CLASS_TAGS(enum.Enum):
     SL__dexChannelShutdownNode = 373
     SL__lpTunConditionDCO = 374
     SL__attachment = 375
+    SL__Image = 600
+
+    @classmethod
+    def has_value(cls, value):
+        return value in cls._value2member_map_
+
+    @classmethod
+    def has_name(cls, name):
+        return name in cls.__members__
+
+
+class OBJ_IMAGE_TAGS(enum.Enum):
+    OF__ImageResID = 0
+    OF__ImageInternalsResID = 1
+    OF__ImageData1 = 2
+    OF__ImageData2 = 3
+    OF__ImageData3 = 4
+
+    @classmethod
+    def has_value(cls, value):
+        return value in cls._value2member_map_
+
+    @classmethod
+    def has_name(cls, name):
+        return name in cls.__members__
 
 
 class HeapNode(object):
@@ -1293,27 +1343,33 @@ def recognizePanelHeapFmtFromIdent(heap_ident):
             return hfmt
     return HEAP_FORMAT.Unknown
 
-def tagIdToEnum(tagId, classId=0):
-    if tagId in set(itm.value for itm in SL_SYSTEM_TAGS):
+def tagIdToEnum(tagId, classId=SL_CLASS_TAGS.SL__generic.value):
+    # System level tags are always active; other tags depend
+    # on an upper level tag which has 'class' set.
+    tagEn = None
+    if SL_SYSTEM_TAGS.has_value(tagId):
         tagEn = SL_SYSTEM_TAGS(tagId)
-    elif tagId in set(itm.value for itm in OBJ_FIELD_TAGS):
-        tagEn = OBJ_FIELD_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__Image.value:
+        if OBJ_IMAGE_TAGS.has_value(tagId):
+            tagEn = OBJ_IMAGE_TAGS(tagId)
     else:
-        tagEn = None
+        if OBJ_FIELD_TAGS.has_value(tagId):
+            tagEn = OBJ_FIELD_TAGS(tagId)
     return tagEn
 
-def tagIdToName(tagId, classId=0):
-    # Cannot use tagIdToEnum() because for some enums we are
-    # cutting out part of the name.
-    if tagId in set(itm.value for itm in SL_SYSTEM_TAGS):
-        tagName = SL_SYSTEM_TAGS(tagId).name
-    elif tagId in set(itm.value for itm in OBJ_FIELD_TAGS):
-        tagName = OBJ_FIELD_TAGS(tagId).name[4:]
+def tagIdToName(tagId, classId=SL_CLASS_TAGS.SL__generic.value):
+    tagEn = tagIdToEnum(tagId, classId)
+    if tagEn is not None:
+        # For most enums, we need to remove 4 starting bytes to get the name
+        if isinstance(tagEn, SL_SYSTEM_TAGS):
+            tagName = tagEn.name
+        else:
+            tagName = tagEn.name[4:]
     else:
         tagName = 'Tag{:04X}'.format(tagId)
     return tagName
 
-def tagNameToEnum(tagName, classId=0):
+def tagNameToEnum(tagName, classId=SL_CLASS_TAGS.SL__generic.value):
     if tagName in SL_SYSTEM_TAGS.__members__:
         tagEn = SL_SYSTEM_TAGS[tagName]
     elif "OF__"+tagName in OBJ_FIELD_TAGS.__members__:
@@ -1322,7 +1378,7 @@ def tagNameToEnum(tagName, classId=0):
         tagEn = None
     return tagEn
 
-def tagNameToId(tagName, classId=0):
+def tagNameToId(tagName, classId=SL_CLASS_TAGS.SL__generic.value):
     tagEn = tagNameToEnum(tagName, classId)
     if tagEn is not None:
         tagId = tagEn.value
@@ -1335,14 +1391,14 @@ def tagNameToId(tagName, classId=0):
     return tagId
 
 def attributeIdToName(attrId):
-    if attrId in set(itm.value for itm in SL_SYSTEM_ATTRIB_TAGS):
+    if SL_SYSTEM_ATTRIB_TAGS.has_value(attrId):
         attrName = SL_SYSTEM_ATTRIB_TAGS(attrId).name[4:]
     else:
         attrName = 'Prop{:04X}'.format(attrId)
     return attrName
 
 def attributeNameToId(attrName):
-    if "SL__"+attrName in SL_SYSTEM_ATTRIB_TAGS.__members__:
+    if SL_SYSTEM_ATTRIB_TAGS.has_name("SL__"+className):
         attrId = SL_SYSTEM_ATTRIB_TAGS["SL__"+attrName].value
     else:
         nameParse = re.match("^Prop([0-9A-F]{4,8})$", attrName)
@@ -1360,7 +1416,7 @@ def classIdToName(classId):
     return className
 
 def classNameToId(className):
-    if "SL__"+className in SL_CLASS_TAGS.__members__:
+    if SL_CLASS_TAGS.has_name("SL__"+className):
         classId = SL_CLASS_TAGS["SL__"+className].value
     else:
         classParse = re.match("^Class([0-9A-F]{4,8})$", className)
