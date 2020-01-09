@@ -2309,19 +2309,28 @@ class FPH(Block):
 
         self.setData(data_buf, section_num=section_num)
 
-    def initWithXMLHeap(self, section, elem):
+    def initWithXMLHeap(self, section, elem, classId):
+        tagId = LVheap.tagNameToId(elem.tag, classId)
+        if tagId is None:
+            raise AttributeError("Unrecognized tag in heap XML, '{}', class 0x{:04X}"\
+              .format(elem.tag, classId))
         scopeInfo = LVheap.autoScopeInfoFromET(elem)
-        obj = LVheap.createObjectNode(self.vi, self.po, elem.tag, scopeInfo)
+        obj = LVheap.createObjectNode(self.vi, self.po, tagId, scopeInfo)
         section.objects.append(obj)
 
         obj.initWithXML(elem)
 
+        if LVheap.SL_SYSTEM_ATTRIB_TAGS.SL__class.value in obj.attribs:
+            subClassId = obj.attribs[LVheap.SL_SYSTEM_ATTRIB_TAGS.SL__class.value]
+        else:
+            subClassId = classId
+
         for subelem in elem:
-            self.initWithXMLHeap(section, subelem)
+            self.initWithXMLHeap(section, subelem, subClassId)
 
         if obj.scopeInfo == LVheap.NODE_SCOPE.TagOpen.value:
             scopeInfo = LVheap.NODE_SCOPE.TagClose.value
-            obj = LVheap.createObjectNode(self.vi, self.po, elem.tag, scopeInfo)
+            obj = LVheap.createObjectNode(self.vi, self.po, tagId, scopeInfo)
             section.objects.append(obj)
             #obj.initWithXML(elem)
 
@@ -2340,7 +2349,7 @@ class FPH(Block):
                 xml_fname = section_elem.get("File")
             tree = ET.parse(xml_fname)
             section.objects = []
-            self.initWithXMLHeap(section, tree.getroot())
+            self.initWithXMLHeap(section, tree.getroot(), LVheap.SL_CLASS_TAGS.SL__generic.value)
         else:
             Block.initWithXMLSection(self, section, section_elem)
         pass

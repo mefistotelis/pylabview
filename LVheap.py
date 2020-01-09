@@ -1497,7 +1497,7 @@ class HeapNodeRect(HeapNode):
         return # TODO remove when tested
         tagParse = re.match("^\([ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+)[ ]*\)$", tagText)
         if tagParse is None:
-            raise AttributeError("Tag '{}' content contains unrecognized Rect definition".format(tagIdToName(self.tagId)))
+            raise AttributeError("Tag 0x{:04X} content contains unrecognized Rect definition".format(self.tagId))
         self.left = int(tagParse[1], 0)
         self.top = int(tagParse[2], 0)
         self.right = int(tagParse[3], 0)
@@ -1757,11 +1757,6 @@ def createObjectNode(vi, po, tagId, scopeInfo):
 
     Acts as a factory which selects object class based on tagId.
     """
-    if isinstance(tagId, str):
-        tagName = tagId
-        tagId = tagNameToId(tagName)
-        if tagId is None:
-            raise AttributeError("Unrecognized tag in heap XML, '{}'".format(tagName))
     if tagId in [OBJ_FIELD_TAGS.OF__bounds.value,
       OBJ_FIELD_TAGS.OF__dBounds.value,
       OBJ_FIELD_TAGS.OF__pBounds.value,
