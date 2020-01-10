@@ -1525,6 +1525,20 @@ class HeapNodeStdInt(HeapNode):
         self.value = int(tagParse[1], 0)
         self.updateContent()
 
+class HeapNodeTypeId(HeapNodeStdInt):
+    def __init__(self, *args):
+        super().__init__(*args, btlen=-1, signed=True)
+
+    def prepareContentXML(self, fname_base):
+        return "TypeID({:d})".format(self.value)
+
+    def initContentWithXML(self, tagText):
+        tagParse = re.match("^TypeID\(([0-9A-Fx-]+)\)$", tagText)
+        if tagParse is None:
+            raise AttributeError("Tag 0x{:04X} content contains bad Integer value".format(self.tagId))
+        self.value = int(tagParse[1], 0)
+        self.updateContent()
+
 
 class HeapNodeRect(HeapNode):
     def __init__(self, *args):
@@ -1560,6 +1574,35 @@ class HeapNodeRect(HeapNode):
         self.top = int(tagParse[2], 0)
         self.right = int(tagParse[3], 0)
         self.bottom = int(tagParse[4], 0)
+        self.updateContent()
+
+
+class HeapNodePoint(HeapNode):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.x = 0
+        self.y = 0
+
+    def parseRSRCContent(self):
+        bldata = BytesIO(self.content)
+        self.x = int.from_bytes(bldata.read(2), byteorder='big', signed=True)
+        self.y = int.from_bytes(bldata.read(2), byteorder='big', signed=True)
+
+    def updateContent(self):
+        content = b''
+        content += int(self.x).to_bytes(2, byteorder='big', signed=True)
+        content += int(self.y).to_bytes(2, byteorder='big', signed=True)
+        self.content = content
+
+    def prepareContentXML(self, fname_base):
+        return "({:d}, {:d})".format(self.y, self.x)
+
+    def initContentWithXML(self, tagText):
+        tagParse = re.match("^\([ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+)[ ]*\)$", tagText)
+        if tagParse is None:
+            raise AttributeError("Tag 0x{:04X} content contains unrecognized Point definition".format(self.tagId))
+        self.y = int(tagParse[1], 0)
+        self.x = int(tagParse[2], 0)
         self.updateContent()
 
 
@@ -1866,7 +1909,14 @@ def createObjectNode(vi, po, tagId, classId, scopeInfo):
       OBJ_SUBCOSM_TAGS.OF__Bounds,
       ]:
         obj = HeapNodeRect(vi, po, None, tagId, classId, scopeInfo)
+    elif tagEn in [OBJ_FIELD_TAGS.OF__origin,
+      OBJ_FIELD_TAGS.OF__minPaneSize,
+      OBJ_FIELD_TAGS.OF__minPanelSize,
+      OBJ_FIELD_TAGS.OF__MinButSize,
+      ]:
+        obj = HeapNodePoint(vi, po, None, tagId, classId, scopeInfo)
     elif tagEn in [OBJ_FIELD_TAGS.OF__partID,
+      OBJ_FIELD_TAGS.OF__partOrder,
       OBJ_FIELD_TAGS.OF__objFlags,
       OBJ_FIELD_TAGS.OF__howGrow,
       OBJ_FIELD_TAGS.OF__masterPart,
@@ -1881,14 +1931,38 @@ def createObjectNode(vi, po, tagId, classId, scopeInfo):
       OBJ_FIELD_TAGS.OF__termListLength,
       OBJ_FIELD_TAGS.OF__annexDDOFlag,
       OBJ_FIELD_TAGS.OF__paneFlags,
+      OBJ_FIELD_TAGS.OF__cellPosRow,
+      OBJ_FIELD_TAGS.OF__cellPosCol,
+      OBJ_FIELD_TAGS.OF__selLabFlags,
+      OBJ_FIELD_TAGS.OF__selLabData,
+      OBJ_FIELD_TAGS.OF__tableFlags,
+      OBJ_FIELD_TAGS.OF__comboBoxIndex,
+      OBJ_FIELD_TAGS.OF__tagType,
       OBJ_FIELD_TAGS.OF__FpgaImplementation,
+      OBJ_FIELD_TAGS.OF__variantIndex,
       OBJ_FIELD_TAGS.OF__instrStyle,
       OBJ_FIELD_TAGS.OF__nVisItems,
       OBJ_TEXT_HAIR_TAGS.OF__flags,
       OBJ_TEXT_HAIR_TAGS.OF__mode,
       OBJ_IMAGE_TAGS.OF__ImageResID,
+      OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__cellPosRow,
+      OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__cellPosCol,
+      OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__font,
+      OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__mode,
+      OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__width,
+      OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__height,
+      OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__flags,
+      OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__glyphIndex,
+      OBJ_EMBED_OBJECT_TAGS.OF__Type,
+      OBJ_EMBED_OBJECT_TAGS.OF__Flags,
+      OBJ_ROW_COL_TAGS.OF__row,
+      OBJ_ROW_COL_TAGS.OF__col,
       ]:
         obj = HeapNodeStdInt(vi, po, None, tagId, classId, scopeInfo, btlen=-1, signed=True)
+    elif tagEn in [OBJ_FIELD_TAGS.OF__typeDesc,
+      OBJ_FIELD_TAGS.OF__histTD,
+      ]:
+        obj = HeapNodeTypeId(vi, po, None, tagId, classId, scopeInfo)
       # TODO figure out how to get type
       #OBJ_FIELD_TAGS.OF__StdNumMin,# int or float
       #OBJ_FIELD_TAGS.OF__StdNumMax,
