@@ -328,13 +328,3 @@ def prepareVariableSizeFieldU124(val):
     else:
         return int(val).to_bytes(1, byteorder='big', signed=False)
     pass
-
-def prettyElementTree(elem, level=0):
-    elem.tail = "\n" + "".join([ "  " * level ])
-    if len(elem) == 1 and elem[0].tag == '![CDATA[':
-        return # Don't put spaces around CDATA, treat is as clear text
-    if len(elem) > 0 and elem.text is None:
-        elem.text = "\n" + "".join([ "  " * (level+1) ])
-    for subelem in elem:
-        prettyElementTree(subelem, level+1)
-    pass

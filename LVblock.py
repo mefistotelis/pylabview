@@ -2405,7 +2405,7 @@ class FPH(Block):
             if scopeInfo == LVheap.NODE_SCOPE.TagOpen:
                 parent_elems.append(elem)
 
-        prettyElementTree(root)
+        ET.pretty_element_tree_heap(root)
 
         if (self.po.verbose > 1):
             print("{}: Writing XML for block {}".format(self.vi.src_fname, self.ident))
