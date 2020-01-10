@@ -1423,7 +1423,7 @@ class HeapNode(object):
         tagText = None
         if self.content is not None:
             if isinstance(self.content, (bytes, bytearray)):
-                tagText = self.content.hex()
+                tagText = self.content.hex().upper()
             elif self.content is not False:
                 tagText = str(self.content)
         return tagText
@@ -1482,7 +1482,7 @@ class HeapNode(object):
 
 
 class HeapNodeStdInt(HeapNode):
-    def __init__(self, *args, btlen=2, signed=True):
+    def __init__(self, *args, btlen=-1, signed=True):
         super().__init__(*args)
         self.btlen = btlen
         self.signed = signed
@@ -1490,10 +1490,22 @@ class HeapNodeStdInt(HeapNode):
 
     def parseRSRCContent(self):
         bldata = BytesIO(self.content)
-        self.left = int.from_bytes(bldata.read(self.btlen), byteorder='big', signed=self.signed)
+        if self.btlen < 0:
+            btlen = len(self.content)
+        else:
+            btlen = self.btlen
+        self.value = int.from_bytes(bldata.read(btlen), byteorder='big', signed=self.signed)
 
     def updateContent(self):
-        self.content = int(self.value).to_bytes(self.btlen, byteorder='big', signed=self.signed)
+        if self.btlen < 0:
+            btlen = 1
+            for cklen in range(7,0,-1):
+                if self.value < -(2**(cklen*8-1)) or self.value > (2**(cklen*8-1))-1:
+                    btlen = cklen+1
+                    break
+        else:
+            btlen = self.btlen
+        self.content = int(self.value).to_bytes(btlen, byteorder='big', signed=self.signed)
 
     def prepareContentXML(self, fname_base):
         return "{:d}".format(self.value)
@@ -1831,8 +1843,37 @@ def createObjectNode(vi, po, tagId, classId, scopeInfo):
       OBJ_FIELD_TAGS.OF__pBounds,
       OBJ_FIELD_TAGS.OF__docBounds,
       OBJ_FIELD_TAGS.OF__dynBounds,
+      OBJ_FIELD_TAGS.OF__savedSize,
+      OBJ_TEXT_HAIR_TAGS.OF__view,
       ]:
         obj = HeapNodeRect(vi, po, None, tagId, classId, scopeInfo)
+    elif tagEn in [OBJ_FIELD_TAGS.OF__partID,
+      OBJ_FIELD_TAGS.OF__objFlags,
+      OBJ_FIELD_TAGS.OF__howGrow,
+      OBJ_FIELD_TAGS.OF__masterPart,
+      OBJ_FIELD_TAGS.OF__conId,
+      OBJ_FIELD_TAGS.OF__rsrcID,
+      OBJ_FIELD_TAGS.OF__conNum,
+      OBJ_FIELD_TAGS.OF__MouseWheelSupport,
+      OBJ_FIELD_TAGS.OF__refListLength,
+      OBJ_FIELD_TAGS.OF__hGrowNodeListLength,
+      OBJ_FIELD_TAGS.OF__numFrozenCols,
+      OBJ_FIELD_TAGS.OF__numFrozenRows,
+      OBJ_FIELD_TAGS.OF__termListLength,
+      OBJ_FIELD_TAGS.OF__annexDDOFlag,
+      OBJ_FIELD_TAGS.OF__paneFlags,
+      OBJ_FIELD_TAGS.OF__FpgaImplementation,
+      OBJ_FIELD_TAGS.OF__instrStyle,
+      OBJ_FIELD_TAGS.OF__nVisItems,
+      OBJ_TEXT_HAIR_TAGS.OF__flags,
+      OBJ_TEXT_HAIR_TAGS.OF__mode,
+      OBJ_IMAGE_TAGS.OF__ImageResID,
+      ]:
+        obj = HeapNodeStdInt(vi, po, None, tagId, classId, scopeInfo, btlen=-1, signed=True)
+      # TODO figure out how to get type
+      #OBJ_FIELD_TAGS.OF__StdNumMin,# int or float
+      #OBJ_FIELD_TAGS.OF__StdNumMax,
+      #OBJ_FIELD_TAGS.OF__StdNumInc,
     else:
         obj = HeapNode(vi, po, None, tagId, classId, scopeInfo)
     return obj
