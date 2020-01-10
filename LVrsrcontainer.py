@@ -17,12 +17,12 @@ import re
 import os
 import enum
 import binascii
-import xml.etree.ElementTree as ET
 from ctypes import *
 from hashlib import md5
 
 import LVblock
 import LVconnector
+import LVxml as ET
 from LVmisc import *
 
 class FILE_FMT_TYPE(enum.Enum):

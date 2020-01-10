@@ -22,6 +22,7 @@ from ctypes import *
 import LVconnector
 import LVmisc
 from LVmisc import eprint
+import LVxml as ET
 
 class HEAP_FORMAT(enum.Enum):
     """ Heap storage formats
@@ -1443,6 +1444,9 @@ class HeapNode(object):
 
         tagText = self.prepareContentXML(fname_base)
         if tagText is not None:
+            if any(chr(ele) in tagText for ele in range(0,32)):
+                elem.append(ET.CDATA(ET.escape_cdata_control_chars(tagText)))
+            else:
                 elem.text = tagText
 
         if scopeInfo == NODE_SCOPE.TagClose:
@@ -1525,6 +1529,7 @@ class HeapNodeStdInt(HeapNode):
         self.value = int(tagParse[1], 0)
         self.updateContent()
 
+
 class HeapNodeTypeId(HeapNodeStdInt):
     def __init__(self, *args):
         super().__init__(*args, btlen=-1, signed=True)
@@ -1604,6 +1609,23 @@ class HeapNodePoint(HeapNode):
         self.y = int(tagParse[1], 0)
         self.x = int(tagParse[2], 0)
         self.updateContent()
+
+
+class HeapNodeString(HeapNode):
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def prepareContentXML(self, fname_base):
+        valText = self.content.decode(self.vi.textEncoding)
+        return "\"{:s}\"".format(valText)
+
+    def initContentWithXML(self, tagText):
+        tagParse = re.match("^\"(.*)\"$", tagText)
+        if tagParse is None:
+            raise AttributeError("Tag 0x{:04X} content contains bad Integer value".format(self.tagId))
+        # The text may have been in cdata tag, there is no way to know
+        valText = ET.unescape_cdata_control_chars(tagParse[1])
+        self.content = valText.encode(self.vi.textEncoding)
 
 
 def getFrontPanelHeapIdent(hfmt):
@@ -1959,6 +1981,9 @@ def createObjectNode(vi, po, tagId, classId, scopeInfo):
       OBJ_ROW_COL_TAGS.OF__col,
       ]:
         obj = HeapNodeStdInt(vi, po, None, tagId, classId, scopeInfo, btlen=-1, signed=True)
+    elif tagEn in [OBJ_TEXT_HAIR_TAGS.OF__text,
+      ]:
+        obj = HeapNodeString(vi, po, None, tagId, classId, scopeInfo)
     elif tagEn in [OBJ_FIELD_TAGS.OF__typeDesc,
       OBJ_FIELD_TAGS.OF__histTD,
       ]:

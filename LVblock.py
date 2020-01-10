@@ -19,10 +19,10 @@ from PIL import Image
 from hashlib import md5
 from zlib import compress, decompress
 from io import BytesIO
-import xml.etree.ElementTree as ET
 from ctypes import *
 
 from LVmisc import *
+import LVxml as ET
 from LVconnector import *
 from LVinstrument import *
 import LVheap

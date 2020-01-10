@@ -20,8 +20,8 @@ import sys
 import re
 import os
 import argparse
-import xml.etree.ElementTree as ET
 
+import LVxml as ET
 import LVblock
 import LVconnector
 from LVrsrcontainer import *
