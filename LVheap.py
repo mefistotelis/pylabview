@@ -699,7 +699,7 @@ class OBJ_FIELD_TAGS(ENUM_TAGS):
 
 
 class SL_CLASS_TAGS(ENUM_TAGS):
-    SL__badProc = 0
+    SL__fontRun = 0
     SL__textHair = 1
     SL__prNodeList = 3
     SL__prFrameList = 4
@@ -1037,6 +1037,7 @@ class SL_CLASS_TAGS(ENUM_TAGS):
     SL__ComplexScalar = 550
     SL__Time128 = 551
     SL__Image = 600
+    SL__SubCosm = 800
     SL__EmbedObject = 900
     SL__SceneView = 902
     SL__SceneColor = 903
@@ -1090,6 +1091,13 @@ class OBJ_IMAGE_TAGS(ENUM_TAGS):
     OF__ImageData1 = 2
     OF__ImageData2 = 3
     OF__ImageData3 = 4
+
+
+class OBJ_SUBCOSM_TAGS(ENUM_TAGS):
+    OF__Bounds = 0
+    OF__FGColor = 1
+    OF__BGColor = 2
+    OF__Image = 3
 
 
 class OBJ_EMBED_OBJECT_TAGS(ENUM_TAGS):
@@ -1584,12 +1592,17 @@ def tagIdToEnum(tagId, classId=SL_CLASS_TAGS.SL__generic.value):
     tagEn = None
     if SL_SYSTEM_TAGS.has_value(tagId):
         tagEn = SL_SYSTEM_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__fontRun.value:
+        tagEn = None # TODO should be OBJ_TEXT_HAIR_TAGS, but there is an issue
     elif classId == SL_CLASS_TAGS.SL__textHair.value:
         if OBJ_TEXT_HAIR_TAGS.has_value(tagId):
             tagEn = OBJ_TEXT_HAIR_TAGS(tagId)
     elif classId == SL_CLASS_TAGS.SL__Image.value:
         if OBJ_IMAGE_TAGS.has_value(tagId):
             tagEn = OBJ_IMAGE_TAGS(tagId)
+    elif classId == SL_CLASS_TAGS.SL__SubCosm.value:
+        if OBJ_SUBCOSM_TAGS.has_value(tagId):
+            tagEn = OBJ_SUBCOSM_TAGS(tagId)
     elif classId == SL_CLASS_TAGS.SL__EmbedObject.value:
         if OBJ_EMBED_OBJECT_TAGS.has_value(tagId):
             tagEn = OBJ_EMBED_OBJECT_TAGS(tagId)
@@ -1680,12 +1693,17 @@ def tagNameToEnum(tagName, classId=SL_CLASS_TAGS.SL__generic.value):
     tagEn = None
     if SL_SYSTEM_TAGS.has_name(tagName):
         tagEn = SL_SYSTEM_TAGS[tagName]
+    elif classId == SL_CLASS_TAGS.SL__fontRun.value:
+        tagEn = None # TODO should be OBJ_TEXT_HAIR_TAGS, but there is an issue
     elif classId == SL_CLASS_TAGS.SL__textHair.value:
         if OBJ_TEXT_HAIR_TAGS.has_name("OF__"+tagName):
             tagEn = OBJ_TEXT_HAIR_TAGS["OF__"+tagName]
     elif classId == SL_CLASS_TAGS.SL__Image.value:
         if OBJ_IMAGE_TAGS.has_name("OF__"+tagName):
             tagEn = OBJ_IMAGE_TAGS["OF__"+tagName]
+    elif classId == SL_CLASS_TAGS.SL__SubCosm.value:
+        if OBJ_SUBCOSM_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_SUBCOSM_TAGS["OF__"+tagName]
     elif classId == SL_CLASS_TAGS.SL__EmbedObject.value:
         if OBJ_EMBED_OBJECT_TAGS.has_name("OF__"+tagName):
             tagEn = OBJ_EMBED_OBJECT_TAGS["OF__"+tagName]
@@ -1845,6 +1863,7 @@ def createObjectNode(vi, po, tagId, classId, scopeInfo):
       OBJ_FIELD_TAGS.OF__dynBounds,
       OBJ_FIELD_TAGS.OF__savedSize,
       OBJ_TEXT_HAIR_TAGS.OF__view,
+      OBJ_SUBCOSM_TAGS.OF__Bounds,
       ]:
         obj = HeapNodeRect(vi, po, None, tagId, classId, scopeInfo)
     elif tagEn in [OBJ_FIELD_TAGS.OF__partID,
