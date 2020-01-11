@@ -1052,6 +1052,24 @@ class SL_CLASS_TAGS(ENUM_TAGS):
     SL__ScaleData = 925
 
 
+class OBJ_FONT_RUN_TAGS(ENUM_TAGS):
+    """Tags within SL__fontRun class.
+
+    Strings as the same as in OBJ_TEXT_HAIR_TAGS, but support is a bit different.
+    """
+    OF__textRecObject = 0
+    OF__flags = 1
+    OF__mode = 2
+    OF__text = 3
+    OF__view = 4
+    OF__bgColor = 5
+    OF__fr = 6
+    OF__curfr = 7
+    OF__fontofst = 8
+    OF__fontid = 9
+    OF__fontcolor = 10
+
+
 class OBJ_TEXT_HAIR_TAGS(ENUM_TAGS):
     OF__textRecObject = 0
     OF__flags = 1
@@ -1653,7 +1671,8 @@ def tagIdToEnum(tagId, classId=SL_CLASS_TAGS.SL__generic.value):
     if SL_SYSTEM_TAGS.has_value(tagId):
         tagEn = SL_SYSTEM_TAGS(tagId)
     elif classId == SL_CLASS_TAGS.SL__fontRun.value:
-        tagEn = None # TODO should be OBJ_TEXT_HAIR_TAGS, but there is an issue
+        if OBJ_FONT_RUN_TAGS.has_value(tagId):
+            tagEn = OBJ_FONT_RUN_TAGS(tagId)
     elif classId == SL_CLASS_TAGS.SL__textHair.value:
         if OBJ_TEXT_HAIR_TAGS.has_value(tagId):
             tagEn = OBJ_TEXT_HAIR_TAGS(tagId)
@@ -1754,7 +1773,8 @@ def tagNameToEnum(tagName, classId=SL_CLASS_TAGS.SL__generic.value):
     if SL_SYSTEM_TAGS.has_name(tagName):
         tagEn = SL_SYSTEM_TAGS[tagName]
     elif classId == SL_CLASS_TAGS.SL__fontRun.value:
-        tagEn = None # TODO should be OBJ_TEXT_HAIR_TAGS, but there is an issue
+        if OBJ_FONT_RUN_TAGS.has_name("OF__"+tagName):
+            tagEn = OBJ_FONT_RUN_TAGS["OF__"+tagName]
     elif classId == SL_CLASS_TAGS.SL__textHair.value:
         if OBJ_TEXT_HAIR_TAGS.has_name("OF__"+tagName):
             tagEn = OBJ_TEXT_HAIR_TAGS["OF__"+tagName]
@@ -1789,7 +1809,7 @@ def tagNameToEnum(tagName, classId=SL_CLASS_TAGS.SL__generic.value):
         if OBJ_BROWSE_OPTIONS_TAGS.has_name("OF__"+tagName):
             tagEn = OBJ_BROWSE_OPTIONS_TAGS["OF__"+tagName]
     elif classId == SL_CLASS_TAGS.SL__StorageRowCol.value:
-        if OBJ_ROW_COL_TAGS.has_name("OF__"+tagName):#SL__StorageRowCol
+        if OBJ_ROW_COL_TAGS.has_name("OF__"+tagName):
             tagEn = OBJ_ROW_COL_TAGS["OF__"+tagName]
     elif classId == SL_CLASS_TAGS.SL__ColorPair.value:
         if OBJ_COLOR_PAIR_TAGS.has_name("OF__"+tagName):
@@ -1798,7 +1818,7 @@ def tagNameToEnum(tagName, classId=SL_CLASS_TAGS.SL__generic.value):
         if OBJ_TREE_NODE_TAGS.has_name("OF__"+tagName):
             tagEn = OBJ_TREE_NODE_TAGS["OF__"+tagName]
     elif classId == SL_CLASS_TAGS.SL__RelativeRowCol.value:
-        if OBJ_ROW_COL_TAGS.has_name("OF__"+tagName):#SL__RelativeRowCol
+        if OBJ_ROW_COL_TAGS.has_name("OF__"+tagName):
             tagEn = OBJ_ROW_COL_TAGS["OF__"+tagName]
     elif classId == SL_CLASS_TAGS.SL__TabInfoItem.value:
         if OBJ_TAB_INFO_ITEM_TAGS.has_name("OF__"+tagName):
@@ -1946,10 +1966,12 @@ def createObjectNode(vi, po, tagId, classId, scopeInfo):
       OBJ_FIELD_TAGS.OF__conNum,
       OBJ_FIELD_TAGS.OF__graphType,
       OBJ_FIELD_TAGS.OF__GraphActivePlot,
+      OBJ_FIELD_TAGS.OF__GraphActivePort,
       OBJ_FIELD_TAGS.OF__GraphActiveCursor,
       OBJ_FIELD_TAGS.OF__MouseWheelSupport,
       OBJ_FIELD_TAGS.OF__refListLength,
       OBJ_FIELD_TAGS.OF__hGrowNodeListLength,
+      OBJ_FIELD_TAGS.OF__typeCode,
       OBJ_FIELD_TAGS.OF__gridFlags,
       OBJ_FIELD_TAGS.OF__treeFlags,
       OBJ_FIELD_TAGS.OF__labelPosRow,
@@ -1976,6 +1998,7 @@ def createObjectNode(vi, po, tagId, classId, scopeInfo):
       OBJ_FIELD_TAGS.OF__scaleRMax32,
       OBJ_FIELD_TAGS.OF__instrStyle,
       OBJ_FIELD_TAGS.OF__nVisItems,
+      OBJ_FONT_RUN_TAGS.OF__fontid,
       OBJ_TEXT_HAIR_TAGS.OF__flags,
       OBJ_TEXT_HAIR_TAGS.OF__mode,
       OBJ_IMAGE_TAGS.OF__ImageResID,
@@ -2011,6 +2034,7 @@ def createObjectNode(vi, po, tagId, classId, scopeInfo):
       OBJ_SCALE_DATA_TAGS.OF__gridMinLineStyle,
       OBJ_SCALE_DATA_TAGS.OF__port,
       OBJ_SCALE_DATA_TAGS.OF__scaleFlavor,
+      OBJ_BROWSE_OPTIONS_TAGS.OF__mode,
       OBJ_ROW_COL_TAGS.OF__row,
       OBJ_ROW_COL_TAGS.OF__col,
       OBJ_SCALE_DATA_TAGS.OF__partID,
@@ -2020,6 +2044,7 @@ def createObjectNode(vi, po, tagId, classId, scopeInfo):
         obj = HeapNodeStdInt(vi, po, None, tagId, classId, scopeInfo, btlen=-1, signed=True)
     elif tagEn in [OBJ_TEXT_HAIR_TAGS.OF__text,
       OBJ_FIELD_TAGS.OF__format,
+      #OBJ_FIELD_TAGS.OF__tagDLLName, #TODO enable when NULL strings are supported
       OBJ_PLOT_DATA_TAGS.OF__plotName,
       OBJ_PLOT_LEGEND_DATA_TAGS.OF__name,
       OBJ_SCALE_LEGEND_DATA_TAGS.OF__name,
