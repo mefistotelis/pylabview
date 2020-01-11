@@ -12,7 +12,7 @@ Experimental tool.
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
-__version__ = "0.0.6"
+__version__ = "0.1.0"
 __author__ = "Jessica Creighton, Mefistotelis"
 __license__ = "MIT"
 

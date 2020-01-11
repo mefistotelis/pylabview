@@ -492,24 +492,6 @@ class OBJ_FIELD_TAGS(ENUM_TAGS):
     OF__overflow = 419
     OF__quantize = 420
     OF__tunOrdList = 421
-    OF__sceneGLContext = 422
-    OF__poserList = 423
-    OF__decomposer = 424
-    OF__recomposer = 425
-    OF__arrayDCO = 426
-    OF__variantDCO = 427
-    OF__valueDCO = 428
-    OF__typeDCO = 429
-    OF__inputDataDCO = 430
-    OF__outputDataDCO = 431
-    OF__poser = 432
-    OF__dataValRefDCO = 433
-    OF__write = 434
-    OF__showTimestamp = 435
-    OF__name4 = 436
-    OF__privDataDSO = 437
-    OF__privDataTMI = 438
-    OF__disabledList = 439
     OF__multiSegPipeFlange1Size = 422
     OF__multiSegPipeFlange2Size = 423
     OF__multiSegPipeFlange1Depth = 424
@@ -521,6 +503,14 @@ class OBJ_FIELD_TAGS(ENUM_TAGS):
     OF__tagDLLPath = 430
     OF__recursiveFunc = 430
     OF__tagDLLName = 431
+    OF__poser = 432
+    OF__dataValRefDCO = 433
+    OF__write = 434
+    OF__showTimestamp = 435
+    OF__name4 = 436
+    OF__privDataDSO = 437
+    OF__privDataTMI = 438
+    OF__disabledList = 439
     OF__tunnelLink = 451
     OF__activeBus = 452
     OF__terminal_ID = 453
@@ -1916,7 +1906,7 @@ def autoScopeInfoFromET(elem):
     if scopeStr is not None:
         scopeInfo = int(scopeStr, 0)
         return NODE_SCOPE(scopeInfo)
-    if len(elem) == 0:
+    if len(elem) == 0 and elem.get("elements") is None:
         return NODE_SCOPE.TagLeaf
     return NODE_SCOPE.TagOpen
 
@@ -1933,6 +1923,7 @@ def createObjectNode(vi, po, tagId, classId, scopeInfo):
       OBJ_FIELD_TAGS.OF__dynBounds,
       OBJ_FIELD_TAGS.OF__savedSize,
       OBJ_TEXT_HAIR_TAGS.OF__view,
+      OBJ_SCALE_DATA_TAGS.OF__scaleRect,
       OBJ_SUBCOSM_TAGS.OF__Bounds,
       ]:
         obj = HeapNodeRect(vi, po, None, tagId, classId, scopeInfo)
@@ -1940,9 +1931,12 @@ def createObjectNode(vi, po, tagId, classId, scopeInfo):
       OBJ_FIELD_TAGS.OF__minPaneSize,
       OBJ_FIELD_TAGS.OF__minPanelSize,
       OBJ_FIELD_TAGS.OF__MinButSize,
+      OBJ_FIELD_TAGS.OF__nRC,
+      OBJ_FIELD_TAGS.OF__oRC,
       ]:
         obj = HeapNodePoint(vi, po, None, tagId, classId, scopeInfo)
-    elif tagEn in [OBJ_FIELD_TAGS.OF__partID,
+    elif tagEn in [OBJ_FIELD_TAGS.OF__activeMarker,
+      OBJ_FIELD_TAGS.OF__partID,
       OBJ_FIELD_TAGS.OF__partOrder,
       OBJ_FIELD_TAGS.OF__objFlags,
       OBJ_FIELD_TAGS.OF__howGrow,
@@ -1950,11 +1944,22 @@ def createObjectNode(vi, po, tagId, classId, scopeInfo):
       OBJ_FIELD_TAGS.OF__conId,
       OBJ_FIELD_TAGS.OF__rsrcID,
       OBJ_FIELD_TAGS.OF__conNum,
+      OBJ_FIELD_TAGS.OF__graphType,
+      OBJ_FIELD_TAGS.OF__GraphActivePlot,
+      OBJ_FIELD_TAGS.OF__GraphActiveCursor,
       OBJ_FIELD_TAGS.OF__MouseWheelSupport,
       OBJ_FIELD_TAGS.OF__refListLength,
       OBJ_FIELD_TAGS.OF__hGrowNodeListLength,
+      OBJ_FIELD_TAGS.OF__gridFlags,
+      OBJ_FIELD_TAGS.OF__treeFlags,
+      OBJ_FIELD_TAGS.OF__labelPosRow,
+      OBJ_FIELD_TAGS.OF__labelPosCol,
+      OBJ_FIELD_TAGS.OF__listboxFlags,
       OBJ_FIELD_TAGS.OF__numFrozenCols,
       OBJ_FIELD_TAGS.OF__numFrozenRows,
+      OBJ_FIELD_TAGS.OF__baseListboxDoubleClickedRow,
+      OBJ_FIELD_TAGS.OF__baseListboxClickedColumnHeader,
+      OBJ_FIELD_TAGS.OF__nMajDivs,
       OBJ_FIELD_TAGS.OF__termListLength,
       OBJ_FIELD_TAGS.OF__annexDDOFlag,
       OBJ_FIELD_TAGS.OF__paneFlags,
@@ -1967,11 +1972,14 @@ def createObjectNode(vi, po, tagId, classId, scopeInfo):
       OBJ_FIELD_TAGS.OF__tagType,
       OBJ_FIELD_TAGS.OF__FpgaImplementation,
       OBJ_FIELD_TAGS.OF__variantIndex,
+      OBJ_FIELD_TAGS.OF__scaleRMin32,
+      OBJ_FIELD_TAGS.OF__scaleRMax32,
       OBJ_FIELD_TAGS.OF__instrStyle,
       OBJ_FIELD_TAGS.OF__nVisItems,
       OBJ_TEXT_HAIR_TAGS.OF__flags,
       OBJ_TEXT_HAIR_TAGS.OF__mode,
       OBJ_IMAGE_TAGS.OF__ImageResID,
+      OBJ_IMAGE_TAGS.OF__ImageInternalsResID,
       OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__cellPosRow,
       OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__cellPosCol,
       OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__font,
@@ -1982,11 +1990,39 @@ def createObjectNode(vi, po, tagId, classId, scopeInfo):
       OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__glyphIndex,
       OBJ_EMBED_OBJECT_TAGS.OF__Type,
       OBJ_EMBED_OBJECT_TAGS.OF__Flags,
+      OBJ_PLOT_DATA_TAGS.OF__flags,
+      OBJ_PLOT_DATA_TAGS.OF__interp,
+      OBJ_PLOT_DATA_TAGS.OF__width,
+      OBJ_PLOT_DATA_TAGS.OF__plotFlags,
+      OBJ_PLOT_DATA_TAGS.OF__lineStyle,
+      OBJ_PLOT_DATA_TAGS.OF__pointStyle,
+      OBJ_PLOT_DATA_TAGS.OF__fillStyle,
+      OBJ_PLOT_DATA_TAGS.OF__xScale,
+      OBJ_PLOT_DATA_TAGS.OF__yScale,
+      OBJ_PLOT_DATA_TAGS.OF__cnt,
+      OBJ_PLOT_DATA_TAGS.OF__mBits,
+      OBJ_PLOT_DATA_TAGS.OF__gtoIndex,
+      OBJ_PLOT_DATA_TAGS.OF__unused,
+      OBJ_PLOT_DATA_TAGS.OF__fxpWordLength,
+      OBJ_PLOT_DATA_TAGS.OF__fxpIntegerLength,
+      OBJ_PLOT_DATA_TAGS.OF__fxpFracDigits,
+      OBJ_PLOT_DATA_TAGS.OF__fxpStyle,
+      OBJ_SCALE_DATA_TAGS.OF__gridMaxLineStyle,
+      OBJ_SCALE_DATA_TAGS.OF__gridMinLineStyle,
+      OBJ_SCALE_DATA_TAGS.OF__port,
+      OBJ_SCALE_DATA_TAGS.OF__scaleFlavor,
       OBJ_ROW_COL_TAGS.OF__row,
       OBJ_ROW_COL_TAGS.OF__col,
+      OBJ_SCALE_DATA_TAGS.OF__partID,
+      OBJ_SCALE_DATA_TAGS.OF__partOrder,
+      OBJ_SCALE_DATA_TAGS.OF__flags,
       ]:
         obj = HeapNodeStdInt(vi, po, None, tagId, classId, scopeInfo, btlen=-1, signed=True)
     elif tagEn in [OBJ_TEXT_HAIR_TAGS.OF__text,
+      OBJ_FIELD_TAGS.OF__format,
+      OBJ_PLOT_DATA_TAGS.OF__plotName,
+      OBJ_PLOT_LEGEND_DATA_TAGS.OF__name,
+      OBJ_SCALE_LEGEND_DATA_TAGS.OF__name,
       ]:
         obj = HeapNodeString(vi, po, None, tagId, classId, scopeInfo)
     elif tagEn in [OBJ_FIELD_TAGS.OF__typeDesc,
