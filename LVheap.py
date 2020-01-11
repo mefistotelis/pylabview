@@ -1321,7 +1321,7 @@ class HeapNode(object):
             count = LVmisc.readVariableSizeFieldU124(bldata)
 
             if (self.po.verbose > 2):
-                print("{:s}: Heap Container start id=0x{:02X} scopeInfo={:d} sizeSpec={:d} attrCount={:d}"\
+                print("{:s}: Heap Container start tag={:d} scopeInfo={:d} sizeSpec={:d} attrCount={:d}"\
                   .format(self.vi.src_fname, self.tagId, self.scopeInfo, sizeSpec, count))
             attribs = {}
             for i in range(count):
@@ -1330,7 +1330,7 @@ class HeapNode(object):
                 attribs[atId] = atVal
         else:
             if (self.po.verbose > 2):
-                print("{:s}: Heap Container id=0x{:02X} scopeInfo={:d} sizeSpec={:d} noAttr"\
+                print("{:s}: Heap Container tag={:d} scopeInfo={:d} sizeSpec={:d} noAttr"\
                   .format(self.vi.src_fname, self.tagId, self.scopeInfo, sizeSpec))
 
         # Read size of data, unless sizeSpec identifies the size completely
@@ -1412,7 +1412,7 @@ class HeapNode(object):
             data_buf += self.content
 
         if (self.po.verbose > 2):
-            print("{:s}: Heap Container id=0x{:02X} scopeInfo={:d} sizeSpec={:d} attrCount={:d}"\
+            print("{:s}: Heap Container tag={:d} scopeInfo={:d} sizeSpec={:d} attrCount={:d}"\
               .format(self.vi.src_fname, self.tagId, self.scopeInfo, sizeSpec, len(self.attribs)))
 
         if (self.tagId + 31) < 1023:
@@ -1525,7 +1525,8 @@ class HeapNodeStdInt(HeapNode):
     def initContentWithXML(self, tagText):
         tagParse = re.match("^([0-9A-Fx-]+)$", tagText)
         if tagParse is None:
-            raise AttributeError("Tag 0x{:04X} content contains bad Integer value".format(self.tagId))
+            raise AttributeError("Tag {:d} of ClassId {:d} has content with bad Integer value"\
+              .format(self.tagId,self.parentClassId))
         self.value = int(tagParse[1], 0)
         self.updateContent()
 
@@ -1540,7 +1541,8 @@ class HeapNodeTypeId(HeapNodeStdInt):
     def initContentWithXML(self, tagText):
         tagParse = re.match("^TypeID\(([0-9A-Fx-]+)\)$", tagText)
         if tagParse is None:
-            raise AttributeError("Tag 0x{:04X} content contains bad Integer value".format(self.tagId))
+            raise AttributeError("Tag {:d} of ClassId {:d} has content with bad Integer value"\
+              .format(self.tagId,self.parentClassId))
         self.value = int(tagParse[1], 0)
         self.updateContent()
 
@@ -1574,7 +1576,8 @@ class HeapNodeRect(HeapNode):
     def initContentWithXML(self, tagText):
         tagParse = re.match("^\([ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+)[ ]*\)$", tagText)
         if tagParse is None:
-            raise AttributeError("Tag 0x{:04X} content contains unrecognized Rect definition".format(self.tagId))
+            raise AttributeError("Tag {:d} of ClassId {:d} has content which does not match Rect definition"\
+              .format(self.tagId,self.parentClassId))
         self.left = int(tagParse[1], 0)
         self.top = int(tagParse[2], 0)
         self.right = int(tagParse[3], 0)
@@ -1605,7 +1608,8 @@ class HeapNodePoint(HeapNode):
     def initContentWithXML(self, tagText):
         tagParse = re.match("^\([ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+)[ ]*\)$", tagText)
         if tagParse is None:
-            raise AttributeError("Tag 0x{:04X} content contains unrecognized Point definition".format(self.tagId))
+            raise AttributeError("Tag {:d} of ClassId {:d} has content which does not match Point definition"\
+              .format(self.tagId,self.parentClassId))
         self.y = int(tagParse[1], 0)
         self.x = int(tagParse[2], 0)
         self.updateContent()
@@ -1620,9 +1624,10 @@ class HeapNodeString(HeapNode):
         return "\"{:s}\"".format(valText)
 
     def initContentWithXML(self, tagText):
-        tagParse = re.match("^\"(.*)\"$", tagText)
+        tagParse = re.match("^\"(.*)\"$", tagText, re.MULTILINE|re.DOTALL)
         if tagParse is None:
-            raise AttributeError("Tag 0x{:04X} content contains bad Integer value".format(self.tagId))
+            raise AttributeError("Tag {:d} of ClassId {:d} has content with bad String value {}"\
+              .format(self.tagId,self.parentClassId,tagText))
         # The text may have been in cdata tag, there is no way to know
         valText = ET.unescape_cdata_control_chars(tagParse[1])
         self.content = valText.encode(self.vi.textEncoding)
