@@ -2050,7 +2050,7 @@ def createObjectNode(vi, po, tagId, parentClassId, scopeInfo):
         obj = HeapNodeStdInt(vi, po, None, tagId, parentClassId, scopeInfo, btlen=-1, signed=True)
     elif tagEn in [OBJ_TEXT_HAIR_TAGS.OF__text,
       OBJ_FIELD_TAGS.OF__format,
-      #OBJ_FIELD_TAGS.OF__tagDLLName, #TODO enable when NULL strings are supported
+      OBJ_FIELD_TAGS.OF__tagDLLName,
       OBJ_PLOT_DATA_TAGS.OF__plotName,
       OBJ_PLOT_LEGEND_DATA_TAGS.OF__name,
       OBJ_SCALE_LEGEND_DATA_TAGS.OF__name,
