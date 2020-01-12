@@ -1628,18 +1628,24 @@ class HeapNodeString(HeapNode):
         super().__init__(*args)
 
     def prepareContentXML(self, fname_base):
+
+        if self.content is None or isinstance(self.content, bool):
+            return "[NULL]"
         valText = self.content.decode(self.vi.textEncoding)
         return "\"{:s}\"".format(valText)
 
     def initContentWithXML(self, tagText):
         tagParse = re.match("^\"(.*)\"$", tagText, re.MULTILINE|re.DOTALL)
-        if tagParse is None:
+        if tagParse is not None:
+            # The text may have been in cdata tag, there is no way to know; so unescape anyway
+            valText = ET.unescape_cdata_control_chars(tagParse[1])
+            self.content = valText.encode(self.vi.textEncoding)
+        elif tagText == "[NULL]":
+            self.content = False
+        else:
             raise AttributeError("Tag {:d} of ClassId {:d} has content with bad String value {}"\
               .format(self.tagId,self.parentClassId,tagText))
-        # The text may have been in cdata tag, there is no way to know
-        valText = ET.unescape_cdata_control_chars(tagParse[1])
-        self.content = valText.encode(self.vi.textEncoding)
-
+        pass
 
 def getFrontPanelHeapIdent(hfmt):
     """ Gives 4-byte heap identifier from HEAP_FORMAT member
