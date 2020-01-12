@@ -2273,10 +2273,13 @@ class FPH(Block):
         else:
             tagId = tagId - 31
 
-        classId = self.getTopClassId(section, parent_obj_idx)
+        if scopeInfo == LVheap.NODE_SCOPE.TagClose:
+            parentClassId = self.getTopClassId(section, parent_obj_idx[0:-1])
+        else:
+            parentClassId = self.getTopClassId(section, parent_obj_idx)
         i = len(section.objects)
 
-        obj = LVheap.createObjectNode(self.vi, self.po, tagId, classId, scopeInfo)
+        obj = LVheap.createObjectNode(self.vi, self.po, tagId, parentClassId, scopeInfo)
         section.objects.append(obj)
         if scopeInfo != LVheap.NODE_SCOPE.TagClose:
             parent_obj_idx.append(i)
@@ -2333,13 +2336,13 @@ class FPH(Block):
 
         self.setData(data_buf, section_num=section_num)
 
-    def initWithXMLHeap(self, section, elem, classId):
-        tagId = LVheap.tagNameToId(elem.tag, classId)
+    def initWithXMLHeap(self, section, elem, parentClassId):
+        tagId = LVheap.tagNameToId(elem.tag, parentClassId)
         if tagId is None:
             raise AttributeError("Unrecognized tag in heap XML, '{}', class 0x{:04X}"\
-              .format(elem.tag, classId))
+              .format(elem.tag, parentClassId))
         scopeInfo = LVheap.autoScopeInfoFromET(elem)
-        obj = LVheap.createObjectNode(self.vi, self.po, tagId, classId, scopeInfo)
+        obj = LVheap.createObjectNode(self.vi, self.po, tagId, parentClassId, scopeInfo)
         section.objects.append(obj)
 
         obj.initWithXML(elem)
@@ -2347,14 +2350,14 @@ class FPH(Block):
         if LVheap.SL_SYSTEM_ATTRIB_TAGS.SL__class.value in obj.attribs:
             subClassId = obj.attribs[LVheap.SL_SYSTEM_ATTRIB_TAGS.SL__class.value]
         else:
-            subClassId = classId
+            subClassId = parentClassId
 
         for subelem in elem:
             self.initWithXMLHeap(section, subelem, subClassId)
 
         if obj.scopeInfo == LVheap.NODE_SCOPE.TagOpen.value:
             scopeInfo = LVheap.NODE_SCOPE.TagClose.value
-            obj = LVheap.createObjectNode(self.vi, self.po, tagId, classId, scopeInfo)
+            obj = LVheap.createObjectNode(self.vi, self.po, tagId, parentClassId, scopeInfo)
             section.objects.append(obj)
             #obj.initWithXML(elem)
 
@@ -2386,8 +2389,7 @@ class FPH(Block):
         elem = None
         for i, obj in enumerate(section.objects):
             scopeInfo = obj.getScopeInfo()
-            classId = obj.parentClassId
-            tagName = LVheap.tagIdToName(obj.tagId, classId)
+            tagName = LVheap.tagIdToName(obj.tagId, obj.parentClassId)
             if elem is None:
                 elem = ET.Element(tagName)
                 root = elem

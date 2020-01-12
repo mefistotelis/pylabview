@@ -1930,12 +1930,12 @@ def autoScopeInfoFromET(elem):
         return NODE_SCOPE.TagLeaf
     return NODE_SCOPE.TagOpen
 
-def createObjectNode(vi, po, tagId, classId, scopeInfo):
+def createObjectNode(vi, po, tagId, parentClassId, scopeInfo):
     """ create new Heap Node
 
     Acts as a factory which selects object class based on tagId.
     """
-    tagEn = tagIdToEnum(tagId, classId)
+    tagEn = tagIdToEnum(tagId, parentClassId)
     if tagEn in [OBJ_FIELD_TAGS.OF__bounds,
       OBJ_FIELD_TAGS.OF__dBounds,
       OBJ_FIELD_TAGS.OF__pBounds,
@@ -1946,7 +1946,7 @@ def createObjectNode(vi, po, tagId, classId, scopeInfo):
       OBJ_SCALE_DATA_TAGS.OF__scaleRect,
       OBJ_SUBCOSM_TAGS.OF__Bounds,
       ]:
-        obj = HeapNodeRect(vi, po, None, tagId, classId, scopeInfo)
+        obj = HeapNodeRect(vi, po, None, tagId, parentClassId, scopeInfo)
     elif tagEn in [OBJ_FIELD_TAGS.OF__origin,
       OBJ_FIELD_TAGS.OF__minPaneSize,
       OBJ_FIELD_TAGS.OF__minPanelSize,
@@ -1954,7 +1954,7 @@ def createObjectNode(vi, po, tagId, classId, scopeInfo):
       OBJ_FIELD_TAGS.OF__nRC,
       OBJ_FIELD_TAGS.OF__oRC,
       ]:
-        obj = HeapNodePoint(vi, po, None, tagId, classId, scopeInfo)
+        obj = HeapNodePoint(vi, po, None, tagId, parentClassId, scopeInfo)
     elif tagEn in [OBJ_FIELD_TAGS.OF__activeMarker,
       OBJ_FIELD_TAGS.OF__partID,
       OBJ_FIELD_TAGS.OF__partOrder,
@@ -2041,7 +2041,7 @@ def createObjectNode(vi, po, tagId, classId, scopeInfo):
       OBJ_SCALE_DATA_TAGS.OF__partOrder,
       OBJ_SCALE_DATA_TAGS.OF__flags,
       ]:
-        obj = HeapNodeStdInt(vi, po, None, tagId, classId, scopeInfo, btlen=-1, signed=True)
+        obj = HeapNodeStdInt(vi, po, None, tagId, parentClassId, scopeInfo, btlen=-1, signed=True)
     elif tagEn in [OBJ_TEXT_HAIR_TAGS.OF__text,
       OBJ_FIELD_TAGS.OF__format,
       #OBJ_FIELD_TAGS.OF__tagDLLName, #TODO enable when NULL strings are supported
@@ -2049,17 +2049,17 @@ def createObjectNode(vi, po, tagId, classId, scopeInfo):
       OBJ_PLOT_LEGEND_DATA_TAGS.OF__name,
       OBJ_SCALE_LEGEND_DATA_TAGS.OF__name,
       ]:
-        obj = HeapNodeString(vi, po, None, tagId, classId, scopeInfo)
+        obj = HeapNodeString(vi, po, None, tagId, parentClassId, scopeInfo)
     elif tagEn in [OBJ_FIELD_TAGS.OF__typeDesc,
       OBJ_FIELD_TAGS.OF__histTD,
       ]:
-        obj = HeapNodeTypeId(vi, po, None, tagId, classId, scopeInfo)
+        obj = HeapNodeTypeId(vi, po, None, tagId, parentClassId, scopeInfo)
       # TODO figure out how to get type
       #OBJ_FIELD_TAGS.OF__StdNumMin,# int or float
       #OBJ_FIELD_TAGS.OF__StdNumMax,
       #OBJ_FIELD_TAGS.OF__StdNumInc,
     else:
-        obj = HeapNode(vi, po, None, tagId, classId, scopeInfo)
+        obj = HeapNode(vi, po, None, tagId, parentClassId, scopeInfo)
     return obj
 
 def addObjectNodeToTree(section, parentIdx, objectIdx):
