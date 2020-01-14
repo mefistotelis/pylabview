@@ -1703,10 +1703,7 @@ CLASS_EN_TO_TAG_LIST_MAPPING = {
     SL_CLASS_TAGS.SL__DigitlaBusOrgClust: OBJ_DIGITAL_BUS_ORG_CLUST_TAGS,
     SL_CLASS_TAGS.SL__ScaleLegendData: OBJ_SCALE_LEGEND_DATA_TAGS,
     SL_CLASS_TAGS.SL__ScaleData: OBJ_SCALE_DATA_TAGS,
-}
-
-CLASS_ID_TO_TAG_LIST_MAPPING = {
-    key.value: val for key, val in CLASS_EN_TO_TAG_LIST_MAPPING.items()
+    SL_MULTI_DIM_CLASS_TAGS.SL__multiDimArray: SL_MULTI_DIM_TAGS,
 }
 
 def getFrontPanelHeapIdent(hfmt):
@@ -1740,10 +1737,6 @@ def tagIdToEnum(tagId, classEn, contentTagId):
     tagEn = None
     if SL_SYSTEM_TAGS.has_value(tagId):
         tagEn = SL_SYSTEM_TAGS(tagId)
-    elif classEn == SL_MULTI_DIM_CLASS_TAGS.SL__multiDimArray and \
-      contentTagId in (OBJ_FIELD_TAGS.OF__baseListboxItemStrings.value,):
-        if SL_MULTI_DIM_TAGS.has_value(tagId):
-            tagEn = SL_MULTI_DIM_TAGS(tagId)
     elif classEn in CLASS_EN_TO_TAG_LIST_MAPPING:
         TAG_LIST = CLASS_EN_TO_TAG_LIST_MAPPING[classEn]
         if TAG_LIST.has_value(tagId):
@@ -1769,12 +1762,7 @@ def tagNameToEnum(tagName, classEn, contentTagId):
 
     if SL_SYSTEM_TAGS.has_name(tagName):
         tagEn = SL_SYSTEM_TAGS[tagName]
-    elif classEn == SL_MULTI_DIM_CLASS_TAGS.SL__multiDimArray and \
-      contentTagId in (OBJ_FIELD_TAGS.OF__baseListboxItemStrings.value,):
-        if SL_MULTI_DIM_TAGS.has_name("OF__"+tagName):
-            tagEn = SL_MULTI_DIM_TAGS["OF__"+tagName]
-
-    if tagEn is None and classEn in CLASS_EN_TO_TAG_LIST_MAPPING:
+    elif classEn in CLASS_EN_TO_TAG_LIST_MAPPING:
         TAG_LIST = CLASS_EN_TO_TAG_LIST_MAPPING[classEn]
         if TAG_LIST.has_name("OF__"+tagName):
             tagEn = TAG_LIST["OF__"+tagName]
