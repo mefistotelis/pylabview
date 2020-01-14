@@ -1303,20 +1303,23 @@ class SL_MULTI_DIM_TAGS(ENUM_TAGS):
     OF__multiDimArrayElems = 1
 
 
-class UNRECOGNIZED_TAG:
-    def __init__(tagId):
+class PHONY_ENUM:
+    pass
+
+class UNRECOGNIZED_TAG(PHONY_ENUM):
+    def __init__(self, tagId):
         self.value = int(tagId)
         self.name = 'OF__Tag{:04X}'.format(tagId)
 
 
-class UNRECOGNIZED_CLASS:
-    def __init__(classId):
+class UNRECOGNIZED_CLASS(PHONY_ENUM):
+    def __init__(self, classId):
         self.value = int(classId)
         self.name = 'Class{:04X}'.format(classId)
 
 
 class HeapNode(object):
-    def __init__(self, vi, po, parentNode, tagId, parentClassId, contentTagId, scopeInfo):
+    def __init__(self, vi, po, parentNode, tagId, parentClassEn, contentTagId, scopeInfo):
         """ Creates new Section object, represention one of possible contents of a Block.
 
         Support of a section is mostly implemented in Block, so there isn't much here.
@@ -1327,7 +1330,7 @@ class HeapNode(object):
         self.content = None
         self.parent = parentNode
         self.tagId = tagId
-        self.parentClassId = parentClassId
+        self.parentClassEn = parentClassEn
         self.contentTagId = contentTagId
         self.scopeInfo = scopeInfo
         self.childs = []
@@ -1356,7 +1359,8 @@ class HeapNode(object):
             attribs = {}
             for i in range(count):
                 atId = LVmisc.readVariableSizeFieldS124(bldata)
-                atVal = LVmisc.readVariableSizeFieldS24(bldata)
+                atIntVal = LVmisc.readVariableSizeFieldS24(bldata)
+                atVal = attributeValueIntToIntOrEn(atId, atIntVal, self.contentTagId)
                 attribs[atId] = atVal
         else:
             if (self.po.verbose > 2):
@@ -1416,6 +1420,8 @@ class HeapNode(object):
         if hasAttrList != 0:
             data_buf += LVmisc.prepareVariableSizeFieldU124(len(self.attribs))
             for atId, atVal in self.attribs.items():
+                if isinstance(atVal, enum.Enum) or isinstance(atVal, PHONY_ENUM):
+                    atVal = atVal.value
                 data_buf += LVmisc.prepareVariableSizeFieldS124(atId)
                 data_buf += LVmisc.prepareVariableSizeFieldS24(atVal)
 
@@ -1470,7 +1476,7 @@ class HeapNode(object):
     def exportXML(self, elem, scopeInfo, fname_base):
         for atId, atVal in self.attribs.items():
             propName = attributeIdToName(atId)
-            elem.set(propName, attributeValueIntToStr(atId, atVal, self.contentTagId))
+            elem.set(propName, attributeValueIntOrEnToStr(atId, atVal, self.contentTagId))
 
         tagText = self.prepareContentXML(fname_base)
         if tagText is not None:
@@ -1509,7 +1515,7 @@ class HeapNode(object):
             atId = attributeNameToId(name)
             if atId is None:
                 raise AttributeError("Unrecognized attrib name in heap XML, '{}'".format(name))
-            atVal = attributeValueStrToInt(atId, value)
+            atVal = attributeValueStrToIntOrEn(atId, value)
             if atVal is None:
                 raise AttributeError("Unrecognized attrib value in heap XML for name '{}'".format(name))
             attribs[atId] = atVal
@@ -1555,8 +1561,8 @@ class HeapNodeStdInt(HeapNode):
     def initContentWithXML(self, tagText):
         tagParse = re.match("^([0-9A-Fx-]+)$", tagText)
         if tagParse is None:
-            raise AttributeError("Tag {:d} of ClassId {:d} has content with bad Integer value"\
-              .format(self.tagId,self.parentClassId))
+            raise AttributeError("Tag {:d} of ClassId {:s} has content with bad Integer value"\
+              .format(self.tagId,self.parentClassEn.name))
         self.value = int(tagParse[1], 0)
         self.updateContent()
 
@@ -1571,8 +1577,8 @@ class HeapNodeTypeId(HeapNodeStdInt):
     def initContentWithXML(self, tagText):
         tagParse = re.match("^TypeID\(([0-9A-Fx-]+)\)$", tagText)
         if tagParse is None:
-            raise AttributeError("Tag {:d} of ClassId {:d} has content with bad Integer value"\
-              .format(self.tagId,self.parentClassId))
+            raise AttributeError("Tag {:d} of ClassId {:s} has content with bad Integer value"\
+              .format(self.tagId,self.parentClassEn.name))
         self.value = int(tagParse[1], 0)
         self.updateContent()
 
@@ -1606,8 +1612,8 @@ class HeapNodeRect(HeapNode):
     def initContentWithXML(self, tagText):
         tagParse = re.match("^\([ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+)[ ]*\)$", tagText)
         if tagParse is None:
-            raise AttributeError("Tag {:d} of ClassId {:d} has content which does not match Rect definition"\
-              .format(self.tagId,self.parentClassId))
+            raise AttributeError("Tag {:d} of ClassId {:s} has content which does not match Rect definition"\
+              .format(self.tagId,self.parentClassEn.name))
         self.left = int(tagParse[1], 0)
         self.top = int(tagParse[2], 0)
         self.right = int(tagParse[3], 0)
@@ -1638,8 +1644,8 @@ class HeapNodePoint(HeapNode):
     def initContentWithXML(self, tagText):
         tagParse = re.match("^\([ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+)[ ]*\)$", tagText)
         if tagParse is None:
-            raise AttributeError("Tag {:d} of ClassId {:d} has content which does not match Point definition"\
-              .format(self.tagId,self.parentClassId))
+            raise AttributeError("Tag {:d} of ClassId {:s} has content which does not match Point definition"\
+              .format(self.tagId,self.parentClassEn.name))
         self.y = int(tagParse[1], 0)
         self.x = int(tagParse[2], 0)
         self.updateContent()
@@ -1665,8 +1671,8 @@ class HeapNodeString(HeapNode):
         elif tagText == "[NULL]":
             self.content = False
         else:
-            raise AttributeError("Tag {:d} of ClassId {:d} has content with bad String value {}"\
-              .format(self.tagId,self.parentClassId,tagText))
+            raise AttributeError("Tag {:d} of ClassId {:s} has content with bad String value {}"\
+              .format(self.tagId,self.parentClassEn.name,tagText))
         pass
 
 CLASS_EN_TO_TAG_LIST_MAPPING = {
@@ -1726,7 +1732,7 @@ def recognizePanelHeapFmtFromIdent(heap_ident):
             return hfmt
     return HEAP_FORMAT.Unknown
 
-def tagIdToEnum(tagId, classId, contentTagId):
+def tagIdToEnum(tagId, classEn, contentTagId):
     # System level tags are always active; other tags depend
     # on an upper level tag which has 'class' set. The 'class'
     # may sometimes also depend on higher level TagId which selects
@@ -1734,12 +1740,12 @@ def tagIdToEnum(tagId, classId, contentTagId):
     tagEn = None
     if SL_SYSTEM_TAGS.has_value(tagId):
         tagEn = SL_SYSTEM_TAGS(tagId)
-    elif classId == SL_MULTI_DIM_CLASS_TAGS.SL__multiDimArray.value and \
+    elif classEn == SL_MULTI_DIM_CLASS_TAGS.SL__multiDimArray and \
       contentTagId in (OBJ_FIELD_TAGS.OF__baseListboxItemStrings.value,):
         if SL_MULTI_DIM_TAGS.has_value(tagId):
             tagEn = SL_MULTI_DIM_TAGS(tagId)
-    elif classId in CLASS_ID_TO_TAG_LIST_MAPPING:
-        TAG_LIST = CLASS_ID_TO_TAG_LIST_MAPPING[classId]
+    elif classEn in CLASS_EN_TO_TAG_LIST_MAPPING:
+        TAG_LIST = CLASS_EN_TO_TAG_LIST_MAPPING[classEn]
         if TAG_LIST.has_value(tagId):
             tagEn = TAG_LIST(tagId)
     else:
@@ -1749,8 +1755,8 @@ def tagIdToEnum(tagId, classId, contentTagId):
         tagEn = UNRECOGNIZED_TAG(tagId)
     return tagEn
 
-def tagIdToName(tagId, classId, contentTagId):
-    tagEn = tagIdToEnum(tagId, classId, contentTagId)
+def tagIdToName(tagId, classEn, contentTagId):
+    tagEn = tagIdToEnum(tagId, classEn, contentTagId)
     # For most enums, we need to remove 4 starting bytes to get the name
     if isinstance(tagEn, SL_SYSTEM_TAGS):
         tagName = tagEn.name
@@ -1758,22 +1764,20 @@ def tagIdToName(tagId, classId, contentTagId):
         tagName = tagEn.name[4:]
     return tagName
 
-def tagNameToEnum(tagName, classId, contentTagId):
+def tagNameToEnum(tagName, classEn, contentTagId):
     tagEn = None
 
     if SL_SYSTEM_TAGS.has_name(tagName):
         tagEn = SL_SYSTEM_TAGS[tagName]
-    elif classId == SL_MULTI_DIM_CLASS_TAGS.SL__multiDimArray.value and \
+    elif classEn == SL_MULTI_DIM_CLASS_TAGS.SL__multiDimArray and \
       contentTagId in (OBJ_FIELD_TAGS.OF__baseListboxItemStrings.value,):
         if SL_MULTI_DIM_TAGS.has_name("OF__"+tagName):
             tagEn = SL_MULTI_DIM_TAGS["OF__"+tagName]
 
-    if tagEn is None:
-        for ClassEnKey, TAG_LIST in CLASS_EN_TO_TAG_LIST_MAPPING.items():
-            if classId == ClassEnKey.value:
-                if TAG_LIST.has_name("OF__"+tagName):
-                    tagEn = TAG_LIST["OF__"+tagName]
-                break
+    if tagEn is None and classEn in CLASS_EN_TO_TAG_LIST_MAPPING:
+        TAG_LIST = CLASS_EN_TO_TAG_LIST_MAPPING[classEn]
+        if TAG_LIST.has_name("OF__"+tagName):
+            tagEn = TAG_LIST["OF__"+tagName]
 
     if tagEn is None:
         if OBJ_FIELD_TAGS.has_name("OF__"+tagName):
@@ -1786,8 +1790,8 @@ def tagNameToEnum(tagName, classId, contentTagId):
 
     return tagEn
 
-def tagNameToId(tagName, classId, contentTagId):
-    tagEn = tagNameToEnum(tagName, classId, contentTagId)
+def tagNameToId(tagName, classEn, contentTagId):
+    tagEn = tagNameToEnum(tagName, classEn, contentTagId)
     if tagEn is not None:
         tagId = tagEn.value
     else:
@@ -1824,8 +1828,7 @@ def classIdToEnum(classId, contentTagId):
         classEn = UNRECOGNIZED_CLASS(classId)
     return classEn
 
-def classIdToName(classId, contentTagId):
-    classEn = classIdToEnum(classId, contentTagId)
+def classEnToName(classEn):
     if isinstance(classEn, SL_CLASS_TAGS):
         className = classEn.name[4:]
     else:
@@ -1845,24 +1848,23 @@ def classNameToEnum(className):
             classEn = UNRECOGNIZED_CLASS(classId)
     return classEn
 
-def classNameToId(className):
-    classEn = classNameToEnum(className)
-    if classEn is not None:
-        classId = classEn.value
-    else:
-        classId = None
-    return classId
-
-def attributeValueIntToStr(attrId, attrVal, contentTagId):
+def attributeValueIntToIntOrEn(attrId, attrIntVal, contentTagId):
     if attrId == SL_SYSTEM_ATTRIB_TAGS.SL__class.value:
-        attrStr = classIdToName(attrVal, contentTagId)
+        attrVal = classIdToEnum(attrIntVal, contentTagId)
+    else:
+        attrVal = attrIntVal
+    return attrVal
+
+def attributeValueIntOrEnToStr(attrId, attrVal, contentTagId):
+    if attrId == SL_SYSTEM_ATTRIB_TAGS.SL__class.value:
+        attrStr = classEnToName(attrVal)
     else:
         attrStr = '{:d}'.format(attrVal)
     return attrStr
 
-def attributeValueStrToInt(attrId, attrStr):
+def attributeValueStrToIntOrEn(attrId, attrStr):
     if attrId == SL_SYSTEM_ATTRIB_TAGS.SL__class.value:
-        attrVal = classNameToId(attrStr)
+        attrVal = classNameToEnum(attrStr)
     else:
         attrVal = int(attrStr, 0)
     return attrVal
@@ -1877,12 +1879,12 @@ def autoScopeInfoFromET(elem):
         return NODE_SCOPE.TagLeaf
     return NODE_SCOPE.TagOpen
 
-def createObjectNode(vi, po, tagId, parentClassId, contentTagId, scopeInfo):
+def createObjectNode(vi, po, tagId, parentClassEn, contentTagId, scopeInfo):
     """ create new Heap Node
 
     Acts as a factory which selects object class based on tagId.
     """
-    tagEn = tagIdToEnum(tagId, parentClassId, contentTagId)
+    tagEn = tagIdToEnum(tagId, parentClassEn, contentTagId)
     if tagEn in (OBJ_FIELD_TAGS.OF__bounds,
       OBJ_FIELD_TAGS.OF__dBounds,
       OBJ_FIELD_TAGS.OF__pBounds,
@@ -1893,7 +1895,7 @@ def createObjectNode(vi, po, tagId, parentClassId, contentTagId, scopeInfo):
       OBJ_SCALE_DATA_TAGS.OF__scaleRect,
       OBJ_SUBCOSM_TAGS.OF__Bounds,
       ):
-        obj = HeapNodeRect(vi, po, None, tagId, parentClassId, contentTagId, scopeInfo)
+        obj = HeapNodeRect(vi, po, None, tagId, parentClassEn, contentTagId, scopeInfo)
     elif tagEn in (OBJ_FIELD_TAGS.OF__origin,
       OBJ_FIELD_TAGS.OF__minPaneSize,
       OBJ_FIELD_TAGS.OF__minPanelSize,
@@ -1901,7 +1903,7 @@ def createObjectNode(vi, po, tagId, parentClassId, contentTagId, scopeInfo):
       OBJ_FIELD_TAGS.OF__nRC,
       OBJ_FIELD_TAGS.OF__oRC,
       ):
-        obj = HeapNodePoint(vi, po, None, tagId, parentClassId, contentTagId, scopeInfo)
+        obj = HeapNodePoint(vi, po, None, tagId, parentClassEn, contentTagId, scopeInfo)
     elif tagEn in (OBJ_FIELD_TAGS.OF__activeMarker,
       OBJ_FIELD_TAGS.OF__partID,
       OBJ_FIELD_TAGS.OF__partOrder,
@@ -1988,7 +1990,7 @@ def createObjectNode(vi, po, tagId, parentClassId, contentTagId, scopeInfo):
       OBJ_SCALE_DATA_TAGS.OF__partOrder,
       OBJ_SCALE_DATA_TAGS.OF__flags,
       ):
-        obj = HeapNodeStdInt(vi, po, None, tagId, parentClassId, contentTagId, scopeInfo, btlen=-1, signed=True)
+        obj = HeapNodeStdInt(vi, po, None, tagId, parentClassEn, contentTagId, scopeInfo, btlen=-1, signed=True)
     elif tagEn in (OBJ_TEXT_HAIR_TAGS.OF__text,
       OBJ_FIELD_TAGS.OF__format,
       OBJ_FIELD_TAGS.OF__tagDLLName,
@@ -1996,17 +1998,17 @@ def createObjectNode(vi, po, tagId, parentClassId, contentTagId, scopeInfo):
       OBJ_PLOT_LEGEND_DATA_TAGS.OF__name,
       OBJ_SCALE_LEGEND_DATA_TAGS.OF__name,
       ):
-        obj = HeapNodeString(vi, po, None, tagId, parentClassId, contentTagId, scopeInfo)
+        obj = HeapNodeString(vi, po, None, tagId, parentClassEn, contentTagId, scopeInfo)
     elif tagEn in (OBJ_FIELD_TAGS.OF__typeDesc,
       OBJ_FIELD_TAGS.OF__histTD,
       ):
-        obj = HeapNodeTypeId(vi, po, None, tagId, parentClassId, contentTagId, scopeInfo)
+        obj = HeapNodeTypeId(vi, po, None, tagId, parentClassEn, contentTagId, scopeInfo)
     elif tagEn == SL_SYSTEM_TAGS.SL__arrayElement and \
       contentTagId in (OBJ_FIELD_TAGS.OF__strings.value,
       OBJ_FIELD_TAGS.OF__rowHeaders.value,
       OBJ_FIELD_TAGS.OF__columnHeaders.value,
       ):
-        obj = HeapNodeString(vi, po, None, tagId, parentClassId, contentTagId, scopeInfo)
+        obj = HeapNodeString(vi, po, None, tagId, parentClassEn, contentTagId, scopeInfo)
       # TODO is that just an int
       #OBJ_FIELD_TAGS.OF__baseListboxItemStrings.value,
       # TODO figure out how to get type
@@ -2014,10 +2016,10 @@ def createObjectNode(vi, po, tagId, parentClassId, contentTagId, scopeInfo):
       #OBJ_FIELD_TAGS.OF__StdNumMax,
       #OBJ_FIELD_TAGS.OF__StdNumInc,
     else:
-        obj = HeapNode(vi, po, None, tagId, parentClassId, contentTagId, scopeInfo)
+        obj = HeapNode(vi, po, None, tagId, parentClassEn, contentTagId, scopeInfo)
     return obj
 
-def isContentTagId(tagId, parentClassId, contentTagId):
+def isContentTagId(tagId, parentClassEn, contentTagId):
     CONTENT_TAGS_FORCED_LIST = (
       OBJ_FIELD_TAGS.OF__baseListboxItemStrings.value,
       OBJ_FIELD_TAGS.OF__partsList.value,
