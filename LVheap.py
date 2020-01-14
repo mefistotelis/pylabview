@@ -1303,6 +1303,18 @@ class SL_MULTI_DIM_TAGS(ENUM_TAGS):
     OF__multiDimArrayElems = 1
 
 
+class UNRECOGNIZED_TAG:
+    def __init__(tagId):
+        self.value = int(tagId)
+        self.name = 'OF__Tag{:04X}'.format(tagId)
+
+
+class UNRECOGNIZED_CLASS:
+    def __init__(classId):
+        self.value = int(classId)
+        self.name = 'Class{:04X}'.format(classId)
+
+
 class HeapNode(object):
     def __init__(self, vi, po, parentNode, tagId, parentClassId, contentTagId, scopeInfo):
         """ Creates new Section object, represention one of possible contents of a Block.
@@ -1733,18 +1745,17 @@ def tagIdToEnum(tagId, classId, contentTagId):
     else:
         if OBJ_FIELD_TAGS.has_value(tagId):
             tagEn = OBJ_FIELD_TAGS(tagId)
+    if tagEn is None:
+        tagEn = UNRECOGNIZED_TAG(tagId)
     return tagEn
 
 def tagIdToName(tagId, classId, contentTagId):
     tagEn = tagIdToEnum(tagId, classId, contentTagId)
-    if tagEn is not None:
-        # For most enums, we need to remove 4 starting bytes to get the name
-        if isinstance(tagEn, SL_SYSTEM_TAGS):
-            tagName = tagEn.name
-        else:
-            tagName = tagEn.name[4:]
+    # For most enums, we need to remove 4 starting bytes to get the name
+    if isinstance(tagEn, SL_SYSTEM_TAGS):
+        tagName = tagEn.name
     else:
-        tagName = 'Tag{:04X}'.format(tagId)
+        tagName = tagEn.name[4:]
     return tagName
 
 def tagNameToEnum(tagName, classId, contentTagId):
@@ -1767,6 +1778,12 @@ def tagNameToEnum(tagName, classId, contentTagId):
     if tagEn is None:
         if OBJ_FIELD_TAGS.has_name("OF__"+tagName):
             tagEn = OBJ_FIELD_TAGS["OF__"+tagName]
+
+    if tagEn is None:
+        tagParse = re.match("^Tag([0-9A-F]{4,8})$", tagName)
+        if tagParse is not None:
+            tagEn = UNRECOGNIZED_TAG(int(tagParse[1], 16))
+
     return tagEn
 
 def tagNameToId(tagName, classId, contentTagId):
@@ -1774,11 +1791,7 @@ def tagNameToId(tagName, classId, contentTagId):
     if tagEn is not None:
         tagId = tagEn.value
     else:
-        tagParse = re.match("^Tag([0-9A-F]{4,8})$", tagName)
-        if tagParse is not None:
-            tagId = int(tagParse[1], 16)
-        else:
-            tagId = None
+        tagId = None
     return tagId
 
 def attributeIdToName(attrId):
@@ -1804,33 +1817,40 @@ def classIdToEnum(classId, contentTagId):
     if contentTagId in (OBJ_FIELD_TAGS.OF__baseListboxItemStrings.value,):
         if SL_MULTI_DIM_CLASS_TAGS.has_value(classId):
             classEn = SL_MULTI_DIM_CLASS_TAGS(classId)
-        pass
-    if (classEn is None) and SL_CLASS_TAGS.has_value(classId):
-        classEn = SL_CLASS_TAGS(classId)
+    if classEn is None:
+        if SL_CLASS_TAGS.has_value(classId):
+            classEn = SL_CLASS_TAGS(classId)
+    if classEn is None:
+        classEn = UNRECOGNIZED_CLASS(classId)
     return classEn
 
 def classIdToName(classId, contentTagId):
     classEn = classIdToEnum(classId, contentTagId)
-    if classEn is not None:
-        if isinstance(classEn, SL_CLASS_TAGS):
-            className = classEn.name[4:]
-        else:
-            className = classEn.name
+    if isinstance(classEn, SL_CLASS_TAGS):
+        className = classEn.name[4:]
     else:
-        className = 'Class{:04X}'.format(classId)
+        className = classEn.name
     return className
 
-def classNameToId(className):
+def classNameToEnum(className):
+    classEn = None
     if SL_CLASS_TAGS.has_name("SL__"+className):
-        classId = SL_CLASS_TAGS["SL__"+className].value
+        classEn = SL_CLASS_TAGS["SL__"+className]
     elif SL_MULTI_DIM_CLASS_TAGS.has_name(className):
-        classId = SL_MULTI_DIM_CLASS_TAGS[className].value
+        classEn = SL_MULTI_DIM_CLASS_TAGS[className]
     else:
         classParse = re.match("^Class([0-9A-F]{4,8})$", className)
         if classParse is not None:
             classId = int(classParse[1], 16)
-        else:
-            classId = None
+            classEn = UNRECOGNIZED_CLASS(classId)
+    return classEn
+
+def classNameToId(className):
+    classEn = classNameToEnum(className)
+    if classEn is not None:
+        classId = classEn.value
+    else:
+        classId = None
     return classId
 
 def attributeValueIntToStr(attrId, attrVal, contentTagId):
