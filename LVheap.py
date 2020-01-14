@@ -1052,6 +1052,10 @@ class SL_CLASS_TAGS(ENUM_TAGS):
     SL__ScaleData = 925
 
 
+class SL_MULTI_DIM_CLASS_TAGS(ENUM_TAGS):
+    SL__multiDimArray = 0
+
+
 class OBJ_FONT_RUN_TAGS(ENUM_TAGS):
     """Tags within SL__fontRun class.
 
@@ -1294,8 +1298,13 @@ class OBJ_SCALE_DATA_TAGS(ENUM_TAGS):
     OF__scaleFlavor = 9
 
 
+class SL_MULTI_DIM_TAGS(ENUM_TAGS):
+    OF__multiDimArraySizes = 0
+    OF__multiDimArrayElems = 1
+
+
 class HeapNode(object):
-    def __init__(self, vi, po, parentNode, tagId, parentClassId, scopeInfo):
+    def __init__(self, vi, po, parentNode, tagId, parentClassId, contentTagId, scopeInfo):
         """ Creates new Section object, represention one of possible contents of a Block.
 
         Support of a section is mostly implemented in Block, so there isn't much here.
@@ -1307,6 +1316,7 @@ class HeapNode(object):
         self.parent = parentNode
         self.tagId = tagId
         self.parentClassId = parentClassId
+        self.contentTagId = contentTagId
         self.scopeInfo = scopeInfo
         self.childs = []
         self.raw_data = None
@@ -1448,7 +1458,7 @@ class HeapNode(object):
     def exportXML(self, elem, scopeInfo, fname_base):
         for atId, atVal in self.attribs.items():
             propName = attributeIdToName(atId)
-            elem.set(propName, attributeValueIntToStr(atId, atVal))
+            elem.set(propName, attributeValueIntToStr(atId, atVal, self.contentTagId))
 
         tagText = self.prepareContentXML(fname_base)
         if tagText is not None:
@@ -1647,6 +1657,40 @@ class HeapNodeString(HeapNode):
               .format(self.tagId,self.parentClassId,tagText))
         pass
 
+CLASS_EN_TO_TAG_LIST_MAPPING = {
+    SL_CLASS_TAGS.SL__fontRun: OBJ_FONT_RUN_TAGS,
+    SL_CLASS_TAGS.SL__textHair: OBJ_TEXT_HAIR_TAGS,
+    SL_CLASS_TAGS.SL__Image: OBJ_IMAGE_TAGS,
+    SL_CLASS_TAGS.SL__SubCosm: OBJ_SUBCOSM_TAGS,
+    SL_CLASS_TAGS.SL__EmbedObject: OBJ_EMBED_OBJECT_TAGS,
+    SL_CLASS_TAGS.SL__SceneView: OBJ_SCENE_GRAPH_TAGS,
+    SL_CLASS_TAGS.SL__SceneColor: OBJ_SCENE_COLOR_TAGS,
+    SL_CLASS_TAGS.SL__SceneEyePoint: OBJ_SCENE_EYE_POINT_TAGS,
+    SL_CLASS_TAGS.SL__ComplexScalar: OBJ_COMPLEX_SCALAR_TAGS,
+    SL_CLASS_TAGS.SL__TableAttribute: OBJ_ATTRIBUTE_LIST_ITEM_TAGS,
+    SL_CLASS_TAGS.SL__Time128: OBJ_TIME128_TAGS,
+    SL_CLASS_TAGS.SL__BrowseOptions: OBJ_BROWSE_OPTIONS_TAGS,
+    SL_CLASS_TAGS.SL__StorageRowCol: OBJ_ROW_COL_TAGS,
+    SL_CLASS_TAGS.SL__ColorPair: OBJ_COLOR_PAIR_TAGS,
+    SL_CLASS_TAGS.SL__TreeNode: OBJ_TREE_NODE_TAGS,
+    SL_CLASS_TAGS.SL__RelativeRowCol: OBJ_ROW_COL_TAGS,
+    SL_CLASS_TAGS.SL__TabInfoItem: OBJ_TAB_INFO_ITEM_TAGS,
+    SL_CLASS_TAGS.SL__PageInfoItem: OBJ_PAGE_INFO_ITEM_TAGS,
+    SL_CLASS_TAGS.SL__MappedPoint: OBJ_MAPPED_POINT_TAGS,
+    SL_CLASS_TAGS.SL__PlotData: OBJ_PLOT_DATA_TAGS,
+    SL_CLASS_TAGS.SL__CursorData: OBJ_CURSOR_DATA_TAGS,
+    SL_CLASS_TAGS.SL__PlotImages: OBJ_PLOT_IMAGES_TAGS,
+    SL_CLASS_TAGS.SL__CursorButtonsRec: OBJ_CURS_BUTTONS_REC_TAGS,
+    SL_CLASS_TAGS.SL__PlotLegendData: OBJ_PLOT_LEGEND_DATA_TAGS,
+    SL_CLASS_TAGS.SL__DigitlaBusOrgClust: OBJ_DIGITAL_BUS_ORG_CLUST_TAGS,
+    SL_CLASS_TAGS.SL__ScaleLegendData: OBJ_SCALE_LEGEND_DATA_TAGS,
+    SL_CLASS_TAGS.SL__ScaleData: OBJ_SCALE_DATA_TAGS,
+}
+
+CLASS_ID_TO_TAG_LIST_MAPPING = {
+    key.value: val for key, val in CLASS_EN_TO_TAG_LIST_MAPPING.items()
+}
+
 def getFrontPanelHeapIdent(hfmt):
     """ Gives 4-byte heap identifier from HEAP_FORMAT member
     """
@@ -1670,100 +1714,29 @@ def recognizePanelHeapFmtFromIdent(heap_ident):
             return hfmt
     return HEAP_FORMAT.Unknown
 
-def tagIdToEnum(tagId, classId=SL_CLASS_TAGS.SL__generic.value):
+def tagIdToEnum(tagId, classId, contentTagId):
     # System level tags are always active; other tags depend
-    # on an upper level tag which has 'class' set.
+    # on an upper level tag which has 'class' set. The 'class'
+    # may sometimes also depend on higher level TagId which selects
+    # content interpretation (contentTagId)
     tagEn = None
     if SL_SYSTEM_TAGS.has_value(tagId):
         tagEn = SL_SYSTEM_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__fontRun.value:
-        if OBJ_FONT_RUN_TAGS.has_value(tagId):
-            tagEn = OBJ_FONT_RUN_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__textHair.value:
-        if OBJ_TEXT_HAIR_TAGS.has_value(tagId):
-            tagEn = OBJ_TEXT_HAIR_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__Image.value:
-        if OBJ_IMAGE_TAGS.has_value(tagId):
-            tagEn = OBJ_IMAGE_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__SubCosm.value:
-        if OBJ_SUBCOSM_TAGS.has_value(tagId):
-            tagEn = OBJ_SUBCOSM_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__EmbedObject.value:
-        if OBJ_EMBED_OBJECT_TAGS.has_value(tagId):
-            tagEn = OBJ_EMBED_OBJECT_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__SceneView.value:
-        if OBJ_SCENE_GRAPH_TAGS.has_value(tagId):
-            tagEn = OBJ_SCENE_GRAPH_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__SceneColor.value:
-        if OBJ_SCENE_COLOR_TAGS.has_value(tagId):
-            tagEn = OBJ_SCENE_COLOR_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__SceneEyePoint.value:
-        if OBJ_SCENE_EYE_POINT_TAGS.has_value(tagId):
-            tagEn = OBJ_SCENE_EYE_POINT_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__ComplexScalar.value:
-        if OBJ_COMPLEX_SCALAR_TAGS.has_value(tagId):
-            tagEn = OBJ_COMPLEX_SCALAR_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__TableAttribute.value:
-        if OBJ_ATTRIBUTE_LIST_ITEM_TAGS.has_value(tagId):
-            tagEn = OBJ_ATTRIBUTE_LIST_ITEM_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__Time128.value:
-        if OBJ_TIME128_TAGS.has_value(tagId):
-            tagEn = OBJ_TIME128_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__BrowseOptions.value:
-        if OBJ_BROWSE_OPTIONS_TAGS.has_value(tagId):
-            tagEn = OBJ_BROWSE_OPTIONS_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__StorageRowCol.value:
-        if OBJ_ROW_COL_TAGS.has_value(tagId):
-            tagEn = OBJ_ROW_COL_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__ColorPair.value:
-        if OBJ_COLOR_PAIR_TAGS.has_value(tagId):
-            tagEn = OBJ_COLOR_PAIR_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__TreeNode.value:
-        if OBJ_TREE_NODE_TAGS.has_value(tagId):
-            tagEn = OBJ_TREE_NODE_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__RelativeRowCol.value:
-        if OBJ_ROW_COL_TAGS.has_value(tagId):
-            tagEn = OBJ_ROW_COL_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__TabInfoItem.value:
-        if OBJ_TAB_INFO_ITEM_TAGS.has_value(tagId):
-            tagEn = OBJ_TAB_INFO_ITEM_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__PageInfoItem.value:
-        if OBJ_PAGE_INFO_ITEM_TAGS.has_value(tagId):
-            tagEn = OBJ_PAGE_INFO_ITEM_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__MappedPoint.value:
-        if OBJ_MAPPED_POINT_TAGS.has_value(tagId):
-            tagEn = OBJ_MAPPED_POINT_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__PlotData.value:
-        if OBJ_PLOT_DATA_TAGS.has_value(tagId):
-            tagEn = OBJ_PLOT_DATA_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__CursorData.value:
-        if OBJ_CURSOR_DATA_TAGS.has_value(tagId):
-            tagEn = OBJ_CURSOR_DATA_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__PlotImages.value:
-        if OBJ_PLOT_IMAGES_TAGS.has_value(tagId):
-            tagEn = OBJ_PLOT_IMAGES_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__CursorButtonsRec.value:
-        if OBJ_CURS_BUTTONS_REC_TAGS.has_value(tagId):
-            tagEn = OBJ_CURS_BUTTONS_REC_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__PlotLegendData.value:
-        if OBJ_PLOT_LEGEND_DATA_TAGS.has_value(tagId):
-            tagEn = OBJ_PLOT_LEGEND_DATA_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__DigitlaBusOrgClust.value:
-        if OBJ_DIGITAL_BUS_ORG_CLUST_TAGS.has_value(tagId):
-            tagEn = OBJ_DIGITAL_BUS_ORG_CLUST_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__ScaleLegendData.value:
-        if OBJ_SCALE_LEGEND_DATA_TAGS.has_value(tagId):
-            tagEn = OBJ_SCALE_LEGEND_DATA_TAGS(tagId)
-    elif classId == SL_CLASS_TAGS.SL__ScaleData.value:
-        if OBJ_SCALE_DATA_TAGS.has_value(tagId):
-            tagEn = OBJ_SCALE_DATA_TAGS(tagId)
+    elif classId == SL_MULTI_DIM_CLASS_TAGS.SL__multiDimArray.value and \
+      contentTagId in (OBJ_FIELD_TAGS.OF__baseListboxItemStrings.value,):
+        if SL_MULTI_DIM_TAGS.has_value(tagId):
+            tagEn = SL_MULTI_DIM_TAGS(tagId)
+    elif classId in CLASS_ID_TO_TAG_LIST_MAPPING:
+        TAG_LIST = CLASS_ID_TO_TAG_LIST_MAPPING[classId]
+        if TAG_LIST.has_value(tagId):
+            tagEn = TAG_LIST(tagId)
     else:
         if OBJ_FIELD_TAGS.has_value(tagId):
             tagEn = OBJ_FIELD_TAGS(tagId)
     return tagEn
 
-def tagIdToName(tagId, classId=SL_CLASS_TAGS.SL__generic.value):
-    tagEn = tagIdToEnum(tagId, classId)
+def tagIdToName(tagId, classId, contentTagId):
+    tagEn = tagIdToEnum(tagId, classId, contentTagId)
     if tagEn is not None:
         # For most enums, we need to remove 4 starting bytes to get the name
         if isinstance(tagEn, SL_SYSTEM_TAGS):
@@ -1774,98 +1747,30 @@ def tagIdToName(tagId, classId=SL_CLASS_TAGS.SL__generic.value):
         tagName = 'Tag{:04X}'.format(tagId)
     return tagName
 
-def tagNameToEnum(tagName, classId=SL_CLASS_TAGS.SL__generic.value):
+def tagNameToEnum(tagName, classId, contentTagId):
     tagEn = None
+
     if SL_SYSTEM_TAGS.has_name(tagName):
         tagEn = SL_SYSTEM_TAGS[tagName]
-    elif classId == SL_CLASS_TAGS.SL__fontRun.value:
-        if OBJ_FONT_RUN_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_FONT_RUN_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__textHair.value:
-        if OBJ_TEXT_HAIR_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_TEXT_HAIR_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__Image.value:
-        if OBJ_IMAGE_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_IMAGE_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__SubCosm.value:
-        if OBJ_SUBCOSM_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_SUBCOSM_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__EmbedObject.value:
-        if OBJ_EMBED_OBJECT_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_EMBED_OBJECT_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__SceneView.value:
-        if OBJ_SCENE_GRAPH_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_SCENE_GRAPH_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__SceneColor.value:
-        if OBJ_SCENE_COLOR_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_SCENE_COLOR_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__SceneEyePoint.value:
-        if OBJ_SCENE_EYE_POINT_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_SCENE_EYE_POINT_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__ComplexScalar.value:
-        if OBJ_COMPLEX_SCALAR_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_COMPLEX_SCALAR_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__TableAttribute.value:
-        if OBJ_ATTRIBUTE_LIST_ITEM_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_ATTRIBUTE_LIST_ITEM_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__Time128.value:
-        if OBJ_TIME128_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_TIME128_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__BrowseOptions.value:
-        if OBJ_BROWSE_OPTIONS_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_BROWSE_OPTIONS_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__StorageRowCol.value:
-        if OBJ_ROW_COL_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_ROW_COL_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__ColorPair.value:
-        if OBJ_COLOR_PAIR_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_COLOR_PAIR_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__TreeNode.value:
-        if OBJ_TREE_NODE_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_TREE_NODE_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__RelativeRowCol.value:
-        if OBJ_ROW_COL_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_ROW_COL_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__TabInfoItem.value:
-        if OBJ_TAB_INFO_ITEM_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_TAB_INFO_ITEM_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__PageInfoItem.value:
-        if OBJ_PAGE_INFO_ITEM_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_PAGE_INFO_ITEM_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__MappedPoint.value:
-        if OBJ_MAPPED_POINT_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_MAPPED_POINT_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__PlotData.value:
-        if OBJ_PLOT_DATA_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_PLOT_DATA_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__CursorData.value:
-        if OBJ_CURSOR_DATA_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_CURSOR_DATA_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__PlotImages.value:
-        if OBJ_PLOT_IMAGES_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_PLOT_IMAGES_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__CursorButtonsRec.value:
-        if OBJ_CURS_BUTTONS_REC_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_CURS_BUTTONS_REC_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__PlotLegendData.value:
-        if OBJ_PLOT_LEGEND_DATA_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_PLOT_LEGEND_DATA_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__DigitlaBusOrgClust.value:
-        if OBJ_DIGITAL_BUS_ORG_CLUST_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_DIGITAL_BUS_ORG_CLUST_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__ScaleLegendData.value:
-        if OBJ_SCALE_LEGEND_DATA_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_SCALE_LEGEND_DATA_TAGS["OF__"+tagName]
-    elif classId == SL_CLASS_TAGS.SL__ScaleData.value:
-        if OBJ_SCALE_DATA_TAGS.has_name("OF__"+tagName):
-            tagEn = OBJ_SCALE_DATA_TAGS["OF__"+tagName]
-    else:
+    elif classId == SL_MULTI_DIM_CLASS_TAGS.SL__multiDimArray.value and \
+      contentTagId in (OBJ_FIELD_TAGS.OF__baseListboxItemStrings.value,):
+        if SL_MULTI_DIM_TAGS.has_name("OF__"+tagName):
+            tagEn = SL_MULTI_DIM_TAGS["OF__"+tagName]
+
+    if tagEn is None:
+        for ClassEnKey, TAG_LIST in CLASS_EN_TO_TAG_LIST_MAPPING.items():
+            if classId == ClassEnKey.value:
+                if TAG_LIST.has_name("OF__"+tagName):
+                    tagEn = TAG_LIST["OF__"+tagName]
+                break
+
+    if tagEn is None:
         if OBJ_FIELD_TAGS.has_name("OF__"+tagName):
             tagEn = OBJ_FIELD_TAGS["OF__"+tagName]
     return tagEn
 
-def tagNameToId(tagName, classId=SL_CLASS_TAGS.SL__generic.value):
-    tagEn = tagNameToEnum(tagName, classId)
+def tagNameToId(tagName, classId, contentTagId):
+    tagEn = tagNameToEnum(tagName, classId, contentTagId)
     if tagEn is not None:
         tagId = tagEn.value
     else:
@@ -1894,9 +1799,23 @@ def attributeNameToId(attrName):
             attrId = None
     return attrId
 
-def classIdToName(classId):
-    if classId in set(itm.value for itm in SL_CLASS_TAGS):
-        className = SL_CLASS_TAGS(classId).name[4:]
+def classIdToEnum(classId, contentTagId):
+    classEn = None
+    if contentTagId in (OBJ_FIELD_TAGS.OF__baseListboxItemStrings.value,):
+        if SL_MULTI_DIM_CLASS_TAGS.has_value(classId):
+            classEn = SL_MULTI_DIM_CLASS_TAGS(classId)
+        pass
+    if (classEn is None) and SL_CLASS_TAGS.has_value(classId):
+        classEn = SL_CLASS_TAGS(classId)
+    return classEn
+
+def classIdToName(classId, contentTagId):
+    classEn = classIdToEnum(classId, contentTagId)
+    if classEn is not None:
+        if isinstance(classEn, SL_CLASS_TAGS):
+            className = classEn.name[4:]
+        else:
+            className = classEn.name
     else:
         className = 'Class{:04X}'.format(classId)
     return className
@@ -1904,6 +1823,8 @@ def classIdToName(classId):
 def classNameToId(className):
     if SL_CLASS_TAGS.has_name("SL__"+className):
         classId = SL_CLASS_TAGS["SL__"+className].value
+    elif SL_MULTI_DIM_CLASS_TAGS.has_name(className):
+        classId = SL_MULTI_DIM_CLASS_TAGS[className].value
     else:
         classParse = re.match("^Class([0-9A-F]{4,8})$", className)
         if classParse is not None:
@@ -1912,9 +1833,9 @@ def classNameToId(className):
             classId = None
     return classId
 
-def attributeValueIntToStr(attrId, attrVal):
+def attributeValueIntToStr(attrId, attrVal, contentTagId):
     if attrId == SL_SYSTEM_ATTRIB_TAGS.SL__class.value:
-        attrStr = classIdToName(attrVal)
+        attrStr = classIdToName(attrVal, contentTagId)
     else:
         attrStr = '{:d}'.format(attrVal)
     return attrStr
@@ -1936,13 +1857,13 @@ def autoScopeInfoFromET(elem):
         return NODE_SCOPE.TagLeaf
     return NODE_SCOPE.TagOpen
 
-def createObjectNode(vi, po, tagId, parentClassId, scopeInfo):
+def createObjectNode(vi, po, tagId, parentClassId, contentTagId, scopeInfo):
     """ create new Heap Node
 
     Acts as a factory which selects object class based on tagId.
     """
-    tagEn = tagIdToEnum(tagId, parentClassId)
-    if tagEn in [OBJ_FIELD_TAGS.OF__bounds,
+    tagEn = tagIdToEnum(tagId, parentClassId, contentTagId)
+    if tagEn in (OBJ_FIELD_TAGS.OF__bounds,
       OBJ_FIELD_TAGS.OF__dBounds,
       OBJ_FIELD_TAGS.OF__pBounds,
       OBJ_FIELD_TAGS.OF__docBounds,
@@ -1951,17 +1872,17 @@ def createObjectNode(vi, po, tagId, parentClassId, scopeInfo):
       OBJ_TEXT_HAIR_TAGS.OF__view,
       OBJ_SCALE_DATA_TAGS.OF__scaleRect,
       OBJ_SUBCOSM_TAGS.OF__Bounds,
-      ]:
-        obj = HeapNodeRect(vi, po, None, tagId, parentClassId, scopeInfo)
-    elif tagEn in [OBJ_FIELD_TAGS.OF__origin,
+      ):
+        obj = HeapNodeRect(vi, po, None, tagId, parentClassId, contentTagId, scopeInfo)
+    elif tagEn in (OBJ_FIELD_TAGS.OF__origin,
       OBJ_FIELD_TAGS.OF__minPaneSize,
       OBJ_FIELD_TAGS.OF__minPanelSize,
       OBJ_FIELD_TAGS.OF__MinButSize,
       OBJ_FIELD_TAGS.OF__nRC,
       OBJ_FIELD_TAGS.OF__oRC,
-      ]:
-        obj = HeapNodePoint(vi, po, None, tagId, parentClassId, scopeInfo)
-    elif tagEn in [OBJ_FIELD_TAGS.OF__activeMarker,
+      ):
+        obj = HeapNodePoint(vi, po, None, tagId, parentClassId, contentTagId, scopeInfo)
+    elif tagEn in (OBJ_FIELD_TAGS.OF__activeMarker,
       OBJ_FIELD_TAGS.OF__partID,
       OBJ_FIELD_TAGS.OF__partOrder,
       OBJ_FIELD_TAGS.OF__objFlags,
@@ -2046,27 +1967,54 @@ def createObjectNode(vi, po, tagId, parentClassId, scopeInfo):
       OBJ_SCALE_DATA_TAGS.OF__partID,
       OBJ_SCALE_DATA_TAGS.OF__partOrder,
       OBJ_SCALE_DATA_TAGS.OF__flags,
-      ]:
-        obj = HeapNodeStdInt(vi, po, None, tagId, parentClassId, scopeInfo, btlen=-1, signed=True)
-    elif tagEn in [OBJ_TEXT_HAIR_TAGS.OF__text,
+      ):
+        obj = HeapNodeStdInt(vi, po, None, tagId, parentClassId, contentTagId, scopeInfo, btlen=-1, signed=True)
+    elif tagEn in (OBJ_TEXT_HAIR_TAGS.OF__text,
       OBJ_FIELD_TAGS.OF__format,
       OBJ_FIELD_TAGS.OF__tagDLLName,
       OBJ_PLOT_DATA_TAGS.OF__plotName,
       OBJ_PLOT_LEGEND_DATA_TAGS.OF__name,
       OBJ_SCALE_LEGEND_DATA_TAGS.OF__name,
-      ]:
-        obj = HeapNodeString(vi, po, None, tagId, parentClassId, scopeInfo)
-    elif tagEn in [OBJ_FIELD_TAGS.OF__typeDesc,
+      ):
+        obj = HeapNodeString(vi, po, None, tagId, parentClassId, contentTagId, scopeInfo)
+    elif tagEn in (OBJ_FIELD_TAGS.OF__typeDesc,
       OBJ_FIELD_TAGS.OF__histTD,
-      ]:
-        obj = HeapNodeTypeId(vi, po, None, tagId, parentClassId, scopeInfo)
+      ):
+        obj = HeapNodeTypeId(vi, po, None, tagId, parentClassId, contentTagId, scopeInfo)
+    elif tagEn == SL_SYSTEM_TAGS.SL__arrayElement and \
+      contentTagId in (OBJ_FIELD_TAGS.OF__strings.value,
+      OBJ_FIELD_TAGS.OF__rowHeaders.value,
+      OBJ_FIELD_TAGS.OF__columnHeaders.value,
+      ):
+        obj = HeapNodeString(vi, po, None, tagId, parentClassId, contentTagId, scopeInfo)
+      # TODO is that just an int
+      #OBJ_FIELD_TAGS.OF__baseListboxItemStrings.value,
       # TODO figure out how to get type
       #OBJ_FIELD_TAGS.OF__StdNumMin,# int or float
       #OBJ_FIELD_TAGS.OF__StdNumMax,
       #OBJ_FIELD_TAGS.OF__StdNumInc,
     else:
-        obj = HeapNode(vi, po, None, tagId, parentClassId, scopeInfo)
+        obj = HeapNode(vi, po, None, tagId, parentClassId, contentTagId, scopeInfo)
     return obj
+
+def isContentTagId(tagId, parentClassId, contentTagId):
+    CONTENT_TAGS_FORCED_LIST = (
+      OBJ_FIELD_TAGS.OF__baseListboxItemStrings.value,
+      OBJ_FIELD_TAGS.OF__partsList.value,
+      OBJ_FIELD_TAGS.OF__ddo.value,
+      OBJ_FIELD_TAGS.OF__strings.value,
+      OBJ_FIELD_TAGS.OF__rowHeaders.value,
+      OBJ_FIELD_TAGS.OF__columnHeaders.value,
+    )
+    if SL_SYSTEM_TAGS.has_value(tagId):
+        return False
+    if tagId in CONTENT_TAGS_FORCED_LIST:
+        return True
+    if contentTagId in CONTENT_TAGS_FORCED_LIST:
+        return False
+    if not OBJ_FIELD_TAGS.has_value(tagId):
+        return False
+    return True
 
 def addObjectNodeToTree(section, parentIdx, objectIdx):
     """ put object node into tree struct
