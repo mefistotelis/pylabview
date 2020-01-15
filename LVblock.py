@@ -2259,17 +2259,13 @@ class FPH(Block):
                 return obj.attribs[LVheap.SL_SYSTEM_ATTRIB_TAGS.SL__class.value]
         return LVheap.SL_CLASS_TAGS.SL__oHExt
 
-    def getTopCtTagEn(self, section, obj_idx):
-        """ Return tagEn of top object which is not system tag
-
-        From a list of object indexes, this function will return tag id
-        of the one nearest to top which is not a system tag.
+    def getTopParentNode(self, section, obj_idx):
+        """ Return top HeapNode from given list
         """
-        for i in reversed(obj_idx):
-            obj = section.objects[i]
-            if LVheap.isContentTagEn(obj.tagEn, obj.parentClassEn, obj.contentTagEn):
-                return obj.tagEn
-        return LVheap.OBJ_FIELD_TAGS.OF__root
+        if len(section.objects) < 1:
+            return None
+        i = obj_idx[-1]
+        return section.objects[i]
 
     def parseRSRCHeap(self, section, bldata, parent_obj_idx):
         startPos = bldata.tell()
@@ -2287,16 +2283,13 @@ class FPH(Block):
 
         if scopeInfo == LVheap.NODE_SCOPE.TagClose:
             parentClassEn = self.getTopClassEn(section, parent_obj_idx[0:-1])
-            contentTagEn = self.getTopCtTagEn(section, parent_obj_idx[0:-1])
         else:
             parentClassEn = self.getTopClassEn(section, parent_obj_idx)
-            contentTagEn = self.getTopCtTagEn(section, parent_obj_idx)
-        tagEn = LVheap.tagIdToEnum(tagId, parentClassEn, contentTagEn)
-        if LVheap.isContentTagEn(tagEn, parentClassEn, contentTagEn):
-            contentTagEn = tagEn
+        parentNode = self.getTopParentNode(section, parent_obj_idx)
+        tagEn = LVheap.tagIdToEnum(tagId, parentClassEn, parentNode)
 
         i = len(section.objects)
-        obj = LVheap.createObjectNode(self.vi, self.po, tagEn, parentClassEn, contentTagEn, scopeInfo)
+        obj = LVheap.createObjectNode(self.vi, self.po, parentNode, tagEn, parentClassEn, scopeInfo)
         section.objects.append(obj)
         if scopeInfo != LVheap.NODE_SCOPE.TagClose:
             parent_obj_idx.append(i)
@@ -2353,17 +2346,13 @@ class FPH(Block):
 
         self.setData(data_buf, section_num=section_num)
 
-    def initWithXMLHeap(self, section, elem, parentClassEn, contentTagEn):
-        tagEn = LVheap.tagNameToEnum(elem.tag, parentClassEn, contentTagEn)
+    def initWithXMLHeap(self, section, elem, parentNode, parentClassEn):
+        tagEn = LVheap.tagNameToEnum(elem.tag, parentClassEn, parentNode)
         if tagEn is None:
             raise AttributeError("Unrecognized tag in heap XML; tag '{}', class '{}', contentTag {:d}"\
-              .format(elem.tag, parentClassEn.name, contentTagEn))
+              .format(elem.tag, parentClassEn.name, parentNode))
         scopeInfo = LVheap.autoScopeInfoFromET(elem)
-        if LVheap.isContentTagEn(tagEn, parentClassEn, contentTagEn):
-            subCtTagEn = tagEn
-        else:
-            subCtTagEn = contentTagEn
-        obj = LVheap.createObjectNode(self.vi, self.po, tagEn, parentClassEn, subCtTagEn, scopeInfo)
+        obj = LVheap.createObjectNode(self.vi, self.po, parentNode, tagEn, parentClassEn, scopeInfo)
         section.objects.append(obj)
 
         obj.initWithXML(elem)
@@ -2374,11 +2363,11 @@ class FPH(Block):
             subClassEn = parentClassEn
 
         for subelem in elem:
-            self.initWithXMLHeap(section, subelem, subClassEn, subCtTagEn)
+            self.initWithXMLHeap(section, subelem, obj, subClassEn)
 
         if obj.scopeInfo == LVheap.NODE_SCOPE.TagOpen.value:
             scopeInfo = LVheap.NODE_SCOPE.TagClose.value
-            obj = LVheap.createObjectNode(self.vi, self.po, tagEn, parentClassEn, subCtTagEn, scopeInfo)
+            obj = LVheap.createObjectNode(self.vi, self.po, parentNode, tagEn, parentClassEn, scopeInfo)
             section.objects.append(obj)
             #obj.initWithXML(elem)
 
@@ -2397,8 +2386,7 @@ class FPH(Block):
                 xml_fname = section_elem.get("File")
             tree = ET.parse(xml_fname)
             section.objects = []
-            self.initWithXMLHeap(section, tree.getroot(), LVheap.SL_CLASS_TAGS.SL__oHExt,\
-              LVheap.OBJ_FIELD_TAGS.OF__root)
+            self.initWithXMLHeap(section, tree.getroot(), None, LVheap.SL_CLASS_TAGS.SL__oHExt)
         else:
             Block.initWithXMLSection(self, section, section_elem)
         pass
@@ -2411,7 +2399,7 @@ class FPH(Block):
         elem = None
         for i, obj in enumerate(section.objects):
             scopeInfo = obj.getScopeInfo()
-            tagName = LVheap.tagEnToName(obj.tagEn, obj.parentClassEn, obj.contentTagEn)
+            tagName = LVheap.tagEnToName(obj.tagEn, obj.parentClassEn, obj.parent)
             if elem is None:
                 elem = ET.Element(tagName)
                 root = elem
