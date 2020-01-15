@@ -1988,12 +1988,11 @@ def autoScopeInfoFromET(elem):
         return NODE_SCOPE.TagLeaf
     return NODE_SCOPE.TagOpen
 
-def createObjectNode(vi, po, tagId, parentClassEn, contentTagId, scopeInfo):
+def createObjectNode(vi, po, tagEn, parentClassEn, contentTagId, scopeInfo):
     """ create new Heap Node
 
     Acts as a factory which selects object class based on tagId.
     """
-    tagEn = tagIdToEnum(tagId, parentClassEn, contentTagId)
     if tagEn in NODE_RECT_TAGS_LIST:
         obj = HeapNodeRect(vi, po, None, tagEn, parentClassEn, contentTagId, scopeInfo)
     elif tagEn in NODE_POINT_TAGS_LIST:

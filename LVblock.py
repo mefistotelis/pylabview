@@ -2296,7 +2296,7 @@ class FPH(Block):
             contentTagId = tagId
 
         i = len(section.objects)
-        obj = LVheap.createObjectNode(self.vi, self.po, tagId, parentClassEn, contentTagId, scopeInfo)
+        obj = LVheap.createObjectNode(self.vi, self.po, tagEn, parentClassEn, contentTagId, scopeInfo)
         section.objects.append(obj)
         if scopeInfo != LVheap.NODE_SCOPE.TagClose:
             parent_obj_idx.append(i)
@@ -2359,12 +2359,11 @@ class FPH(Block):
             raise AttributeError("Unrecognized tag in heap XML; tag '{}', class '{}', contentTag {:d}"\
               .format(elem.tag, parentClassEn.name, contentTagId))
         scopeInfo = LVheap.autoScopeInfoFromET(elem)
-        tagId = tagEn.value
         if LVheap.isContentTagEn(tagEn, parentClassEn, contentTagId):
-            subCtTagId = tagId
+            subCtTagId = tagEn.value
         else:
             subCtTagId = contentTagId
-        obj = LVheap.createObjectNode(self.vi, self.po, tagId, parentClassEn, subCtTagId, scopeInfo)
+        obj = LVheap.createObjectNode(self.vi, self.po, tagEn, parentClassEn, subCtTagId, scopeInfo)
         section.objects.append(obj)
 
         obj.initWithXML(elem)
@@ -2379,7 +2378,7 @@ class FPH(Block):
 
         if obj.scopeInfo == LVheap.NODE_SCOPE.TagOpen.value:
             scopeInfo = LVheap.NODE_SCOPE.TagClose.value
-            obj = LVheap.createObjectNode(self.vi, self.po, tagId, parentClassEn, subCtTagId, scopeInfo)
+            obj = LVheap.createObjectNode(self.vi, self.po, tagEn, parentClassEn, subCtTagId, scopeInfo)
             section.objects.append(obj)
             #obj.initWithXML(elem)
 
