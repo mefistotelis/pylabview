@@ -2259,17 +2259,17 @@ class FPH(Block):
                 return obj.attribs[LVheap.SL_SYSTEM_ATTRIB_TAGS.SL__class.value]
         return LVheap.SL_CLASS_TAGS.SL__oHExt
 
-    def getTopCtTagId(self, section, obj_idx):
-        """ Return tagId of top object which is not system tag
+    def getTopCtTagEn(self, section, obj_idx):
+        """ Return tagEn of top object which is not system tag
 
         From a list of object indexes, this function will return tag id
         of the one nearest to top which is not a system tag.
         """
         for i in reversed(obj_idx):
             obj = section.objects[i]
-            if LVheap.isContentTagEn(obj.tagEn, obj.parentClassEn, obj.contentTagId):
-                return obj.tagId
-        return LVheap.OBJ_FIELD_TAGS.OF__root.value
+            if LVheap.isContentTagEn(obj.tagEn, obj.parentClassEn, obj.contentTagEn):
+                return obj.tagEn
+        return LVheap.OBJ_FIELD_TAGS.OF__root
 
     def parseRSRCHeap(self, section, bldata, parent_obj_idx):
         startPos = bldata.tell()
@@ -2278,25 +2278,25 @@ class FPH(Block):
         sizeSpec = (cmd[0] >> 5) & 7
         hasAttrList = (cmd[0] >> 4) & 1
         scopeInfo = (cmd[0] >> 2) & 3
-        tagId = cmd[1] | ((cmd[0] & 3) << 8)
+        rawTagId = cmd[1] | ((cmd[0] & 3) << 8)
 
-        if tagId == 1023:
+        if rawTagId == 1023:
             tagId = int.from_bytes(bldata.read(4), byteorder='big', signed=True)
         else:
-            tagId = tagId - 31
+            tagId = rawTagId - 31
 
         if scopeInfo == LVheap.NODE_SCOPE.TagClose:
             parentClassEn = self.getTopClassEn(section, parent_obj_idx[0:-1])
-            contentTagId = self.getTopCtTagId(section, parent_obj_idx[0:-1])
+            contentTagEn = self.getTopCtTagEn(section, parent_obj_idx[0:-1])
         else:
             parentClassEn = self.getTopClassEn(section, parent_obj_idx)
-            contentTagId = self.getTopCtTagId(section, parent_obj_idx)
-        tagEn = LVheap.tagIdToEnum(tagId, parentClassEn, contentTagId)
-        if LVheap.isContentTagEn(tagEn, parentClassEn, contentTagId):
-            contentTagId = tagId
+            contentTagEn = self.getTopCtTagEn(section, parent_obj_idx)
+        tagEn = LVheap.tagIdToEnum(tagId, parentClassEn, contentTagEn)
+        if LVheap.isContentTagEn(tagEn, parentClassEn, contentTagEn):
+            contentTagEn = tagEn
 
         i = len(section.objects)
-        obj = LVheap.createObjectNode(self.vi, self.po, tagEn, parentClassEn, contentTagId, scopeInfo)
+        obj = LVheap.createObjectNode(self.vi, self.po, tagEn, parentClassEn, contentTagEn, scopeInfo)
         section.objects.append(obj)
         if scopeInfo != LVheap.NODE_SCOPE.TagClose:
             parent_obj_idx.append(i)
@@ -2353,32 +2353,32 @@ class FPH(Block):
 
         self.setData(data_buf, section_num=section_num)
 
-    def initWithXMLHeap(self, section, elem, parentClassEn, contentTagId):
-        tagEn = LVheap.tagNameToEnum(elem.tag, parentClassEn, contentTagId)
+    def initWithXMLHeap(self, section, elem, parentClassEn, contentTagEn):
+        tagEn = LVheap.tagNameToEnum(elem.tag, parentClassEn, contentTagEn)
         if tagEn is None:
             raise AttributeError("Unrecognized tag in heap XML; tag '{}', class '{}', contentTag {:d}"\
-              .format(elem.tag, parentClassEn.name, contentTagId))
+              .format(elem.tag, parentClassEn.name, contentTagEn))
         scopeInfo = LVheap.autoScopeInfoFromET(elem)
-        if LVheap.isContentTagEn(tagEn, parentClassEn, contentTagId):
-            subCtTagId = tagEn.value
+        if LVheap.isContentTagEn(tagEn, parentClassEn, contentTagEn):
+            subCtTagEn = tagEn
         else:
-            subCtTagId = contentTagId
-        obj = LVheap.createObjectNode(self.vi, self.po, tagEn, parentClassEn, subCtTagId, scopeInfo)
+            subCtTagEn = contentTagEn
+        obj = LVheap.createObjectNode(self.vi, self.po, tagEn, parentClassEn, subCtTagEn, scopeInfo)
         section.objects.append(obj)
 
         obj.initWithXML(elem)
 
         if LVheap.SL_SYSTEM_ATTRIB_TAGS.SL__class.value in obj.attribs:
-            subClassId = obj.attribs[LVheap.SL_SYSTEM_ATTRIB_TAGS.SL__class.value]
+            subClassEn = obj.attribs[LVheap.SL_SYSTEM_ATTRIB_TAGS.SL__class.value]
         else:
-            subClassId = parentClassEn
+            subClassEn = parentClassEn
 
         for subelem in elem:
-            self.initWithXMLHeap(section, subelem, subClassId, subCtTagId)
+            self.initWithXMLHeap(section, subelem, subClassEn, subCtTagEn)
 
         if obj.scopeInfo == LVheap.NODE_SCOPE.TagOpen.value:
             scopeInfo = LVheap.NODE_SCOPE.TagClose.value
-            obj = LVheap.createObjectNode(self.vi, self.po, tagEn, parentClassEn, subCtTagId, scopeInfo)
+            obj = LVheap.createObjectNode(self.vi, self.po, tagEn, parentClassEn, subCtTagEn, scopeInfo)
             section.objects.append(obj)
             #obj.initWithXML(elem)
 
@@ -2398,7 +2398,7 @@ class FPH(Block):
             tree = ET.parse(xml_fname)
             section.objects = []
             self.initWithXMLHeap(section, tree.getroot(), LVheap.SL_CLASS_TAGS.SL__oHExt,\
-              LVheap.OBJ_FIELD_TAGS.OF__root.value)
+              LVheap.OBJ_FIELD_TAGS.OF__root)
         else:
             Block.initWithXMLSection(self, section, section_elem)
         pass
@@ -2411,7 +2411,7 @@ class FPH(Block):
         elem = None
         for i, obj in enumerate(section.objects):
             scopeInfo = obj.getScopeInfo()
-            tagName = LVheap.tagEnToName(obj.tagEn, obj.parentClassEn, obj.contentTagId)
+            tagName = LVheap.tagEnToName(obj.tagEn, obj.parentClassEn, obj.contentTagEn)
             if elem is None:
                 elem = ET.Element(tagName)
                 root = elem
