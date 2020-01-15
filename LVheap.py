@@ -1319,7 +1319,7 @@ class UNRECOGNIZED_CLASS(PHONY_ENUM):
 
 
 class HeapNode(object):
-    def __init__(self, vi, po, parentNode, tagId, parentClassEn, contentTagId, scopeInfo):
+    def __init__(self, vi, po, parentNode, tagEn, parentClassEn, contentTagId, scopeInfo):
         """ Creates new Section object, represention one of possible contents of a Block.
 
         Support of a section is mostly implemented in Block, so there isn't much here.
@@ -1329,7 +1329,8 @@ class HeapNode(object):
         self.attribs = {}
         self.content = None
         self.parent = parentNode
-        self.tagId = tagId
+        self.tagEn = tagEn
+        self.tagId = tagEn.value # TODO remove
         self.parentClassEn = parentClassEn
         self.contentTagId = contentTagId
         self.scopeInfo = scopeInfo
@@ -1354,8 +1355,8 @@ class HeapNode(object):
             count = LVmisc.readVariableSizeFieldU124(bldata)
 
             if (self.po.verbose > 2):
-                print("{:s}: Heap Container start tag={:d} scopeInfo={:d} sizeSpec={:d} attrCount={:d}"\
-                  .format(self.vi.src_fname, self.tagId, self.scopeInfo, sizeSpec, count))
+                print("{:s}: Heap Container start tag='{}' scopeInfo={:d} sizeSpec={:d} attrCount={:d}"\
+                  .format(self.vi.src_fname, self.tagEn.name, self.scopeInfo, sizeSpec, count))
             attribs = {}
             for i in range(count):
                 atId = LVmisc.readVariableSizeFieldS124(bldata)
@@ -1364,8 +1365,8 @@ class HeapNode(object):
                 attribs[atId] = atVal
         else:
             if (self.po.verbose > 2):
-                print("{:s}: Heap Container tag={:d} scopeInfo={:d} sizeSpec={:d} noAttr"\
-                  .format(self.vi.src_fname, self.tagId, self.scopeInfo, sizeSpec))
+                print("{:s}: Heap Container tag='{}' scopeInfo={:d} sizeSpec={:d} noAttr"\
+                  .format(self.vi.src_fname, self.tagEn.name, self.scopeInfo, sizeSpec))
 
         # Read size of data, unless sizeSpec identifies the size completely
         contentSize = 0;
@@ -1448,11 +1449,11 @@ class HeapNode(object):
             data_buf += self.content
 
         if (self.po.verbose > 2):
-            print("{:s}: Heap Container tag={:d} scopeInfo={:d} sizeSpec={:d} attrCount={:d}"\
-              .format(self.vi.src_fname, self.tagId, self.scopeInfo, sizeSpec, len(self.attribs)))
+            print("{:s}: Heap Container tag='{}' scopeInfo={:d} sizeSpec={:d} attrCount={:d}"\
+              .format(self.vi.src_fname, self.tagEn.name, self.scopeInfo, sizeSpec, len(self.attribs)))
 
-        if (self.tagId + 31) < 1023:
-            rawTagId = self.tagId + 31
+        if (self.tagEn.value + 31) < 1023:
+            rawTagId = self.tagEn.value + 31
         else:
             rawTagId = 1023
 
@@ -1460,7 +1461,7 @@ class HeapNode(object):
         data_head[0] = ((sizeSpec & 7) << 5) | ((hasAttrList & 1) << 4) | ((self.scopeInfo & 3) << 2) | ((rawTagId >> 8) & 3)
         data_head[1] = (rawTagId & 0xFF)
         if rawTagId == 1023:
-            data_head += int(self.tagId).to_bytes(4, byteorder='big', signed=True)
+            data_head += int(self.tagEn.value).to_bytes(4, byteorder='big', signed=True)
 
         self.setData(data_head+data_buf, incomplete=avoid_recompute)
 
@@ -1561,8 +1562,8 @@ class HeapNodeStdInt(HeapNode):
     def initContentWithXML(self, tagText):
         tagParse = re.match("^([0-9A-Fx-]+)$", tagText)
         if tagParse is None:
-            raise AttributeError("Tag {:d} of ClassId {:s} has content with bad Integer value"\
-              .format(self.tagId,self.parentClassEn.name))
+            raise AttributeError("Tag '{}' of ClassId '{}' has content with bad Integer value"\
+              .format(self.tagEn.name, self.parentClassEn.name))
         self.value = int(tagParse[1], 0)
         self.updateContent()
 
@@ -1577,8 +1578,8 @@ class HeapNodeTypeId(HeapNodeStdInt):
     def initContentWithXML(self, tagText):
         tagParse = re.match("^TypeID\(([0-9A-Fx-]+)\)$", tagText)
         if tagParse is None:
-            raise AttributeError("Tag {:d} of ClassId {:s} has content with bad Integer value"\
-              .format(self.tagId,self.parentClassEn.name))
+            raise AttributeError("Tag '{}' of ClassId '{}' has content with bad TypeID value"\
+              .format(self.tagEn.name, self.parentClassEn.name))
         self.value = int(tagParse[1], 0)
         self.updateContent()
 
@@ -1612,8 +1613,8 @@ class HeapNodeRect(HeapNode):
     def initContentWithXML(self, tagText):
         tagParse = re.match("^\([ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+)[ ]*\)$", tagText)
         if tagParse is None:
-            raise AttributeError("Tag {:d} of ClassId {:s} has content which does not match Rect definition"\
-              .format(self.tagId,self.parentClassEn.name))
+            raise AttributeError("Tag '{}' of ClassId '{}' has content which does not match Rect definition"\
+              .format(self.tagEn.name, self.parentClassEn.name))
         self.left = int(tagParse[1], 0)
         self.top = int(tagParse[2], 0)
         self.right = int(tagParse[3], 0)
@@ -1644,8 +1645,8 @@ class HeapNodePoint(HeapNode):
     def initContentWithXML(self, tagText):
         tagParse = re.match("^\([ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+)[ ]*\)$", tagText)
         if tagParse is None:
-            raise AttributeError("Tag {:d} of ClassId {:s} has content which does not match Point definition"\
-              .format(self.tagId,self.parentClassEn.name))
+            raise AttributeError("Tag '{}' of ClassId '{}' has content which does not match Point definition"\
+              .format(self.tagEn.name, self.parentClassEn.name))
         self.y = int(tagParse[1], 0)
         self.x = int(tagParse[2], 0)
         self.updateContent()
@@ -1671,8 +1672,8 @@ class HeapNodeString(HeapNode):
         elif tagText == "[NULL]":
             self.content = False
         else:
-            raise AttributeError("Tag {:d} of ClassId {:s} has content with bad String value {}"\
-              .format(self.tagId,self.parentClassEn.name,tagText))
+            raise AttributeError("Tag '{}' of ClassId '{}' has content with bad String value '{}'"\
+              .format(self.tagEn.name, self.parentClassEn.name, tagText))
         pass
 
 CLASS_EN_TO_TAG_LIST_MAPPING = {
@@ -1705,6 +1706,135 @@ CLASS_EN_TO_TAG_LIST_MAPPING = {
     SL_CLASS_TAGS.SL__ScaleData: OBJ_SCALE_DATA_TAGS,
     SL_MULTI_DIM_CLASS_TAGS.SL__multiDimArray: SL_MULTI_DIM_TAGS,
 }
+
+NODE_RECT_TAGS_LIST = (
+    OBJ_FIELD_TAGS.OF__bounds,
+    OBJ_FIELD_TAGS.OF__dBounds,
+    OBJ_FIELD_TAGS.OF__pBounds,
+    OBJ_FIELD_TAGS.OF__docBounds,
+    OBJ_FIELD_TAGS.OF__dynBounds,
+    OBJ_FIELD_TAGS.OF__savedSize,
+    OBJ_TEXT_HAIR_TAGS.OF__view,
+    OBJ_SCALE_DATA_TAGS.OF__scaleRect,
+    OBJ_SUBCOSM_TAGS.OF__Bounds,
+)
+
+NODE_POINT_TAGS_LIST = (
+    OBJ_FIELD_TAGS.OF__origin,
+    OBJ_FIELD_TAGS.OF__minPaneSize,
+    OBJ_FIELD_TAGS.OF__minPanelSize,
+    OBJ_FIELD_TAGS.OF__MinButSize,
+    OBJ_FIELD_TAGS.OF__nRC,
+    OBJ_FIELD_TAGS.OF__oRC,
+)
+
+NODE_STDINT_AUTOLEN_TAGS_LIST = (
+    OBJ_FIELD_TAGS.OF__activeMarker,
+    OBJ_FIELD_TAGS.OF__partID,
+    OBJ_FIELD_TAGS.OF__partOrder,
+    OBJ_FIELD_TAGS.OF__objFlags,
+    OBJ_FIELD_TAGS.OF__howGrow,
+    OBJ_FIELD_TAGS.OF__masterPart,
+    OBJ_FIELD_TAGS.OF__conId,
+    OBJ_FIELD_TAGS.OF__rsrcID,
+    OBJ_FIELD_TAGS.OF__conNum,
+    OBJ_FIELD_TAGS.OF__graphType,
+    OBJ_FIELD_TAGS.OF__GraphActivePlot,
+    OBJ_FIELD_TAGS.OF__GraphActivePort,
+    OBJ_FIELD_TAGS.OF__GraphActiveCursor,
+    OBJ_FIELD_TAGS.OF__MouseWheelSupport,
+    OBJ_FIELD_TAGS.OF__refListLength,
+    OBJ_FIELD_TAGS.OF__hGrowNodeListLength,
+    OBJ_FIELD_TAGS.OF__typeCode,
+    OBJ_FIELD_TAGS.OF__gridFlags,
+    OBJ_FIELD_TAGS.OF__treeFlags,
+    OBJ_FIELD_TAGS.OF__labelPosRow,
+    OBJ_FIELD_TAGS.OF__labelPosCol,
+    OBJ_FIELD_TAGS.OF__listboxFlags,
+    OBJ_FIELD_TAGS.OF__numFrozenCols,
+    OBJ_FIELD_TAGS.OF__numFrozenRows,
+    OBJ_FIELD_TAGS.OF__baseListboxDoubleClickedRow,
+    OBJ_FIELD_TAGS.OF__baseListboxClickedColumnHeader,
+    OBJ_FIELD_TAGS.OF__nMajDivs,
+    OBJ_FIELD_TAGS.OF__termListLength,
+    OBJ_FIELD_TAGS.OF__annexDDOFlag,
+    OBJ_FIELD_TAGS.OF__paneFlags,
+    OBJ_FIELD_TAGS.OF__cellPosRow,
+    OBJ_FIELD_TAGS.OF__cellPosCol,
+    OBJ_FIELD_TAGS.OF__selLabFlags,
+    OBJ_FIELD_TAGS.OF__selLabData,
+    OBJ_FIELD_TAGS.OF__tableFlags,
+    OBJ_FIELD_TAGS.OF__comboBoxIndex,
+    OBJ_FIELD_TAGS.OF__tagType,
+    OBJ_FIELD_TAGS.OF__FpgaImplementation,
+    OBJ_FIELD_TAGS.OF__variantIndex,
+    OBJ_FIELD_TAGS.OF__scaleRMin32,
+    OBJ_FIELD_TAGS.OF__scaleRMax32,
+    OBJ_FIELD_TAGS.OF__instrStyle,
+    OBJ_FIELD_TAGS.OF__nVisItems,
+    OBJ_FONT_RUN_TAGS.OF__fontid,
+    OBJ_TEXT_HAIR_TAGS.OF__flags,
+    OBJ_TEXT_HAIR_TAGS.OF__mode,
+    OBJ_IMAGE_TAGS.OF__ImageResID,
+    OBJ_IMAGE_TAGS.OF__ImageInternalsResID,
+    OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__cellPosRow,
+    OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__cellPosCol,
+    OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__font,
+    OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__mode,
+    OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__width,
+    OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__height,
+    OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__flags,
+    OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__glyphIndex,
+    OBJ_EMBED_OBJECT_TAGS.OF__Type,
+    OBJ_EMBED_OBJECT_TAGS.OF__Flags,
+    OBJ_PLOT_DATA_TAGS.OF__flags,
+    OBJ_PLOT_DATA_TAGS.OF__interp,
+    OBJ_PLOT_DATA_TAGS.OF__width,
+    OBJ_PLOT_DATA_TAGS.OF__plotFlags,
+    OBJ_PLOT_DATA_TAGS.OF__lineStyle,
+    OBJ_PLOT_DATA_TAGS.OF__pointStyle,
+    OBJ_PLOT_DATA_TAGS.OF__fillStyle,
+    OBJ_PLOT_DATA_TAGS.OF__xScale,
+    OBJ_PLOT_DATA_TAGS.OF__yScale,
+    OBJ_PLOT_DATA_TAGS.OF__cnt,
+    OBJ_PLOT_DATA_TAGS.OF__mBits,
+    OBJ_PLOT_DATA_TAGS.OF__gtoIndex,
+    OBJ_PLOT_DATA_TAGS.OF__unused,
+    OBJ_PLOT_DATA_TAGS.OF__fxpWordLength,
+    OBJ_PLOT_DATA_TAGS.OF__fxpIntegerLength,
+    OBJ_PLOT_DATA_TAGS.OF__fxpFracDigits,
+    OBJ_PLOT_DATA_TAGS.OF__fxpStyle,
+    OBJ_SCALE_DATA_TAGS.OF__gridMaxLineStyle,
+    OBJ_SCALE_DATA_TAGS.OF__gridMinLineStyle,
+    OBJ_SCALE_DATA_TAGS.OF__port,
+    OBJ_SCALE_DATA_TAGS.OF__scaleFlavor,
+    OBJ_BROWSE_OPTIONS_TAGS.OF__mode,
+    OBJ_ROW_COL_TAGS.OF__row,
+    OBJ_ROW_COL_TAGS.OF__col,
+    OBJ_SCALE_DATA_TAGS.OF__partID,
+    OBJ_SCALE_DATA_TAGS.OF__partOrder,
+    OBJ_SCALE_DATA_TAGS.OF__flags,
+)
+
+NODE_STRING_TAGS_LIST = (
+    OBJ_TEXT_HAIR_TAGS.OF__text,
+    OBJ_FIELD_TAGS.OF__format,
+    OBJ_FIELD_TAGS.OF__tagDLLName,
+    OBJ_PLOT_DATA_TAGS.OF__plotName,
+    OBJ_PLOT_LEGEND_DATA_TAGS.OF__name,
+    OBJ_SCALE_LEGEND_DATA_TAGS.OF__name,
+)
+
+NODE_TYPEID_TAGS_LIST = (
+    OBJ_FIELD_TAGS.OF__typeDesc,
+    OBJ_FIELD_TAGS.OF__histTD,
+)
+
+NODE_STRING_ARRAY_TAGS_LIST = (
+    OBJ_FIELD_TAGS.OF__strings,
+    OBJ_FIELD_TAGS.OF__rowHeaders,
+    OBJ_FIELD_TAGS.OF__columnHeaders,
+)
 
 def getFrontPanelHeapIdent(hfmt):
     """ Gives 4-byte heap identifier from HEAP_FORMAT member
@@ -1748,8 +1878,7 @@ def tagIdToEnum(tagId, classEn, contentTagId):
         tagEn = UNRECOGNIZED_TAG(tagId)
     return tagEn
 
-def tagIdToName(tagId, classEn, contentTagId):
-    tagEn = tagIdToEnum(tagId, classEn, contentTagId)
+def tagEnToName(tagEn, classEn, contentTagId):
     # For most enums, we need to remove 4 starting bytes to get the name
     if isinstance(tagEn, SL_SYSTEM_TAGS):
         tagName = tagEn.name
@@ -1777,14 +1906,6 @@ def tagNameToEnum(tagName, classEn, contentTagId):
             tagEn = UNRECOGNIZED_TAG(int(tagParse[1], 16))
 
     return tagEn
-
-def tagNameToId(tagName, classEn, contentTagId):
-    tagEn = tagNameToEnum(tagName, classEn, contentTagId)
-    if tagEn is not None:
-        tagId = tagEn.value
-    else:
-        tagId = None
-    return tagId
 
 def attributeIdToName(attrId):
     if SL_SYSTEM_ATTRIB_TAGS.has_value(attrId):
@@ -1873,130 +1994,23 @@ def createObjectNode(vi, po, tagId, parentClassEn, contentTagId, scopeInfo):
     Acts as a factory which selects object class based on tagId.
     """
     tagEn = tagIdToEnum(tagId, parentClassEn, contentTagId)
-    if tagEn in (OBJ_FIELD_TAGS.OF__bounds,
-      OBJ_FIELD_TAGS.OF__dBounds,
-      OBJ_FIELD_TAGS.OF__pBounds,
-      OBJ_FIELD_TAGS.OF__docBounds,
-      OBJ_FIELD_TAGS.OF__dynBounds,
-      OBJ_FIELD_TAGS.OF__savedSize,
-      OBJ_TEXT_HAIR_TAGS.OF__view,
-      OBJ_SCALE_DATA_TAGS.OF__scaleRect,
-      OBJ_SUBCOSM_TAGS.OF__Bounds,
-      ):
-        obj = HeapNodeRect(vi, po, None, tagId, parentClassEn, contentTagId, scopeInfo)
-    elif tagEn in (OBJ_FIELD_TAGS.OF__origin,
-      OBJ_FIELD_TAGS.OF__minPaneSize,
-      OBJ_FIELD_TAGS.OF__minPanelSize,
-      OBJ_FIELD_TAGS.OF__MinButSize,
-      OBJ_FIELD_TAGS.OF__nRC,
-      OBJ_FIELD_TAGS.OF__oRC,
-      ):
-        obj = HeapNodePoint(vi, po, None, tagId, parentClassEn, contentTagId, scopeInfo)
-    elif tagEn in (OBJ_FIELD_TAGS.OF__activeMarker,
-      OBJ_FIELD_TAGS.OF__partID,
-      OBJ_FIELD_TAGS.OF__partOrder,
-      OBJ_FIELD_TAGS.OF__objFlags,
-      OBJ_FIELD_TAGS.OF__howGrow,
-      OBJ_FIELD_TAGS.OF__masterPart,
-      OBJ_FIELD_TAGS.OF__conId,
-      OBJ_FIELD_TAGS.OF__rsrcID,
-      OBJ_FIELD_TAGS.OF__conNum,
-      OBJ_FIELD_TAGS.OF__graphType,
-      OBJ_FIELD_TAGS.OF__GraphActivePlot,
-      OBJ_FIELD_TAGS.OF__GraphActivePort,
-      OBJ_FIELD_TAGS.OF__GraphActiveCursor,
-      OBJ_FIELD_TAGS.OF__MouseWheelSupport,
-      OBJ_FIELD_TAGS.OF__refListLength,
-      OBJ_FIELD_TAGS.OF__hGrowNodeListLength,
-      OBJ_FIELD_TAGS.OF__typeCode,
-      OBJ_FIELD_TAGS.OF__gridFlags,
-      OBJ_FIELD_TAGS.OF__treeFlags,
-      OBJ_FIELD_TAGS.OF__labelPosRow,
-      OBJ_FIELD_TAGS.OF__labelPosCol,
-      OBJ_FIELD_TAGS.OF__listboxFlags,
-      OBJ_FIELD_TAGS.OF__numFrozenCols,
-      OBJ_FIELD_TAGS.OF__numFrozenRows,
-      OBJ_FIELD_TAGS.OF__baseListboxDoubleClickedRow,
-      OBJ_FIELD_TAGS.OF__baseListboxClickedColumnHeader,
-      OBJ_FIELD_TAGS.OF__nMajDivs,
-      OBJ_FIELD_TAGS.OF__termListLength,
-      OBJ_FIELD_TAGS.OF__annexDDOFlag,
-      OBJ_FIELD_TAGS.OF__paneFlags,
-      OBJ_FIELD_TAGS.OF__cellPosRow,
-      OBJ_FIELD_TAGS.OF__cellPosCol,
-      OBJ_FIELD_TAGS.OF__selLabFlags,
-      OBJ_FIELD_TAGS.OF__selLabData,
-      OBJ_FIELD_TAGS.OF__tableFlags,
-      OBJ_FIELD_TAGS.OF__comboBoxIndex,
-      OBJ_FIELD_TAGS.OF__tagType,
-      OBJ_FIELD_TAGS.OF__FpgaImplementation,
-      OBJ_FIELD_TAGS.OF__variantIndex,
-      OBJ_FIELD_TAGS.OF__scaleRMin32,
-      OBJ_FIELD_TAGS.OF__scaleRMax32,
-      OBJ_FIELD_TAGS.OF__instrStyle,
-      OBJ_FIELD_TAGS.OF__nVisItems,
-      OBJ_FONT_RUN_TAGS.OF__fontid,
-      OBJ_TEXT_HAIR_TAGS.OF__flags,
-      OBJ_TEXT_HAIR_TAGS.OF__mode,
-      OBJ_IMAGE_TAGS.OF__ImageResID,
-      OBJ_IMAGE_TAGS.OF__ImageInternalsResID,
-      OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__cellPosRow,
-      OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__cellPosCol,
-      OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__font,
-      OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__mode,
-      OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__width,
-      OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__height,
-      OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__flags,
-      OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__glyphIndex,
-      OBJ_EMBED_OBJECT_TAGS.OF__Type,
-      OBJ_EMBED_OBJECT_TAGS.OF__Flags,
-      OBJ_PLOT_DATA_TAGS.OF__flags,
-      OBJ_PLOT_DATA_TAGS.OF__interp,
-      OBJ_PLOT_DATA_TAGS.OF__width,
-      OBJ_PLOT_DATA_TAGS.OF__plotFlags,
-      OBJ_PLOT_DATA_TAGS.OF__lineStyle,
-      OBJ_PLOT_DATA_TAGS.OF__pointStyle,
-      OBJ_PLOT_DATA_TAGS.OF__fillStyle,
-      OBJ_PLOT_DATA_TAGS.OF__xScale,
-      OBJ_PLOT_DATA_TAGS.OF__yScale,
-      OBJ_PLOT_DATA_TAGS.OF__cnt,
-      OBJ_PLOT_DATA_TAGS.OF__mBits,
-      OBJ_PLOT_DATA_TAGS.OF__gtoIndex,
-      OBJ_PLOT_DATA_TAGS.OF__unused,
-      OBJ_PLOT_DATA_TAGS.OF__fxpWordLength,
-      OBJ_PLOT_DATA_TAGS.OF__fxpIntegerLength,
-      OBJ_PLOT_DATA_TAGS.OF__fxpFracDigits,
-      OBJ_PLOT_DATA_TAGS.OF__fxpStyle,
-      OBJ_SCALE_DATA_TAGS.OF__gridMaxLineStyle,
-      OBJ_SCALE_DATA_TAGS.OF__gridMinLineStyle,
-      OBJ_SCALE_DATA_TAGS.OF__port,
-      OBJ_SCALE_DATA_TAGS.OF__scaleFlavor,
-      OBJ_BROWSE_OPTIONS_TAGS.OF__mode,
-      OBJ_ROW_COL_TAGS.OF__row,
-      OBJ_ROW_COL_TAGS.OF__col,
-      OBJ_SCALE_DATA_TAGS.OF__partID,
-      OBJ_SCALE_DATA_TAGS.OF__partOrder,
-      OBJ_SCALE_DATA_TAGS.OF__flags,
-      ):
-        obj = HeapNodeStdInt(vi, po, None, tagId, parentClassEn, contentTagId, scopeInfo, btlen=-1, signed=True)
-    elif tagEn in (OBJ_TEXT_HAIR_TAGS.OF__text,
-      OBJ_FIELD_TAGS.OF__format,
-      OBJ_FIELD_TAGS.OF__tagDLLName,
-      OBJ_PLOT_DATA_TAGS.OF__plotName,
-      OBJ_PLOT_LEGEND_DATA_TAGS.OF__name,
-      OBJ_SCALE_LEGEND_DATA_TAGS.OF__name,
-      ):
-        obj = HeapNodeString(vi, po, None, tagId, parentClassEn, contentTagId, scopeInfo)
-    elif tagEn in (OBJ_FIELD_TAGS.OF__typeDesc,
-      OBJ_FIELD_TAGS.OF__histTD,
-      ):
-        obj = HeapNodeTypeId(vi, po, None, tagId, parentClassEn, contentTagId, scopeInfo)
+    if tagEn in NODE_RECT_TAGS_LIST:
+        obj = HeapNodeRect(vi, po, None, tagEn, parentClassEn, contentTagId, scopeInfo)
+    elif tagEn in NODE_POINT_TAGS_LIST:
+        obj = HeapNodePoint(vi, po, None, tagEn, parentClassEn, contentTagId, scopeInfo)
+    elif tagEn in NODE_STDINT_AUTOLEN_TAGS_LIST:
+        obj = HeapNodeStdInt(vi, po, None, tagEn, parentClassEn, contentTagId, scopeInfo, btlen=-1, signed=True)
+    elif tagEn in NODE_STRING_TAGS_LIST:
+        obj = HeapNodeString(vi, po, None, tagEn, parentClassEn, contentTagId, scopeInfo)
+    elif tagEn in NODE_TYPEID_TAGS_LIST:
+        obj = HeapNodeTypeId(vi, po, None, tagEn, parentClassEn, contentTagId, scopeInfo)
     elif tagEn == SL_SYSTEM_TAGS.SL__arrayElement and \
       contentTagId in (OBJ_FIELD_TAGS.OF__strings.value,
       OBJ_FIELD_TAGS.OF__rowHeaders.value,
       OBJ_FIELD_TAGS.OF__columnHeaders.value,
       ):
-        obj = HeapNodeString(vi, po, None, tagId, parentClassEn, contentTagId, scopeInfo)
+        # TODO use NODE_STRING_ARRAY_TAGS_LIST ; but it stores items, not values
+        obj = HeapNodeString(vi, po, None, tagEn, parentClassEn, contentTagId, scopeInfo)
       # TODO is that just an int
       #OBJ_FIELD_TAGS.OF__baseListboxItemStrings.value,
       # TODO figure out how to get type
@@ -2004,11 +2018,19 @@ def createObjectNode(vi, po, tagId, parentClassEn, contentTagId, scopeInfo):
       #OBJ_FIELD_TAGS.OF__StdNumMax,
       #OBJ_FIELD_TAGS.OF__StdNumInc,
     else:
-        obj = HeapNode(vi, po, None, tagId, parentClassEn, contentTagId, scopeInfo)
+        obj = HeapNode(vi, po, None, tagEn, parentClassEn, contentTagId, scopeInfo)
     return obj
 
-def isContentTagId(tagId, parentClassEn, contentTagId):
+def isContentTagEn(tagEn, parentClassEn, contentTagId):
     CONTENT_TAGS_FORCED_LIST = (
+      OBJ_FIELD_TAGS.OF__baseListboxItemStrings,
+      OBJ_FIELD_TAGS.OF__partsList,
+      OBJ_FIELD_TAGS.OF__ddo,
+      OBJ_FIELD_TAGS.OF__strings,
+      OBJ_FIELD_TAGS.OF__rowHeaders,
+      OBJ_FIELD_TAGS.OF__columnHeaders,
+    )
+    CONTENT_TAGS_FORCED_LIST_ID = (
       OBJ_FIELD_TAGS.OF__baseListboxItemStrings.value,
       OBJ_FIELD_TAGS.OF__partsList.value,
       OBJ_FIELD_TAGS.OF__ddo.value,
@@ -2016,13 +2038,15 @@ def isContentTagId(tagId, parentClassEn, contentTagId):
       OBJ_FIELD_TAGS.OF__rowHeaders.value,
       OBJ_FIELD_TAGS.OF__columnHeaders.value,
     )
-    if SL_SYSTEM_TAGS.has_value(tagId):
+    if isinstance(tagEn, PHONY_ENUM):
         return False
-    if tagId in CONTENT_TAGS_FORCED_LIST:
+    if tagEn in SL_SYSTEM_TAGS:
+        return False
+    if tagEn in CONTENT_TAGS_FORCED_LIST:
         return True
-    if contentTagId in CONTENT_TAGS_FORCED_LIST:
+    if contentTagId in CONTENT_TAGS_FORCED_LIST_ID:
         return False
-    if not OBJ_FIELD_TAGS.has_value(tagId):
+    if not tagEn in OBJ_FIELD_TAGS:
         return False
     return True
 

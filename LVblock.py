@@ -2267,7 +2267,7 @@ class FPH(Block):
         """
         for i in reversed(obj_idx):
             obj = section.objects[i]
-            if LVheap.isContentTagId(obj.tagId, obj.parentClassEn, obj.contentTagId):
+            if LVheap.isContentTagEn(obj.tagEn, obj.parentClassEn, obj.contentTagId):
                 return obj.tagId
         return LVheap.OBJ_FIELD_TAGS.OF__root.value
 
@@ -2291,7 +2291,8 @@ class FPH(Block):
         else:
             parentClassEn = self.getTopClassEn(section, parent_obj_idx)
             contentTagId = self.getTopCtTagId(section, parent_obj_idx)
-        if LVheap.isContentTagId(tagId, parentClassEn, contentTagId):
+        tagEn = LVheap.tagIdToEnum(tagId, parentClassEn, contentTagId)
+        if LVheap.isContentTagEn(tagEn, parentClassEn, contentTagId):
             contentTagId = tagId
 
         i = len(section.objects)
@@ -2353,12 +2354,13 @@ class FPH(Block):
         self.setData(data_buf, section_num=section_num)
 
     def initWithXMLHeap(self, section, elem, parentClassEn, contentTagId):
-        tagId = LVheap.tagNameToId(elem.tag, parentClassEn, contentTagId)
-        if tagId is None:
-            raise AttributeError("Unrecognized tag in heap XML, '{}', class '{}', contentTag {:d}"\
+        tagEn = LVheap.tagNameToEnum(elem.tag, parentClassEn, contentTagId)
+        if tagEn is None:
+            raise AttributeError("Unrecognized tag in heap XML; tag '{}', class '{}', contentTag {:d}"\
               .format(elem.tag, parentClassEn.name, contentTagId))
         scopeInfo = LVheap.autoScopeInfoFromET(elem)
-        if LVheap.isContentTagId(tagId, parentClassEn, contentTagId):
+        tagId = tagEn.value
+        if LVheap.isContentTagEn(tagEn, parentClassEn, contentTagId):
             subCtTagId = tagId
         else:
             subCtTagId = contentTagId
@@ -2410,7 +2412,7 @@ class FPH(Block):
         elem = None
         for i, obj in enumerate(section.objects):
             scopeInfo = obj.getScopeInfo()
-            tagName = LVheap.tagIdToName(obj.tagId, obj.parentClassEn, obj.contentTagId)
+            tagName = LVheap.tagEnToName(obj.tagEn, obj.parentClassEn, obj.contentTagId)
             if elem is None:
                 elem = ET.Element(tagName)
                 root = elem
