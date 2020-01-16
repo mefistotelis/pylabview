@@ -1674,6 +1674,29 @@ class HeapNodeString(HeapNode):
               .format(self.tagEn.name, self.parentClassEn.name, tagText))
         pass
 
+class HeapNodeBool(HeapNode):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.value = False
+
+    def parseRSRCContent(self):
+        self.value = bool(self.content)
+
+    def updateContent(self):
+        self.content = self.value
+
+    def prepareContentXML(self, fname_base):
+        return str(self.value)
+
+    def initContentWithXML(self, tagText):
+        tagParse = re.match("^(True|False)$", tagText)
+        if tagParse is None:
+            raise AttributeError("Tag '{}' of ClassId '{}' has content with bad boolean value"\
+              .format(self.tagEn.name, self.parentClassEn.name))
+        self.value = (tagParse[1] == "True")
+        self.updateContent()
+
+
 CLASS_EN_TO_TAG_LIST_MAPPING = {
     SL_CLASS_TAGS.SL__fontRun: OBJ_FONT_RUN_TAGS,
     SL_CLASS_TAGS.SL__textHair: OBJ_TEXT_HAIR_TAGS,
@@ -1773,6 +1796,8 @@ NODE_STDINT_AUTOLEN_TAGS_LIST = (
     OBJ_FONT_RUN_TAGS.OF__fontid,
     OBJ_TEXT_HAIR_TAGS.OF__flags,
     OBJ_TEXT_HAIR_TAGS.OF__mode,
+    OBJ_TIME128_TAGS.OF__Seconds,
+    OBJ_TIME128_TAGS.OF__FractionalSeconds,
     OBJ_IMAGE_TAGS.OF__ImageResID,
     OBJ_IMAGE_TAGS.OF__ImageInternalsResID,
     OBJ_ATTRIBUTE_LIST_ITEM_TAGS.OF__cellPosRow,
@@ -1826,6 +1851,19 @@ NODE_STRING_TAGS_LIST = (
 NODE_TYPEID_TAGS_LIST = (
     OBJ_FIELD_TAGS.OF__typeDesc,
     OBJ_FIELD_TAGS.OF__histTD,
+)
+
+NODE_BOOL_TAGS_LIST = (
+    OBJ_FIELD_TAGS.OF__FpgaEnableBoundsMux,
+    OBJ_CURS_BUTTONS_REC_TAGS.OF__left,
+    OBJ_CURS_BUTTONS_REC_TAGS.OF__right,
+    OBJ_CURS_BUTTONS_REC_TAGS.OF__up,
+    OBJ_CURS_BUTTONS_REC_TAGS.OF__down,
+    OBJ_PLOT_LEGEND_DATA_TAGS.OF__menu,
+    OBJ_SCALE_LEGEND_DATA_TAGS.OF__autoScaleLock,
+    OBJ_SCALE_LEGEND_DATA_TAGS.OF__autoScale,
+    OBJ_SCALE_LEGEND_DATA_TAGS.OF__formatButton,
+    OBJ_PLOT_DATA_TAGS.OF__fxpIsSigned,
 )
 
 NODE_STRING_ARRAY_TAGS_LIST = (
@@ -2025,6 +2063,8 @@ def createObjectNode(vi, po, parentNode, tagEn, parentClassEn, scopeInfo):
         obj = HeapNodeString(vi, po, parentNode, tagEn, parentClassEn, scopeInfo)
     elif tagEn in NODE_TYPEID_TAGS_LIST:
         obj = HeapNodeTypeId(vi, po, parentNode, tagEn, parentClassEn, scopeInfo)
+    elif tagEn in NODE_BOOL_TAGS_LIST:
+        obj = HeapNodeBool(vi, po, parentNode, tagEn, parentClassEn, scopeInfo)
     elif tagEn == SL_SYSTEM_TAGS.SL__arrayElement and \
       parentNodeTagMatches(parentNode, NODE_STRING_ARRAY_TAGS_LIST):
         obj = HeapNodeString(vi, po, parentNode, tagEn, parentClassEn, scopeInfo)
@@ -2037,8 +2077,6 @@ def createObjectNode(vi, po, parentNode, tagEn, parentClassEn, scopeInfo):
             obj = HeapNodeString(vi, po, parentNode, tagEn, parentClassEn, scopeInfo)
         elif parentNodeTagMatches(parentNode, (SL_MULTI_DIM_TAGS.OF__multiDimArraySizes,), start=0):
             obj = HeapNodeStdInt(vi, po, parentNode, tagEn, parentClassEn, scopeInfo, btlen=-1, signed=True)
-      # TODO is that just an int
-      #OBJ_FIELD_TAGS.OF__baseListboxItemStrings.value,
       # TODO figure out how to get type
       #OBJ_FIELD_TAGS.OF__StdNumMin,# int or float
       #OBJ_FIELD_TAGS.OF__StdNumMax,
