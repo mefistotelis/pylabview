@@ -851,28 +851,6 @@ class BDSE(SingleIntBlock):
         return section
 
 
-class CONP(SingleIntBlock):
-    """ Connector type map
-    """
-    def createSection(self):
-        section = super().createSection()
-        section.byteorder = 'big'
-        section.size = 2
-        section.base = 10
-        section.signed = False
-        return section
-
-
-class CPC2(SingleIntBlock):
-    def createSection(self):
-        section = super().createSection()
-        section.byteorder = 'big'
-        section.size = 2
-        section.base = 10
-        section.signed = False
-        return section
-
-
 class FLAG(SingleIntBlock):
     def createSection(self):
         section = super().createSection()
@@ -880,6 +858,20 @@ class FLAG(SingleIntBlock):
         section.size = 1
         section.base = 16
         section.signed = False
+        return section
+
+
+class CONP(Block):
+    """ Connector type map
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+
+class CPC2(Block):
+    def createSection(self):
+        section = super().createSection()
         return section
 
 
@@ -1077,6 +1069,21 @@ class STR(Block):
         section_elem.set("Format", "inline")
 
 
+class CPST(Block):
+    """ C. P. Strings
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
+        return bldata
+
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
+
+
 class DFDS(Block):
     """ Default Fill of Data Space
     """
@@ -1146,6 +1153,24 @@ class CPMp(Block):
 
     def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
         super().setData(data_buf, section_num=section_num, use_coding=use_coding)
+
+
+class FTAB(Block):
+    """ Font Table
+
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+
+class HIST(Block):
+    """ Changes History
+
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
 
 
 class TM80(Block):
@@ -2164,6 +2189,33 @@ class LVzp(Block):
 
     def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.XOR):
         super().setData(data_buf, section_num=section_num, use_coding=use_coding)
+
+
+class BNID(Block):
+    """ B. N. Identifier
+
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+
+class NUID(Block):
+    """ N. U. Identifier
+
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+
+class SUID(Block):
+    """ S. U. Identifier
+
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
 
 
 class BDHP(Block):
