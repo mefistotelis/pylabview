@@ -1935,23 +1935,27 @@ def parentTopClassEn(obj, levels=128, start=0):
         obj = obj.parent
     return SL_CLASS_TAGS.SL__oHExt
 
-def tagIdToEnum(tagId, classEn, parentNode):
+def tagIdToEnum(tagId, parentNode):
     # System level tags are always active; other tags depend
-    # on an upper level tag which has 'class' set. The 'class'
-    # may sometimes also depend on higher level TagId which selects
-    # content interpretation (parentNode)
+    # on an upper level tag which has 'class' set.
     tagEn = None
     if SL_SYSTEM_TAGS.has_value(tagId):
         tagEn = SL_SYSTEM_TAGS(tagId)
-    elif classEn in CLASS_EN_TO_TAG_LIST_MAPPING:
-        TAG_LIST = CLASS_EN_TO_TAG_LIST_MAPPING[classEn]
-        if TAG_LIST.has_value(tagId):
-            tagEn = TAG_LIST(tagId)
-    else:
+
+    if tagEn is None:
+        classEn = parentTopClassEn(parentNode)
+        if classEn in CLASS_EN_TO_TAG_LIST_MAPPING:
+            TAG_LIST = CLASS_EN_TO_TAG_LIST_MAPPING[classEn]
+            if TAG_LIST.has_value(tagId):
+                tagEn = TAG_LIST(tagId)
+
+    if tagEn is None:
         if OBJ_FIELD_TAGS.has_value(tagId):
             tagEn = OBJ_FIELD_TAGS(tagId)
+
     if tagEn is None:
         tagEn = UNRECOGNIZED_TAG(tagId)
+
     return tagEn
 
 def tagEnToName(tagEn, parentNode):
@@ -1962,15 +1966,18 @@ def tagEnToName(tagEn, parentNode):
         tagName = tagEn.name[4:]
     return tagName
 
-def tagNameToEnum(tagName, classEn, parentNode):
+def tagNameToEnum(tagName, parentNode):
     tagEn = None
 
     if SL_SYSTEM_TAGS.has_name(tagName):
         tagEn = SL_SYSTEM_TAGS[tagName]
-    elif classEn in CLASS_EN_TO_TAG_LIST_MAPPING:
-        TAG_LIST = CLASS_EN_TO_TAG_LIST_MAPPING[classEn]
-        if TAG_LIST.has_name("OF__"+tagName):
-            tagEn = TAG_LIST["OF__"+tagName]
+
+    if tagEn is None:
+        classEn = parentTopClassEn(parentNode)
+        if classEn in CLASS_EN_TO_TAG_LIST_MAPPING:
+            TAG_LIST = CLASS_EN_TO_TAG_LIST_MAPPING[classEn]
+            if TAG_LIST.has_name("OF__"+tagName):
+                tagEn = TAG_LIST["OF__"+tagName]
 
     if tagEn is None:
         if OBJ_FIELD_TAGS.has_name("OF__"+tagName):
@@ -2066,7 +2073,7 @@ def autoScopeInfoFromET(elem):
         return NODE_SCOPE.TagLeaf
     return NODE_SCOPE.TagOpen
 
-def createObjectNode(vi, po, parentNode, tagEn, parentClassEn, scopeInfo):
+def createObjectNode(vi, po, parentNode, tagEn, scopeInfo):
     """ create new Heap Node
 
     Acts as a factory which selects object class based on tagEn.

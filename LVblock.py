@@ -2267,7 +2267,7 @@ class FPH(Block):
         i = obj_idx[-1]
         return section.objects[i]
 
-    def parseRSRCHeap(self, section, bldata, parent_obj_idx):
+    def parseRSRCHeap(self, section, bldata, parentNode):
         startPos = bldata.tell()
         cmd = bldata.read(2)
 
@@ -2281,28 +2281,23 @@ class FPH(Block):
         else:
             tagId = rawTagId - 31
 
-        if scopeInfo == LVheap.NODE_SCOPE.TagClose:
-            parentClassEn = self.getTopClassEn(section, parent_obj_idx[0:-1])
-        else:
-            parentClassEn = self.getTopClassEn(section, parent_obj_idx)
-        parentNode = self.getTopParentNode(section, parent_obj_idx)
-        tagEn = LVheap.tagIdToEnum(tagId, parentClassEn, parentNode)
+        tagEn = LVheap.tagIdToEnum(tagId, parentNode)
 
         i = len(section.objects)
-        obj = LVheap.createObjectNode(self.vi, self.po, parentNode, tagEn, parentClassEn, scopeInfo)
+        obj = LVheap.createObjectNode(self.vi, self.po, parentNode, tagEn, scopeInfo)
         section.objects.append(obj)
         if scopeInfo != LVheap.NODE_SCOPE.TagClose:
-            parent_obj_idx.append(i)
+            parentNode = obj
         obj.parseRSRCData(bldata, hasAttrList, sizeSpec)
         if scopeInfo != LVheap.NODE_SCOPE.TagOpen:
-            parent_obj_idx.pop()
+            parentNode = parentNode.parent
         dataLen = bldata.tell() - startPos
 
         # TODO Should we re-read the bytes and set raw data inside the obj?
         #bldata.seek(startPos)
         #dataBuf = bldata.read(dataLen)
 
-        return obj, dataLen
+        return parentNode, dataLen
 
     def parseRSRCData(self, section_num, bldata):
         section = self.sections[section_num]
@@ -2310,19 +2305,19 @@ class FPH(Block):
         section.objects = []
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
-        parent_obj_idx = []
+        parentNode = None
         tot_len = 0
         while tot_len < content_len:
-            obj, entry_len = self.parseRSRCHeap(section, bldata, parent_obj_idx)
+            parentNode, entry_len = self.parseRSRCHeap(section, bldata, parentNode)
             if entry_len <= 0:
                 print("{:s}: Block {} section {:d}, has not enough data for complete heap"\
                   .format(self.vi.src_fname,self.ident,section_num))
                 break
             tot_len += entry_len
 
-        if len(parent_obj_idx) > 0:
-            eprint("{}: Warning: In block {}, heap did not closed all tags; {} still open"\
-              .format(self.vi.src_fname, self.ident, len(parent_obj_idx)))
+        if parentNode != None:
+            eprint("{}: Warning: In block {}, heap did not closed all tags"\
+              .format(self.vi.src_fname, self.ident))
 
     def updateSectionData(self, section_num=None):
         if section_num is None:
@@ -2347,13 +2342,12 @@ class FPH(Block):
         self.setData(data_buf, section_num=section_num)
 
     def initWithXMLHeap(self, section, elem, parentNode):
-        parentClassEn = LVheap.parentTopClassEn(parentNode)
-        tagEn = LVheap.tagNameToEnum(elem.tag, parentClassEn, parentNode)
+        tagEn = LVheap.tagNameToEnum(elem.tag, parentNode)
         if tagEn is None:
-            raise AttributeError("Unrecognized tag in heap XML; tag '{}', class '{}', contentTag {:d}"\
-              .format(elem.tag, parentClassEn.name, parentNode))
+            raise AttributeError("Unrecognized tag in heap XML; tag '{}', parent tag '{}'"\
+              .format(elem.tag, parentNode.tagEn.name))
         scopeInfo = LVheap.autoScopeInfoFromET(elem)
-        obj = LVheap.createObjectNode(self.vi, self.po, parentNode, tagEn, parentClassEn, scopeInfo)
+        obj = LVheap.createObjectNode(self.vi, self.po, parentNode, tagEn, scopeInfo)
         section.objects.append(obj)
 
         obj.initWithXML(elem)
@@ -2363,9 +2357,9 @@ class FPH(Block):
 
         if obj.scopeInfo == LVheap.NODE_SCOPE.TagOpen.value:
             scopeInfo = LVheap.NODE_SCOPE.TagClose.value
-            obj = LVheap.createObjectNode(self.vi, self.po, parentNode, tagEn, parentClassEn, scopeInfo)
+            obj = LVheap.createObjectNode(self.vi, self.po, parentNode, tagEn, scopeInfo)
             section.objects.append(obj)
-            #obj.initWithXML(elem)
+            #obj.initWithXML(elem) # No init needed for closing tag
 
 
     def initWithXMLSection(self, section, section_elem):
@@ -2395,17 +2389,22 @@ class FPH(Block):
         elem = None
         for i, obj in enumerate(section.objects):
             scopeInfo = obj.getScopeInfo()
-            tagName = LVheap.tagEnToName(obj.tagEn, obj.parent)
             if elem is None:
+                tagName = LVheap.tagEnToName(obj.tagEn, obj.parent)
                 elem = ET.Element(tagName)
                 root = elem
                 parent_elems.append(root)
             elif scopeInfo == LVheap.NODE_SCOPE.TagClose:
+                if obj.parent is not None:
+                    tagName = LVheap.tagEnToName(obj.parent.tagEn, obj.parent.parent)
+                else:
+                    tagName = 'no_parent_tag_found'
                 elem = parent_elems.pop()
                 if elem.tag != tagName:
                     eprint("{}: Warning: In block {}, closing tag {} instead of {}"\
                       .format(self.vi.src_fname, self.ident, tagName, elem.tag))
             else:
+                tagName = LVheap.tagEnToName(obj.tagEn, obj.parent)
                 elem = ET.SubElement(parent_elems[-1], tagName)
 
             obj.exportXML(elem, scopeInfo, "{:s}_{:04d}".format(fname_base,i))
