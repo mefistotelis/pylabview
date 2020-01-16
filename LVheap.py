@@ -1319,7 +1319,7 @@ class UNRECOGNIZED_CLASS(PHONY_ENUM):
 
 
 class HeapNode(object):
-    def __init__(self, vi, po, parentNode, tagEn, parentClassEn, scopeInfo):
+    def __init__(self, vi, po, parentNode, tagEn, scopeInfo):
         """ Creates new Section object, represention one of possible contents of a Block.
 
         Support of a section is mostly implemented in Block, so there isn't much here.
@@ -1330,7 +1330,6 @@ class HeapNode(object):
         self.content = None
         self.parent = parentNode
         self.tagEn = tagEn
-        self.parentClassEn = parentClassEn
         self.scopeInfo = scopeInfo
         self.childs = []
         self.raw_data = None
@@ -1561,7 +1560,7 @@ class HeapNodeStdInt(HeapNode):
         tagParse = re.match("^([0-9A-Fx-]+)$", tagText)
         if tagParse is None:
             raise AttributeError("Tag '{}' of ClassId '{}' has content with bad Integer value"\
-              .format(self.tagEn.name, self.parentClassEn.name))
+              .format(self.tagEn.name, parentTopClassEn(self.parent).name))
         self.value = int(tagParse[1], 0)
         self.updateContent()
 
@@ -1577,7 +1576,7 @@ class HeapNodeTypeId(HeapNodeStdInt):
         tagParse = re.match("^TypeID\(([0-9A-Fx-]+)\)$", tagText)
         if tagParse is None:
             raise AttributeError("Tag '{}' of ClassId '{}' has content with bad TypeID value"\
-              .format(self.tagEn.name, self.parentClassEn.name))
+              .format(self.tagEn.name, parentTopClassEn(self.parent).name))
         self.value = int(tagParse[1], 0)
         self.updateContent()
 
@@ -1612,7 +1611,7 @@ class HeapNodeRect(HeapNode):
         tagParse = re.match("^\([ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+)[ ]*\)$", tagText)
         if tagParse is None:
             raise AttributeError("Tag '{}' of ClassId '{}' has content which does not match Rect definition"\
-              .format(self.tagEn.name, self.parentClassEn.name))
+              .format(self.tagEn.name, parentTopClassEn(self.parent).name))
         self.left = int(tagParse[1], 0)
         self.top = int(tagParse[2], 0)
         self.right = int(tagParse[3], 0)
@@ -1644,7 +1643,7 @@ class HeapNodePoint(HeapNode):
         tagParse = re.match("^\([ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+)[ ]*\)$", tagText)
         if tagParse is None:
             raise AttributeError("Tag '{}' of ClassId '{}' has content which does not match Point definition"\
-              .format(self.tagEn.name, self.parentClassEn.name))
+              .format(self.tagEn.name, parentTopClassEn(self.parent).name))
         self.y = int(tagParse[1], 0)
         self.x = int(tagParse[2], 0)
         self.updateContent()
@@ -1671,7 +1670,7 @@ class HeapNodeString(HeapNode):
             self.content = False
         else:
             raise AttributeError("Tag '{}' of ClassId '{}' has content with bad String value '{}'"\
-              .format(self.tagEn.name, self.parentClassEn.name, tagText))
+              .format(self.tagEn.name, parentTopClassEn(self.parent).name, tagText))
         pass
 
 class HeapNodeBool(HeapNode):
@@ -1692,7 +1691,7 @@ class HeapNodeBool(HeapNode):
         tagParse = re.match("^(True|False)$", tagText)
         if tagParse is None:
             raise AttributeError("Tag '{}' of ClassId '{}' has content with bad boolean value"\
-              .format(self.tagEn.name, self.parentClassEn.name))
+              .format(self.tagEn.name, parentTopClassEn(self.parent).name))
         self.value = (tagParse[1] == "True")
         self.updateContent()
 
@@ -1763,6 +1762,7 @@ NODE_STDINT_AUTOLEN_TAGS_LIST = (
     OBJ_FIELD_TAGS.OF__GraphActivePlot,
     OBJ_FIELD_TAGS.OF__GraphActivePort,
     OBJ_FIELD_TAGS.OF__GraphActiveCursor,
+    OBJ_FIELD_TAGS.OF__GraphMinPlotNum,
     OBJ_FIELD_TAGS.OF__MouseWheelSupport,
     OBJ_FIELD_TAGS.OF__refListLength,
     OBJ_FIELD_TAGS.OF__hGrowNodeListLength,
@@ -1917,6 +1917,24 @@ def parentNodeTagMatches(parentNode, tagList, levels=1, start=0):
         parentNode = parentNode.parent
     return False
 
+def parentTopClassEn(obj, levels=128, start=0):
+    """ Return classId of top object with class
+
+    From a list of object and its parents, this function will return class id
+    of the one nearest to top which has a 'class' attribute.
+    """
+    for i in range(start):
+        if obj is None:
+            break
+        obj = obj.parent
+    for i in range(levels):
+        if obj is None:
+            break
+        if SL_SYSTEM_ATTRIB_TAGS.SL__class.value in obj.attribs:
+            return obj.attribs[SL_SYSTEM_ATTRIB_TAGS.SL__class.value]
+        obj = obj.parent
+    return SL_CLASS_TAGS.SL__oHExt
+
 def tagIdToEnum(tagId, classEn, parentNode):
     # System level tags are always active; other tags depend
     # on an upper level tag which has 'class' set. The 'class'
@@ -1936,7 +1954,7 @@ def tagIdToEnum(tagId, classEn, parentNode):
         tagEn = UNRECOGNIZED_TAG(tagId)
     return tagEn
 
-def tagEnToName(tagEn, classEn, parentNode):
+def tagEnToName(tagEn, parentNode):
     # For most enums, we need to remove 4 starting bytes to get the name
     if isinstance(tagEn, SL_SYSTEM_TAGS):
         tagName = tagEn.name
@@ -2054,35 +2072,35 @@ def createObjectNode(vi, po, parentNode, tagEn, parentClassEn, scopeInfo):
     Acts as a factory which selects object class based on tagEn.
     """
     if tagEn in NODE_RECT_TAGS_LIST:
-        obj = HeapNodeRect(vi, po, parentNode, tagEn, parentClassEn, scopeInfo)
+        obj = HeapNodeRect(vi, po, parentNode, tagEn, scopeInfo)
     elif tagEn in NODE_POINT_TAGS_LIST:
-        obj = HeapNodePoint(vi, po, parentNode, tagEn, parentClassEn, scopeInfo)
+        obj = HeapNodePoint(vi, po, parentNode, tagEn, scopeInfo)
     elif tagEn in NODE_STDINT_AUTOLEN_TAGS_LIST:
-        obj = HeapNodeStdInt(vi, po, parentNode, tagEn, parentClassEn, scopeInfo, btlen=-1, signed=True)
+        obj = HeapNodeStdInt(vi, po, parentNode, tagEn, scopeInfo, btlen=-1, signed=True)
     elif tagEn in NODE_STRING_TAGS_LIST:
-        obj = HeapNodeString(vi, po, parentNode, tagEn, parentClassEn, scopeInfo)
+        obj = HeapNodeString(vi, po, parentNode, tagEn, scopeInfo)
     elif tagEn in NODE_TYPEID_TAGS_LIST:
-        obj = HeapNodeTypeId(vi, po, parentNode, tagEn, parentClassEn, scopeInfo)
+        obj = HeapNodeTypeId(vi, po, parentNode, tagEn, scopeInfo)
     elif tagEn in NODE_BOOL_TAGS_LIST:
-        obj = HeapNodeBool(vi, po, parentNode, tagEn, parentClassEn, scopeInfo)
+        obj = HeapNodeBool(vi, po, parentNode, tagEn, scopeInfo)
     elif tagEn == SL_SYSTEM_TAGS.SL__arrayElement and \
       parentNodeTagMatches(parentNode, NODE_STRING_ARRAY_TAGS_LIST):
-        obj = HeapNodeString(vi, po, parentNode, tagEn, parentClassEn, scopeInfo)
+        obj = HeapNodeString(vi, po, parentNode, tagEn, scopeInfo)
     elif tagEn == SL_SYSTEM_TAGS.SL__arrayElement and \
       parentNodeTagMatches(parentNode, NODE_STDINT_AUTOLEN_ARRAY_TAGS_LIST):
-        obj = HeapNodeStdInt(vi, po, parentNode, tagEn, parentClassEn, scopeInfo, btlen=-1, signed=True)
+        obj = HeapNodeStdInt(vi, po, parentNode, tagEn, scopeInfo, btlen=-1, signed=True)
     elif tagEn == SL_SYSTEM_TAGS.SL__arrayElement and \
       parentNodeTagMatches(parentNode, (OBJ_FIELD_TAGS.OF__baseListboxItemStrings,), start=1):
         if parentNodeTagMatches(parentNode, (SL_MULTI_DIM_TAGS.OF__multiDimArrayElems,), start=0):
-            obj = HeapNodeString(vi, po, parentNode, tagEn, parentClassEn, scopeInfo)
+            obj = HeapNodeString(vi, po, parentNode, tagEn, scopeInfo)
         elif parentNodeTagMatches(parentNode, (SL_MULTI_DIM_TAGS.OF__multiDimArraySizes,), start=0):
-            obj = HeapNodeStdInt(vi, po, parentNode, tagEn, parentClassEn, scopeInfo, btlen=-1, signed=True)
+            obj = HeapNodeStdInt(vi, po, parentNode, tagEn, scopeInfo, btlen=-1, signed=True)
       # TODO figure out how to get type
       #OBJ_FIELD_TAGS.OF__StdNumMin,# int or float
       #OBJ_FIELD_TAGS.OF__StdNumMax,
       #OBJ_FIELD_TAGS.OF__StdNumInc,
     else:
-        obj = HeapNode(vi, po, parentNode, tagEn, parentClassEn, scopeInfo)
+        obj = HeapNode(vi, po, parentNode, tagEn, scopeInfo)
     return obj
 
 def addObjectNodeToTree(section, parentIdx, objectIdx):
