@@ -806,6 +806,10 @@ class SingleIntBlock(Block):
 
 
 class MUID(SingleIntBlock):
+    """ Map Unique Identifier
+
+        Stores UID of LoadRefMap object.
+    """
     def createSection(self):
         section = super().createSection()
         section.byteorder = 'big'
@@ -829,6 +833,9 @@ class FPSE(SingleIntBlock):
 
 class FPTD(SingleIntBlock):
     """ Front Panel TD
+
+    Contains list of types, with exactly one
+    type inside.
     """
     def createSection(self):
         section = super().createSection()
@@ -862,17 +869,35 @@ class FLAG(SingleIntBlock):
 
 
 class CONP(Block):
-    """ Connector type map
+    """ Connector Port type
+
+    Contains list of types. For VIs, with exactly one
+    type inside; for LLBs it stores more.
+    In LV7.1 the block is CPTM.
     """
     def createSection(self):
         section = super().createSection()
         return section
 
 
-class CPC2(Block):
-    def createSection(self):
-        section = super().createSection()
-        return section
+class CPC2(CONP):
+    """ Connector Port C2
+
+    Contains list of types. For VIs, with exactly one
+    type inside; for LLBs it stores more.
+    In LV7.1 the block is CPCT.
+    """
+    pass
+
+
+class CPD2(CONP):
+    """ Connector Port D2
+
+    Contains list of types. For VIs, with exactly one
+    type inside; for LLBs it stores more.
+    In LV7.1 the block is CPDI.
+    """
+    pass
 
 
 class SingleStringBlock(Block):
