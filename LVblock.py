@@ -2436,10 +2436,15 @@ class FPH(Block):
         super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
     def getContent(self):
+        self.updateData()
         bldata = self.getData()
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         content = bldata.read(content_len)
         return content
+
+    def getContentHash(self):
+        content = self.getContent()
+        return md5(content).digest()
 
 FPHb = FPH
 
