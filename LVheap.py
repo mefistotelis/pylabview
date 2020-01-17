@@ -1029,8 +1029,12 @@ class SL_CLASS_TAGS(ENUM_TAGS):
     SL__ComplexScalar = 550
     SL__Time128 = 551
     SL__Image = 600
+    SL__KeyMappingBinding = 700
+    SL__ExtFuncParam = 740
+    SL__ExtFuncAdded = 750
     SL__SubCosm = 800
     SL__EmbedObject = 900
+    SL__SubLabel = 901
     SL__SceneView = 902
     SL__SceneColor = 903
     SL__SceneEyePoint = 904
@@ -1297,6 +1301,14 @@ class OBJ_SCALE_DATA_TAGS(ENUM_TAGS):
     OF__scaleRect = 7
     OF__port = 8
     OF__scaleFlavor = 9
+
+
+class OBJ_KEY_MAPPING_TAGS(ENUM_TAGS):
+    OF__VKey = 0
+    OF__CharCode = 1
+    OF__Mods = 2
+    OF__Obj = 3
+    OF__Action = 4
 
 
 class SL_MULTI_DIM_TAGS(ENUM_TAGS):
@@ -1734,6 +1746,7 @@ CLASS_EN_TO_TAG_LIST_MAPPING = {
     SL_CLASS_TAGS.SL__PlotLegendData: OBJ_PLOT_LEGEND_DATA_TAGS,
     SL_CLASS_TAGS.SL__DigitlaBusOrgClust: OBJ_DIGITAL_BUS_ORG_CLUST_TAGS,
     SL_CLASS_TAGS.SL__ScaleLegendData: OBJ_SCALE_LEGEND_DATA_TAGS,
+    SL_CLASS_TAGS.SL__KeyMappingBinding: OBJ_KEY_MAPPING_TAGS,
     SL_CLASS_TAGS.SL__ScaleData: OBJ_SCALE_DATA_TAGS,
     SL_CLASS_TAGS.SL__ConpaneConnection: SL_CONNECTION_TAGS,
     SL_MULTI_DIM_CLASS_TAGS.SL__multiDimArray: SL_MULTI_DIM_TAGS,
@@ -1846,6 +1859,12 @@ NODE_STDINT_AUTOLEN_TAGS_LIST = (
     OBJ_SCALE_DATA_TAGS.OF__port,
     OBJ_SCALE_DATA_TAGS.OF__scaleFlavor,
     OBJ_BROWSE_OPTIONS_TAGS.OF__mode,
+    OBJ_TREE_NODE_TAGS.OF__nodeFlags,
+    OBJ_TREE_NODE_TAGS.OF__indentLevel,
+    OBJ_KEY_MAPPING_TAGS.OF__VKey,
+    OBJ_KEY_MAPPING_TAGS.OF__CharCode,
+    OBJ_KEY_MAPPING_TAGS.OF__Mods,
+    OBJ_KEY_MAPPING_TAGS.OF__Action,
     OBJ_ROW_COL_TAGS.OF__row,
     OBJ_ROW_COL_TAGS.OF__col,
     OBJ_SCALE_DATA_TAGS.OF__partID,
@@ -1857,10 +1876,11 @@ NODE_STRING_TAGS_LIST = (
     OBJ_TEXT_HAIR_TAGS.OF__text,
     OBJ_FIELD_TAGS.OF__format,
     OBJ_FIELD_TAGS.OF__tagDLLName,
+    OBJ_FIELD_TAGS.OF__DefaultData,
     OBJ_PLOT_DATA_TAGS.OF__plotName,
     OBJ_PLOT_LEGEND_DATA_TAGS.OF__name,
     OBJ_SCALE_LEGEND_DATA_TAGS.OF__name,
-    OBJ_FIELD_TAGS.OF__DefaultData,
+    OBJ_TREE_NODE_TAGS.OF__tag,
 )
 
 NODE_TYPEID_TAGS_LIST = (
@@ -2094,6 +2114,7 @@ def createObjectNode(vi, po, parentNode, tagEn, scopeInfo):
 
     Acts as a factory which selects object class based on tagEn.
     """
+    # Tags which have always the same type
     if tagEn in NODE_RECT_TAGS_LIST:
         obj = HeapNodeRect(vi, po, parentNode, tagEn, scopeInfo)
     elif tagEn in NODE_POINT_TAGS_LIST:
@@ -2106,6 +2127,7 @@ def createObjectNode(vi, po, parentNode, tagEn, scopeInfo):
         obj = HeapNodeTypeId(vi, po, parentNode, tagEn, scopeInfo)
     elif tagEn in NODE_BOOL_TAGS_LIST:
         obj = HeapNodeBool(vi, po, parentNode, tagEn, scopeInfo)
+    # Tags within array
     elif tagEn == SL_SYSTEM_TAGS.SL__arrayElement and \
       parentNodeTagMatches(parentNode, NODE_STRING_ARRAY_TAGS_LIST):
         obj = HeapNodeString(vi, po, parentNode, tagEn, scopeInfo)
@@ -2118,6 +2140,10 @@ def createObjectNode(vi, po, parentNode, tagEn, scopeInfo):
             obj = HeapNodeString(vi, po, parentNode, tagEn, scopeInfo)
         elif parentNodeTagMatches(parentNode, (SL_MULTI_DIM_TAGS.OF__multiDimArraySizes,), start=0):
             obj = HeapNodeStdInt(vi, po, parentNode, tagEn, scopeInfo, btlen=-1, signed=True)
+    # Special combinations, where tag type depends on parents
+    elif tagEn == OBJ_FIELD_TAGS.OF__activePlot and \
+      parentNodeTagMatches(parentNode, (OBJ_FIELD_TAGS.OF__ddo,)):
+        obj = HeapNodeStdInt(vi, po, parentNode, tagEn, scopeInfo, btlen=-1, signed=True)
       # TODO figure out how to get type
       #OBJ_FIELD_TAGS.OF__StdNumMin,# int or float
       #OBJ_FIELD_TAGS.OF__StdNumMax,
