@@ -1025,6 +1025,7 @@ class SL_CLASS_TAGS(ENUM_TAGS):
     SL__dexChannelShutdownNode = 373
     SL__lpTunConditionDCO = 374
     SL__attachment = 375
+    SL__ConpaneConnection = 500
     SL__ComplexScalar = 550
     SL__Time128 = 551
     SL__Image = 600
@@ -1301,6 +1302,13 @@ class OBJ_SCALE_DATA_TAGS(ENUM_TAGS):
 class SL_MULTI_DIM_TAGS(ENUM_TAGS):
     OF__multiDimArraySizes = 0
     OF__multiDimArrayElems = 1
+
+
+class SL_CONNECTION_TAGS(ENUM_TAGS):
+    OF__ConnectionDCO = 0
+    OF__ConNum = 1
+    OF__Flags = 2
+    OF__TermRect = 3
 
 
 class PHONY_ENUM:
@@ -1724,6 +1732,7 @@ CLASS_EN_TO_TAG_LIST_MAPPING = {
     SL_CLASS_TAGS.SL__DigitlaBusOrgClust: OBJ_DIGITAL_BUS_ORG_CLUST_TAGS,
     SL_CLASS_TAGS.SL__ScaleLegendData: OBJ_SCALE_LEGEND_DATA_TAGS,
     SL_CLASS_TAGS.SL__ScaleData: OBJ_SCALE_DATA_TAGS,
+    SL_CLASS_TAGS.SL__ConpaneConnection: SL_CONNECTION_TAGS,
     SL_MULTI_DIM_CLASS_TAGS.SL__multiDimArray: SL_MULTI_DIM_TAGS,
 }
 
@@ -1766,6 +1775,7 @@ NODE_STDINT_AUTOLEN_TAGS_LIST = (
     OBJ_FIELD_TAGS.OF__MouseWheelSupport,
     OBJ_FIELD_TAGS.OF__refListLength,
     OBJ_FIELD_TAGS.OF__hGrowNodeListLength,
+    OBJ_FIELD_TAGS.OF__index,
     OBJ_FIELD_TAGS.OF__typeCode,
     OBJ_FIELD_TAGS.OF__gridFlags,
     OBJ_FIELD_TAGS.OF__treeFlags,
@@ -1793,6 +1803,7 @@ NODE_STDINT_AUTOLEN_TAGS_LIST = (
     OBJ_FIELD_TAGS.OF__scaleRMax32,
     OBJ_FIELD_TAGS.OF__instrStyle,
     OBJ_FIELD_TAGS.OF__nVisItems,
+    OBJ_FIELD_TAGS.OF__pRuntimeType,
     OBJ_FONT_RUN_TAGS.OF__fontid,
     OBJ_TEXT_HAIR_TAGS.OF__flags,
     OBJ_TEXT_HAIR_TAGS.OF__mode,
@@ -1846,6 +1857,7 @@ NODE_STRING_TAGS_LIST = (
     OBJ_PLOT_DATA_TAGS.OF__plotName,
     OBJ_PLOT_LEGEND_DATA_TAGS.OF__name,
     OBJ_SCALE_LEGEND_DATA_TAGS.OF__name,
+    OBJ_FIELD_TAGS.OF__DefaultData,
 )
 
 NODE_TYPEID_TAGS_LIST = (
