@@ -177,6 +177,7 @@ def main():
             print("{}: Starting file parse for password change".format(po.rsrc))
         with open(po.rsrc, "rb") as rsrc_fh:
             vi = VI(po, rsrc_fh=rsrc_fh, text_encoding=po.textcp)
+            vi.forceCompleteReadRSRC()
 
         BDPW = vi.get_or_raise('BDPW')
         if BDPW is not None:

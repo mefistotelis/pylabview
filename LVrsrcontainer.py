@@ -330,6 +330,17 @@ class VI():
         self.checkSanity()
         pass
 
+    def forceCompleteReadRSRC(self):
+        """ Ensured read of all data possibly needed from input file
+
+        This function can be called after readRSRC(). After this call,
+        any further calls will not result in accessing the input RSRC
+        file, as all data will be loaded to memory.
+        """
+        for block in self.blocks.values():
+            block.readRawDataSections(section_count=0xffffffff)
+        pass
+
     def readXMLBlockData(self):
         """ Read data sections for all Blocks from the input file.
             After this function, `self.blocks` is filled.
@@ -611,9 +622,12 @@ class VI():
         """ Calculates password
         """
         BDPW = self.get_or_raise('BDPW')
+        BDPW.parseData()
+        BDPW.recalculateHash1(store=False) # this is needed to find salt
         BDPW.setPassword(password_text=password_text, password_md5=password_md5, store=True)
-        BDPW.recalculateHash1(store=True)
-        BDPW.recalculateHash2(store=True)
+        #BDPW.recalculateHash1(store=True) # called by updateSectionData()
+        #BDPW.recalculateHash2(store=True) # called by updateSectionData()
+        BDPW.updateSectionData()
         return BDPW
 
     def isLoaded(self):
