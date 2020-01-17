@@ -2358,16 +2358,17 @@ class FPH(Block):
         else:
             tagId = rawTagId - 31
 
+        if scopeInfo == LVheap.NODE_SCOPE.TagClose and parentNode is not None:
+            parentNode = parentNode.parent
+
         tagEn = LVheap.tagIdToEnum(tagId, parentNode)
 
         i = len(section.objects)
         obj = LVheap.createObjectNode(self.vi, self.po, parentNode, tagEn, scopeInfo)
         section.objects.append(obj)
-        if scopeInfo != LVheap.NODE_SCOPE.TagClose:
-            parentNode = obj
         obj.parseRSRCData(bldata, hasAttrList, sizeSpec)
-        if scopeInfo != LVheap.NODE_SCOPE.TagOpen:
-            parentNode = parentNode.parent
+        if scopeInfo == LVheap.NODE_SCOPE.TagOpen:
+            parentNode = obj
         dataLen = bldata.tell() - startPos
 
         # TODO Should we re-read the bytes and set raw data inside the obj?
@@ -2466,22 +2467,17 @@ class FPH(Block):
         elem = None
         for i, obj in enumerate(section.objects):
             scopeInfo = obj.getScopeInfo()
+            tagName = LVheap.tagEnToName(obj.tagEn, obj.parent)
             if elem is None:
-                tagName = LVheap.tagEnToName(obj.tagEn, obj.parent)
                 elem = ET.Element(tagName)
                 root = elem
                 parent_elems.append(root)
             elif scopeInfo == LVheap.NODE_SCOPE.TagClose:
-                if obj.parent is not None:
-                    tagName = LVheap.tagEnToName(obj.parent.tagEn, obj.parent.parent)
-                else:
-                    tagName = 'no_parent_tag_found'
                 elem = parent_elems.pop()
                 if elem.tag != tagName:
                     eprint("{}: Warning: In block {}, closing tag {} instead of {}"\
                       .format(self.vi.src_fname, self.ident, tagName, elem.tag))
             else:
-                tagName = LVheap.tagEnToName(obj.tagEn, obj.parent)
                 elem = ET.SubElement(parent_elems[-1], tagName)
 
             obj.exportXML(elem, scopeInfo, "{:s}_{:04d}".format(fname_base,i))
