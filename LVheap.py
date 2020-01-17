@@ -113,7 +113,7 @@ class OBJ_FIELD_TAGS(ENUM_TAGS):
     OF__configNode = 40
     OF__connectorTM = 41
     OF__cons = 42
-    OF__tRect = 43
+    OF__contRect = 43
     OF__ctlDataObj = 44
     OF__dBounds = 45
     OF__dIdx = 46
@@ -1055,6 +1055,10 @@ class SL_CLASS_TAGS(ENUM_TAGS):
     SL__DigitlaBusOrgClust = 923
     SL__ScaleLegendData = 924
     SL__ScaleData = 925
+    SL__ObjNodeMapEntry = 927
+    SL__ObjMapEntry = 928
+    SL__EventSpec = 929
+    SL__SelectorRange = 930
 
 
 class SL_MULTI_DIM_CLASS_TAGS(ENUM_TAGS):
@@ -1316,11 +1320,31 @@ class SL_MULTI_DIM_TAGS(ENUM_TAGS):
     OF__multiDimArrayElems = 1
 
 
-class SL_CONNECTION_TAGS(ENUM_TAGS):
+class OBJ_CONNECTION_TAGS(ENUM_TAGS):
     OF__ConnectionDCO = 0
     OF__ConNum = 1
     OF__Flags = 2
     OF__TermRect = 3
+
+
+class OBJ_SELECTOR_RANGE_TAGS(ENUM_TAGS):
+    OF__start = 0
+    OF__end = 1
+    OF__startRangeType = 2
+    OF__endRangeType = 3
+    OF__diagramIdx = 4
+
+
+class OBJ_EVENT_SPEC_TAGS(ENUM_TAGS):
+    OF__diagramIdx = 0
+    OF__source = 1
+    OF__regFlags = 2
+    OF__eSource = 3
+    OF__type = 4
+    OF__eFlags = 5
+    OF__ddoUID = 6
+    OF__menuTag = 7
+    OF__dynIndex = 8
 
 
 class PHONY_ENUM:
@@ -1748,17 +1772,21 @@ CLASS_EN_TO_TAG_LIST_MAPPING = {
     SL_CLASS_TAGS.SL__ScaleLegendData: OBJ_SCALE_LEGEND_DATA_TAGS,
     SL_CLASS_TAGS.SL__KeyMappingBinding: OBJ_KEY_MAPPING_TAGS,
     SL_CLASS_TAGS.SL__ScaleData: OBJ_SCALE_DATA_TAGS,
-    SL_CLASS_TAGS.SL__ConpaneConnection: SL_CONNECTION_TAGS,
+    SL_CLASS_TAGS.SL__ConpaneConnection: OBJ_CONNECTION_TAGS,
+    SL_CLASS_TAGS.SL__EventSpec: OBJ_EVENT_SPEC_TAGS,
+    SL_CLASS_TAGS.SL__SelectorRange: OBJ_SELECTOR_RANGE_TAGS,
     SL_MULTI_DIM_CLASS_TAGS.SL__multiDimArray: SL_MULTI_DIM_TAGS,
 }
 
 NODE_RECT_TAGS_LIST = (
     OBJ_FIELD_TAGS.OF__bounds,
+    OBJ_FIELD_TAGS.OF__contRect,
     OBJ_FIELD_TAGS.OF__dBounds,
     OBJ_FIELD_TAGS.OF__pBounds,
     OBJ_FIELD_TAGS.OF__docBounds,
     OBJ_FIELD_TAGS.OF__dynBounds,
     OBJ_FIELD_TAGS.OF__savedSize,
+    OBJ_FIELD_TAGS.OF__termBounds,
     OBJ_TEXT_HAIR_TAGS.OF__view,
     OBJ_SCALE_DATA_TAGS.OF__scaleRect,
     OBJ_SUBCOSM_TAGS.OF__Bounds,
@@ -1768,6 +1796,7 @@ NODE_POINT_TAGS_LIST = (
     OBJ_FIELD_TAGS.OF__origin,
     OBJ_FIELD_TAGS.OF__minPaneSize,
     OBJ_FIELD_TAGS.OF__minPanelSize,
+    OBJ_FIELD_TAGS.OF__termHotPoint,
     OBJ_FIELD_TAGS.OF__MinButSize,
     OBJ_FIELD_TAGS.OF__nRC,
     OBJ_FIELD_TAGS.OF__oRC,
@@ -1781,31 +1810,48 @@ NODE_STDINT_AUTOLEN_TAGS_LIST = (
     OBJ_FIELD_TAGS.OF__howGrow,
     OBJ_FIELD_TAGS.OF__masterPart,
     OBJ_FIELD_TAGS.OF__conId,
+    OBJ_FIELD_TAGS.OF__dIdx,
+    OBJ_FIELD_TAGS.OF__dcoFiller,
+    OBJ_FIELD_TAGS.OF__dsw,
     OBJ_FIELD_TAGS.OF__rsrcID,
     OBJ_FIELD_TAGS.OF__conNum,
+    OBJ_FIELD_TAGS.OF__firstNodeIdx,
     OBJ_FIELD_TAGS.OF__graphType,
     OBJ_FIELD_TAGS.OF__GraphActivePlot,
     OBJ_FIELD_TAGS.OF__GraphActivePort,
     OBJ_FIELD_TAGS.OF__GraphActiveCursor,
     OBJ_FIELD_TAGS.OF__GraphMinPlotNum,
     OBJ_FIELD_TAGS.OF__MouseWheelSupport,
+    OBJ_FIELD_TAGS.OF__SelectNRightType,
     OBJ_FIELD_TAGS.OF__refListLength,
     OBJ_FIELD_TAGS.OF__hGrowNodeListLength,
+    OBJ_FIELD_TAGS.OF__i,
     OBJ_FIELD_TAGS.OF__index,
+    OBJ_FIELD_TAGS.OF__inplace,
     OBJ_FIELD_TAGS.OF__typeCode,
     OBJ_FIELD_TAGS.OF__gridFlags,
     OBJ_FIELD_TAGS.OF__treeFlags,
     OBJ_FIELD_TAGS.OF__labelPosRow,
     OBJ_FIELD_TAGS.OF__labelPosCol,
     OBJ_FIELD_TAGS.OF__listboxFlags,
+    OBJ_FIELD_TAGS.OF__lastSignalKind,
+    OBJ_FIELD_TAGS.OF__methCode,
     OBJ_FIELD_TAGS.OF__numFrozenCols,
     OBJ_FIELD_TAGS.OF__numFrozenRows,
     OBJ_FIELD_TAGS.OF__baseListboxDoubleClickedRow,
     OBJ_FIELD_TAGS.OF__baseListboxClickedColumnHeader,
     OBJ_FIELD_TAGS.OF__nMajDivs,
+    OBJ_FIELD_TAGS.OF__paramIdx,
+    OBJ_FIELD_TAGS.OF__shortCount,
+    OBJ_FIELD_TAGS.OF__clumpNum,
+    OBJ_FIELD_TAGS.OF__termBMPs,
     OBJ_FIELD_TAGS.OF__termListLength,
     OBJ_FIELD_TAGS.OF__annexDDOFlag,
     OBJ_FIELD_TAGS.OF__paneFlags,
+    OBJ_FIELD_TAGS.OF__parmIndex,
+    OBJ_FIELD_TAGS.OF__primIndex,
+    OBJ_FIELD_TAGS.OF__primResID,
+    OBJ_FIELD_TAGS.OF__paramTableOffset,
     OBJ_FIELD_TAGS.OF__cellPosRow,
     OBJ_FIELD_TAGS.OF__cellPosCol,
     OBJ_FIELD_TAGS.OF__selLabFlags,
@@ -1814,6 +1860,7 @@ NODE_STDINT_AUTOLEN_TAGS_LIST = (
     OBJ_FIELD_TAGS.OF__comboBoxIndex,
     OBJ_FIELD_TAGS.OF__tagType,
     OBJ_FIELD_TAGS.OF__FpgaImplementation,
+    OBJ_FIELD_TAGS.OF__PropItemCode,
     OBJ_FIELD_TAGS.OF__variantIndex,
     OBJ_FIELD_TAGS.OF__scaleRMin32,
     OBJ_FIELD_TAGS.OF__scaleRMax32,
@@ -1870,13 +1917,29 @@ NODE_STDINT_AUTOLEN_TAGS_LIST = (
     OBJ_SCALE_DATA_TAGS.OF__partID,
     OBJ_SCALE_DATA_TAGS.OF__partOrder,
     OBJ_SCALE_DATA_TAGS.OF__flags,
+    OBJ_SELECTOR_RANGE_TAGS.OF__start,
+    OBJ_SELECTOR_RANGE_TAGS.OF__end,
+    OBJ_SELECTOR_RANGE_TAGS.OF__startRangeType,
+    OBJ_SELECTOR_RANGE_TAGS.OF__endRangeType,
+    OBJ_SELECTOR_RANGE_TAGS.OF__diagramIdx,
+    OBJ_EVENT_SPEC_TAGS.OF__diagramIdx,
+    OBJ_EVENT_SPEC_TAGS.OF__source,
+    OBJ_EVENT_SPEC_TAGS.OF__regFlags,
+    OBJ_EVENT_SPEC_TAGS.OF__eSource,
+    OBJ_EVENT_SPEC_TAGS.OF__type,
+    OBJ_EVENT_SPEC_TAGS.OF__eFlags,
+    OBJ_EVENT_SPEC_TAGS.OF__ddoUID,
+    OBJ_EVENT_SPEC_TAGS.OF__dynIndex,
 )
 
 NODE_STRING_TAGS_LIST = (
     OBJ_TEXT_HAIR_TAGS.OF__text,
     OBJ_FIELD_TAGS.OF__format,
+    OBJ_FIELD_TAGS.OF__methName,
+    OBJ_FIELD_TAGS.OF__nodeName,
     OBJ_FIELD_TAGS.OF__tagDLLName,
     OBJ_FIELD_TAGS.OF__DefaultData,
+    OBJ_FIELD_TAGS.OF__PropItemName,
     OBJ_PLOT_DATA_TAGS.OF__plotName,
     OBJ_PLOT_LEGEND_DATA_TAGS.OF__name,
     OBJ_SCALE_LEGEND_DATA_TAGS.OF__name,
@@ -1886,6 +1949,9 @@ NODE_STRING_TAGS_LIST = (
 NODE_TYPEID_TAGS_LIST = (
     OBJ_FIELD_TAGS.OF__typeDesc,
     OBJ_FIELD_TAGS.OF__histTD,
+    OBJ_FIELD_TAGS.OF__connectorTM,
+    OBJ_FIELD_TAGS.OF__omidTypeDesc,
+    OBJ_FIELD_TAGS.OF__dataTypeDesc,
 )
 
 NODE_BOOL_TAGS_LIST = (
