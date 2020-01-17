@@ -1543,6 +1543,9 @@ class HeapNodeStdInt(HeapNode):
         self.value = 0
 
     def parseRSRCContent(self):
+        if not isinstance(self.content, (bytes, bytearray,)):
+            raise AttributeError("Tag '{}' of Class '{}' has no byte-like content"\
+              .format(self.tagEn.name, parentTopClassEn(self.parent).name))
         bldata = BytesIO(self.content)
         if self.btlen < 0:
             btlen = len(self.content)
@@ -1567,7 +1570,7 @@ class HeapNodeStdInt(HeapNode):
     def initContentWithXML(self, tagText):
         tagParse = re.match("^([0-9A-Fx-]+)$", tagText)
         if tagParse is None:
-            raise AttributeError("Tag '{}' of ClassId '{}' has content with bad Integer value"\
+            raise AttributeError("Tag '{}' of Class '{}' has content with bad Integer value"\
               .format(self.tagEn.name, parentTopClassEn(self.parent).name))
         self.value = int(tagParse[1], 0)
         self.updateContent()
@@ -1583,7 +1586,7 @@ class HeapNodeTypeId(HeapNodeStdInt):
     def initContentWithXML(self, tagText):
         tagParse = re.match("^TypeID\(([0-9A-Fx-]+)\)$", tagText)
         if tagParse is None:
-            raise AttributeError("Tag '{}' of ClassId '{}' has content with bad TypeID value"\
+            raise AttributeError("Tag '{}' of Class '{}' has content with bad TypeID value"\
               .format(self.tagEn.name, parentTopClassEn(self.parent).name))
         self.value = int(tagParse[1], 0)
         self.updateContent()
@@ -1618,7 +1621,7 @@ class HeapNodeRect(HeapNode):
     def initContentWithXML(self, tagText):
         tagParse = re.match("^\([ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+)[ ]*\)$", tagText)
         if tagParse is None:
-            raise AttributeError("Tag '{}' of ClassId '{}' has content which does not match Rect definition"\
+            raise AttributeError("Tag '{}' of Class '{}' has content which does not match Rect definition"\
               .format(self.tagEn.name, parentTopClassEn(self.parent).name))
         self.left = int(tagParse[1], 0)
         self.top = int(tagParse[2], 0)
@@ -1650,7 +1653,7 @@ class HeapNodePoint(HeapNode):
     def initContentWithXML(self, tagText):
         tagParse = re.match("^\([ ]*([0-9A-Fx-]+),[ ]*([0-9A-Fx-]+)[ ]*\)$", tagText)
         if tagParse is None:
-            raise AttributeError("Tag '{}' of ClassId '{}' has content which does not match Point definition"\
+            raise AttributeError("Tag '{}' of Class '{}' has content which does not match Point definition"\
               .format(self.tagEn.name, parentTopClassEn(self.parent).name))
         self.y = int(tagParse[1], 0)
         self.x = int(tagParse[2], 0)
@@ -1876,6 +1879,7 @@ NODE_BOOL_TAGS_LIST = (
     OBJ_SCALE_LEGEND_DATA_TAGS.OF__autoScale,
     OBJ_SCALE_LEGEND_DATA_TAGS.OF__formatButton,
     OBJ_PLOT_DATA_TAGS.OF__fxpIsSigned,
+    OBJ_DIGITAL_BUS_ORG_CLUST_TAGS.OF__isBus,
 )
 
 NODE_STRING_ARRAY_TAGS_LIST = (
