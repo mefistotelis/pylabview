@@ -2243,10 +2243,8 @@ class SUID(Block):
         return section
 
 
-class BDHP(Block):
-    """ Block Diagram Heap
-
-    This block is spcific to LV 7beta and older.
+class HeapVerP(Block):
+    """ BD/FP Heap version P
     """
     def createSection(self):
         section = super().createSection()
@@ -2267,54 +2265,19 @@ class BDHP(Block):
         super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
     def getContent(self):
-        self.parseData()
-        return self.content
-
-    def getContentHash(self):
-        self.parseData()
-        return md5(self.content).digest()
-
-class BDH(Block):
-    """ Block Diagram Heap
-
-    Stored in "BDHx"-block. It uses a binary tree format to store hierarchy
-    structures. They use a kind of "xml-tags" to open and close objects.
-    This block is specific to LV 7 and newer.
-    """
-    def createSection(self):
-        section = super().createSection()
-        section.content = None
-        return section
-
-    def parseRSRCData(self, section_num, bldata):
-        section = self.sections[section_num]
-
+        self.updateData()
+        bldata = self.getData()
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        section.content = bldata.read(content_len)
-
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
-        bldata = super().getData(section_num=section_num, use_coding=use_coding)
-        return bldata
-
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
-
-    def getContent(self):
-        self.parseData()
-        return self.content
+        content = bldata.read(content_len)
+        return content
 
     def getContentHash(self):
-        self.parseData()
-        return md5(self.content).digest()
-
-BDHc = BDHb = BDH
+        content = self.getContent()
+        return md5(content).digest()
 
 
-class FPH(Block):
-    """ Front Panel Heap
-
-    Stored in "FPHx"-block.
-    This implementation is for LV 7 and newer.
+class HeapVerb(Block):
+    """ BD/FP Heap version b
     """
     def __init__(self, *args):
         super().__init__(*args)
@@ -2514,12 +2477,21 @@ class FPH(Block):
         content = self.getContent()
         return md5(content).digest()
 
-FPHb = FPH
 
-
-class FPHc(Block):
-    """ Front Panel Heap ver c
+class HeapVerc(Block):
+    """ BD/FP Heap version c
     """
+    def createSection(self):
+        section = super().createSection()
+        section.content = None
+        return section
+
+    def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+
+        content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        section.content = bldata.read(content_len)
+
     def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
         bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
@@ -2528,10 +2500,56 @@ class FPHc(Block):
         super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
     def getContent(self):
+        self.updateData()
         bldata = self.getData()
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         content = bldata.read(content_len)
         return content
+
+    def getContentHash(self):
+        content = self.getContent()
+        return md5(content).digest()
+
+
+class BDHP(HeapVerP):
+    """ Block Diagram Heap
+
+    This block is spcific to LV 7beta and older.
+    """
+    pass
+
+
+class BDHb(HeapVerb):
+    """ Block Diagram Heap ver b
+    """
+    pass
+
+
+class FPHb(HeapVerb):
+    """ Front Panel Heap ver b
+
+    Stored in "FPHx"-block.
+    This implementation is for LV 7 and newer.
+    """
+    pass
+
+
+class BDHc(HeapVerc):
+    """ Block Diagram Heap ver c
+
+    Stored in "BDHx"-block. It uses a binary tree format to store hierarchy
+    structures. They use a kind of "xml-tags" to open and close objects.
+    """
+    pass
+
+
+class FPHc(HeapVerc):
+    """ Front Panel Heap ver c
+
+    Stored in "FPHx"-block. It uses a binary tree format to store hierarchy
+    structures. They use a kind of "xml-tags" to open and close objects.
+    """
+    pass
 
 
 class VCTP(Block):
