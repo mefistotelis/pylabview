@@ -1046,6 +1046,10 @@ class SL_CLASS_TAGS(ENUM_TAGS):
     SL__RelativeRowCol = 910
     SL__TabInfoItem = 911
     SL__PageInfoItem = 912
+    SL__TreeElt = 913
+    SL__ExpressionInfo = 914
+    SL__SelectorInfoElement = 915
+    SL__GrowTermInfo = 916
     SL__MappedPoint = 917
     SL__PlotData = 918
     SL__CursorData = 919
@@ -1315,9 +1319,14 @@ class OBJ_KEY_MAPPING_TAGS(ENUM_TAGS):
     OF__Action = 4
 
 
-class SL_MULTI_DIM_TAGS(ENUM_TAGS):
+class OBJ_MULTI_DIM_TAGS(ENUM_TAGS):
     OF__multiDimArraySizes = 0
     OF__multiDimArrayElems = 1
+
+
+class OBJ_GROW_TERM_INFO_TAGS(ENUM_TAGS):
+    OF__flags = 0
+    OF__termOfst = 1
 
 
 class OBJ_CONNECTION_TAGS(ENUM_TAGS):
@@ -1834,9 +1843,10 @@ CLASS_EN_TO_TAG_LIST_MAPPING = {
     SL_CLASS_TAGS.SL__KeyMappingBinding: OBJ_KEY_MAPPING_TAGS,
     SL_CLASS_TAGS.SL__ScaleData: OBJ_SCALE_DATA_TAGS,
     SL_CLASS_TAGS.SL__ConpaneConnection: OBJ_CONNECTION_TAGS,
+    SL_CLASS_TAGS.SL__GrowTermInfo: OBJ_GROW_TERM_INFO_TAGS,
     SL_CLASS_TAGS.SL__EventSpec: OBJ_EVENT_SPEC_TAGS,
     SL_CLASS_TAGS.SL__SelectorRange: OBJ_SELECTOR_RANGE_TAGS,
-    SL_MULTI_DIM_CLASS_TAGS.SL__multiDimArray: SL_MULTI_DIM_TAGS,
+    SL_MULTI_DIM_CLASS_TAGS.SL__multiDimArray: OBJ_MULTI_DIM_TAGS,
 }
 
 NODE_RECT_TAGS_LIST = (
@@ -1844,6 +1854,9 @@ NODE_RECT_TAGS_LIST = (
     OBJ_FIELD_TAGS.OF__contRect,
     OBJ_FIELD_TAGS.OF__dBounds,
     OBJ_FIELD_TAGS.OF__pBounds,
+    OBJ_FIELD_TAGS.OF__hoodBounds,
+    OBJ_FIELD_TAGS.OF__iconBounds,
+    OBJ_FIELD_TAGS.OF__growAreaBounds,
     OBJ_FIELD_TAGS.OF__docBounds,
     OBJ_FIELD_TAGS.OF__dynBounds,
     OBJ_FIELD_TAGS.OF__savedSize,
@@ -1861,6 +1874,7 @@ NODE_POINT_TAGS_LIST = (
     OBJ_FIELD_TAGS.OF__MinButSize,
     OBJ_FIELD_TAGS.OF__nRC,
     OBJ_FIELD_TAGS.OF__oRC,
+    OBJ_GROW_TERM_INFO_TAGS.OF__termOfst,
 )
 
 NODE_STDINT_AUTOLEN_TAGS_LIST = (
@@ -1882,6 +1896,10 @@ NODE_STDINT_AUTOLEN_TAGS_LIST = (
     OBJ_FIELD_TAGS.OF__GraphActivePort,
     OBJ_FIELD_TAGS.OF__GraphActiveCursor,
     OBJ_FIELD_TAGS.OF__GraphMinPlotNum,
+    OBJ_FIELD_TAGS.OF__GVNGrowTerms,
+    OBJ_FIELD_TAGS.OF__GVNMaxGrowTerms,
+    OBJ_FIELD_TAGS.OF__GVMinGVWidth,
+    OBJ_FIELD_TAGS.OF__GVHoodTermWidth,
     OBJ_FIELD_TAGS.OF__MouseWheelSupport,
     OBJ_FIELD_TAGS.OF__SelectNRightType,
     OBJ_FIELD_TAGS.OF__refListLength,
@@ -1891,6 +1909,7 @@ NODE_STDINT_AUTOLEN_TAGS_LIST = (
     OBJ_FIELD_TAGS.OF__inplace,
     OBJ_FIELD_TAGS.OF__typeCode,
     OBJ_FIELD_TAGS.OF__gridFlags,
+    OBJ_FIELD_TAGS.OF__state,
     OBJ_FIELD_TAGS.OF__treeFlags,
     OBJ_FIELD_TAGS.OF__labelPosRow,
     OBJ_FIELD_TAGS.OF__labelPosCol,
@@ -1903,6 +1922,10 @@ NODE_STDINT_AUTOLEN_TAGS_LIST = (
     OBJ_FIELD_TAGS.OF__baseListboxClickedColumnHeader,
     OBJ_FIELD_TAGS.OF__nMajDivs,
     OBJ_FIELD_TAGS.OF__paramIdx,
+    OBJ_FIELD_TAGS.OF__maxWordLength,
+    OBJ_FIELD_TAGS.OF__override,
+    OBJ_FIELD_TAGS.OF__overflow,
+    OBJ_FIELD_TAGS.OF__quantize,
     OBJ_FIELD_TAGS.OF__shortCount,
     OBJ_FIELD_TAGS.OF__clumpNum,
     OBJ_FIELD_TAGS.OF__termBMPs,
@@ -2039,6 +2062,7 @@ NODE_STDINT_AUTOLEN_ARRAY_TAGS_LIST = (
     OBJ_FIELD_TAGS.OF__arrayIndices,
     OBJ_FIELD_TAGS.OF__arraySelectionStart,
     OBJ_FIELD_TAGS.OF__arraySelectionEnd,
+    OBJ_DIGITAL_BUS_ORG_CLUST_TAGS.OF__arrayHandle,
 )
 
 
@@ -2263,9 +2287,9 @@ def createObjectNode(vi, po, parentNode, tagEn, scopeInfo):
         obj = HeapNodeStdInt(vi, po, parentNode, tagEn, scopeInfo, btlen=-1, signed=True)
     elif tagEn == SL_SYSTEM_TAGS.SL__arrayElement and \
       parentNodeTagMatches(parentNode, (OBJ_FIELD_TAGS.OF__baseListboxItemStrings,), start=1):
-        if parentNodeTagMatches(parentNode, (SL_MULTI_DIM_TAGS.OF__multiDimArrayElems,), start=0):
+        if parentNodeTagMatches(parentNode, (OBJ_MULTI_DIM_TAGS.OF__multiDimArrayElems,), start=0):
             obj = HeapNodeString(vi, po, parentNode, tagEn, scopeInfo)
-        elif parentNodeTagMatches(parentNode, (SL_MULTI_DIM_TAGS.OF__multiDimArraySizes,), start=0):
+        elif parentNodeTagMatches(parentNode, (OBJ_MULTI_DIM_TAGS.OF__multiDimArraySizes,), start=0):
             obj = HeapNodeStdInt(vi, po, parentNode, tagEn, scopeInfo, btlen=-1, signed=True)
     # Special combinations, where tag type depends on parents
     elif tagEn == OBJ_FIELD_TAGS.OF__buf and \
