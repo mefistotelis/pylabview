@@ -1716,9 +1716,70 @@ class HeapNodeString(HeapNode):
         elif tagText == "[NULL]":
             self.content = False
         else:
-            raise AttributeError("Tag '{}' of ClassId '{}' has content with bad String value '{}'"\
+            raise AttributeError("Tag '{}' of Class '{}' has content with bad String value '{}'"\
               .format(self.tagEn.name, parentTopClassEn(self.parent).name, tagText))
         pass
+
+
+class HeapNodePStrList(HeapNode):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.values = []
+
+    def parseRSRCContent(self):
+        if not isinstance(self.content, (bytes, bytearray,)):
+            raise AttributeError("Tag '{}' of Class '{}' has no byte-like content"\
+              .format(self.tagEn.name, parentTopClassEn(self.parent).name))
+        bldata = BytesIO(self.content)
+        values = []
+        while (True):
+            btcount = bldata.read(1)
+            if len(btcount) < 1: break
+            count = int.from_bytes(btcount, byteorder='big', signed=False)
+            val = bldata.read(count)
+            values.append(val)
+            if len(val) < count:
+                raise AttributeError("Tag '{}' of Class '{}' has truncated strings list in content"\
+                  .format(self.tagEn.name, parentTopClassEn(self.parent).name))
+        self.values = values
+
+    def updateContent(self):
+        content = b''
+        for val in self.values:
+            content += int(len(val)).to_bytes(1, byteorder='big', signed=False)
+            content += val
+        self.content = content
+
+    def prepareContentXML(self, fname_base):
+        strval = "({:d})".format(len(self.values))
+        for val in self.values:
+            valText = val.decode(self.vi.textEncoding)
+            valText = ET.escape_cdata_custom_chars(valText, ( ord("\""), ) )
+            strval += "\"{:s}\"".format(valText)
+        return strval
+
+    def initContentWithXML(self, tagText):
+        count = None
+        tagParse = re.match(r"^[(]([0-9A-Fx]+)[)](\".*\")$", tagText, re.MULTILINE|re.DOTALL)
+        if tagParse is not None:
+            count = int(tagParse[1], 0)
+        if count is None:
+            raise AttributeError("Tag '{}' of Class '{}' has content with no string list length"\
+              .format(self.tagEn.name, parentTopClassEn(self.parent).name))
+        values = []
+        tagParse = re.match(r"^[(][0-9A-Fx]+[)]" + (r"\"([^\"]*)\"" * count) + r"$", tagText, re.MULTILINE|re.DOTALL)
+        if tagParse is None:
+            raise AttributeError("Tag '{}' of Class '{}' has content with too few strings"\
+              .format(self.tagEn.name, parentTopClassEn(self.parent).name))
+        for valText in tagParse.groups():
+            # The text may have been in cdata tag, there is no way to know; so unescape anyway
+            valText = ET.unescape_cdata_control_chars(valText)
+            valText = ET.unescape_cdata_custom_chars(valText, ( ord("\""), ) )
+            val = valText.encode(self.vi.textEncoding)
+            values.append(val)
+        self.values = values
+        self.updateContent()
+
 
 class HeapNodeBool(HeapNode):
     def __init__(self, *args):
@@ -1737,7 +1798,7 @@ class HeapNodeBool(HeapNode):
     def initContentWithXML(self, tagText):
         tagParse = re.match("^(True|False)$", tagText)
         if tagParse is None:
-            raise AttributeError("Tag '{}' of ClassId '{}' has content with bad boolean value"\
+            raise AttributeError("Tag '{}' of Class '{}' has content with bad boolean value"\
               .format(self.tagEn.name, parentTopClassEn(self.parent).name))
         self.value = (tagParse[1] == "True")
         self.updateContent()
@@ -2207,6 +2268,9 @@ def createObjectNode(vi, po, parentNode, tagEn, scopeInfo):
         elif parentNodeTagMatches(parentNode, (SL_MULTI_DIM_TAGS.OF__multiDimArraySizes,), start=0):
             obj = HeapNodeStdInt(vi, po, parentNode, tagEn, scopeInfo, btlen=-1, signed=True)
     # Special combinations, where tag type depends on parents
+    elif tagEn == OBJ_FIELD_TAGS.OF__buf and \
+      parentTopClassEn(parentNode) in (SL_CLASS_TAGS.SL__multiLabel,):
+        obj = HeapNodePStrList(vi, po, parentNode, tagEn, scopeInfo)
     elif tagEn == OBJ_FIELD_TAGS.OF__activePlot and \
       parentNodeTagMatches(parentNode, (OBJ_FIELD_TAGS.OF__ddo,)):
         obj = HeapNodeStdInt(vi, po, parentNode, tagEn, scopeInfo, btlen=-1, signed=True)

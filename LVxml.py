@@ -34,12 +34,12 @@ def et_escape_cdata_mind_binary(text):
 
 #ET._escape_cdata = LVmisc.et_escape_cdata_mind_binary
 
-def escape_cdata_control_chars(text):
-    # escape character data
+def escape_cdata_custom_chars(text, ccList):
+    """ escape character data
+    """
     try:
         if True:
-            for i in range(0,32):
-                if i in [ord("\n"),ord("\t")]: continue
+            for i in ccList:
                 text = text.replace(chr(i), "&#x{:02X};".format(i))
         return text
     except (TypeError, AttributeError):
@@ -48,12 +48,12 @@ def escape_cdata_control_chars(text):
             "cannot escape for serialization %r (type %s)" % (text, type(text).__name__)
             )
 
-def unescape_cdata_control_chars(text):
-    # escape character data
+def unescape_cdata_custom_chars(text, ccList):
+    """ un-escape character data
+    """
     try:
         if True:
-            for i in range(0,32):
-                if i in [ord("\n"),ord("\t")]: continue
+            for i in ccList:
                 text = text.replace("&#x{:02X};".format(i), chr(i))
         return text
     except (TypeError, AttributeError):
@@ -61,6 +61,18 @@ def unescape_cdata_control_chars(text):
         raise TypeError(
             "cannot unescape after deserialize %r (type %s)" % (text, type(text).__name__)
             )
+
+def escape_cdata_control_chars(text):
+    """ escape control characters
+    """
+    ccList = ( i for i in range(0,32) if i not in (ord("\n"), ord("\t"),) )
+    return escape_cdata_custom_chars(text, ccList)
+
+def unescape_cdata_control_chars(text):
+    """ un-escape control characters
+    """
+    ccList = ( i for i in range(0,32) if i not in (ord("\n"), ord("\t"),) )
+    return unescape_cdata_custom_chars(text, ccList)
 
 def CDATA(text=None):
     """
