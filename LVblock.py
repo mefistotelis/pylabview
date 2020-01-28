@@ -883,6 +883,7 @@ class CONP(Block):
 class CPC2(CONP):
     """ Connector Port C2
 
+    Maybe Checksum Password Connector 2 ?
     Contains list of types. For VIs, with exactly one
     type inside; for LLBs it stores more.
     In LV7.1 the block is CPCT.
@@ -1199,7 +1200,9 @@ class HIST(Block):
 
 
 class TM80(Block):
-    """ Data Space Type Map
+    """ Data Space Type Map 8.0+
+
+        Used for LV 8.0 and newer.
     """
     def __init__(self, *args):
         super().__init__(*args)
@@ -1207,6 +1210,8 @@ class TM80(Block):
 
     def createSection(self):
         section = super().createSection()
+        section.content = []
+        section.indexShift = 0
         return section
 
     def initWithRSRCLate(self):
@@ -1216,6 +1221,17 @@ class TM80(Block):
             self.defaultBlockCoding = BLOCK_CODING.ZLIB
         super().initWithRSRCLate()
         pass
+
+    def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+
+        section.content = []
+        count = readVariableSizeFieldU2p2(bldata)
+        if count > 0:
+            section.indexShift = readVariableSizeFieldU2p2(bldata)
+        for i in range(count):
+            val = readVariableSizeFieldU2p2(bldata)
+            section.content.append(val)
 
     def initWithXMLLate(self):
         ver = self.vi.getFileVersion()
@@ -1241,6 +1257,22 @@ class TM80(Block):
         if use_coding is None:
             use_coding = self.defaultBlockCoding
         super().setData(data_buf, section_num=section_num, use_coding=use_coding)
+
+    def DISAexportXMLSection(self, section_elem, snum, section, fname_base):
+        self.parseData(section_num=snum)
+
+        section_elem.set("IndexShift", "{:d}".format(section.indexShift))
+        section_elem.text = "\n"
+
+        for i, client in enumerate(self.content):
+            subelem = ET.SubElement(section_elem,"Client")
+            subelem.tail = "\n"
+
+            subelem.set("Index", "{:d}".format(i))
+            subelem.set("ConnectorIndex", str(client))
+            #subelem.set("Flags", "0x{:04X}".format(client.flags))
+
+        section_elem.set("Format", "inline")
 
 
 class LIvi(Block):
@@ -1273,6 +1305,9 @@ class LVSR(Block):
         section.field08 = 0
         section.field0C = 0
         section.flags10 = 0
+        # flags10 & 0x0100 -> read DSTM block
+        # flags10 & 0x0200 -> read VICD block
+        # flags10 & 0x0400 -> read DsEL block
         section.field12 = 0
         section.buttonsHidden = 0
         section.frontpFlags = 0
@@ -2740,7 +2775,7 @@ class VCTP(Block):
 
 
 class VICD(Block):
-    """ Virtual Instrument Compiled Data
+    """ Virtual Instrument Compiled Data / VI Code
     """
     def createSection(self):
         section = super().createSection()
