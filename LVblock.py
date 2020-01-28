@@ -1210,8 +1210,8 @@ class TM80(Block):
 
     def createSection(self):
         section = super().createSection()
-        section.content = []
         section.indexShift = 0
+        section.content = []
         return section
 
     def initWithRSRCLate(self):
@@ -1241,11 +1241,53 @@ class TM80(Block):
             for snum in self.sections:
                 # Force-encode any already stored data; otherwise we would run
                 # into decompression error when trying to get the data
+                if not self.hasRawData(section_num=snum):
+                    continue
                 coded_data = self.getRawData(section_num=snum)
                 if coded_data is not None:
                     self.setData(coded_data, section_num=snum)
         super().initWithXMLLate()
         pass
+
+    def initWithXMLSection(self, section, section_elem):
+        snum = section.start.section_idx
+        fmt = section_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            section.content = []
+            section.indexShift = int(section_elem.get("IndexShift"), 0)
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.ident,snum))
+            self.clients = []
+            for subelem in section_elem:
+                if (subelem.tag == "Client"):
+                    i = int(subelem.get("Index"), 0)
+                    val = int(subelem.get("Flags"), 0)
+                    # Grow the list if needed (the labels may be in wrong order)
+                    if i >= len(self.content):
+                        self.content.extend([None] * (i - len(self.content) + 1))
+                    self.content[i] = val
+                else:
+                    raise AttributeError("Section contains unexpected tag")
+        else:
+            Block.initWithXMLSection(self, section, section_elem)
+        pass
+
+    def updateSectionData(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+
+        data_buf = prepareVariableSizeFieldU2p2(len(section.content))
+        data_buf += prepareVariableSizeFieldU2p2(section.indexShift)
+        for val in section.content:
+            data_buf += prepareVariableSizeFieldU2p2(val)
+
+        if (len(data_buf) < 2 + 2*len(section.content)):
+            raise RuntimeError("Block {} section {} generated binary data of invalid size"\
+              .format(self.ident,section_num))
+
+        self.setData(data_buf, section_num=section_num)
 
     def getData(self, section_num=None, use_coding=None):
         if use_coding is None:
@@ -1258,19 +1300,18 @@ class TM80(Block):
             use_coding = self.defaultBlockCoding
         super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
-    def DISAexportXMLSection(self, section_elem, snum, section, fname_base):
+    def exportXMLSection(self, section_elem, snum, section, fname_base):
         self.parseData(section_num=snum)
 
         section_elem.set("IndexShift", "{:d}".format(section.indexShift))
         section_elem.text = "\n"
 
-        for i, client in enumerate(self.content):
+        for i, val in enumerate(self.content):
             subelem = ET.SubElement(section_elem,"Client")
             subelem.tail = "\n"
 
             subelem.set("Index", "{:d}".format(i))
-            subelem.set("ConnectorIndex", str(client))
-            #subelem.set("Flags", "0x{:04X}".format(client.flags))
+            subelem.set("Flags", "0x{:04X}".format(val))
 
         section_elem.set("Format", "inline")
 
