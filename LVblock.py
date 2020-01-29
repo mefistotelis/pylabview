@@ -1212,6 +1212,8 @@ class TM80(Block):
         section = super().createSection()
         section.indexShift = 0
         section.content = []
+        # flag 0x0004 -> IsFPDCOOpData
+        # flag 0x0010 -> IsChartHist
         return section
 
     def initWithRSRCLate(self):
@@ -2642,7 +2644,7 @@ class VCTP(Block):
     def createSection(self):
         section = super().createSection()
         section.content = []
-        section.unflatten = []
+        section.topLevel = []
         return section
 
     def parseRSRCConnector(self, section_num, bldata, pos):
@@ -2674,11 +2676,11 @@ class VCTP(Block):
             obj_idx, obj_len = self.parseRSRCConnector(section_num, bldata, pos)
             pos += obj_len
         # After that,there is a list
-        section.unflatten = []
+        section.topLevel = []
         count = readVariableSizeFieldU2p2(bldata)
         for i in range(count):
             val = readVariableSizeFieldU2p2(bldata)
-            section.unflatten.append(val)
+            section.topLevel.append(val)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
         bldata = super().getData(section_num=section_num, use_coding=use_coding)
@@ -2692,7 +2694,7 @@ class VCTP(Block):
         fmt = section_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             section.content = []
-            section.unflatten = []
+            section.topLevel = []
             if (self.po.verbose > 2):
                 print("{:s}: For Block {} section {:d}, reading inline XML data"\
                   .format(self.vi.src_fname,self.ident,snum))
@@ -2708,8 +2710,17 @@ class VCTP(Block):
                     section.content[obj_idx] = obj
                     # Set connector data based on XML properties
                     obj.initWithXML(subelem)
-                elif (subelem.tag == "UnFlatten"):
-                    section.unflatten += [int(itm,0) for itm in subelem.text.split()]
+                elif (subelem.tag == "TopLevel"):
+                    for subtlelem in subelem:
+                        if (subtlelem.tag == "Client"):
+                            i = int(subtlelem.get("Index"), 0)
+                            val = int(subtlelem.get("ConnectorIndex"), 0)
+                            # Grow the list if needed (the labels may be in wrong order)
+                            if i >= len(self.topLevel):
+                                self.topLevel.extend([None] * (i - len(self.topLevel) + 1))
+                            self.topLevel[i] = val
+                        else:
+                            raise AttributeError("TopLevel within Section contains unexpected tag")
                 else:
                     raise AttributeError("Section contains unexpected tag")
         else:
@@ -2730,8 +2741,8 @@ class VCTP(Block):
             bldata = connobj.getData()
             data_buf += bldata.read()
 
-        data_buf += int(len(section.unflatten)).to_bytes(2, byteorder='big')
-        for i, val in enumerate(section.unflatten):
+        data_buf += int(len(section.topLevel)).to_bytes(2, byteorder='big')
+        for i, val in enumerate(section.topLevel):
             data_buf += int(val).to_bytes(2, byteorder='big')
 
         if (len(data_buf) < 4 + 4*len(section.content)):
@@ -2759,14 +2770,16 @@ class VCTP(Block):
                 ConnectorObject.exportXML(connobj, subelem, fname_base)
                 ConnectorObject.exportXMLFinish(connobj, subelem)
 
-        subelem = ET.SubElement(section_elem,"UnFlatten")
-        subelem.tail = "\n"
+        toplstelem = ET.SubElement(section_elem,"TopLevel")
+        toplstelem.text = "\n"
+        toplstelem.tail = "\n"
 
-        strlist = ""
-        for i, val in enumerate(section.unflatten):
-            if i % 16 == 0: strlist += "\n"
-            strlist += " {:3d}".format(val)
-        subelem.text = strlist
+        for i, val in enumerate(self.topLevel):
+            subelem = ET.SubElement(toplstelem,"Client")
+            subelem.tail = "\n"
+
+            subelem.set("Index", "{:d}".format(i))
+            subelem.set("ConnectorIndex", "{:d}".format(val))
 
         section_elem.set("Format", "inline")
 
@@ -2789,10 +2802,10 @@ class VCTP(Block):
         for connobj in section.content:
             if not connobj.checkSanity():
                 ret = False
-        for i, val in enumerate(section.unflatten):
+        for i, val in enumerate(section.topLevel):
             if val >= len(section.content):
                 if (self.po.verbose > 1):
-                    eprint("{:s}: Warning: Unflatten index {:d} exceeds connectors count {:d}"\
+                    eprint("{:s}: Warning: TopLevel index {:d} exceeds connectors count {:d}"\
                       .format(self.vi.src_fname,i,len(section.content)))
                 ret = False
         return ret
