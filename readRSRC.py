@@ -54,6 +54,10 @@ def main():
             help="extract all connectors into raw binary files instead of pure XML" \
             " (works only with --extract command)")
 
+    parser.add_argument('--keep-names', action='store_true',
+            help="extract files to names indicated by RSRC content" \
+            " (works with --extract and --dump commands; useful for LLBs)")
+
     subparser = parser.add_mutually_exclusive_group(required=True)
 
     subparser.add_argument('-l', '--list', action='store_true',

@@ -632,13 +632,36 @@ class Block(object):
         section_elem.set("Format", "bin")
         section_elem.set("File", os.path.basename(block_fname))
 
+    def exportFilesBase(self, snum, section):
+        """ Prepare a base for file names of any files created by data export
+        """
+        pretty_ident = getPrettyStrFromRsrcType(self.ident)
+        block_fpath = os.path.dirname(self.po.xml)
+
+        if self.po.keep_names and section.name_text is not None and len(section.name_text) > 1:
+            fname_base = section.name_text.decode(self.vi.textEncoding, errors="ignore")
+            fname_base = os.path.splitext(fname_base)[0]
+        else:
+            fname_base = self.po.filebase
+
+        if len(self.sections) == 1:
+            fname_base = "{:s}_{:s}".format(fname_base, pretty_ident)
+        else:
+            if snum >= 0:
+                snum_str = str(snum)
+            else:
+                snum_str = 'm' + str(-snum)
+            fname_base = "{:s}_{:s}{:s}".format(fname_base, pretty_ident, snum_str)
+        if len(block_fpath) > 0:
+            fname_base = block_fpath + '/' + fname_base
+        return fname_base
+
     def exportXMLTree(self, simple_bin=False):
         """ Export the block properties into XML tree
 
         All sections are exported by this method.
         """
         pretty_ident = getPrettyStrFromRsrcType(self.ident)
-        block_fpath = os.path.dirname(self.po.xml)
 
         elem = ET.Element(pretty_ident)
         if len(self.full_name) > 0:
@@ -663,17 +686,7 @@ class Block(object):
             if block_int5 is not None:
                 section_elem.set("Int5", "0x{:08X}".format(block_int5))
 
-            # Prepare a base for file names of any files created by the export
-            if len(self.sections) == 1:
-                fname_base = "{:s}_{:s}".format(self.po.filebase, pretty_ident)
-            else:
-                if snum >= 0:
-                    snum_str = str(snum)
-                else:
-                    snum_str = 'm' + str(-snum)
-                fname_base = "{:s}_{:s}{:s}".format(self.po.filebase, pretty_ident, snum_str)
-            if len(block_fpath) > 0:
-                fname_base = block_fpath + '/' + fname_base
+            fname_base = self.exportFilesBase(snum, section)
 
             if not simple_bin:
                 # The rest of the data may be set by a block-specific (overloaded) method
@@ -2714,6 +2727,74 @@ class FPHc(HeapVerc):
     structures. They use a kind of "xml-tags" to open and close objects.
     """
     pass
+
+
+class UCRF(Block):
+    """ UCR Files
+
+        Keeps content of files within LLB library.
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
+        return bldata
+
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
+
+    def exportXMLSection(self, section_elem, snum, section, fname_base):
+        fext = "bin"
+        if self.po.keep_names:
+            fname_split = os.path.splitext(section.name_text.decode(self.vi.textEncoding, errors="ignore"))
+            if len(fname_split) >= 2:
+                fext = fname_split[1][1:]
+        block_fname = "{:s}.{:s}".format(fname_base,fext)
+        bldata = self.getData(section_num=snum)
+        with open(block_fname, "wb") as block_fd:
+            block_fd.write(bldata.read())
+
+        section_elem.set("Format", "bin")
+        section_elem.set("File", os.path.basename(block_fname))
+
+    def exportFilesBase(self, snum, section):
+        block_fpath = os.path.dirname(self.po.xml)
+
+        if self.po.keep_names and section.name_text is not None and len(section.name_text) > 1:
+            fname_base = section.name_text.decode(self.vi.textEncoding, errors="ignore")
+            fname_split = os.path.splitext(fname_base)
+            fname_base = fname_split[0]
+        else:
+            fname_base = self.po.filebase
+
+        if self.po.keep_names:
+            all_section_names = [ sect.name_text for sect in self.sections.values() ]
+            if all_section_names.count(section.name_text) == 1:
+                fname_base = "{:s}".format(fname_base)
+            else:
+                if snum >= 0:
+                    snum_str = str(snum)
+                else:
+                    snum_str = 'm' + str(-snum)
+                fname_base = "{:s}_{:s}".format(fname_base, snum_str)
+        else:
+            pretty_ident = getPrettyStrFromRsrcType(self.ident)
+            if len(self.sections) == 1:
+                fname_base = "{:s}_{:s}".format(fname_base, pretty_ident)
+            else:
+                if snum >= 0:
+                    snum_str = str(snum)
+                else:
+                    snum_str = 'm' + str(-snum)
+                fname_base = "{:s}_{:s}{:s}".format(fname_base, pretty_ident, snum_str)
+
+        if len(block_fpath) > 0:
+            fname_base = block_fpath + '/' + fname_base
+        return fname_base
+
+        block_fpath = os.path.dirname(self.po.xml)
 
 
 class VCTP(Block):
