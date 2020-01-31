@@ -680,7 +680,9 @@ class Block(object):
                 self.exportXMLSection(section_elem, snum, section, fname_base)
             else:
                 # Call base function, not the overloaded version for specific block
-                super().exportXMLSection(section_elem, snum, section, fname_base)
+                # And _really_ use the base Block, not super() - that doesn't guarantee
+                # we get raw form, plus Block itself doesn't have this in superclass.
+                Block.exportXMLSection(self, section_elem, snum, section, fname_base)
 
         return elem
 
