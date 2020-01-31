@@ -877,7 +877,74 @@ class CONP(Block):
     """
     def createSection(self):
         section = super().createSection()
+        section.value = None
         return section
+
+    def isSingleTDIndex(self):
+        return self.vi.ftype != LVrsrcontainer.FILE_FMT_TYPE.LLB
+
+    def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+
+        if self.isSingleTDIndex():
+            section.value = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        else:
+            #TODO currently we do not know how to parse complex form of CONP block
+            super().parseRSRCData(section_num, bldata)
+        pass
+
+    def updateSectionData(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+
+        if self.isSingleTDIndex():
+            data_buf = int(section.value).to_bytes(2, byteorder='big', signed=False)
+
+            if (len(data_buf) != 2):
+                raise RuntimeError("Block {} section {} generated binary data of invalid size"\
+                  .format(self.ident,section_num))
+        else:
+            #TODO currently we do not know how to parse complex form of CONP block
+            super().updateSectionData(section_num)
+            return
+
+        self.setData(data_buf, section_num=section_num)
+
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
+        return bldata
+
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
+
+    def initWithXMLSection(self, section, section_elem):
+        snum = section.start.section_idx
+        fmt = section_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.ident,snum))
+            section.value = int(section_elem.get("Value"), 0)
+        else:
+            Block.initWithXMLSection(self, section, section_elem)
+        pass
+
+    def exportXMLSection(self, section_elem, snum, section, fname_base):
+        self.parseData(section_num=snum)
+
+        if self.isSingleTDIndex():
+            section_elem.set("Value", "{:d}".format(section.value))
+        else:
+            #TODO currently we do not know how to parse complex form of CONP block
+            super().exportXMLSection(section_elem, snum, section, fname_base)
+            return
+
+        section_elem.set("Format", "inline")
+
+    def getValue(self):
+        self.parseData()
+        return self.value
 
 
 class CPC2(CONP):
