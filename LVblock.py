@@ -2635,6 +2635,23 @@ class HeapVerc(Block):
         section = self.sections[section_num]
 
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        container_start = bldata.tell()
+
+        bldata.seek(content_len)
+        data_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+        data_start = content_len - data_len
+        container_len = content_len - data_len - container_start
+
+        #raw_subdata = bldata.read(data_len)
+        #blsubdata = BytesIO(raw_subdata)
+        #bldata.seek(container_start)
+
+        section.objects = []
+        #TODO parse heap data
+
+        # Read the raw data
+        bldata.seek(container_start)
         section.content = bldata.read(content_len)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
