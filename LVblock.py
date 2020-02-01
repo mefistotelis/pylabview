@@ -645,6 +645,11 @@ class Block(object):
             fname_base = os.path.splitext(fname_base)[0]
         else:
             fname_base = self.po.filebase
+        # Every OS has a set of characters which are not valid for use in file names
+        fname_base = re.sub('[\\/\r\n*?:<>|\0]+', '-', fname_base)
+        if len(fname_base) > 0:
+            if fname_base[0] == '-': fname_base = 'm' + fname_base[1:]
+            elif fname_base[0] == '+': fname_base = 'p' + fname_base[1:]
 
         if len(self.sections) == 1:
             fname_base = "{:s}_{:s}".format(fname_base, pretty_ident)
@@ -2754,11 +2759,16 @@ class UCRF(Block):
         super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
     def exportXMLSection(self, section_elem, snum, section, fname_base):
-        fext = "bin"
+        fext = "rsrc"
         if self.po.keep_names:
             fname_split = os.path.splitext(section.name_text.decode(self.vi.textEncoding, errors="ignore"))
+            fext_try = ""
             if len(fname_split) >= 2:
-                fext = fname_split[1][1:]
+                fext_try = fname_split[1][1:]
+                fext_try = re.sub('[\\/\r\n*:<>|\0]+', '-', fext_try)
+                fext_try = fext_try.strip('.- ')
+            if len(fext_try) > 0:
+                fext = fext_try
         block_fname = "{:s}.{:s}".format(fname_base,fext)
         bldata = self.getData(section_num=snum)
         with open(block_fname, "wb") as block_fd:
@@ -2778,6 +2788,11 @@ class UCRF(Block):
             fname_base = fname_split[0]
         else:
             fname_base = self.po.filebase
+        # Every OS has a set of characters which are not valid for use in file names
+        fname_base = re.sub('[\\/\r\n*?:<>|\0]+', '-', fname_base)
+        if len(fname_base) > 0:
+            if fname_base[0] == '-': fname_base = 'm' + fname_base[1:]
+            elif fname_base[0] == '+': fname_base = 'p' + fname_base[1:]
 
         if self.po.keep_names:
             all_section_names = [ sect.name_text for sect in self.sections.values() ]
