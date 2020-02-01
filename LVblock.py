@@ -626,6 +626,8 @@ class Block(object):
         """
         block_fname = "{:s}.{:s}".format(fname_base,"bin")
         bldata = self.getData(section_num=snum)
+        if (self.po.verbose > 1):
+            print("{}: Writing block {} section {} to '{}'".format(self.vi.src_fname,self.ident,snum,block_fname))
         with open(block_fname, "wb") as block_fd:
             block_fd.write(bldata.read())
 
@@ -1719,6 +1721,8 @@ class LVSR(Block):
             subelem.tail = "\n"
 
             part_fname = "{:s}_{:s}.{:s}".format(fname_base,subelem.tag,"bin")
+            if (self.po.verbose > 1):
+                print("{}: Writing block {} section {} part to '{}'".format(self.vi.src_fname,self.ident,snum,part_fname))
             with open(part_fname, "wb") as part_fd:
                 part_fd.write(section.field90)
             subelem.set("Format", "bin")
@@ -1944,6 +1948,8 @@ class ICON(Block):
 
         self.parseData(section_num=snum)
         with open(block_fname, "wb") as block_fd:
+            if (self.po.verbose > 1):
+                print("{}: Writing block {} section {} image to '{}'".format(self.vi.src_fname,self.ident,snum,block_fname))
             section.icon.save(block_fd, format="PNG")
 
         section_elem.set("Format", "png")
@@ -2614,6 +2620,8 @@ class HeapVerb(Block):
             print("{}: Writing XML for block {}".format(self.vi.src_fname, self.ident))
         tree = ET.ElementTree(root)
         with open(block_fname, "wb") as block_fd:
+            if (self.po.verbose > 1):
+                print("{}: Writing block {} section {} xml to '{}'".format(self.vi.src_fname,self.ident,snum,block_fname))
             tree.write(block_fd, encoding='utf-8', xml_declaration=True)
 
         section_elem.set("Format", "xml")
@@ -2754,6 +2762,8 @@ class UCRF(Block):
         block_fname = "{:s}.{:s}".format(fname_base,fext)
         bldata = self.getData(section_num=snum)
         with open(block_fname, "wb") as block_fd:
+            if (self.po.verbose > 1):
+                print("{}: Writing block {} section {} to '{}'".format(self.vi.src_fname,self.ident,snum,block_fname))
             block_fd.write(bldata.read())
 
         section_elem.set("Format", "bin")
