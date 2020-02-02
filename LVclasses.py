@@ -67,6 +67,64 @@ class LVObject:
         """
         pass
 
+
+class LVPath0(LVObject):
+    """ Path object, sometimes used instead of simple file name
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.content = []
+        self.ident = b''
+
+    def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
+        totlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.content = []
+        for i in range(count):
+            text_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            text_val = bldata.read(text_len)
+            self.content.append(text_val)
+        ctlen = 4 + sum(1+len(text_val) for text_val in self.content)
+        if ctlen != totlen:
+            eprint("{:s}: Warning: LVPath0 has unexpected size, {} != {}"\
+              .format(self.vi.src_fname, ctlen, totlen))
+        pass
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = bytes(self.ident)
+        totlen = 4 + sum(1+len(text_val) for text_val in self.content)
+        data_buf += int(totlen).to_bytes(4, byteorder='big')
+        data_buf += len(self.content).to_bytes(4, byteorder='big')
+        for text_val in self.content:
+            data_buf += len(text_val).to_bytes(1, byteorder='big')
+            data_buf += bytes(text_val)
+        return data_buf
+
+    def initWithXML(self, obj_elem):
+        self.content = []
+        self.ident = getRsrcTypeFromPrettyStr(obj_elem.get("Ident"))
+        for i, subelem in enumerate(obj_elem):
+            if (subelem.tag == "String"):
+                if subelem.text is not None:
+                    self.content.append(subelem.text.encode(self.vi.textEncoding))
+                else:
+                    self.content.append(b'')
+            else:
+                raise AttributeError("LVPath0 subtree contains unexpected tag")
+        pass
+
+    def exportXML(self, obj_elem, fname_base):
+        obj_elem.set("Ident",  getPrettyStrFromRsrcType(self.ident))
+        for text_val in self.content:
+            subelem = ET.SubElement(obj_elem,"String")
+            subelem.tail = "\n"
+
+            pretty_string = text_val.decode(self.vi.textEncoding)
+            subelem.text = pretty_string
+        pass
+
+
 class LVVariant(LVObject):
     """ Object with variant type data
     """
