@@ -216,8 +216,8 @@ class RefnumBase_RC(RefnumBase):
         ver = self.vi.getFileVersion()
         self.parseRSRCTypeOMId(bldata)
         # The next thing to read here is LVVariant
-        if isGreaterOrEqVersion(ver, 8,5) and \
-          (isSmallerVersion(ver, 8,5,2) or isGreaterOrEqVersion(ver, 8,6,0)):
+        if isGreaterOrEqVersion(ver, 8,5,0,4) and \
+          (isSmallerVersion(ver, 8,5,1,1) or isGreaterOrEqVersion(ver, 8,6,0,1)):
             obj = LVclasses.LVVariant(len(self.conn_obj.objects), self.vi, self.po)
             self.conn_obj.objects.append(obj)
             obj.parseRSRCData(bldata)
@@ -266,7 +266,8 @@ class RefnumBase_RCIOOMId(RefnumBase_RC):
         if ((strlen+1) % 2) > 0:
             bldata.read(1) # Padding byte
         # This value should be either 0 or 1
-        if isGreaterOrEqVersion(ver, 8,5):
+        if isGreaterOrEqVersion(ver, 8,2,0,4) and \
+          (isSmallerVersion(ver, 8,2,1,1) or isGreaterOrEqVersion(ver, 8,5,0,1)):
             firstclient = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         else:
             firstclient = 0
@@ -619,24 +620,21 @@ class RefnumIVIRef(RefnumBase_RCIOOMId):
 
     def parseRSRCTypeOMId(self, bldata):
         self.parseRSRCTypeOMIdStart(bldata)
-        if self.conn_obj.firstclient != 0:
-            cli_count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            for i in range(cli_count):
-                client = SimpleNamespace()
-                client.index = readVariableSizeFieldU2p2(bldata)
-                client.flags = 0
-                self.conn_obj.clients.append(client)
+        ver = self.vi.getFileVersion()
+
+        cli_count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        for i in range(cli_count):
+            client = SimpleNamespace()
+            client.index = readVariableSizeFieldU2p2(bldata)
+            client.flags = 0
+            self.conn_obj.clients.append(client)
         pass
 
     def prepareRSRCTypeOMId(self, avoid_recompute=False):
         data_buf, ref_clients, firstclient = self.prepareRSRCTypeOMIdStart(avoid_recompute=avoid_recompute)
-        if firstclient != 0:
-            data_buf += int(len(ref_clients)).to_bytes(2, byteorder='big')
-            for cli_index in ref_clients:
-                data_buf += int(cli_index).to_bytes(2, byteorder='big')
-        elif len(ref_clients) > 0:
-            eprint("{:s}: Warning: Connector {:d} type 0x{:02x} has more clients than supported"\
-              .format(self.vi.src_fname, self.conn_obj.index, self.conn_obj.otype))
+        data_buf += int(len(ref_clients)).to_bytes(2, byteorder='big')
+        for cli_index in ref_clients:
+            data_buf += int(cli_index).to_bytes(2, byteorder='big')
         return data_buf
 
 
