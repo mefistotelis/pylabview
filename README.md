@@ -21,14 +21,25 @@ in each of them.
 To get specifics about command line arguments of each tool, run them with `--help`
 option. Some tools also have additional remarks in their headers - try viewing them.
 
+# Supported versions
+
+The tools were tested on all standard VIs from LabVIEW 2014 and LabVIEW 6.0.
+These standard VIs included a variety of versions, ie LV14 contains some VIs
+created in previous versions down to LabVIEW 8.6.
+
+But the actual development was made with LabVIEW 2014 in mind. Other versions may get
+less resources converted to XML, or may require some tweaks to work.
+
 # Verification
 
 If you want to verify whrther your specific file will be handled correctly by the tool, try:
 - extracting it to XML
 - re-creating it from the XML
-- checking whether oroginal and re-created file are binary identical, or load with all features in LabView
+- checking whether oroginal and re-created file are binary identical, or load with all features in LabVIEW
 
-Note that many LLB files created by the tool will not be binary identical to the originals; this is because some items in these files are not ordered, and the order depends on specific timing between threads while the file was saved.
+Note that many LLB files created by the tool will not be binary identical to
+the originals; this is because some items in these files are not ordered, and
+the order depends on specific timing between threads while the file was saved.
 
 A few example files are included in the project.
 
