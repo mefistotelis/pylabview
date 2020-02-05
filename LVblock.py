@@ -3201,3 +3201,38 @@ class VICD(Block):
 
     def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
         super().setData(data_buf, section_num=section_num, use_coding=use_coding)
+
+class VITS(Block):
+    """ Virtual Instrument Tag Strings
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.content = []
+        return section
+
+    def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+
+        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        section.content = []
+        for i in range(count):
+            break # TODO continue parsing
+            value = SimpleNamespace()
+            name_text_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            if name_text_len > 0x200000:
+                raise RuntimeError("Block {} section {} contains tag {} of name length {:d} which exceeds limit"\
+                  .format(self.ident,section_num,i,name_text_len))
+            value.name_text = bldata.read(name_text_len)
+            # TODO finish parsing - read LVVariant etc.
+            section.content.append(value)
+        # TODO remove message after parsing done
+        if (self.po.verbose > 2):
+            print("{:s}: Block {} data format is not fully known; leaving raw only".format(self.vi.src_fname,self.ident))
+        pass
+
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
+        return bldata
+
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
