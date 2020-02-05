@@ -25,6 +25,7 @@ from LVmisc import *
 import LVxml as ET
 from LVconnector import *
 from LVinstrument import *
+import LVclasses
 import LVheap
 import LVrsrcontainer
 
@@ -3223,7 +3224,9 @@ class VITS(Block):
                 raise RuntimeError("Block {} section {} contains tag {} of name length {:d} which exceeds limit"\
                   .format(self.ident,section_num,i,name_text_len))
             value.name_text = bldata.read(name_text_len)
-            # TODO finish parsing - read LVVariant etc.
+            value.obj = LVclasses.LVVariant(0, self.vi, self.po)
+            value.obj.parseRSRCData(bldata)
+            # TODO finish parsing
             section.content.append(value)
         # TODO remove message after parsing done
         if (self.po.verbose > 2):
