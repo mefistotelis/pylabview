@@ -1383,9 +1383,9 @@ class DTHP(Block):
                     i = int(subelem.get("Index"), 0)
                     val = int(subelem.get("Flags"), 0)
                     # Grow the list if needed (the labels may be in wrong order)
-                    if i >= len(self.content):
-                        self.content.extend([None] * (i - len(self.content) + 1))
-                    self.content[i] = val
+                    if i >= len(section.content):
+                        section.content.extend([None] * (i - len(section.content) + 1))
+                    section.content[i] = val
                 else:
                     raise AttributeError("Section contains unexpected tag")
         else:
@@ -1432,7 +1432,7 @@ class DTHP(Block):
             section_elem.set("IndexShift", "{:d}".format(section.indexShift))
             section_elem.text = "\n"
 
-            for i, val in enumerate(self.content):
+            for i, val in enumerate(section.content):
                 subelem = ET.SubElement(section_elem,"Client")
                 subelem.tail = "\n"
 
@@ -1514,9 +1514,9 @@ class TM80(Block):
                     i = int(subelem.get("Index"), 0)
                     val = int(subelem.get("Flags"), 0)
                     # Grow the list if needed (the labels may be in wrong order)
-                    if i >= len(self.content):
-                        self.content.extend([None] * (i - len(self.content) + 1))
-                    self.content[i] = val
+                    if i >= len(section.content):
+                        section.content.extend([None] * (i - len(section.content) + 1))
+                    section.content[i] = val
                 else:
                     raise AttributeError("Section contains unexpected tag")
         else:
@@ -1556,7 +1556,7 @@ class TM80(Block):
         section_elem.set("IndexShift", "{:d}".format(section.indexShift))
         section_elem.text = "\n"
 
-        for i, val in enumerate(self.content):
+        for i, val in enumerate(section.content):
             subelem = ET.SubElement(section_elem,"Client")
             subelem.tail = "\n"
 
@@ -1565,6 +1565,23 @@ class TM80(Block):
 
         section_elem.set("Format", "inline")
 
+    def getTypeMap(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        self.parseData(section_num=section_num)
+        section = self.sections[section_num]
+
+        VCTP = self.vi.get_or_raise('VCTP')
+
+        typeMap = []
+        for i, val in enumerate(section.content):
+            tmItm = SimpleNamespace()
+            tmItm.index = section.indexShift + i
+            tmItm.flags = val
+            tmItm.td = VCTP.getTopType(tmItm.index)
+            typeMap.append(tmItm)
+
+        return typeMap
 
 class LIvi(Block):
     """ Link Information of vi
@@ -2300,7 +2317,8 @@ class BDPW(Block):
             section.salt_iface_idx = salt_iface_idx
 
             if salt_iface_idx is not None:
-                term_connectors = VCTP.getClientConnectorsByType(VCTP.content[salt_iface_idx])
+                salt_iface = VCTP.getFlatType(salt_iface_idx)
+                term_connectors = VCTP.getClientConnectorsByType(salt_iface)
                 salt = BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
             else:
                 # For LV14, this should only be used for a low percentage of VIs which have the salt zeroed out
@@ -2332,8 +2350,8 @@ class BDPW(Block):
         if section.salt_iface_idx is not None:
             # If we've previously found an interface on which the salt is based, use that interface
             VCTP = self.vi.get_or_raise('VCTP')
-            VCTP_content = VCTP.getContent()
-            term_connectors = VCTP.getClientConnectorsByType(VCTP_content[section.salt_iface_idx])
+            salt_iface = VCTP.getFlatType(section.salt_iface_idx)
+            term_connectors = VCTP.getClientConnectorsByType(salt_iface)
             salt = BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
         elif section.salt is not None:
             # If we've previously brute-forced the salt, use that same salt
@@ -2528,9 +2546,12 @@ class LIBN(Block):
 
         section_elem.set("Format", "inline")
 
-    def getContent(self):
-        self.parseData()
-        return self.content
+    def getContent(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        self.parseData(section_num=section_num)
+        section = self.sections[section_num]
+        return section.content
 
 
 class LVzp(Block):
@@ -3171,9 +3192,12 @@ class VCTP(Block):
                 ret = False
         return ret
 
-    def getContent(self):
-        self.parseData()
-        return self.content
+    def getContent(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        self.parseData(section_num=section_num)
+        section = self.sections[section_num]
+        return section.content
 
     def getClientConnectorsByType(self, conn_obj):
         self.parseData() # Make sure the block is parsed
@@ -3187,6 +3211,29 @@ class VCTP(Block):
               'compound',len(type_list['compound']),\
               'other',len(type_list['other'])))
         return type_list
+
+    def getFlatType(self, flatIdx, section_num=None):
+        """ Retrieves type of given flat list index
+
+        It is better to call types by their top index - this is how mosts
+        functions are doing. But when we need a type from the underlying
+        flat list, this is the function to use.
+        """
+        if section_num is None:
+            section_num = self.active_section_num
+        self.parseData(section_num=section_num)
+        section = self.sections[section_num]
+        return section.content[flatIdx]
+
+    def getTopType(self, idx, section_num=None):
+        """ Retrieves top type of given index
+        """
+        if section_num is None:
+            section_num = self.active_section_num
+        self.parseData(section_num=section_num)
+        section = self.sections[section_num]
+        flatIdx = section.topLevel[idx]
+        return section.content[flatIdx]
 
 
 class VICD(Block):
