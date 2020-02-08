@@ -280,8 +280,10 @@ def readVariableSizeFieldS24(bldata):
 
 def prepareVariableSizeFieldS24(val):
     """ Prepares data for VI field which is either 16-bit or 16+32-bit signed int, depending on value
+
+    LV14: For some reason, the value of 0x7FFF is treated as too large even though it isn't. Not sure if this impacts all LV versions.
     """
-    if val > 0x7FFF or val < -0x8000:
+    if val >= 0x7FFF or val < -0x8000:
         return int(-0x8000).to_bytes(2, byteorder='big', signed=True) + int(val).to_bytes(4, byteorder='big', signed=True)
     else:
         return int(val).to_bytes(2, byteorder='big', signed=True)
