@@ -1355,6 +1355,11 @@ class DTHP(Block):
             count = 1 # This is a connectors list, but with constant count of 1
             if count > 0:
                 section.indexShift = readVariableSizeFieldU2p2(bldata)
+            # If there is no type provided, then there are no flags
+            # LV14 writes it like this; though it doesn't support this while reading
+            # it reads the non existing flags anyway, which really reads padding
+            if section.indexShift == 0:
+                count = 0
             for i in range(count):
                 val = readVariableSizeFieldU2p2(bldata)
                 section.content.append(val)
@@ -1438,6 +1443,11 @@ class DTHP(Block):
 
                 subelem.set("Index", "{:d}".format(i))
                 subelem.set("Flags", "0x{:04X}".format(val))
+
+            if len(section.content) == 0:
+                comment_elem = ET.Comment("List of types is empty")
+                comment_elem.tail = "\n"
+                section_elem.append(comment_elem)
 
             section_elem.set("Format", "inline")
         else:
@@ -1562,6 +1572,11 @@ class TM80(Block):
 
             subelem.set("Index", "{:d}".format(i))
             subelem.set("Flags", "0x{:04X}".format(val))
+
+        if len(section.content) == 0:
+            comment_elem = ET.Comment("List of types is empty")
+            comment_elem.tail = "\n"
+            section_elem.append(comment_elem)
 
         section_elem.set("Format", "inline")
 
