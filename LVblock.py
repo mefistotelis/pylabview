@@ -1282,6 +1282,32 @@ class CPMp(Block):
             value = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
             section.content.append(value)
 
+    def initWithXMLSection(self, section, section_elem):
+        snum = section.start.section_idx
+        fmt = section_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            section.content = []
+            section.field1 = int(section_elem.get("Field1"), 0)
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.ident,snum))
+            for subelem in section_elem:
+                if (subelem.tag == "NameObject"):
+                    pass # Items parsed somewhere else
+                elif (subelem.tag == "Client"):
+                    i = int(subelem.get("Index"), 0)
+                    val = int(subelem.get("ConnectorIndex"), 0)
+                    if val == -1: val = 65535
+                    # Grow the list if needed (the labels may be in wrong order)
+                    if i >= len(section.content):
+                        section.content.extend([None] * (i - len(section.content) + 1))
+                    section.content[i] = val
+                else:
+                    raise AttributeError("Section contains unexpected tag")
+        else:
+            Block.initWithXMLSection(self, section, section_elem)
+        pass
+
     def updateSectionData(self, section_num=None):
         if section_num is None:
             section_num = self.active_section_num
@@ -1304,6 +1330,31 @@ class CPMp(Block):
 
     def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
         super().setData(data_buf, section_num=section_num, use_coding=use_coding)
+
+    def exportXMLSection(self, section_elem, snum, section, fname_base):
+        self.parseData(section_num=snum)
+        ver = self.vi.getFileVersion()
+
+        if True:
+            section_elem.set("Field1", "{:d}".format(section.field1))
+            section_elem.text = "\n"
+
+            for i, val in enumerate(section.content):
+                subelem = ET.SubElement(section_elem,"Client")
+                subelem.tail = "\n"
+
+                subelem.set("Index", "{:d}".format(i))
+                if val == 65535: val = -1
+                subelem.set("ConnectorIndex", "{:d}".format(val))
+
+            if len(section.content) == 0:
+                comment_elem = ET.Comment("List of connectors is empty")
+                comment_elem.tail = "\n"
+                section_elem.append(comment_elem)
+
+            section_elem.set("Format", "inline")
+        else:
+            Block.exportXMLSection(self, section_elem, snum, section, fname_base)
 
 
 class FTAB(Block):
