@@ -511,8 +511,6 @@ class VI():
         """ Creates root of the XML export tree
         """
         elem = ET.Element('RSRC')
-        elem.text = "\n"
-        elem.tail = "\n"
         rsrc_type_id = getRsrcTypeForFileType(self.ftype)
         elem.set("Type", rsrc_type_id.decode('ascii'))
         elem.set("Encoding", self.textEncoding)
@@ -556,6 +554,8 @@ class VI():
                 print("{}: Writing block {}".format(self.src_fname,ident))
             subelem = block.exportXMLTree()
             elem.append(subelem)
+
+        ET.pretty_element_tree_heap(elem)
 
         return elem
 

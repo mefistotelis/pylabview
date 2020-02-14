@@ -118,7 +118,6 @@ class LVPath0(LVObject):
         obj_elem.set("Ident",  getPrettyStrFromRsrcType(self.ident))
         for text_val in self.content:
             subelem = ET.SubElement(obj_elem,"String")
-            subelem.tail = "\n"
 
             pretty_string = text_val.decode(self.vi.textEncoding)
             subelem.text = pretty_string

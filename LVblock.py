@@ -700,14 +700,9 @@ class Block(object):
         elem = ET.Element(pretty_ident)
         if len(self.full_name) > 0:
             comment_elem = ET.Comment(self.full_name)
-            comment_elem.tail = "\n"
             elem.append(comment_elem)
-        else:
-            elem.text = "\n"
-        elem.tail = "\n"
         for snum, section in self.sections.items():
             section_elem = ET.SubElement(elem,"Section")
-            section_elem.tail = "\n"
             section_elem.set("Index", str(snum))
 
             if self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.LLB:
@@ -718,10 +713,7 @@ class Block(object):
             fname_base = self.exportFilesBase(snum, section)
 
             if section.name_obj is not None:
-                section_elem.text = "\n"
                 subelem = ET.SubElement(section_elem,"NameObject")
-                subelem.text = "\n"
-                subelem.tail = "\n"
 
                 section.name_obj.exportXML(subelem, fname_base)
 
@@ -1115,15 +1107,12 @@ class SingleStringBlock(Block):
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         self.parseData(section_num=snum)
 
-        section_elem.text = "\n"
-
         # Store the EOLN used as an attribute
         EOLN_type = section.eoln.replace('\r',"CR").replace('\n',"LF")
         section_elem.set("EOLN", "{:s}".format(EOLN_type))
 
         for line in section.content:
             subelem = ET.SubElement(section_elem,"String")
-            subelem.tail = "\n"
 
             pretty_string = line.decode(self.vi.textEncoding)
             subelem.text = pretty_string
@@ -1483,11 +1472,9 @@ class CPMp(Block):
 
         if True:
             section_elem.set("Field1", "{:d}".format(section.field1))
-            section_elem.text = "\n"
 
             for i, val in enumerate(section.content):
                 subelem = ET.SubElement(section_elem,"Client")
-                subelem.tail = "\n"
 
                 subelem.set("Index", "{:d}".format(i))
                 if val == 65535: val = -1
@@ -1495,7 +1482,6 @@ class CPMp(Block):
 
             if len(section.content) == 0:
                 comment_elem = ET.Comment("List of connectors is empty")
-                comment_elem.tail = "\n"
                 section_elem.append(comment_elem)
 
             section_elem.set("Format", "inline")
@@ -1632,18 +1618,15 @@ class DTHP(Block):
 
         if isGreaterOrEqVersion(ver, 8,0,0,1):
             section_elem.set("IndexShift", "{:d}".format(section.indexShift))
-            section_elem.text = "\n"
 
             for i, val in enumerate(section.content):
                 subelem = ET.SubElement(section_elem,"Client")
-                subelem.tail = "\n"
 
                 subelem.set("Index", "{:d}".format(i))
                 subelem.set("Flags", "0x{:04X}".format(val))
 
             if len(section.content) == 0:
                 comment_elem = ET.Comment("List of types is empty")
-                comment_elem.tail = "\n"
                 section_elem.append(comment_elem)
 
             section_elem.set("Format", "inline")
@@ -1761,18 +1744,15 @@ class TM80(Block):
         self.parseData(section_num=snum)
 
         section_elem.set("IndexShift", "{:d}".format(section.indexShift))
-        section_elem.text = "\n"
 
         for i, val in enumerate(section.content):
             subelem = ET.SubElement(section_elem,"Client")
-            subelem.tail = "\n"
 
             subelem.set("Index", "{:d}".format(i))
             subelem.set("Flags", "0x{:04X}".format(val))
 
         if len(section.content) == 0:
             comment_elem = ET.Comment("List of types is empty")
-            comment_elem.tail = "\n"
             section_elem.append(comment_elem)
 
         section_elem.set("Format", "inline")
@@ -2050,9 +2030,7 @@ class LVSR(Block):
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         self.parseData(section_num=snum)
 
-        section_elem.text = "\n"
         subelem = ET.SubElement(section_elem,"Version")
-        subelem.tail = "\n"
         subelem.set("Major", "{:d}".format(section.version['major']))
         subelem.set("Minor", "{:d}".format(section.version['minor']))
         subelem.set("Bugfix", "{:d}".format(section.version['bugfix']))
@@ -2061,34 +2039,28 @@ class LVSR(Block):
         subelem.set("Flags", "0x{:X}".format(section.version['flags']))
 
         subelem = ET.SubElement(section_elem,"Library")
-        subelem.tail = "\n"
         subelem.set("Protected", "{:d}".format(section.protected))
         subelem.set("PasswordHash", section.libpass_md5.hex())
         subelem.set("HashType", "MD5")
 
         subelem = ET.SubElement(section_elem,"Execution")
-        subelem.tail = "\n"
         subelem.set("State", "{:d}".format(section.execState))
         subelem.set("Priority", "{:d}".format(section.execPrio))
         exportXMLBitfields(VI_EXEC_FLAGS, subelem, section.execFlags, \
           skip_mask=VI_EXEC_FLAGS.LibProtected.value)
 
         subelem = ET.SubElement(section_elem,"ButtonsHidden")
-        subelem.tail = "\n"
         exportXMLBitfields(VI_BTN_HIDE_FLAGS, subelem, section.buttonsHidden)
 
         subelem = ET.SubElement(section_elem,"Instrument")
-        subelem.tail = "\n"
         subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(VI_TYPE, section.viType)))
         subelem.set("Signature", section.viSignature.hex())
         exportXMLBitfields(VI_IN_ST_FLAGS, subelem, section.instrState)
 
         subelem = ET.SubElement(section_elem,"FrontPanel")
-        subelem.tail = "\n"
         exportXMLBitfields(VI_FP_FLAGS, subelem, section.frontpFlags)
 
         subelem = ET.SubElement(section_elem,"Unknown")
-        subelem.tail = "\n"
 
         subelem.set("Field08", "{:d}".format(section.field08))
         subelem.set("Field0C", "{:d}".format(section.field0C))
@@ -2113,7 +2085,6 @@ class LVSR(Block):
 
         if len(section.field90) > 0:
             subelem = ET.SubElement(section_elem,"Field90")
-            subelem.tail = "\n"
 
             part_fname = "{:s}_{:s}.{:s}".format(fname_base,subelem.tag,"bin")
             if (self.po.verbose > 1):
@@ -2213,9 +2184,7 @@ class vers(Block):
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         self.parseData(section_num=snum)
 
-        section_elem.text = "\n"
         subelem = ET.SubElement(section_elem,"Version")
-        subelem.tail = "\n"
 
         subelem.set("Major", "{:d}".format(section.version['major']))
         subelem.set("Minor", "{:d}".format(section.version['minor']))
@@ -2439,9 +2408,7 @@ class BDPW(Block):
         self.recalculateHash1(section_num=snum, store=False) # this is needed to find salt
         self.recognizePassword(section_num=snum)
 
-        section_elem.text = "\n"
         subelem = ET.SubElement(section_elem,"Password")
-        subelem.tail = "\n"
 
         if section.password is not None:
             subelem.set("Text", section.password)
@@ -2750,10 +2717,8 @@ class LIBN(Block):
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         self.parseData(section_num=snum)
 
-        section_elem.text = "\n"
         for name in section.content:
             subelem = ET.SubElement(section_elem,"Library")
-            subelem.tail = "\n"
             subelem.set("Name", name.decode(self.vi.textEncoding))
 
         section_elem.set("Format", "inline")
@@ -3348,11 +3313,8 @@ class VCTP(Block):
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         self.parseData(section_num=snum)
 
-        section_elem.text = "\n"
-
         for connobj in section.content:
             subelem = ET.SubElement(section_elem,"Connector")
-            subelem.tail = "\n"
 
             subelem.set("Index", str(connobj.index))
             subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(CONNECTOR_FULL_TYPE, connobj.otype)))
@@ -3365,12 +3327,9 @@ class VCTP(Block):
                 ConnectorObject.exportXMLFinish(connobj, subelem)
 
         toplstelem = ET.SubElement(section_elem,"TopLevel")
-        toplstelem.text = "\n"
-        toplstelem.tail = "\n"
 
         for i, val in enumerate(self.topLevel):
             subelem = ET.SubElement(toplstelem,"Client")
-            subelem.tail = "\n"
 
             subelem.set("Index", "{:d}".format(i))
             subelem.set("ConnectorIndex", "{:d}".format(val))

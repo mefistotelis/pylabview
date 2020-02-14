@@ -779,7 +779,6 @@ class ConnectorObjectNumber(ConnectorObject):
     def exportXMLEnumAttr(self, conn_elem, fname_base):
         for i, value in enumerate(self.values):
             subelem = ET.SubElement(conn_elem,"Value")
-            subelem.tail = "\n"
 
             subelem.set("Index", "{:d}".format(i))
             label_str = value.label.decode(self.vi.textEncoding)
@@ -789,7 +788,6 @@ class ConnectorObjectNumber(ConnectorObject):
     def exportXMLUnitsAttr(self, conn_elem, fname_base):
         for i, value in enumerate(self.values):
             subelem = ET.SubElement(conn_elem,"Value")
-            subelem.tail = "\n"
 
             subelem.set("Index", "{:d}".format(i))
             subelem.set("UnitVal1", "{:d}".format(value.intval1))
@@ -799,8 +797,6 @@ class ConnectorObjectNumber(ConnectorObject):
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
         conn_elem.set("Prop1", "{:d}".format(self.prop1))
-        if len(self.values) > 0:
-            conn_elem.text = "\n"
         if self.isEnum():
             self.exportXMLEnumAttr(conn_elem, fname_base)
         if self.isPhys():
@@ -961,8 +957,6 @@ class ConnectorObjectTag(ConnectorObject):
 
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
-        if self.variobj is not None:
-            conn_elem.text = "\n"
 
         conn_elem.set("Prop1", "0x{:X}".format(self.prop1))
         conn_elem.set("TagType", stringFromValEnumOrInt(TAG_TYPE, self.tagType))
@@ -973,7 +967,6 @@ class ConnectorObjectTag(ConnectorObject):
             obj = self.variobj
             i = 0
             subelem = ET.SubElement(conn_elem,"LVObject") # Export function from the object may overwrite the tag
-            subelem.tail = "\n"
 
             subelem.set("Index", "{:d}".format(i))
 
@@ -1248,7 +1241,6 @@ class ConnectorObjectFunction(ConnectorObject):
 
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
-        conn_elem.text = "\n"
 
         conn_elem.set("FuncFlags", "0x{:X}".format(self.fflags))
         conn_elem.set("Pattern", "0x{:X}".format(self.pattern))
@@ -1261,7 +1253,6 @@ class ConnectorObjectFunction(ConnectorObject):
 
         for i, client in enumerate(self.clients):
             subelem = ET.SubElement(conn_elem,"Client")
-            subelem.tail = "\n"
 
             subelem.set("Index", "{:d}".format(i))
             subelem.set("ConnectorIndex", str(client.index))
@@ -1443,13 +1434,11 @@ class ConnectorObjectTypeDef(ConnectorObject):
 
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
-        conn_elem.text = "\n"
 
         conn_elem.set("Flag1", "0x{:X}".format(self.flag1))
 
         for i, client in enumerate(self.clients):
             subelem = ET.SubElement(conn_elem,"Client")
-            subelem.tail = "\n"
 
             subelem.set("Index", "{:d}".format(i))
             subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(CONNECTOR_FULL_TYPE, client.nested.otype)))
@@ -1463,7 +1452,6 @@ class ConnectorObjectTypeDef(ConnectorObject):
 
         for i, label in enumerate(self.labels):
             subelem = ET.SubElement(conn_elem,"Label")
-            subelem.tail = "\n"
 
             subelem.set("Index", "{:d}".format(i))
             label_text = label.decode(self.vi.textEncoding)
@@ -1584,11 +1572,9 @@ class ConnectorObjectArray(ConnectorObject):
 
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
-        conn_elem.text = "\n"
 
         for i, dim in enumerate(self.dimensions):
             subelem = ET.SubElement(conn_elem,"Dimension")
-            subelem.tail = "\n"
 
             subelem.set("Index", "{:d}".format(i))
             subelem.set("Flags", "0x{:04X}".format(dim.flags))
@@ -1596,7 +1582,6 @@ class ConnectorObjectArray(ConnectorObject):
 
         for i, client in enumerate(self.clients):
             subelem = ET.SubElement(conn_elem,"Client")
-            subelem.tail = "\n"
 
             subelem.set("Index", "{:d}".format(i))
             subelem.set("ConnectorIndex", str(client.index))
@@ -1786,8 +1771,6 @@ class ConnectorObjectRef(ConnectorObject):
 
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
-        if len(self.clients) > 0 or len(self.items) > 0:
-            conn_elem.text = "\n"
 
         conn_elem.set("RefType", stringFromValEnumOrInt(REFNUM_TYPE, self.reftype))
         if self.ref_obj is not None:
@@ -1795,7 +1778,6 @@ class ConnectorObjectRef(ConnectorObject):
 
         for i, client in enumerate(self.clients):
             subelem = ET.SubElement(conn_elem,"Client")
-            subelem.tail = "\n"
 
             subelem.set("Index", "{:d}".format(i))
             subelem.set("ConnectorIndex", str(client.index))
@@ -1806,7 +1788,6 @@ class ConnectorObjectRef(ConnectorObject):
 
         for i, item in enumerate(self.items):
             subelem = ET.SubElement(conn_elem,"Item")
-            subelem.tail = "\n"
 
             subelem.set("Index", "{:d}".format(i))
 
@@ -1820,7 +1801,6 @@ class ConnectorObjectRef(ConnectorObject):
 
         for i, obj in enumerate(self.objects):
             subelem = ET.SubElement(conn_elem,"LVObject") # Export function from the object may overwrite the tag
-            subelem.tail = "\n"
 
             subelem.set("Index", "{:d}".format(i))
 
@@ -1921,11 +1901,8 @@ class ConnectorObjectCluster(ConnectorObject):
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
 
-        conn_elem.text = "\n"
-
         for i, client in enumerate(self.clients):
             subelem = ET.SubElement(conn_elem,"Client")
-            subelem.tail = "\n"
 
             subelem.set("Index", str(i))
             subelem.set("ConnectorIndex", str(client.index))
@@ -2158,8 +2135,6 @@ class ConnectorObjectFixedPoint(ConnectorObject):
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
 
-        conn_elem.text = "\n"
-
         conn_elem.set("DataVersion", "{:d}".format(self.dataVersion))
         conn_elem.set("RangeFormat", "{:d}".format(self.rangeFormat))
         conn_elem.set("DataEncoding", "{:d}".format(self.dataEncoding))
@@ -2172,7 +2147,6 @@ class ConnectorObjectFixedPoint(ConnectorObject):
 
         for i, rang in enumerate(self.ranges):
             subelem = ET.SubElement(conn_elem,"Range")
-            subelem.tail = "\n"
 
             subelem.set("Index", "{:d}".format(i))
             if self.rangeFormat == 0:
@@ -2269,11 +2243,9 @@ class ConnectorObjectSingleContainer(ConnectorObject):
 
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
-        conn_elem.text = "\n"
 
         for i, client in enumerate(self.clients):
             subelem = ET.SubElement(conn_elem,"Client")
-            subelem.tail = "\n"
 
             subelem.set("Index", "{:d}".format(i))
             subelem.set("ConnectorIndex", str(client.index))
