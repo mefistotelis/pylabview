@@ -17,6 +17,7 @@ import os
 
 from PIL import Image
 from hashlib import md5
+from types import SimpleNamespace
 from zlib import compress, decompress
 from io import BytesIO
 from ctypes import *
@@ -1233,6 +1234,151 @@ class CPST(Block):
 
     def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
         super().setData(data_buf, section_num=section_num, use_coding=use_coding)
+
+
+class LinkObjRefs(Block):
+    """ LinkObj Refs
+    """
+    def createSection(self):
+        section = super().createSection()
+        self.initNewClient(section)
+        return section
+
+    def initNewClient(self, client):
+        client.ident = b'UNKN'
+        client.content = []
+
+    def parseRSRCLORef(self, section_num, client, level, bldata):
+        # nextLinkInfo: 1-root item, 2-list continues, 3-list end
+        client.ident = bldata.read(4)
+        # some versions have PasString + Int16 here
+        # The count isn't that important as there's "next" info before each item
+        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        while True:
+            nextLinkInfo = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            if nextLinkInfo != 2:
+                break
+            subclient = SimpleNamespace()
+            self.initNewClient(subclient)
+            client.content.append(subclient)
+            self.parseRSRCLORef(section_num, subclient, level+1, bldata)
+        if len(client.content) != count:
+            eprint("{:s}: Warning: Block {} section {} announced {} refs, but had {} instead."\
+              .format(self.vi.src_fname,self.ident,section_num,count,len(client.content)))
+        if nextLinkInfo != 3:
+            eprint("{:s}: Warning: Block {} section {} had list of refs which ended incorrectly."\
+              .format(self.vi.src_fname,self.ident,section_num))
+        pass
+
+    def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+        self.initNewClient(section)
+        nextLinkInfo = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        if nextLinkInfo != 1:
+            eprint("{:s}: Warning: Block {} section {} had list of refs which started incorrectly."\
+              .format(self.vi.src_fname,self.ident,section_num))
+        self.parseRSRCLORef(section_num, section, 0, bldata)
+
+    def prepareRSRCLORef(self, level, client):
+        data_buf = b''
+        data_buf += client.ident
+        data_buf += len(client.content).to_bytes(4, byteorder='big', signed=False)
+        for subclient in client.content:
+            data_buf += int(2).to_bytes(2, byteorder='big', signed=False) # nextLinkInfo
+            data_buf += self.prepareRSRCLORef(level+1, subclient)
+        data_buf += int(3).to_bytes(2, byteorder='big', signed=False) # nextLinkInfo
+        return data_buf
+
+    def DISAupdateSectionData(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+
+        data_buf = int(1).to_bytes(2, byteorder='big', signed=False) # nextLinkInfo
+        data_buf += self.prepareRSRCLORef(0, section)
+
+        if (len(data_buf) < 12):
+            raise RuntimeError("Block {} section {} generated binary data of invalid size"\
+              .format(self.ident,section_num))
+
+        self.setData(data_buf, section_num=section_num)
+
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
+        return bldata
+
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
+
+    def initWithXMLLORef(self, client, section_elem):
+        client.ident = getRsrcTypeFromPrettyStr(section_elem.tag)
+        for subelem in section_elem:
+            subclient = SimpleNamespace()
+            self.initNewClient(subclient)
+            client.content.append(subclient)
+            self.initWithXMLLORef(client, subelem)
+        pass
+
+    def initWithXMLSection(self, section, section_elem):
+        snum = section.start.section_idx
+        fmt = section_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            rootLoaded = False
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.ident,snum))
+            for subelem in section_elem:
+                if (subelem.tag == "NameObject"):
+                    pass # Items parsed somewhere else
+                elif not rootLoaded:
+                    # We can have only one root tag
+                    self.initNewClient(section)
+                    self.initNewClient(section)
+                    self.initWithXMLLORef(section, subelem)
+                    rootLoaded = True
+                else:
+                    raise AttributeError("Section contains unexpected tag")
+        else:
+            Block.initWithXMLSection(self, section, section_elem)
+        pass
+
+    def exportXMLLORef(self, section_elem, client, fname_base):
+        pretty_ident = getPrettyStrFromRsrcType(client.ident)
+        subelem = ET.SubElement(section_elem, pretty_ident)
+        for subclient in client.content:
+            self.exportXMLLORef(subelem, subclient, fname_base)
+        pass
+
+    def DISAexportXMLSection(self, section_elem, snum, section, fname_base):
+        self.parseData(section_num=snum)
+
+        self.exportXMLLORef(section_elem, section, fname_base)
+
+        section_elem.set("Format", "inline")
+
+
+class LIfp(LinkObjRefs):
+    """ LinkObj Refs for Front Panel
+    """
+    def initNewClient(self, client):
+        client.ident = b'FPHP'
+        client.content = []
+
+
+class LIbd(LinkObjRefs):
+    """ LinkObj Refs for Block diagram
+    """
+    def initNewClient(self, client):
+        client.ident = b'BDHP'
+        client.content = []
+
+
+class LIds(LinkObjRefs):
+    """ LinkObj Refs for Data Space
+    """
+    def initNewClient(self, client):
+        client.ident = b'VIDS'
+        client.content = []
 
 
 class DFDS(Block):
