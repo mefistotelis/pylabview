@@ -1237,7 +1237,7 @@ class LinkObjRefs(Block):
         client.ident = b'UNKN'
         client.content = []
 
-    def parseRSRCLORef(self, section_num, client, level, bldata):
+    def parseRSRCLORefFPP(self, section_num, client, bldata):
         client.ident = bldata.read(4)
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         for i in range(count):
@@ -1252,22 +1252,98 @@ class LinkObjRefs(Block):
                 obj.parseRSRCData(bldata)
                 client.content.append(obj)
             else:
-                eprint("{:s}: Warning: Block {} section {} references unrecognized class {}."\
-                  .format(self.vi.src_fname,self.ident,section_num,objident))
+                eprint("{:s}: Warning: Block {} section {} container {} references unrecognized class {}."\
+                  .format(self.vi.src_fname,self.ident,section_num,client.ident,objident))
+            unkval3 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            unkval4 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            unkval5 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            unkval6 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            unkval7 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            unkval11 = bldata.read(24)
         pass
 
-    def parseRSRCLORefRoot(self, section_num, client, bldata):
+    def parseRSRCLORefDDP(self, section_num, client, bldata):
+        client.ident = bldata.read(4)
+        unkbase1 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+        names = []
+        for i in range(count):
+            strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            namestr = bldata.read(strlen)
+            names.append(namestr)
+        if (bldata.tell() % 2) > 0:
+            bldata.read(1) # Padding byte
+
+        for i in range(count):
+            # TODO this needs figuring out
+            objstart = bldata.tell()
+            objident = bldata.read(4)
+            bldata.seek(objstart)
+            if objident == b'PTH0':
+                obj = LVclasses.LVPath0(self.vi, self.po)
+                obj.parseRSRCData(bldata)
+                client.content.append(obj)
+            else:
+                eprint("{:s}: Warning: Block {} section {} container {} references unrecognized class {}."\
+                  .format(self.vi.src_fname,self.ident,section_num,client.ident,objident))
+            unkval3 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            unkval4 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            unkval5 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            unkval6 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            unkval7 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            unkval11 = bldata.read(24)
+        pass
+
+    def parseRSRCLORefIUV(self, section_num, client, bldata):
+        client.ident = bldata.read(4)
+        if (bldata.tell() % 4) > 0:
+            bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
+        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+        names = []
+        for i in range(count):
+            strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            namestr = bldata.read(strlen)
+            names.append(namestr)
+        if (bldata.tell() % 2) > 0:
+            bldata.read(1) # Padding byte
+
+        for i in range(count):
+            # TODO this needs figuring out
+            objstart = bldata.tell()
+            objident = bldata.read(4)
+            bldata.seek(objstart)
+            if objident == b'PTH0':
+                obj = LVclasses.LVPath0(self.vi, self.po)
+                obj.parseRSRCData(bldata)
+                client.content.append(obj)
+            else:
+                eprint("{:s}: Warning: Block {} section {} container {} references unrecognized class {}."\
+                  .format(self.vi.src_fname,self.ident,section_num,client.ident,objident))
+            if i == 0:
+                unkval3 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                unkval4 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+                unkval5 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+                unkval6 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                unkval7 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+                unkval11 = bldata.read(30)
+            else:
+                unkval3 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        pass
+
+    def parseRSRCLORefRoot(self, section_num, section, bldata):
         ver = self.vi.getFileVersion()
         # nextLinkInfo: 1-root item, 2-list continues, 3-list end
-        client.ident = bldata.read(4)
+        section.ident = bldata.read(4)
         # TODO not sure if condition similar to below is needed
         #if isSmallerVersion(ver, 14,0,0,3):
         #    strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        #    client.UNK1 = bldata.read(strlen)
+        #    section.UNK1 = bldata.read(strlen)
         #    if ((strlen+1) % 2) > 0:
         #        bldata.read(1) # Padding byte
         #    wordlen = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        #    client.UNK2 = bldata.read(2 * wordlen)
+        #    section.UNK2 = bldata.read(2 * wordlen)
         # The count isn't that important as there's "next" info before each item
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         while True:
@@ -1276,11 +1352,22 @@ class LinkObjRefs(Block):
                 break
             subclient = SimpleNamespace()
             self.initNewClient(subclient)
-            client.content.append(subclient)
-            self.parseRSRCLORef(section_num, subclient, 1, bldata)
-        if len(client.content) != count:
+            section.content.append(subclient)
+            ctnrstart = bldata.tell()
+            subclient.ident = bldata.read(4)
+            bldata.seek(ctnrstart)
+            if subclient.ident in (b'FPPI',):
+                self.parseRSRCLORefFPP(section_num, subclient, bldata)
+            elif subclient.ident in (b'DDPI',):
+                self.parseRSRCLORefDDP(section_num, subclient, bldata)
+            elif subclient.ident in (b'IUVI',):
+                self.parseRSRCLORefIUV(section_num, subclient, bldata)
+            else:
+                eprint("{:s}: Warning: Block {} section {} uses unrecognized container {}."\
+                  .format(self.vi.src_fname,self.ident,section_num,subclient.ident))
+        if len(section.content) != count:
             eprint("{:s}: Warning: Block {} section {} announced {} refs, but had {} instead."\
-              .format(self.vi.src_fname,self.ident,section_num,count,len(client.content)))
+              .format(self.vi.src_fname,self.ident,section_num,count,len(section.content)))
         if nextLinkInfo != 3:
             eprint("{:s}: Warning: Block {} section {} had list of refs which incorrectly ended with {}."\
               .format(self.vi.src_fname,self.ident,section_num,nextLinkInfo))
@@ -1305,7 +1392,7 @@ class LinkObjRefs(Block):
         data_buf += int(3).to_bytes(2, byteorder='big', signed=False) # nextLinkInfo
         return data_buf
 
-    def DISAupdateSectionData(self, section_num=None):
+    def DISAupdateSectionData(self, section_num=None):#TODO currently disabled - parser unfinishewd
         if section_num is None:
             section_num = self.active_section_num
         section = self.sections[section_num]
@@ -1369,7 +1456,7 @@ class LinkObjRefs(Block):
                 self.exportXMLLORef(subelem, subclient, fname_base)
         pass
 
-    def DISAexportXMLSection(self, section_elem, snum, section, fname_base):
+    def DISAexportXMLSection(self, section_elem, snum, section, fname_base):#TODO currently disabled - parser unfinishewd
         self.parseData(section_num=snum)
 
         self.exportXMLLORef(section_elem, section, fname_base)
@@ -1398,6 +1485,14 @@ class LIds(LinkObjRefs):
     """
     def initNewClient(self, client):
         client.ident = b'VIDS'
+        client.content = []
+
+
+class LIvi(LinkObjRefs):
+    """ LinkObj Refs for VI
+    """
+    def initNewClient(self, client):
+        client.ident = b'LVIN'
         client.content = []
 
 
