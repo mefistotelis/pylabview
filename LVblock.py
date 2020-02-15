@@ -1238,9 +1238,36 @@ class LinkObjRefs(Block):
         client.content = []
 
     def parseRSRCLORef(self, section_num, client, level, bldata):
+        client.ident = bldata.read(4)
+        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        for i in range(count):
+            # TODO this needs figuring out
+            unkval1 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            unkval2 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            objstart = bldata.tell()
+            objident = bldata.read(4)
+            bldata.seek(objstart)
+            if objident == b'PTH0':
+                obj = LVclasses.LVPath0(self.vi, self.po)
+                obj.parseRSRCData(bldata)
+                client.content.append(obj)
+            else:
+                eprint("{:s}: Warning: Block {} section {} references unrecognized class {}."\
+                  .format(self.vi.src_fname,self.ident,section_num,objident))
+        pass
+
+    def parseRSRCLORefRoot(self, section_num, client, bldata):
+        ver = self.vi.getFileVersion()
         # nextLinkInfo: 1-root item, 2-list continues, 3-list end
         client.ident = bldata.read(4)
-        # some versions have PasString + Int16 here
+        # TODO not sure if condition similar to below is needed
+        #if isSmallerVersion(ver, 14,0,0,3):
+        #    strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        #    client.UNK1 = bldata.read(strlen)
+        #    if ((strlen+1) % 2) > 0:
+        #        bldata.read(1) # Padding byte
+        #    wordlen = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        #    client.UNK2 = bldata.read(2 * wordlen)
         # The count isn't that important as there's "next" info before each item
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         while True:
@@ -1250,13 +1277,13 @@ class LinkObjRefs(Block):
             subclient = SimpleNamespace()
             self.initNewClient(subclient)
             client.content.append(subclient)
-            self.parseRSRCLORef(section_num, subclient, level+1, bldata)
+            self.parseRSRCLORef(section_num, subclient, 1, bldata)
         if len(client.content) != count:
             eprint("{:s}: Warning: Block {} section {} announced {} refs, but had {} instead."\
               .format(self.vi.src_fname,self.ident,section_num,count,len(client.content)))
         if nextLinkInfo != 3:
-            eprint("{:s}: Warning: Block {} section {} had list of refs which ended incorrectly."\
-              .format(self.vi.src_fname,self.ident,section_num))
+            eprint("{:s}: Warning: Block {} section {} had list of refs which incorrectly ended with {}."\
+              .format(self.vi.src_fname,self.ident,section_num,nextLinkInfo))
         pass
 
     def parseRSRCData(self, section_num, bldata):
@@ -1266,7 +1293,7 @@ class LinkObjRefs(Block):
         if nextLinkInfo != 1:
             eprint("{:s}: Warning: Block {} section {} had list of refs which started incorrectly."\
               .format(self.vi.src_fname,self.ident,section_num))
-        self.parseRSRCLORef(section_num, section, 0, bldata)
+        self.parseRSRCLORefRoot(section_num, section, bldata)
 
     def prepareRSRCLORef(self, level, client):
         data_buf = b''
@@ -1335,7 +1362,11 @@ class LinkObjRefs(Block):
         pretty_ident = getPrettyStrFromRsrcType(client.ident)
         subelem = ET.SubElement(section_elem, pretty_ident)
         for subclient in client.content:
-            self.exportXMLLORef(subelem, subclient, fname_base)
+            if isinstance(subclient, LVclasses.LVObject):
+                subelem = ET.SubElement(section_elem,"RefObject")
+                subclient.exportXML(subelem, fname_base)
+            else:
+                self.exportXMLLORef(subelem, subclient, fname_base)
         pass
 
     def DISAexportXMLSection(self, section_elem, snum, section, fname_base):
