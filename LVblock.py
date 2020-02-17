@@ -1503,6 +1503,34 @@ class DFDS(Block):
         section = super().createSection()
         return section
 
+    def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+        TM = self.vi.get_one_of('TM80')
+        ver = self.vi.getFileVersion()
+
+        section.content = []
+        if isGreaterOrEqVersion(ver, 8,0,0,1) and TM is not None:
+            TypeMap = TM.getTypeMap()
+
+            for tmItm in TypeMap:
+                if (tmItm.flags & 0x0008) != 0 or \
+                   (tmItm.flags & 0x0800) != 0 or \
+                   (tmItm.flags & 0x0400) != 0:
+                    continue
+                if (tmItm.flags & 0x2000) != 0 or \
+                   (tmItm.flags & 0x0001) != 0:
+                    # TODO implement, using tmItm.td
+                    pass
+                else:
+                    # TODO implement, using tmItm.td
+                    pass
+                val = 0#readVariableSizeFieldU2p2(bldata)
+                section.content.append(val)
+        else:
+            # No support for the 7.1 format
+            Block.parseRSRCData(self, section_num, bldata)
+
+
     def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
         bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
@@ -1897,7 +1925,11 @@ class TM80(Block):
             tmItm.index = section.indexShift + i
             tmItm.flags = val
             tmItm.td = VCTP.getTopType(tmItm.index)
-            typeMap.append(tmItm)
+            if tmItm.td is None:
+                eprint("{:s}: Warning: Block {} section {} references VCTP type {}+{} which does not exist."\
+                  .format(self.vi.src_fname,self.ident,i,section.indexShift,i))
+            else:
+                typeMap.append(tmItm)
 
         return typeMap
 
@@ -3529,7 +3561,11 @@ class VCTP(Block):
             section_num = self.active_section_num
         self.parseData(section_num=section_num)
         section = self.sections[section_num]
+        if len(section.topLevel) <= idx:
+            return None
         flatIdx = section.topLevel[idx]
+        if len(section.content) <= flatIdx:
+            return None
         return section.content[flatIdx]
 
 
