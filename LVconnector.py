@@ -384,10 +384,14 @@ class ConnectorObject:
         return data_buf
 
     def expectedRSRCSize(self):
+        """ Returns expected RAW data size of this connector.
+
+        The expected size includes header and label size - it is the size of whole data.
+        """
         if self.raw_data is not None:
-            exp_whole_len = len(self.raw_data) - 4
+            exp_whole_len = len(self.raw_data)
         else:
-            exp_whole_len = 0
+            exp_whole_len = 4
         return exp_whole_len
 
     def updateData(self, avoid_recompute=False):
@@ -923,7 +927,17 @@ class ConnectorObjectTag(ConnectorObject):
         return data_buf
 
     def expectedRSRCSize(self):
-        exp_whole_len = 4 + 4
+        ver = self.vi.getFileVersion()
+        exp_whole_len = 4
+        exp_whole_len += 4 + 2
+        if isGreaterOrEqVersion(ver, 8,2,1) and \
+          (isSmallerVersion(ver, 8,2,2) or isGreaterOrEqVersion(ver, 8,5,1)):
+            exp_whole_len += self.variobj.expectedRSRCSize()
+        if (self.tagType == TAG_TYPE.UserDefined.value) and isGreaterOrEqVersion(ver, 8,1,1):
+            strlen = len(self.ident)
+            if ((strlen+1) % 2) > 0:
+                strlen += 1
+            exp_whole_len += 1+strlen
         if self.label is not None:
             label_len = 1 + len(self.label)
             if label_len % 2 > 0: # Include padding
@@ -1020,7 +1034,8 @@ class ConnectorObjectBlob(ConnectorObject):
         return data_buf
 
     def expectedRSRCSize(self):
-        exp_whole_len = 4 + 4
+        exp_whole_len = 4
+        exp_whole_len += 4
         if self.label is not None:
             label_len = 1 + len(self.label)
             if label_len % 2 > 0: # Include padding
@@ -1051,11 +1066,12 @@ class ConnectorObjectBlob(ConnectorObject):
 
     def checkSanity(self):
         ret = True
-        if self.prop1 != 0xFFFFFFFF:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}"\
-                  .format(self.vi.src_fname,self.index,self.otype,self.prop1,0xFFFFFFFF))
-            ret = False
+        if self.otype not in (CONNECTOR_FULL_TYPE.PolyVI, CONNECTOR_FULL_TYPE.Block,):
+            if self.prop1 != 0xFFFFFFFF:
+                if (self.po.verbose > 1):
+                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}"\
+                      .format(self.vi.src_fname,self.index,self.otype,self.prop1,0xFFFFFFFF))
+                ret = False
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
@@ -1403,9 +1419,10 @@ class ConnectorObjectTypeDef(ConnectorObject):
 
     def expectedRSRCSize(self):
         exp_whole_len = 4
+        exp_whole_len += 4
         exp_whole_len += 4 + sum((1+len(s)) for s in self.labels)
         for client in self.clients:
-            exp_whole_len += 4
+            # nested expected size already includes header size
             exp_whole_len += client.nested.expectedRSRCSize()
         if self.label is not None:
             label_len = 1 + len(self.label)
@@ -1549,7 +1566,8 @@ class ConnectorObjectArray(ConnectorObject):
         return data_buf
 
     def expectedRSRCSize(self):
-        exp_whole_len = 2 + 4 * len(self.dimensions)
+        exp_whole_len = 4
+        exp_whole_len += 2 + 4 * len(self.dimensions)
         for client in self.clients:
             exp_whole_len += ( 2 if (client.index <= 0x7fff) else 4 )
         if self.label is not None:
@@ -1659,7 +1677,8 @@ class ConnectorObjectRepeatedBlock(ConnectorObject):
         return data_buf
 
     def expectedRSRCSize(self):
-        exp_whole_len = 4 + 4 + 2
+        exp_whole_len = 4
+        exp_whole_len += 4 + 2
         if self.label is not None:
             label_len = 1 + len(self.label)
             if label_len % 2 > 0: # Include padding
@@ -1730,7 +1749,8 @@ class ConnectorObjectRef(ConnectorObject):
         return data_buf
 
     def expectedRSRCSize(self):
-        exp_whole_len = 4 + 2
+        exp_whole_len = 4
+        exp_whole_len += 2
         if self.ref_obj is not None:
             exp_whole_len += self.ref_obj.expectedRSRCSize()
         if self.label is not None:
@@ -1889,7 +1909,8 @@ class ConnectorObjectCluster(ConnectorObject):
         return data_buf
 
     def expectedRSRCSize(self):
-        exp_whole_len = 4 + 2 + 2 * len(self.clients)
+        exp_whole_len = 4
+        exp_whole_len += 2 + 2 * len(self.clients)
         if self.label is not None:
             label_len = 1 + len(self.label)
             if label_len % 2 > 0: # Include padding
@@ -1972,7 +1993,8 @@ class ConnectorObjectMeasureData(ConnectorObject):
         return data_buf
 
     def expectedRSRCSize(self):
-        exp_whole_len = 4 + 2
+        exp_whole_len = 4
+        exp_whole_len += 2
         if self.label is not None:
             label_len = 1 + len(self.label)
             if label_len % 2 > 0: # Include padding
@@ -2097,7 +2119,15 @@ class ConnectorObjectFixedPoint(ConnectorObject):
         return data_buf
 
     def expectedRSRCSize(self):
-        exp_whole_len = 4 + 2 + 2
+        exp_whole_len = 4
+        exp_whole_len += 2 + 2 + 4
+        if self.rangeFormat == 0:
+            exp_whole_len += 8 * len(self.ranges)
+        elif self.rangeFormat == 1:
+            if (self.field1E > 0x40) or (self.dataVersion > 0):
+                exp_whole_len += (2+2+4+8) * len(self.ranges)
+            else:
+                exp_whole_len += 8 * len(self.ranges)
         if self.label is not None:
             label_len = 1 + len(self.label)
             if label_len % 2 > 0: # Include padding
@@ -2235,10 +2265,15 @@ class ConnectorObjectSingleContainer(ConnectorObject):
         return data_buf
 
     def expectedRSRCSize(self):
-        exp_whole_len = 0
+        exp_whole_len = 4
         for client in self.clients:
             exp_whole_len += ( 2 if (client.index <= 0x7fff) else 4 )
             break # only one client is valid
+        if self.label is not None:
+            label_len = 1 + len(self.label)
+            if label_len % 2 > 0: # Include padding
+                label_len += 2 - (label_len % 2)
+            exp_whole_len += label_len
         return exp_whole_len
 
     def initWithXML(self, conn_elem):
