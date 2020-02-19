@@ -1544,8 +1544,9 @@ class HeapNode(object):
             scopeInfoAuto = autoScopeInfoFromET(elem)
             scopeInfoForce = NODE_SCOPE.TagOpen
             if scopeInfoAuto != scopeInfoForce:
-                eprint("{}: Warning: Tag '{}' automatic scopeInfo={:d} bad, forcing {:d}"\
-                  .format(self.vi.src_fname, elem.tag, scopeInfoAuto.value, scopeInfoForce.value))
+                if (self.po.verbose > 1):
+                    print("{}: Tag '{}' automatic scopeInfo={:d} bad, forcing {:d}"\
+                      .format(self.vi.src_fname, elem.tag, scopeInfoAuto.value, scopeInfoForce.value))
                 elem.set("ScopeInfo", "{:d}".format(scopeInfoForce.value))
         pass
 

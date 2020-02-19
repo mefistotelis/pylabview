@@ -709,7 +709,14 @@ class ConnectorObjectNumber(ConnectorObject):
         return data_buf
 
     def expectedRSRCSize(self):
-        exp_whole_len = 4 + 1
+        exp_whole_len = 4
+        if self.isEnum():
+            exp_whole_len += 2 + sum((1+len(v.label)) for v in self.values)
+            if exp_whole_len % 2 > 0:
+                exp_whole_len += 2 - (exp_whole_len % 2)
+        if self.isPhys():
+            exp_whole_len = 2 + (2+2) * len(self.values)
+        exp_whole_len += 1
         if self.label is not None:
             label_len = 1 + len(self.label)
             if label_len % 2 > 0: # Include padding
@@ -1177,13 +1184,33 @@ class ConnectorObjectFunction(ConnectorObject):
 
     def expectedRSRCSize(self):
         ver = self.vi.getFileVersion()
+        clients = self.clients.copy()
         exp_whole_len = 4
-        exp_whole_len += 2 + 2 * len(self.clients)
+        spec_cli = None
+        if (self.fflags & 0x8000) != 0:
+            spec_cli = clients.pop()
+        exp_whole_len += 2 if len(clients) <= 0x7FFF else 4
+        for client in clients:
+            exp_whole_len += 2 if client.index <= 0x7FFF else 4
         exp_whole_len += 2 + 2
-        if isGreaterOrEqVersion(ver, 8,0):
-            exp_whole_len += 2 + 4 * len(self.clients)
+
+        if isGreaterOrEqVersion(ver, 10,0,0,stage="alpha"):
+            exp_whole_len += 4 * len(clients)
         else:
-            exp_whole_len += 2 * len(self.clients)
+            exp_whole_len += 2 * len(clients)
+
+        if isGreaterOrEqVersion(ver, 8,0,0,stage="beta"):
+            exp_whole_len += 2
+            if self.hasThrall != 0:
+                for client in clients:
+                    exp_whole_len += 1 * len(client.thrallSources)
+                    exp_whole_len += 1
+
+        if (self.fflags & 0x0800) != 0:
+            exp_whole_len += 8
+        if spec_cli is not None:
+            exp_whole_len += 2 if spec_cli.index <= 0x7FFF else 4
+
         if self.label is not None:
             label_len = 1 + len(self.label)
             if label_len % 2 > 0: # Include padding
@@ -1378,6 +1405,7 @@ class ConnectorObjectTypeDef(ConnectorObject):
         exp_whole_len = 4
         exp_whole_len += 4 + sum((1+len(s)) for s in self.labels)
         for client in self.clients:
+            exp_whole_len += 4
             exp_whole_len += client.nested.expectedRSRCSize()
         if self.label is not None:
             label_len = 1 + len(self.label)
