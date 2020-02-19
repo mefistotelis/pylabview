@@ -1947,7 +1947,15 @@ class LVIN(Block):
     Instrument block from LabView 5; in later versions, called
     "old instrument", and replaced functionally by 'LVSR'.
     """
-    pass
+    def createSection(self):
+        section = super().createSection()
+        section.version = []
+        return section
+
+    def getVersion(self):
+        self.parseData()
+        raise NotImplementedError("Parsing of the {} block is unfinished.".format(self.ident))
+        #return self.version
 
 
 class LVSR(Block):
@@ -2119,6 +2127,8 @@ class LVSR(Block):
                     ver['build'] = int(subelem.get("Build"), 0)
                     ver['flags'] = int(subelem.get("Flags"), 0)
                     section.version = ver
+                    # the call below sets numeric 'stage' from text; we do not care for actual encoding
+                    encodeVersion(section.version)
                 elif (subelem.tag == "Library"):
                     section.protected = int(subelem.get("Protected"), 0)
                     password_text = subelem.get("Password")
@@ -2333,6 +2343,8 @@ class vers(Block):
                     section.version_text = subelem.get("Text").encode(self.vi.textEncoding)
                     section.version_info = subelem.get("Info").encode(self.vi.textEncoding)
                     section.version = ver
+                    # the call below sets numeric 'stage' from text; we do not care for actual encoding
+                    encodeVersion(section.version)
                 else:
                     raise AttributeError("Section contains something else than 'Version'")
         else:
