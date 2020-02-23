@@ -1505,7 +1505,115 @@ class DFDS(Block):
         return section
 
     def parseRSRCTypeValue(self, section_num, df, bldata):
-        pass
+        if df.fulltype in (CONNECTOR_FULL_TYPE.Void,):
+            df.value = None
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.NumInt8,):
+            df.value = int.from_bytes(bldata.read(1), byteorder='big', signed=True)
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.NumInt16,):
+            df.value = int.from_bytes(bldata.read(2), byteorder='big', signed=True)
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.NumInt32,):
+            df.value = int.from_bytes(bldata.read(4), byteorder='big', signed=True)
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.NumInt64,):
+            df.value = int.from_bytes(bldata.read(8), byteorder='big', signed=True)
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.NumUInt8,):
+            df.value = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.NumUInt16,):
+            df.value = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.NumUInt32,):
+            df.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.NumUInt64,):
+            df.value = int.from_bytes(bldata.read(8), byteorder='big', signed=False)
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.NumFloat32,CONNECTOR_FULL_TYPE.UnitFloat32,):
+            df.value = struct.unpack('>f', bldata.read(4))
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.NumFloat64,CONNECTOR_FULL_TYPE.UnitFloat64,):
+            df.value = struct.unpack('>d', bldata.read(8))
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.NumFloatExt,CONNECTOR_FULL_TYPE.UnitFloatExt,):
+            df.value = readQuadFloat(bldata)
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.NumComplex64,CONNECTOR_FULL_TYPE.UnitComplex64,):
+            df.value = struct.unpack('>ff', bldata.read(4))
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.NumComplex128,CONNECTOR_FULL_TYPE.UnitComplex128,):
+            df.value = struct.unpack('>dd', bldata.read(8))
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.NumComplexExt,CONNECTOR_FULL_TYPE.UnitComplexExt,):
+            df.value = (readQuadFloat(bldata),readQuadFloat(bldata),)
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.UnitUInt8,):
+            df.value = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.UnitUInt16,):
+            df.value = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.UnitUInt32,):
+            df.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.BooleanU16,CONNECTOR_FULL_TYPE.Boolean,):
+            df.value = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.String,):
+            strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            df.value = bldata.read(strlen)
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.Path,):
+            startPos = bldata.tell()
+            clsident = bldata.read(4)
+            if clsident == b'PTH0':
+                df.value = LVclasses.LVPath0(self.vi, self.po)
+                bldata.seek(startPos)
+                df.value.parseRSRCData(bldata)
+            elif clsident == b'PTH1' or clsident == b'PTH2':
+                df.value = LVclasses.LVPath1(self.vi, self.po)
+                bldata.seek(startPos)
+                df.value.parseRSRCData(bldata)
+            else:
+                eprint("{:s}: Warning: Block {} section {} contains path data of unrecognized class {}."\
+                  .format(self.vi.src_fname,self.ident,section_num,clsident))
+                df.value = LVclasses.LVPath1(self.vi, self.po)
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.Picture,):
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.CString,):
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.PasString,):
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.Tag,):
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.Array,):
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.ArrayDataPtr,):
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.SubArray,):
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.Cluster,):
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.LVVariant,):
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.MeasureData,):
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.ComplexFixedPt,):
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.FixedPoint,):
+            # 4 bytes + conditional 1byte OverflowStatus + alignment
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.Block,):
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.TypeBlock,):
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.VoidBlock,):
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.AlignedBlock,):
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.RepeatedBlock,):
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.AlignmntMarker,):
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.Refnum,):
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.Ptr,):
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.PtrTo,):
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.Function,):
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.TypeDef,):
+            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.SubString,CONNECTOR_FULL_TYPE.PolyVI,):
+            # This would cause silently ignored error in LV14
+            df.value = None
+        else:
+            df.value = None
+        # TODO implement, using tmItm.td
 
     def parseRSRCData(self, section_num, bldata):
         section = self.sections[section_num]
