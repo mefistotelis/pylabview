@@ -884,7 +884,8 @@ class FPTD(SingleIntBlock):
     """ Front Panel TD
 
     Contains list of types, with exactly one
-    type inside.
+    type inside. The type points to DataLog
+    connector.
     """
     def createSection(self):
         section = super().createSection()
@@ -997,11 +998,12 @@ class CONP(Block):
 
 
 class CPC2(CONP):
-    """ Connector Port C2
+    """ Checksum Password Connector Type v2
 
-    Maybe Checksum Password Connector 2 ?
     Contains list of types. For VIs, with exactly one
     type inside; for LLBs it stores more.
+    The type pointed is the one used for calculating
+    salt for Block Diagram password.
     In LV7.1 the block is CPCT.
     """
     pass
@@ -1436,7 +1438,6 @@ class LinkObjRefs(Block):
                 elif not rootLoaded:
                     # We can have only one root tag
                     self.initNewClient(section)
-                    self.initNewClient(section)
                     self.initWithXMLLORef(section, subelem)
                     rootLoaded = True
                 else:
@@ -1503,6 +1504,9 @@ class DFDS(Block):
         section = super().createSection()
         return section
 
+    def parseRSRCTypeValue(self, section_num, df, bldata):
+        pass
+
     def parseRSRCData(self, section_num, bldata):
         section = self.sections[section_num]
         TM = self.vi.get_one_of('TM80')
@@ -1513,19 +1517,32 @@ class DFDS(Block):
             TypeMap = TM.getTypeMap()
 
             for tmItm in TypeMap:
+                df = None
                 if (tmItm.flags & 0x0008) != 0 or \
                    (tmItm.flags & 0x0800) != 0 or \
                    (tmItm.flags & 0x0400) != 0:
                     continue
                 if (tmItm.flags & 0x2000) != 0 or \
                    (tmItm.flags & 0x0001) != 0:
+                    df = SimpleNamespace()
+                    df.typeid = tmItm.index
+                    df.fulltype = tmItm.td.fullType()
+                    parseRSRCTypeValue(self, section_num, df, bldata)
+                    pass
+                elif tmItm.td.fullType() in (CONNECTOR_FULL_TYPE.Cluster,) and \
+                     (tmItm.flags & 0x0074) != 0:
+                    # This is Special DSTM Cluster
+                    df = SimpleNamespace()
+                    df.typeid = tmItm.index
+                    df.fulltype = tmItm.td.fullType()
                     # TODO implement, using tmItm.td
+                    df.value = 0#readVariableSizeFieldU2p2(bldata)
                     pass
                 else:
-                    # TODO implement, using tmItm.td
+                    # No default value for this TD
                     pass
-                val = 0#readVariableSizeFieldU2p2(bldata)
-                section.content.append(val)
+                if df is not None:
+                    section.content.append(df)
         else:
             # No support for the 7.1 format
             Block.parseRSRCData(self, section_num, bldata)
@@ -2585,6 +2602,7 @@ class BDPW(Block):
         else:
             subelem.set("Hash", section.password_md5.hex())
             subelem.set("HashType", "MD5")
+        # TODO If CPC2 stores the proper connector, we should mark this somehow and not store this connector index here
         if section.salt_iface_idx is not None:
             subelem.set("SaltSource", str(section.salt_iface_idx))
         else:
@@ -2640,6 +2658,7 @@ class BDPW(Block):
     def scanForHashSalt(self, section_num, presalt_data=b'', postsalt_data=b''):
         section = self.sections[section_num]
 
+        # TODO We should read the connector from CPC2 and try this one first
         salt = b''
         ver = self.vi.getFileVersion()
         if not isGreaterOrEqVersion(ver, 1,0):
@@ -3238,6 +3257,14 @@ class HeapVerc(Block):
 
 class BDHP(HeapVerP):
     """ Block Diagram Heap
+
+    This block is spcific to LV 7beta and older.
+    """
+    pass
+
+
+class FPHP(HeapVerP):
+    """ Front Panel Heap
 
     This block is spcific to LV 7beta and older.
     """
