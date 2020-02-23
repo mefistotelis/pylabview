@@ -330,3 +330,14 @@ def prepareVariableSizeFieldU124(val):
     else:
         return int(val).to_bytes(1, byteorder='big', signed=False)
     pass
+
+def readQuadFloat(bldata):
+    """ Read quad precision float value (aka FloatExt).
+
+    Note: Untested! maybe should be big endian?
+    """
+    asint = int.from_bytes(bldata.read(16), byteorder='little')
+    sign = (-1.0) ** (asint >> 127);
+    exponent = ((asint >> 112) & 0x7FFF) - 16383;
+    significand = (asint & ((1 << 112) - 1)) | (1 << 112)
+    return sign * significand * 2.0 ** (exponent - 112)
