@@ -816,10 +816,10 @@ class ConnectorObjectNumber(ConnectorObject):
 
     def checkSanity(self):
         ret = True
-        if (self.prop1 != 0):
+        if (self.prop1 & ~1) != 0: # 0 or 1
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02X} property1 {:d}, expected {:d}"\
-                  .format(self.vi.src_fname,self.index,self.otype,self.prop1,0))
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02X} property1 {:d}, expected 1 bit value"\
+                  .format(self.vi.src_fname,self.index,self.otype,self.prop1))
             ret = False
         if (self.isEnum() or self.isPhys()):
             if len(self.values) < 1:
