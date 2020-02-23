@@ -68,18 +68,86 @@ class LVObject:
         pass
 
 
+class LVPath1(LVObject):
+    """ Path object ver 1 and 2
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.content = []
+        self.ident = b''
+        self.tpident = b''
+
+    def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
+        totlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.tpident = bldata.read(4) # one of 'unc ', '!pth', 'abs ', 'rel '
+        donelen = 4
+        self.content = []
+        while (donelen < totlen):
+            text_len = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            text_val = bldata.read(text_len)
+            self.content.append(text_val)
+            donelen += 2+text_len
+        if donelen != totlen:
+            eprint("{:s}: Warning: LVPath1 has unexpected size, {} != {}"\
+              .format(self.vi.src_fname, donelen, totlen))
+        pass
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = bytes(self.ident)[0:4]
+        totlen = 4 + sum(2+len(text_val) for text_val in self.content)
+        data_buf += int(totlen).to_bytes(4, byteorder='big')
+        data_buf += bytes(self.tpident)[0:4]
+        for text_val in self.content:
+            data_buf += len(text_val).to_bytes(2, byteorder='big')
+            data_buf += bytes(text_val)
+        return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 4 + 4 + 4
+        exp_whole_len += sum(2+len(text_val) for text_val in self.content)
+        return exp_whole_len
+
+    def initWithXML(self, obj_elem):
+        self.content = []
+        self.ident = getRsrcTypeFromPrettyStr(obj_elem.get("Ident"))
+        self.tpident = obj_elem.get("TpIdent").encode(encoding='ascii')
+        for i, subelem in enumerate(obj_elem):
+            if (subelem.tag == "String"):
+                if subelem.text is not None:
+                    self.content.append(subelem.text.encode(self.vi.textEncoding))
+                else:
+                    self.content.append(b'')
+            else:
+                raise AttributeError("LVPath1 subtree contains unexpected tag")
+        pass
+
+    def exportXML(self, obj_elem, fname_base):
+        obj_elem.set("Ident",  getPrettyStrFromRsrcType(self.ident))
+        obj_elem.set("TpIdent",  self.tpident.decode(encoding='ascii'))
+        for text_val in self.content:
+            subelem = ET.SubElement(obj_elem,"String")
+
+            pretty_string = text_val.decode(self.vi.textEncoding)
+            subelem.text = pretty_string
+        pass
+
+
 class LVPath0(LVObject):
     """ Path object, sometimes used instead of simple file name
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.tpval = 0
         self.content = []
         self.ident = b''
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
         totlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        # seen only 0, though can be 0..3; for non-zero, list of strings is missing (?)
+        self.tpval = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         self.content = []
         for i in range(count):
             text_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
@@ -95,15 +163,22 @@ class LVPath0(LVObject):
         data_buf = bytes(self.ident)
         totlen = 4 + sum(1+len(text_val) for text_val in self.content)
         data_buf += int(totlen).to_bytes(4, byteorder='big')
-        data_buf += len(self.content).to_bytes(4, byteorder='big')
+        data_buf += int(self.tpval).to_bytes(2, byteorder='big')
+        data_buf += len(self.content).to_bytes(2, byteorder='big')
         for text_val in self.content:
             data_buf += len(text_val).to_bytes(1, byteorder='big')
             data_buf += bytes(text_val)
         return data_buf
 
+    def expectedRSRCSize(self):
+        exp_whole_len = 4 + 4 + 2 + 2
+        exp_whole_len += sum(1+len(text_val) for text_val in self.content)
+        return exp_whole_len
+
     def initWithXML(self, obj_elem):
         self.content = []
         self.ident = getRsrcTypeFromPrettyStr(obj_elem.get("Ident"))
+        self.tpval = int(obj_elem.get("TpVal"), 0)
         for i, subelem in enumerate(obj_elem):
             if (subelem.tag == "String"):
                 if subelem.text is not None:
@@ -116,6 +191,7 @@ class LVPath0(LVObject):
 
     def exportXML(self, obj_elem, fname_base):
         obj_elem.set("Ident",  getPrettyStrFromRsrcType(self.ident))
+        obj_elem.set("TpVal",  "{:d}".format(self.tpval))
         for text_val in self.content:
             subelem = ET.SubElement(obj_elem,"String")
 
@@ -198,6 +274,17 @@ class LVVariant(LVObject):
         if hasvaritem2 != 0:
             data_buf += self.varitem2
         return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 4 + 4
+        for client in self.clients2:
+            if client.index != -1:
+                continue
+            exp_whole_len += client.nested.expectedRSRCSize()
+        exp_whole_len += 2
+        if self.hasvaritem2 != 0:
+            exp_whole_len += len(self.varitem2)
+        return exp_whole_len
 
     def initWithXML(self, obj_elem):
         self.varver = int(obj_elem.get("VarVer"), 0)
