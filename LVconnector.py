@@ -1658,22 +1658,22 @@ class ConnectorObjectArray(ConnectorObject):
 class ConnectorObjectRepeatedBlock(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
-        self.prop1 = 0
-        self.prop2 = 0
+        self.numRepeats = 0
+        self.typeFlatIdx = 0
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
         self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
 
-        self.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False) # block data size?
-        self.prop2 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        self.numRepeats = int.from_bytes(bldata.read(4), byteorder='big', signed=False) # block data size?
+        self.typeFlatIdx = readVariableSizeFieldU2p2(bldata)
         # No more known data inside
         self.parseRSRCDataFinish(bldata)
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
-        data_buf += int(self.prop1).to_bytes(4, byteorder='big')
-        data_buf += int(self.prop2).to_bytes(2, byteorder='big')
+        data_buf += int(self.numRepeats).to_bytes(4, byteorder='big')
+        data_buf += prepareVariableSizeFieldU2p2(self.typeFlatIdx)
         return data_buf
 
     def expectedRSRCSize(self):
@@ -1694,8 +1694,8 @@ class ConnectorObjectRepeatedBlock(ConnectorObject):
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
-            self.prop1 = int(conn_elem.get("Prop1"), 0)
-            self.prop2 = int(conn_elem.get("Prop2"), 0)
+            self.numRepeats = int(conn_elem.get("NumRepeats"), 0)
+            self.typeFlatIdx = int(conn_elem.get("TypeFlatIdx"), 0)
 
             self.updateData(avoid_recompute=True)
 
@@ -1705,8 +1705,8 @@ class ConnectorObjectRepeatedBlock(ConnectorObject):
 
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
-        conn_elem.set("Prop1", "0x{:X}".format(self.prop1))
-        conn_elem.set("Prop2", "0x{:X}".format(self.prop2))
+        conn_elem.set("NumRepeats", "0x{:X}".format(self.numRepeats))
+        conn_elem.set("TypeFlatIdx", "0x{:X}".format(self.typeFlatIdx))
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
