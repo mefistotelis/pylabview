@@ -2073,6 +2073,7 @@ class TM80(Block):
 
         return typeMap
 
+
 class LIvi(Block):
     """ Link Information of vi
 
@@ -2417,6 +2418,7 @@ class vers(Block):
         section.version = []
         section.version_text = b''
         section.version_info = b''
+        section.comment = b''
         return section
 
     def parseRSRCData(self, section_num, bldata):
@@ -2428,13 +2430,15 @@ class vers(Block):
         # TODO Is the string null-terminated? or that's length of another string?
         version_unk_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         if version_unk_len != 0:
-            raise AttributeError("Always zero value 1 is not zero")
+            raise AttributeError("Block {} section {} always zero value 1 is {} instead of {}"\
+             .format(self.ident,section_num,version_unk_len,0))
         version_info_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         section.version_info = bldata.read(version_info_len)
-        # TODO Is the string null-terminated? or that's length of another string?
-        version_unk_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        if version_unk_len != 0:
-            raise AttributeError("Always zero value 2 is not zero")
+        comment_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        section.comment = bldata.read(comment_len)
+        if isGreaterOrEqVersion(self.version, 8,6,0) and comment_len != 0:
+            eprint("Warning: Block {} section {} comment length is {} instead of {}"\
+             .format(self.ident,section_num,comment_len,0))
 
     def updateSectionData(self, section_num=None):
         if section_num is None:
@@ -2443,11 +2447,15 @@ class vers(Block):
 
         data_buf = int(encodeVersion(section.version)).to_bytes(4, byteorder='big')
         data_buf += int(len(section.version_text)).to_bytes(1, byteorder='big')
-        data_buf += section.version_text + b'\0'
+        data_buf += section.version_text
+        data_buf += b'\0'
         data_buf += int(len(section.version_info)).to_bytes(1, byteorder='big')
-        data_buf += section.version_info + b'\0'
+        data_buf += section.version_info
+        data_buf += int(len(section.comment)).to_bytes(1, byteorder='big')
+        data_buf += section.comment
 
-        if (len(data_buf) != 4 + 2+len(section.version_text) + 2+len(section.version_info)):
+        if len(data_buf) != 4 + 1+len(section.version_text) + 1 +\
+          1+len(section.version_info) + 1+len(section.comment):
             raise RuntimeError("Block {} section {} generated binary data of invalid size"\
               .format(self.ident,section_num))
 
@@ -2482,6 +2490,7 @@ class vers(Block):
                     ver['flags'] = int(subelem.get("Flags"), 0)
                     section.version_text = subelem.get("Text").encode(self.vi.textEncoding)
                     section.version_info = subelem.get("Info").encode(self.vi.textEncoding)
+                    section.comment = subelem.get("Comment").encode(self.vi.textEncoding)
                     section.version = ver
                     # the call below sets numeric 'stage' from text; we do not care for actual encoding
                     encodeVersion(section.version)
@@ -2504,6 +2513,7 @@ class vers(Block):
         subelem.set("Flags", "0x{:X}".format(section.version['flags']))
         subelem.set("Text", "{:s}".format(section.version_text.decode(self.vi.textEncoding)))
         subelem.set("Info", "{:s}".format(section.version_info.decode(self.vi.textEncoding)))
+        subelem.set("Comment", "{:s}".format(section.comment.decode(self.vi.textEncoding)))
 
         section_elem.set("Format", "inline")
 
