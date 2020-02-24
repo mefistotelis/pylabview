@@ -1530,9 +1530,9 @@ class DFDS(Block):
         elif df.fulltype in (CONNECTOR_FULL_TYPE.NumFloatExt,CONNECTOR_FULL_TYPE.UnitFloatExt,):
             df.value = readQuadFloat(bldata)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.NumComplex64,CONNECTOR_FULL_TYPE.UnitComplex64,):
-            df.value = struct.unpack('>ff', bldata.read(4))
+            df.value = struct.unpack('>ff', bldata.read(8))
         elif df.fulltype in (CONNECTOR_FULL_TYPE.NumComplex128,CONNECTOR_FULL_TYPE.UnitComplex128,):
-            df.value = struct.unpack('>dd', bldata.read(8))
+            df.value = struct.unpack('>dd', bldata.read(16))
         elif df.fulltype in (CONNECTOR_FULL_TYPE.NumComplexExt,CONNECTOR_FULL_TYPE.UnitComplexExt,):
             df.value = (readQuadFloat(bldata),readQuadFloat(bldata),)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.UnitUInt8,):
@@ -1595,7 +1595,16 @@ class DFDS(Block):
         elif df.fulltype in (CONNECTOR_FULL_TYPE.AlignedBlock,):
             df.value = None # TODO implement
         elif df.fulltype in (CONNECTOR_FULL_TYPE.RepeatedBlock,):
-            df.value = None # TODO implement
+            df.value = []
+            VCTP = self.vi.get_or_raise('VCTP')
+            this_td = VCTP.getTopType(df.typeid)
+            sub_td = VCTP.getFlatType(this_td.typeFlatIdx)
+            for i in range(this_td.numRepeats):
+                sub_df = SimpleNamespace()
+                sub_df.typeid = this_td.typeFlatIdx
+                sub_df.fulltype = sub_td.fullType()
+                self.parseRSRCTypeValue(section_num, sub_df, bldata)
+                df.value.append(sub_df)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.AlignmntMarker,):
             df.value = None # TODO implement
         elif df.fulltype in (CONNECTOR_FULL_TYPE.Refnum,):
@@ -1635,7 +1644,13 @@ class DFDS(Block):
                     df = SimpleNamespace()
                     df.typeid = tmItm.index
                     df.fulltype = tmItm.td.fullType()
-                    parseRSRCTypeValue(self, section_num, df, bldata)
+                    try:
+                        self.parseRSRCTypeValue(section_num, df, bldata)
+                    except Exception as e:
+                        eprint("{:s}: Warning: Block {} section {} data type {} parsing exception: {}."\
+                          .format(self.vi.src_fname,self.ident,section_num,\
+                           df.fulltype.name if isinstance(df.fulltype, enum.IntEnum) else df.fulltype,str(e)))
+                        df.value = None
                     pass
                 elif tmItm.td.fullType() in (CONNECTOR_FULL_TYPE.Cluster,) and \
                      (tmItm.flags & 0x0074) != 0:
