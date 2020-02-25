@@ -330,3 +330,79 @@ class LVVariant(LVObject):
             client.nested.exportXML(subelem, fname_cli)
             client.nested.exportXMLFinish(subelem)
         pass
+
+class OleVariant(LVObject):
+    """ OLE object with variant type data
+    """
+    def __init__(self, index, *args):
+        self.vType = 0
+        self.vFlags = 0
+        self.dimensions = []
+        self.vData = []
+        super().__init__(*args)
+
+    @staticmethod
+    def vTypeToSize(vType):
+        vSize = {
+            2:  2,
+            18: 2,
+            3:  4,
+            19: 4,
+            4:  4,
+            5:  8,
+            6:  8,
+            7:  8,
+            10: 4,
+            11: 2,
+            16: 1,
+            17: 1,
+            20: 8,
+            21: 8,
+            0:  0,
+        }.get(vType, 0) # The 0 takes value from array
+        return vSize
+
+    def parseRSRCVariant(self, bldata):
+        flags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        self.vType = flags & 0x1FFF
+        self.vFlags = flags & ~0x1FFF
+        vSize = OleVariant.vTypeToSize(self.vType)
+        self.dimensions = []
+        self.vData = []
+        if (self.vFlags & 0x2000) != 0:
+            ndim = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            totlen = 1
+            for i in range(ndim):
+                client = SimpleNamespace()
+                client.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                client.prop2 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                self.dimensions.append(client)
+                totlen *= client.prop2
+            if ndim == 0: totlen = 0
+        else:
+            totlen = 1
+
+        if self.vType == 8:
+            for i in range(totlen):
+                itmlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                client = SimpleNamespace()
+                client.data = bldata.read(2*itmlen)
+                self.vData.append(client)
+        elif self.vType == 12:
+            for i in range(totlen):
+                # Getting recursive
+                client = SimpleNamespace()
+                client.obj = LVclasses.OleVariant(0, self.vi, self.po)
+                client.obj.parseRSRCData(bldata)
+                self.vData.append(client)
+        else:
+            for i in range(totlen):
+                client = SimpleNamespace()
+                client.data = bldata.read(vSize)
+                self.vData.append(client)
+        pass
+
+    def parseRSRCData(self, bldata):
+        self.parseRSRCVariant(bldata)
+        pass
+

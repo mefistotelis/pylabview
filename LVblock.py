@@ -1631,7 +1631,12 @@ class DFDS(VarCodingBlock):
         elif df.fulltype in (CONNECTOR_FULL_TYPE.Cluster,):
             df.value = None # TODO implement
         elif df.fulltype in (CONNECTOR_FULL_TYPE.LVVariant,):
-            df.value = None # TODO implement
+            ver = self.vi.getFileVersion()
+            if isGreaterOrEqVersion(ver, 6,0,0,2):
+                df.value = LVclasses.LVVariant(0, self.vi, self.po)
+            else:
+                df.value = LVclasses.OleVariant(0, self.vi, self.po)
+            df.value.parseRSRCData(bldata)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.MeasureData,):
             df.value = None # TODO implement
         elif df.fulltype in (CONNECTOR_FULL_TYPE.ComplexFixedPt,):
