@@ -1222,13 +1222,6 @@ class STR(Block):
 
         self.setData(data_buf, section_num=section_num)
 
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = super().getData(section_num=section_num, use_coding=use_coding)
-        return bldata
-
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
-
     def initWithXMLSection(self, section, section_elem):
         snum = section.start.section_idx
         fmt = section_elem.get("Format")
@@ -1257,19 +1250,78 @@ class STR(Block):
         section_elem.set("Format", "inline")
 
 
+class STRsh(Block):
+    """ Pascal Strings List
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.content = []
+        return section
+
+    def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+
+        section.content = []
+        strings_count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        for i in range(strings_count):
+            string_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            string_val = bldata.read(string_len)
+            section.content.append(string_val)
+
+    def updateSectionData(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+
+        data_buf = b''
+        data_buf += int(len(section.content)).to_bytes(2, byteorder='big')
+        for string_val in section.content:
+            data_buf += int(len(string_val)).to_bytes(1, byteorder='big')
+            data_buf += string_val
+
+        self.setData(data_buf, section_num=section_num)
+
+    def initWithXMLSection(self, section, section_elem):
+        snum = section.start.section_idx
+        fmt = section_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.ident,snum))
+            section.content = []
+
+            for i, subelem in enumerate(section_elem):
+                if (subelem.tag == "NameObject"):
+                    pass # Items parsed somewhere else
+                elif (subelem.tag == "String"):
+                    if subelem.text is not None:
+                        section.content.append(subelem.text.encode(self.vi.textEncoding))
+                    else:
+                        section.content.append(b'')
+                else:
+                    raise AttributeError("Section contains unexpected tag")
+        else:
+            Block.initWithXMLSection(self, section, section_elem)
+        pass
+
+    def exportXMLSection(self, section_elem, snum, section, fname_base):
+        self.parseData(section_num=snum)
+
+        for string_val in section.content:
+            subelem = ET.SubElement(section_elem,"String")
+
+            pretty_string = string_val.decode(self.vi.textEncoding)
+            subelem.text = pretty_string
+
+        section_elem.set("Format", "inline")
+
+
 class CPST(Block):
     """ C. P. Strings
     """
     def createSection(self):
         section = super().createSection()
         return section
-
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = super().getData(section_num=section_num, use_coding=use_coding)
-        return bldata
-
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
 
 class LinkObjRefs(Block):
