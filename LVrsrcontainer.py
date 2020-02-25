@@ -542,6 +542,7 @@ class VI():
             subelem = block.exportXMLTree(simple_bin=True)
             elem.append(subelem)
 
+        ET.pretty_element_tree_heap(elem)
         return elem
 
     def exportXMLTree(self):
@@ -556,7 +557,6 @@ class VI():
             elem.append(subelem)
 
         ET.pretty_element_tree_heap(elem)
-
         return elem
 
     def checkSanity(self):
