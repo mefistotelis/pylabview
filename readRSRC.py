@@ -54,6 +54,9 @@ def main():
             help="extract all connectors into raw binary files instead of pure XML" \
             " (works only with --extract command)")
 
+    parser.add_argument('--file-map', action='store_true',
+            help="print file map (offsets at which things are within the RSRC file)")
+
     parser.add_argument('--keep-names', action='store_true',
             help="extract files to names indicated by RSRC content" \
             " (works with --extract and --dump commands; useful for LLBs)")
@@ -149,6 +152,9 @@ def main():
             vi = VI(po, rsrc_fh=rsrc_fh, text_encoding=po.textcp)
 
             root = vi.exportXMLTree()
+
+            if po.file_map:
+                vi.printRSRCMap()
 
         if (po.verbose > 0):
             print("{}: Writing binding XML".format(po.xml))

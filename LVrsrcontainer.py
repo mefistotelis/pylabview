@@ -195,6 +195,7 @@ class VI():
         self.ftype = FILE_FMT_TYPE.NONE
         self.textEncoding = text_encoding
         self.blocks = None
+        self.rsrc_map = []
 
         if rsrc_fh is not None:
             self.dataSource = "rsrc"
@@ -218,6 +219,9 @@ class VI():
             rsrchead = RSRCHeader(self.po)
             if fh.readinto(rsrchead) != sizeof(rsrchead):
                 raise EOFError("Could not read RSRC {:d} Header.".format(len(rsrc_headers)))
+            if self.po.file_map:
+                self.rsrc_map.append( (fh.tell(), sizeof(rsrchead), \
+                  "{}[{}]".format(type(rsrchead).__name__,len(rsrc_headers)),) )
             if (self.po.verbose > 2):
                 print(rsrchead)
             if not rsrchead.checkSanity():
@@ -249,6 +253,9 @@ class VI():
         binflsthead = BlockInfoListHeader(self.po)
         if fh.readinto(binflsthead) != sizeof(binflsthead):
             raise EOFError("Could not read BlockInfoList header.")
+        if self.po.file_map:
+            self.rsrc_map.append( (fh.tell(), sizeof(binflsthead), \
+              "{}".format(type(binflsthead).__name__),) )
         if (self.po.verbose > 2):
             print(binflsthead)
         if not binflsthead.checkSanity():
@@ -260,6 +267,9 @@ class VI():
         binfhead = BlockInfoHeader(self.po)
         if fh.readinto(binfhead) != sizeof(binfhead):
             raise EOFError("Could not read BlockInfo header.")
+        if self.po.file_map:
+            self.rsrc_map.append( (fh.tell(), sizeof(binfhead),
+              "{}".format(type(binfhead).__name__),) )
         if not binfhead.checkSanity():
             raise IOError("BlockInfo Header sanity check failed.")
         if (self.po.verbose > 2):
@@ -273,6 +283,11 @@ class VI():
             block_head = LVblock.BlockHeader(self.po)
             if fh.readinto(block_head) != sizeof(block_head):
                 raise EOFError("Could not read BlockInfo header.")
+            if self.po.file_map:
+                pretty_ident = getPrettyStrFromRsrcType(block_head.ident)
+                self.rsrc_map.append( (fh.tell(), sizeof(block_head), \
+                  "{}[{}]".format(type(block_head).__name__,pretty_ident),) )
+
             if (self.po.verbose > 2):
                 print(block_head)
             if not block_head.checkSanity():
@@ -280,6 +295,10 @@ class VI():
             #t['Count'] = reader.readUInt32() + 1
             #t['Offset'] = blkinf_rsrchead.rsrc_info_offset + binflsthead.blockinfo_offset + reader.readUInt32()
             block_headers.append(block_head)
+
+        if self.po.file_map:
+            self.rsrc_map.append( (fh.tell(), sizeof(BlockInfoHeader)+tot_blockinfo_count*sizeof(LVblock.BlockHeader), \
+              "BlockInfo",))
 
         return block_headers
 
@@ -324,6 +343,7 @@ class VI():
     def readRSRC(self, fh):
         self.rsrc_fh = fh
         self.src_fname = fh.name
+        self.rsrc_map = []
         self.readRSRCList(fh)
         block_headers = self.readRSRCBlockInfo(fh)
         self.readRSRCBlockData(fh, block_headers)
@@ -629,6 +649,50 @@ class VI():
         #BDPW.recalculateHash2(store=True) # called by updateSectionData()
         BDPW.updateSectionData()
         return BDPW
+
+    def printRSRCMap(self):
+        # BlockSectionStart elements are really independent; but let's put them into some parent
+        # for clarity. After all, all versions of LV create these next to each other.
+        parent_beg = 0xffffffff
+        parent_end = 0x0
+        for mapItem in self.rsrc_map:
+            if re.match(r"BlockSectionStart\[.+\]", mapItem[2]):
+                parent_beg = min(parent_beg, mapItem[0]-mapItem[1])
+                parent_end = max(parent_end, mapItem[0])
+        if parent_beg < parent_end:
+            self.rsrc_map.append( (parent_end, parent_end-parent_beg, \
+              "BlockSectionStarts",) )
+        # Put section data into a parent as well
+        parent_beg = 0xffffffff
+        parent_end = 0x0
+        for mapItem in self.rsrc_map:
+            if re.match(r"BlockSectionData\[.+\]", mapItem[2]):
+                parent_beg = min(parent_beg, mapItem[0]-mapItem[1])
+                parent_end = max(parent_end, mapItem[0])
+        if parent_beg < parent_end:
+            self.rsrc_map.append( (parent_end, parent_end-parent_beg, \
+              "BlockData",) )
+        # Names block also should have one parent
+        parent_beg = 0xffffffff
+        parent_end = 0x0
+        for mapItem in self.rsrc_map:
+            if re.match(r"NameOf.+\[.+\]", mapItem[2]):
+                parent_beg = min(parent_beg, mapItem[0]-mapItem[1])
+                parent_end = max(parent_end, mapItem[0])
+        if parent_beg < parent_end:
+            self.rsrc_map.append( (parent_end, parent_end-parent_beg, \
+              "NameStrings",) )
+        parents = []
+        rsrc_map_sorted = sorted(self.rsrc_map, key=lambda x: (x[0]-x[1], -x[1], len(x[2])))
+        for mapItem in rsrc_map_sorted:
+            while len(parents) > 0:
+                parItem = parents[-1]
+                if parItem[0] > mapItem[0]-mapItem[1]:
+                    break
+                parents.pop()
+            parents.append(mapItem)
+            print("{:08X}: {:>{}s}{:s} (size:{:d})".format(mapItem[0]-mapItem[1],"",2*(len(parents)-1),mapItem[2],mapItem[1]))
+        pass
 
     def isLoaded(self):
         return (self.blocks is not None)

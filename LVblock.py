@@ -158,6 +158,8 @@ class Block(object):
             self.vi.rsrc_headers[-1].rsrc_info_offset + \
             self.vi.binflsthead.blockinfo_offset + \
             self.header.offset
+        if self.po.file_map:
+            pretty_ident = getPrettyStrFromRsrcType(self.ident)
 
         fh = self.vi.rsrc_fh
         fh.seek(start_pos)
@@ -167,6 +169,9 @@ class Block(object):
             section = self.createSection()
             if fh.readinto(section.start) != sizeof(section.start):
                 raise EOFError("Could not read BlockSectionStart data.")
+            if self.po.file_map:
+                self.vi.rsrc_map.append( (fh.tell(), sizeof(section.start), \
+                  "{}[{},{}]".format(type(section.start).__name__,pretty_ident,section.start.section_idx),) )
             if (self.po.verbose > 2):
                 print(section.start)
             if not section.start.checkSanity():
@@ -189,6 +194,8 @@ class Block(object):
         Can access some basic data from other sections.
         """
         fh = self.vi.rsrc_fh
+        if self.po.file_map:
+            pretty_ident = getPrettyStrFromRsrcType(self.ident)
         # After BlockSectionStart list, there is Block Section Names list; only some sections have a name
         names_start = self.vi.getPositionOfBlockSectionNames()
         names_end = self.vi.getPositionOfBlockInfoEnd()
@@ -200,6 +207,9 @@ class Block(object):
             fh.seek(names_start + section.start.name_offset)
             name_text_len = int.from_bytes(fh.read(1), byteorder='big', signed=False)
             section.name_text = fh.read(name_text_len)
+            if self.po.file_map:
+                self.vi.rsrc_map.append( (fh.tell(), 1+name_text_len, \
+                  "{}[{},{}]".format("NameOfSection",pretty_ident,section.start.section_idx),) )
             section.name_obj = None
             if len(section.name_text) >= 12 and section.name_text[0:4] == b'PTH0':
                 totlen = int.from_bytes(section.name_text[4:8], byteorder='big', signed=False)
@@ -350,6 +360,8 @@ class Block(object):
         rsrc_data_size = self.vi.rsrc_headers[-1].rsrc_data_size
 
         fh = self.vi.rsrc_fh
+        if self.po.file_map:
+            pretty_ident = getPrettyStrFromRsrcType(self.ident)
         for snum, section in sorted(self.sections.items()):
             if snum >= section_count: break
             sum_size += last_blksect_size
@@ -384,6 +396,9 @@ class Block(object):
                 data = fh.read(blksect.size)
                 section.raw_data = data
                 section.raw_data_updated = True
+                if self.po.file_map:
+                    self.vi.rsrc_map.append( (fh.tell(), sizeof(blksect)+len(section.raw_data), \
+                      "{}[{},{}]".format(type(blksect).__name__,pretty_ident,section.start.section_idx),) )
             # Set last size, padded to multiplicity of 4 bytes
             last_blksect_size = blksect.size
             if last_blksect_size % 4 > 0:
