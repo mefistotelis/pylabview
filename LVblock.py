@@ -2754,29 +2754,43 @@ class BDPW(Block):
 
     def parseRSRCData(self, section_num, bldata):
         section = self.sections[section_num]
+        ver = self.vi.getFileVersion()
 
         section.password_md5 = bldata.read(16)
         section.hash_1 = bldata.read(16)
-        section.hash_2 = bldata.read(16)
+        if isGreaterOrEqVersion(ver, 6,0,0):
+            section.hash_2 = bldata.read(16)
+        else:
+            section.hash_2 = b''
 
     def updateSectionData(self, section_num=None):
         if section_num is None:
             section_num = self.active_section_num
         section = self.sections[section_num]
+        ver = self.vi.getFileVersion()
 
         if True:
             self.recalculateHash1(section_num=section_num)
+        if isGreaterOrEqVersion(ver, 6,0,0):
             self.recalculateHash2(section_num=section_num)
 
         data_buf = section.password_md5
         data_buf += section.hash_1
         data_buf += section.hash_2
 
-        if (len(data_buf) != 48):
-            raise RuntimeError("Block {} section {} generated binary data of invalid size"\
-              .format(self.ident,section_num))
+        exp_whole_len = self.expectedRSRCSize(section_num)
+        if (len(data_buf) != exp_whole_len):
+            eprint("{:s}: Warning: Block {} section {} generated binary data of size {:d}, expected {:d}"\
+              .format(self.vi.src_fname,self.ident,section_num,len(data_buf),exp_whole_len))
 
         self.setData(data_buf, section_num=section_num)
+
+    def expectedRSRCSize(self, section_num):
+        ver = self.vi.getFileVersion()
+        exp_whole_len = 16 + 16
+        if isGreaterOrEqVersion(ver, 6,0,0):
+            exp_whole_len += 16
+        return exp_whole_len
 
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         self.parseData(section_num=snum)
