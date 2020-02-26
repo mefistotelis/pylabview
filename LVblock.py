@@ -1668,7 +1668,7 @@ class DFDS(VarCodingBlock):
         else:
             self.defaultBlockCoding = BLOCK_CODING.NONE
 
-    def parseRSRCTypeValue(self, section_num, df, bldata):
+    def parseRSRCTypeValue(self, section_num, df, td, bldata):
         if df.fulltype in (CONNECTOR_FULL_TYPE.Void,):
             df.value = None
         elif df.fulltype in (CONNECTOR_FULL_TYPE.NumInt8,):
@@ -1766,13 +1766,12 @@ class DFDS(VarCodingBlock):
         elif df.fulltype in (CONNECTOR_FULL_TYPE.RepeatedBlock,):
             df.value = []
             VCTP = self.vi.get_or_raise('VCTP')
-            this_td = VCTP.getTopType(df.typeid)
-            sub_td = VCTP.getFlatType(this_td.typeFlatIdx)
-            for i in range(this_td.numRepeats):
+            sub_td = VCTP.getFlatType(td.typeFlatIdx)
+            for i in range(td.numRepeats):
                 sub_df = SimpleNamespace()
-                sub_df.typeid = this_td.typeFlatIdx
+                sub_df.typeid = td.typeFlatIdx
                 sub_df.fulltype = sub_td.fullType()
-                self.parseRSRCTypeValue(section_num, sub_df, bldata)
+                self.parseRSRCTypeValue(section_num, sub_df, sub_td, bldata)
                 df.value.append(sub_df)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.AlignmntMarker,):
             df.value = None # TODO implement
@@ -1785,7 +1784,14 @@ class DFDS(VarCodingBlock):
         elif df.fulltype in (CONNECTOR_FULL_TYPE.Function,):
             df.value = None # TODO implement
         elif df.fulltype in (CONNECTOR_FULL_TYPE.TypeDef,):
-            df.value = None # TODO implement
+            df.value = []
+            # We expect only one client within TypeDef
+            for client in td.clients:
+                sub_df = SimpleNamespace()
+                sub_df.typeid = -1 # No index exists for sub-type
+                sub_df.fulltype = client.nested.fullType()
+                self.parseRSRCTypeValue(section_num, sub_df, client.nested, bldata)
+                df.value.append(sub_df)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.SubString,CONNECTOR_FULL_TYPE.PolyVI,):
             # This would cause silently ignored error in LV14
             df.value = None
@@ -1814,7 +1820,7 @@ class DFDS(VarCodingBlock):
                     df.typeid = tmItm.index
                     df.fulltype = tmItm.td.fullType()
                     try:
-                        self.parseRSRCTypeValue(section_num, df, bldata)
+                        self.parseRSRCTypeValue(section_num, df, tmItm.td, bldata)
                     except Exception as e:
                         eprint("{:s}: Warning: Block {} section {} data type {} parsing exception: {}."\
                           .format(self.vi.src_fname,self.ident,section_num,\
