@@ -925,20 +925,79 @@ class FPSE(SingleIntBlock):
         return section
 
 
-class FPTD(SingleIntBlock):
+class FPTD(Block):
     """ Front Panel TD
 
     Contains list of types, with exactly one
     type inside. The type points to DataLog
     connector.
+
+    The content is different for old format VIs.
+    There, the type definition seem to be stored directly?
     """
     def createSection(self):
         section = super().createSection()
-        section.byteorder = 'big'
-        section.size = 2
-        section.base = 10
-        section.signed = False
+        section.value = None
         return section
+
+    def isSingleTDIndex(self):
+        ver = self.vi.getFileVersion()
+        return isGreaterOrEqVersion(ver, 6,0,0)
+
+    def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+
+        if self.isSingleTDIndex():
+            section.value = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        else:
+            #TODO currently we do not know how to parse old version of FPTD block
+            super().parseRSRCData(section_num, bldata)
+
+    def updateSectionData(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+
+        if self.isSingleTDIndex():
+            data_buf = int(section.value).to_bytes(2, byteorder='big')
+        else:
+            #TODO currently we do not know how to parse old version of FPTD block
+            super().updateSectionData(section_num)
+            return
+
+        if (len(data_buf) != 2):
+            raise RuntimeError("Block {} section {} generated binary data of invalid size"\
+              .format(self.ident,section_num))
+
+        self.setData(data_buf, section_num=section_num)
+
+    def initWithXMLSection(self, section, section_elem):
+        snum = section.start.section_idx
+        fmt = section_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.ident,snum))
+            section.value = int(section_elem.get("Value"), 0)
+        else:
+            Block.initWithXMLSection(self, section, section_elem)
+        pass
+
+    def exportXMLSection(self, section_elem, snum, section, fname_base):
+        self.parseData(section_num=snum)
+
+        if self.isSingleTDIndex():
+            section_elem.set("Value", "{:d}".format(section.value))
+        else:
+            #TODO currently we do not know how to parse old version of FPTD block
+            super().exportXMLSection(section_elem, snum, section, fname_base)
+            return
+
+        section_elem.set("Format", "inline")
+
+    def getValue(self):
+        self.parseData()
+        return self.value
 
 
 class BDSE(SingleIntBlock):
