@@ -25,6 +25,7 @@ from ctypes import *
 from LVmisc import *
 import LVxml as ET
 from LVconnector import *
+from LVconnectorref import REFNUM_TYPE
 from LVinstrument import *
 import LVclasses
 import LVheap
@@ -1683,8 +1684,33 @@ class DFDS(VarCodingBlock):
         else:
             self.defaultBlockCoding = BLOCK_CODING.NONE
 
+    def isSpecialDSTMCluster(self, tmItm):
+        return (tmItm.flags & (0x0010|0x0020|0x0040|0x0004)) != 0;
+
+    def isSpecialDSTMClusterElement(self, idx, tmFlags):
+        ver = self.vi.getFileVersion()
+
+        if (tmFlags & 0x0004) != 0:
+            if isSmallerVersion(ver, 10,0,0,2):
+                if idx == 2:
+                    return True
+            else:
+                if idx == 1:
+                    return True
+            return False
+        if (tmFlags & 0x0010) != 0:
+            if idx in (1,2,3,):
+                return True
+        elif (tmFlags & 0x0020) != 0:
+            if idx == 3:
+                return True
+        elif (tmFlags & 0x0040) != 0:
+            if idx == 2:
+                return True
+        return False
+
     def parseRSRCTypeValue(self, section_num, df, td, bldata):
-        if df.fulltype in (CONNECTOR_FULL_TYPE.Void,):
+        if df.fulltype in (CONNECTOR_FULL_TYPE.Void,CONNECTOR_FULL_TYPE.VoidBlock,):
             df.value = None
         elif df.fulltype in (CONNECTOR_FULL_TYPE.NumInt8,):
             df.value = int.from_bytes(bldata.read(1), byteorder='big', signed=True)
@@ -1720,9 +1746,15 @@ class DFDS(VarCodingBlock):
             df.value = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.UnitUInt32,):
             df.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        elif df.fulltype in (CONNECTOR_FULL_TYPE.BooleanU16,CONNECTOR_FULL_TYPE.Boolean,):
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.BooleanU16,):
             df.value = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        elif df.fulltype in (CONNECTOR_FULL_TYPE.String,):
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.Boolean,):
+            ver = self.vi.getFileVersion()
+            if isGreaterOrEqVersion(ver, 4,5,0):
+                df.value = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            else:
+                df.value = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.String,CONNECTOR_FULL_TYPE.Tag,CONNECTOR_FULL_TYPE.Picture,):
             strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             df.value = bldata.read(strlen)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.Path,):
@@ -1740,22 +1772,28 @@ class DFDS(VarCodingBlock):
                 eprint("{:s}: Warning: Block {} section {} contains path data of unrecognized class {}."\
                   .format(self.vi.src_fname,self.ident,section_num,clsident))
                 df.value = LVclasses.LVPath1(self.vi, self.po)
-        elif df.fulltype in (CONNECTOR_FULL_TYPE.Picture,):
-            df.value = None # TODO implement
-        elif df.fulltype in (CONNECTOR_FULL_TYPE.CString,):
-            df.value = None # TODO implement
-        elif df.fulltype in (CONNECTOR_FULL_TYPE.PasString,):
-            df.value = None # TODO implement
-        elif df.fulltype in (CONNECTOR_FULL_TYPE.Tag,):
-            df.value = None # TODO implement
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.PasString,CONNECTOR_FULL_TYPE.CString,):
+            df.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            # TODO implement/verify; this looks suspicious
         elif df.fulltype in (CONNECTOR_FULL_TYPE.Array,):
             df.value = None # TODO implement
         elif df.fulltype in (CONNECTOR_FULL_TYPE.ArrayDataPtr,):
-            df.value = None # TODO implement
+            df.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.SubArray,):
             df.value = None # TODO implement
         elif df.fulltype in (CONNECTOR_FULL_TYPE.Cluster,):
-            df.value = None # TODO implement
+            df.value = []
+            for cli_idx, conn_idx, conn_obj, conn_flags in td.clientsEnumerate():
+                sub_df = SimpleNamespace()
+                sub_df.typeid = conn_idx
+                sub_df.fulltype = conn_obj.fullType()
+                # TODO might need padding before each and at end
+                try:
+                    self.parseRSRCTypeValue(section_num, sub_df, conn_obj, bldata)
+                except Exception as e:
+                    raise RuntimeError("Inside data type {} parsing: {}."\
+                      .format(sub_df.fulltype.name if isinstance(sub_df.fulltype, enum.IntEnum) else sub_df.fulltype,str(e)))
+                df.value.append(sub_df)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.LVVariant,):
             ver = self.vi.getFileVersion()
             if isGreaterOrEqVersion(ver, 6,0,0,2):
@@ -1766,18 +1804,26 @@ class DFDS(VarCodingBlock):
         elif df.fulltype in (CONNECTOR_FULL_TYPE.MeasureData,):
             df.value = None # TODO implement
         elif df.fulltype in (CONNECTOR_FULL_TYPE.ComplexFixedPt,):
-            df.value = None # TODO implement
+            # Not sure about the order of values in this type
+            df.value = 2 * [None]
+            df.vflags = 2 * [None]
+            df.value[0] = int.from_bytes(bldata.read(8), byteorder='big', signed=False)
+            if td.allocOv:
+                df.vflags[0] = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            df.value[1] = int.from_bytes(bldata.read(8), byteorder='big', signed=False)
+            if td.allocOv:
+                df.vflags[1] = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.FixedPoint,):
-            # 4 bytes + conditional 1byte OverflowStatus + alignment
-            df.value = None # TODO implement
+            df.value = int.from_bytes(bldata.read(8), byteorder='big', signed=False)
+            df.vflags = None
+            if td.allocOv:
+                # Masks: 0x01 = OverflowStatus
+                df.vflags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            # TODO might need padding at end
         elif df.fulltype in (CONNECTOR_FULL_TYPE.Block,):
-            df.value = None # TODO implement
-        elif df.fulltype in (CONNECTOR_FULL_TYPE.TypeBlock,):
-            df.value = None # TODO implement
-        elif df.fulltype in (CONNECTOR_FULL_TYPE.VoidBlock,):
-            df.value = None # TODO implement
+            df.value = bldata.read(td.prop1)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.AlignedBlock,):
-            df.value = None # TODO implement
+            df.value = bldata.read(td.numRepeats)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.RepeatedBlock,):
             df.value = []
             VCTP = self.vi.get_or_raise('VCTP')
@@ -1789,16 +1835,35 @@ class DFDS(VarCodingBlock):
                 self.parseRSRCTypeValue(section_num, sub_df, sub_td, bldata)
                 df.value.append(sub_df)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.AlignmntMarker,):
-            df.value = None # TODO implement
+            df.value = None
         elif df.fulltype in (CONNECTOR_FULL_TYPE.Refnum,):
-            df.value = None # TODO implement
-        elif df.fulltype in (CONNECTOR_FULL_TYPE.Ptr,):
-            df.value = None # TODO implement
-        elif df.fulltype in (CONNECTOR_FULL_TYPE.PtrTo,):
-            df.value = None # TODO implement
+            if td.refType() in (REFNUM_TYPE.IVIRef,REFNUM_TYPE.VisaRef,REFNUM_TYPE.Imaq,):
+                # These ref types represent IORefnum
+                strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                df.value = bldata.read(strlen)
+            elif td.refType() in (REFNUM_TYPE.UsrDefTagFlt,REFNUM_TYPE.UsrDefndTag,):
+                # These ref types represent Tag subtypes of UDRefnum
+                df.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            elif td.refType() in (REFNUM_TYPE.UsrDefTagFlt,REFNUM_TYPE.UsrDefndTag,REFNUM_TYPE.UsrDefined,):
+                ver = self.vi.getFileVersion()
+                # These ref types represent Non-tag subtypes of UDRefnum
+                strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                df.value = bldata.read(strlen)
+                if isGreaterOrEqVersion(ver, 12,0,0,2) and isSmallerVersion(ver, 12,0,0,5):
+                    bldata.read(1)
+                # TODO unfinished
+                raise RuntimeError("Non-tag subtypes of UDRefnum unfinished.")
+            else:
+                # All the normal refnums
+                # The format seem to be different for LV6.0.0 and older, but still 4 bytes
+                df.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.Ptr,CONNECTOR_FULL_TYPE.PtrTo,):
+            df.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.Function,):
-            df.value = None # TODO implement
-        elif df.fulltype in (CONNECTOR_FULL_TYPE.TypeDef,):
+            eprint("{:s}: Warning: Block {} section {} asks to read default value of Function type."\
+              .format(self.vi.src_fname,self.ident,section_num))
+            df.value = None
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.TypeDef,CONNECTOR_FULL_TYPE.TypeBlock,):
             df.value = []
             # We expect only one client within TypeDef
             for client in td.clients:
@@ -1812,7 +1877,7 @@ class DFDS(VarCodingBlock):
             df.value = None
         else:
             df.value = None
-        # TODO implement, using tmItm.td
+        pass
 
     def parseRSRCData(self, section_num, bldata):
         section = self.sections[section_num]
@@ -1842,20 +1907,39 @@ class DFDS(VarCodingBlock):
                            df.fulltype.name if isinstance(df.fulltype, enum.IntEnum) else df.fulltype,str(e)))
                         df.value = None
                     pass
-                elif tmItm.td.fullType() in (CONNECTOR_FULL_TYPE.Cluster,) and \
-                     (tmItm.flags & 0x0074) != 0:
+                elif tmItm.td.fullType() == CONNECTOR_FULL_TYPE.Cluster and self.isSpecialDSTMCluster(tmItm):
                     # This is Special DSTM Cluster
                     df = SimpleNamespace()
                     df.typeid = tmItm.index
                     df.fulltype = tmItm.td.fullType()
-                    # TODO implement, using tmItm.td
-                    df.value = 0#readVariableSizeFieldU2p2(bldata)
+                    df.value = []
+                    skipNextEntry = ((tmItm.flags & 0x0200) != 0)
+                    for cli_idx, conn_idx, conn_obj, conn_flags in tmItm.td.clientsEnumerate():
+                        if not self.isSpecialDSTMClusterElement(cli_idx, tmItm.flags):
+                            continue
+                        if skipNextEntry:
+                            skipNextEntry = False
+                            continue
+                        sub_df = SimpleNamespace()
+                        sub_df.typeid = conn_idx
+                        sub_df.fulltype = conn_obj.fullType()
+                        try:
+                            self.parseRSRCTypeValue(section_num, sub_df, conn_obj, bldata)
+                        except Exception as e:
+                            eprint("{:s}: Warning: Block {} section {} data type {} parsing exception: {}."\
+                              .format(self.vi.src_fname,self.ident,section_num,\
+                               sub_df.fulltype.name if isinstance(sub_df.fulltype, enum.IntEnum) else sub_df.fulltype,str(e)))
+                            sub_df.value = None
+                        df.value.append(sub_df)
                     pass
                 else:
                     # No default value for this TD
                     pass
                 if df is not None:
                     section.content.append(df)
+            totlen = len(bldata.getvalue())
+            if bldata.tell() < totlen:
+                print("Warning: Section size is {} and does not match parsed size {}".format(totlen, bldata.tell()))
         else:
             # No support for the 7.1 format
             Block.parseRSRCData(self, section_num, bldata)

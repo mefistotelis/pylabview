@@ -515,7 +515,7 @@ class ConnectorObject:
         self.parseData() # Make sure the block is parsed
         out_lists = { 'number': [], 'path': [], 'string': [], 'compound': [], 'other': [] }
         for cli_idx, conn_idx, conn_obj, conn_flags in self.clientsEnumerate():
-            # We will need a list of clients, so ma might as well parse the connector now
+            # We will need a list of clients, so might as well parse the connector now
             conn_obj.parseData()
             if not conn_obj.checkSanity():
                 if (self.po.verbose > 0):
@@ -1024,7 +1024,7 @@ class ConnectorObjectBlob(ConnectorObject):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
         self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
 
-        self.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False) # size of block/blob
         # No more known data inside
         self.parseRSRCDataFinish(bldata)
 
@@ -1665,7 +1665,7 @@ class ConnectorObjectRepeatedBlock(ConnectorObject):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
         self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
 
-        self.numRepeats = int.from_bytes(bldata.read(4), byteorder='big', signed=False) # block data size?
+        self.numRepeats = int.from_bytes(bldata.read(4), byteorder='big', signed=False) # TODO For AlignedBlock, this is just data size - make separate type!
         self.typeFlatIdx = readVariableSizeFieldU2p2(bldata)
         # No more known data inside
         self.parseRSRCDataFinish(bldata)
