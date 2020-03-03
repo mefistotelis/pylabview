@@ -493,8 +493,10 @@ class Block(object):
             if self.vi.dataSource == "rsrc" or self.hasRawData(section_num=section_num):
                 bldata = self.getData(section_num=section_num)
                 self.parseRSRCData(section_num, bldata)
+                self.raw_data_updated = False
             elif self.vi.dataSource == "xml":
                 self.parseXMLData(section_num=section_num)
+                self.parsed_data_updated = False
         pass
 
     def updateSectionData(self, section_num=None):
