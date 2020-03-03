@@ -1859,7 +1859,13 @@ class DFDS(VarCodingBlock):
                 # All the normal refnums
                 # The format seem to be different for LV6.0.0 and older, but still 4 bytes
                 df.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        elif df.fulltype in (CONNECTOR_FULL_TYPE.Ptr,CONNECTOR_FULL_TYPE.PtrTo,):
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.Ptr,):
+            ver = self.vi.getFileVersion()
+            if isSmallerVersion(ver, 8,6,0,1):
+                df.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            else:
+                df.value = None
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.PtrTo,):
             df.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.Function,):
             eprint("{:s}: Warning: Block {} section {} asks to read default value of Function type."\
@@ -2283,7 +2289,7 @@ class TM80(VarCodingBlock):
         typeMap = []
         for i, val in enumerate(section.content):
             tmItm = SimpleNamespace()
-            tmItm.index = section.indexShift + i
+            tmItm.index = section.indexShift + i - 1
             tmItm.flags = val
             tmItm.td = VCTP.getTopType(tmItm.index)
             if tmItm.td is None:
