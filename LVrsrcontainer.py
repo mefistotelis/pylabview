@@ -37,7 +37,8 @@ class FILE_FMT_TYPE(enum.Enum):
     TemplateControl = 8
     TemplateVI = 9
     Xcontrol = 10
-    VI = 11
+    UsrIfaceResrc = 11
+    VI = 12
 
 
 class RSRCHeader(RSRCStructure):
@@ -141,6 +142,7 @@ def getRsrcTypeForFileType(ftype):
         FILE_FMT_TYPE.TemplateControl: b'sVCC',
         FILE_FMT_TYPE.TemplateVI: b'sVIN',
         FILE_FMT_TYPE.Xcontrol: b'LVXC',
+        FILE_FMT_TYPE.UsrIfaceResrc: b'iUWl',
         FILE_FMT_TYPE.VI: b'LVIN',
     }.get(ftype, b'')
     return file_type
@@ -171,6 +173,7 @@ def getFileExtByType(ftype):
         FILE_FMT_TYPE.TemplateControl: 'ctt',
         FILE_FMT_TYPE.TemplateVI: 'vit',
         FILE_FMT_TYPE.Xcontrol: 'xctl',
+        FILE_FMT_TYPE.UsrIfaceResrc: 'uir',
         FILE_FMT_TYPE.VI: 'vi',
     }.get(ftype, 'rsrc')
     return fext
