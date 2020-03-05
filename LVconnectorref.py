@@ -46,7 +46,7 @@ class REFNUM_TYPE(enum.IntEnum):
     Queue =	18
     IrdaNetConn =	19 # Irda Network Connnection
     UsrDefined =	20
-    UsrDefndTag =	21 # User Defined Tag
+    UsrDefndTag =	21 # User Defined Tag; also includes DAQmx type
     Unused22 =	22
     EventReg =	23 # Event Registration
     DotNet =	24

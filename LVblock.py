@@ -1687,7 +1687,15 @@ class DFDS(VarCodingBlock):
             self.defaultBlockCoding = BLOCK_CODING.NONE
 
     def isSpecialDSTMCluster(self, tmItm):
-        return (tmItm.flags & (0x0010|0x0020|0x0040|0x0004)) != 0;
+        return (tmItm.flags & (0x0010|0x0020|0x0040|0x0004)) != 0
+
+    def isRefnumTag(self, td):
+        """ Returns if given refnum td is a tag type.
+        """
+        if td.refType() in (REFNUM_TYPE.IVIRef,REFNUM_TYPE.VisaRef,\
+          REFNUM_TYPE.UsrDefTagFlt,REFNUM_TYPE.UsrDefndTag,):
+            return True
+        return False
 
     def isSpecialDSTMClusterElement(self, idx, tmFlags):
         ver = self.vi.getFileVersion()
@@ -1758,6 +1766,8 @@ class DFDS(VarCodingBlock):
                 df.value = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.String,CONNECTOR_FULL_TYPE.Tag,CONNECTOR_FULL_TYPE.Picture,):
             strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            #if td.prop1 != 0xffffffff: # in such case part of the value might be irrelevant, as only
+            # part to the size (td.prop1 & 0x7fffffff) is used; but the length stored is still valid
             df.value = bldata.read(strlen)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.Path,):
             startPos = bldata.tell()
@@ -1766,7 +1776,7 @@ class DFDS(VarCodingBlock):
                 df.value = LVclasses.LVPath0(self.vi, self.po)
                 bldata.seek(startPos)
                 df.value.parseRSRCData(bldata)
-            elif clsident == b'PTH1' or clsident == b'PTH2':
+            elif clsident in (b'PTH1', b'PTH2',):
                 df.value = LVclasses.LVPath1(self.vi, self.po)
                 bldata.seek(startPos)
                 df.value.parseRSRCData(bldata)
@@ -1809,12 +1819,11 @@ class DFDS(VarCodingBlock):
             # Not sure about the order of values in this type
             df.value = 2 * [None]
             df.vflags = 2 * [None]
-            df.value[0] = int.from_bytes(bldata.read(8), byteorder='big', signed=False)
-            if td.allocOv:
-                df.vflags[0] = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-            df.value[1] = int.from_bytes(bldata.read(8), byteorder='big', signed=False)
-            if td.allocOv:
-                df.vflags[1] = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            for i in range(2):
+                df.value[i] = int.from_bytes(bldata.read(8), byteorder='big', signed=False)
+                if td.allocOv:
+                    df.vflags[i] = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            pass
         elif df.fulltype in (CONNECTOR_FULL_TYPE.FixedPoint,):
             df.value = int.from_bytes(bldata.read(8), byteorder='big', signed=False)
             df.vflags = None
@@ -1841,20 +1850,33 @@ class DFDS(VarCodingBlock):
         elif df.fulltype in (CONNECTOR_FULL_TYPE.Refnum,):
             if td.refType() in (REFNUM_TYPE.IVIRef,REFNUM_TYPE.VisaRef,REFNUM_TYPE.Imaq,):
                 # These ref types represent IORefnum
-                strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-                df.value = bldata.read(strlen)
+                ver = self.vi.getFileVersion()
+                if isGreaterOrEqVersion(ver, 6,0,0):
+                    if self.isRefnumTag(td):
+                        strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                        df.value = bldata.read(strlen)
+                    else:
+                        df.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                else:
+                    df.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             elif td.refType() in (REFNUM_TYPE.UsrDefTagFlt,REFNUM_TYPE.UsrDefndTag,):
                 # These ref types represent Tag subtypes of UDRefnum
-                df.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            elif td.refType() in (REFNUM_TYPE.UsrDefTagFlt,REFNUM_TYPE.UsrDefndTag,REFNUM_TYPE.UsrDefined,):
                 ver = self.vi.getFileVersion()
-                # These ref types represent Non-tag subtypes of UDRefnum
                 strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
                 df.value = bldata.read(strlen)
                 if isGreaterOrEqVersion(ver, 12,0,0,2) and isSmallerVersion(ver, 12,0,0,5):
                     bldata.read(1)
-                # TODO unfinished
-                raise RuntimeError("Non-tag subtypes of UDRefnum unfinished.")
+                if td.refType() in (REFNUM_TYPE.UsrDefTagFlt,):
+                    strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                    df.usrdef1 = bldata.read(strlen)
+                    strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                    df.usrdef2 = bldata.read(strlen)
+                    df.usrdef3 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                    strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                    df.usrdef4 = bldata.read(strlen)
+            elif td.refType() in (REFNUM_TYPE.UsrDefined,):
+                # These ref types represent Non-tag subtypes of UDRefnum
+                df.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             else:
                 # All the normal refnums
                 # The format seem to be different for LV6.0.0 and older, but still 4 bytes
@@ -1885,6 +1907,11 @@ class DFDS(VarCodingBlock):
             df.value = None
         else:
             df.value = None
+        if (self.po.verbose > 2):
+            print("{:s}: Block {} section {} data type {} value {} offs after {}"\
+              .format(self.vi.src_fname,self.ident,section_num,\
+              df.fulltype.name if isinstance(df.fulltype, enum.IntEnum) else df.fulltype,\
+              df.value, bldata.tell()))
         pass
 
     def parseRSRCData(self, section_num, bldata):
@@ -1934,11 +1961,16 @@ class DFDS(VarCodingBlock):
                         try:
                             self.parseRSRCTypeValue(section_num, sub_df, conn_obj, bldata)
                         except Exception as e:
-                            eprint("{:s}: Warning: Block {} section {} data type {} parsing exception: {}."\
+                            eprint("{:s}: Warning: Block {} section {} special type {} parsing exception: {}."\
                               .format(self.vi.src_fname,self.ident,section_num,\
                                sub_df.fulltype.name if isinstance(sub_df.fulltype, enum.IntEnum) else sub_df.fulltype,str(e)))
                             sub_df.value = None
                         df.value.append(sub_df)
+                    if (self.po.verbose > 2):
+                        print("{:s}: Block {} section {} special type {} value {} offs after {}"\
+                          .format(self.vi.src_fname,self.ident,section_num,\
+                          df.fulltype.name if isinstance(df.fulltype, enum.IntEnum) else df.fulltype,\
+                          df.value, bldata.tell()))
                     pass
                 else:
                     # No default value for this TD
