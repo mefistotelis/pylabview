@@ -119,9 +119,25 @@ class CONNECTOR_FULL_TYPE(enum.IntEnum):
 
 
 class CONNECTOR_CLUSTER_FORMAT(enum.IntEnum):
-    TimeStamp =		6
-    Digitaldata =	7
-    Dynamicdata =	9
+    OldFloat64Waveform = 1
+    Int16Waveform =		2
+    Float64Waveform =	3
+    Float32Waveform =	5
+    TimeStamp =			6
+    Digitaldata =		7
+    DigitalWaveform = 	8
+    Dynamicdata =		9
+    FloatExtWaveform =	10
+    UInt8Waveform =		11
+    UInt16Waveform =	12
+    UInt32Waveform =	13
+    Int8Waveform =		14
+    Int32Waveform =		15
+    Complex64Waveform =	16
+    Complex128Waveform = 17
+    ComplexExtWaveform = 18
+    Int64Waveform =		19
+    UInt64Waveform =	20
 
 
 class CONNECTOR_FLAGS(enum.Enum):

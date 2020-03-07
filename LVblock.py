@@ -1788,11 +1788,27 @@ class DFDS(VarCodingBlock):
             df.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             # TODO implement/verify; this looks suspicious
         elif df.fulltype in (CONNECTOR_FULL_TYPE.Array,):
-            df.value = None # TODO implement
+            df.dimensions = []
+            for dim in td.dimensions:
+                val = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                df.dimensions.append(val)
+            # Multiply sizes of each dimension to get total number of items
+            totItems = 1
+            # TODO Not sure if the amount are in td.dimensions or df.dimensions
+            for dim in df.dimensions:
+                totItems *= dim & 0x7fffffff
+            df.value = []
+            VCTP = self.vi.get_or_raise('VCTP')
+            sub_td = VCTP.getFlatType(td.clients[0].index)
+            #if sub_td.fullType() in (CONNECTOR_FULL_TYPE.Boolean,) and isSmallerVersion(ver, 4,5,0,1): # TODO expecting special case, never seen it though
+            for i in range(totItems):
+                sub_df = SimpleNamespace()
+                sub_df.typeid = td.clients[0].index
+                sub_df.fulltype = sub_td.fullType()
+                self.parseRSRCTypeValue(section_num, sub_df, sub_td, bldata)
+                df.value.append(sub_df)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.ArrayDataPtr,):
             df.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        elif df.fulltype in (CONNECTOR_FULL_TYPE.SubArray,):
-            df.value = None # TODO implement
         elif df.fulltype in (CONNECTOR_FULL_TYPE.Cluster,):
             df.value = []
             for cli_idx, conn_idx, conn_obj, conn_flags in td.clientsEnumerate():
@@ -1814,7 +1830,9 @@ class DFDS(VarCodingBlock):
                 df.value = LVclasses.OleVariant(0, self.vi, self.po)
             df.value.parseRSRCData(bldata)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.MeasureData,):
+            #if td.clusterFormat() in (CONNECTOR_CLUSTER_FORMAT.TimeStamp,):
             df.value = None # TODO implement
+            raise NotImplementedError("MeasureData default value read is not implemented.")
         elif df.fulltype in (CONNECTOR_FULL_TYPE.ComplexFixedPt,):
             # Not sure about the order of values in this type
             df.value = 2 * [None]
@@ -1889,9 +1907,10 @@ class DFDS(VarCodingBlock):
                 df.value = None
         elif df.fulltype in (CONNECTOR_FULL_TYPE.PtrTo,):
             df.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        elif df.fulltype in (CONNECTOR_FULL_TYPE.Function,):
-            eprint("{:s}: Warning: Block {} section {} asks to read default value of Function type."\
-              .format(self.vi.src_fname,self.ident,section_num))
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.Function,CONNECTOR_FULL_TYPE.SubArray,):
+            eprint("{:s}: Warning: Block {} section {} asks to read default value of {} type."\
+              .format(self.vi.src_fname,self.ident,section_num,\
+              df.fulltype.name if isinstance(df.fulltype, enum.IntEnum) else df.fulltype))
             df.value = None
         elif df.fulltype in (CONNECTOR_FULL_TYPE.TypeDef,CONNECTOR_FULL_TYPE.TypeBlock,):
             df.value = []
