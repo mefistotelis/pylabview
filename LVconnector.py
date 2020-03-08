@@ -80,6 +80,7 @@ class CONNECTOR_FULL_TYPE(enum.IntEnum):
     Boolean =		0x21
 
     String =		0x30
+    String2 =		0x31
     Path =			0x32
     Picture =		0x33
     CString =		0x34
@@ -108,6 +109,10 @@ class CONNECTOR_FULL_TYPE(enum.IntEnum):
 
     Ptr =			0x80
     PtrTo =			0x83
+    ExtData =		0x84
+
+    ArrayInterfc =	0xA0
+    InterfcToData =	0xA1
 
     Function =		0xF0
     TypeDef =		0xF1
@@ -118,7 +123,12 @@ class CONNECTOR_FULL_TYPE(enum.IntEnum):
     EnumValue =	-2
 
 
-class CONNECTOR_CLUSTER_FORMAT(enum.IntEnum):
+class MEASURE_DATA_FLAVOR(enum.IntEnum):
+    """ Flavor of data within Measure Data Type
+
+    Used for types which do not describe the data kind well enough by themselves,
+    like MeasureData
+    """
     OldFloat64Waveform = 1
     Int16Waveform =		2
     Float64Waveform =	3
@@ -162,6 +172,15 @@ class TAG_TYPE(enum.Enum):
     Unknown3 = 3
     Unknown4 = 4
     UserDefined = 5
+
+
+class EXT_DATA_TYPE_KIND(enum.Enum):
+    """ Kind of data inside Ext Data type
+    """
+    Unknown0 = 0
+    OleVariant = 1
+    IDispatch = 2
+    IUnknown = 3
 
 
 class NUMBER_UNIT(enum.IntEnum):
@@ -1993,19 +2012,19 @@ class ConnectorObjectCluster(ConnectorObject):
 class ConnectorObjectMeasureData(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
-        self.clusterFmt = None
+        self.flavor = None
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
         self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
 
-        self.clusterFmt = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        self.flavor = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         # No more known data inside
         self.parseRSRCDataFinish(bldata)
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
-        data_buf += int(self.clusterFmt).to_bytes(2, byteorder='big')
+        data_buf += int(self.flavor).to_bytes(2, byteorder='big')
         return data_buf
 
     def expectedRSRCSize(self):
@@ -2026,7 +2045,7 @@ class ConnectorObjectMeasureData(ConnectorObject):
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
-            self.clusterFmt = valFromEnumOrIntString(CONNECTOR_CLUSTER_FORMAT, conn_elem.get("ClusterFmt"))
+            self.flavor = valFromEnumOrIntString(MEASURE_DATA_FLAVOR, conn_elem.get("Flavor"))
 
             self.updateData(avoid_recompute=True)
 
@@ -2036,15 +2055,15 @@ class ConnectorObjectMeasureData(ConnectorObject):
 
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
-        conn_elem.set("ClusterFmt", "{:s}".format(stringFromValEnumOrInt(CONNECTOR_CLUSTER_FORMAT, self.clusterFmt)))
+        conn_elem.set("Flavor", "{:s}".format(stringFromValEnumOrInt(MEASURE_DATA_FLAVOR, self.flavor)))
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
         ret = True
-        if self.clusterFmt > 127: # Not sure how many cluster formats are there
+        if self.flavor > 127: # Not sure how many cluster formats are there
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} clusterFmt {:d}, expected below {:d}"\
-                  .format(self.vi.src_fname,self.index,self.otype,self.clusterFmt,127+1))
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} flavor {:d}, expected below {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,self.flavor,127+1))
             ret = False
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
@@ -2054,10 +2073,10 @@ class ConnectorObjectMeasureData(ConnectorObject):
             ret = False
         return ret
 
-    def clusterFormat(self):
-        if self.clusterFmt not in set(item.value for item in CONNECTOR_CLUSTER_FORMAT):
-            return self.clusterFmt
-        return CONNECTOR_CLUSTER_FORMAT(self.clusterFmt)
+    def dtFlavor(self):
+        if self.flavor not in set(item.value for item in MEASURE_DATA_FLAVOR):
+            return self.flavor
+        return MEASURE_DATA_FLAVOR(self.flavor)
 
 
 class ConnectorObjectFixedPoint(ConnectorObject):

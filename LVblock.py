@@ -1830,7 +1830,7 @@ class DFDS(VarCodingBlock):
                 df.value = LVclasses.OleVariant(0, self.vi, self.po)
             df.value.parseRSRCData(bldata)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.MeasureData,):
-            #if td.clusterFormat() in (CONNECTOR_CLUSTER_FORMAT.TimeStamp,):
+            #if td.dtFlavor() in (MEASURE_DATA_FLAVOR.TimeStamp,):
             df.value = None # TODO implement
             raise NotImplementedError("MeasureData default value read is not implemented.")
         elif df.fulltype in (CONNECTOR_FULL_TYPE.ComplexFixedPt,):
@@ -1907,8 +1907,13 @@ class DFDS(VarCodingBlock):
                 df.value = None
         elif df.fulltype in (CONNECTOR_FULL_TYPE.PtrTo,):
             df.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.ExtData,):
+            eprint("{:s}: Warning: Block {} section {} asks to read default value of {} type, this is not implemented."\
+              .format(self.vi.src_fname,self.ident,section_num,\
+              df.fulltype.name if isinstance(df.fulltype, enum.IntEnum) else df.fulltype))
+            df.value = None
         elif df.fulltype in (CONNECTOR_FULL_TYPE.Function,CONNECTOR_FULL_TYPE.SubArray,):
-            eprint("{:s}: Warning: Block {} section {} asks to read default value of {} type."\
+            eprint("{:s}: Warning: Block {} section {} asks to read default value of {} type, this should never happen."\
               .format(self.vi.src_fname,self.ident,section_num,\
               df.fulltype.name if isinstance(df.fulltype, enum.IntEnum) else df.fulltype))
             df.value = None
