@@ -1690,6 +1690,120 @@ class ConnectorObjectArray(ConnectorObject):
         return ret
 
 
+class ConnectorObjectBlock(ConnectorObject):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.blkSize = None
+
+    def parseRSRCData(self, bldata):
+        # Fields oflags,otype are set at constructor, but no harm in setting them again
+        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+
+        self.blkSize = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        # No more known data inside
+        self.parseRSRCDataFinish(bldata)
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(self.blkSize).to_bytes(4, byteorder='big')
+        return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 4
+        exp_whole_len += self.expectedRSRCDataSize()
+        if self.label is not None:
+            label_len = 1 + len(self.label)
+            if label_len % 2 > 0: # Include padding
+                label_len += 2 - (label_len % 2)
+            exp_whole_len += label_len
+        return exp_whole_len
+
+    def expectedRSRCDataSize(self):
+        exp_whole_len = 0
+        exp_whole_len += 4
+        return exp_whole_len
+
+    def initWithXML(self, conn_elem):
+        fmt = conn_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.index,self.otype))
+
+            self.initWithXMLInlineStart(conn_elem)
+            self.initWithXMLInlineData(conn_elem)
+
+            self.updateData(avoid_recompute=True)
+
+        else:
+            ConnectorObject.initWithXML(self, conn_elem)
+        pass
+
+    def initWithXMLInlineData(self, conn_elem):
+        self.blkSize = int(conn_elem.get("BlockSize"), 0)
+
+    def exportXML(self, conn_elem, fname_base):
+        self.parseData()
+        conn_elem.set("BlockSize", "0x{:X}".format(self.blkSize))
+        conn_elem.set("Format", "inline")
+
+    def checkSanity(self):
+        ret = True
+        exp_whole_len = self.expectedRSRCSize()
+        if len(self.raw_data) != exp_whole_len:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
+            ret = False
+        return ret
+
+
+class ConnectorObjectAlignedBlock(ConnectorObjectBlock):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.typeFlatIdx = 0
+
+    def parseRSRCData(self, bldata):
+        # Fields oflags,otype are set at constructor, but no harm in setting them again
+        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+
+        self.blkSize = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.typeFlatIdx = readVariableSizeFieldU2p2(bldata)
+        # No more known data inside
+        self.parseRSRCDataFinish(bldata)
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(self.blkSize).to_bytes(4, byteorder='big')
+        data_buf += prepareVariableSizeFieldU2p2(self.typeFlatIdx)
+        return data_buf
+
+    def expectedRSRCDataSize(self):
+        exp_whole_len = 0
+        exp_whole_len += 4
+        exp_whole_len += 2 if self.typeFlatIdx <= 0x7FFF else 4
+        return exp_whole_len
+
+    def initWithXMLInlineData(self, conn_elem):
+        self.blkSize = int(conn_elem.get("BlockSize"), 0)
+        self.typeFlatIdx = int(conn_elem.get("TypeFlatIdx"), 0)
+
+    def exportXML(self, conn_elem, fname_base):
+        self.parseData()
+        conn_elem.set("BlockSize", "0x{:X}".format(self.blkSize))
+        conn_elem.set("TypeFlatIdx", "{:d}".format(self.typeFlatIdx))
+        conn_elem.set("Format", "inline")
+
+    def checkSanity(self):
+        ret = super().checkSanity()
+        if self.typeFlatIdx < 1:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} references invalid type index {}"\
+                  .format(self.vi.src_fname,self.index,self.otype,self.typeFlatIdx))
+            ret = False
+        return ret
+
+
 class ConnectorObjectRepeatedBlock(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
@@ -1700,7 +1814,7 @@ class ConnectorObjectRepeatedBlock(ConnectorObject):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
         self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
 
-        self.numRepeats = int.from_bytes(bldata.read(4), byteorder='big', signed=False) # TODO For AlignedBlock, this is just data size - make separate type!
+        self.numRepeats = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.typeFlatIdx = readVariableSizeFieldU2p2(bldata)
         # No more known data inside
         self.parseRSRCDataFinish(bldata)
@@ -1740,8 +1854,8 @@ class ConnectorObjectRepeatedBlock(ConnectorObject):
 
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
-        conn_elem.set("NumRepeats", "0x{:X}".format(self.numRepeats))
-        conn_elem.set("TypeFlatIdx", "0x{:X}".format(self.typeFlatIdx))
+        conn_elem.set("NumRepeats", "{:d}".format(self.numRepeats))
+        conn_elem.set("TypeFlatIdx", "{:d}".format(self.typeFlatIdx))
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
@@ -2405,10 +2519,10 @@ def newConnectorObject(vi, idx, obj_flags, obj_type, po):
         CONNECTOR_FULL_TYPE.MeasureData: ConnectorObjectMeasureData,
         CONNECTOR_FULL_TYPE.ComplexFixedPt: ConnectorObjectFixedPoint,
         CONNECTOR_FULL_TYPE.FixedPoint: ConnectorObjectFixedPoint,
-        CONNECTOR_FULL_TYPE.Block: ConnectorObjectBlob,
+        CONNECTOR_FULL_TYPE.Block: ConnectorObjectBlock,
         CONNECTOR_FULL_TYPE.TypeBlock: ConnectorObjectSingleContainer,
         CONNECTOR_FULL_TYPE.VoidBlock: ConnectorObjectSingleContainer,
-        CONNECTOR_FULL_TYPE.AlignedBlock: ConnectorObjectRepeatedBlock,
+        CONNECTOR_FULL_TYPE.AlignedBlock: ConnectorObjectAlignedBlock,
         CONNECTOR_FULL_TYPE.RepeatedBlock: ConnectorObjectRepeatedBlock,
         CONNECTOR_FULL_TYPE.AlignmntMarker: ConnectorObjectSingleContainer,
         CONNECTOR_FULL_TYPE.Ptr: ConnectorObjectNumberPtr,

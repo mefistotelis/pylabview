@@ -1785,16 +1785,16 @@ class DFDS(VarCodingBlock):
                   .format(self.vi.src_fname,self.ident,section_num,clsident))
                 df.value = LVclasses.LVPath1(self.vi, self.po)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.PasString,CONNECTOR_FULL_TYPE.CString,):
+            # No idea why sonething which looks like string type stores 32-bit value instead
             df.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            # TODO implement/verify; this looks suspicious
-        elif df.fulltype in (CONNECTOR_FULL_TYPE.Array,):
+        elif df.fulltype in (CONNECTOR_FULL_TYPE.Array,CONNECTOR_FULL_TYPE.ArrayInterfc,):
             df.dimensions = []
             for dim in td.dimensions:
                 val = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
                 df.dimensions.append(val)
             # Multiply sizes of each dimension to get total number of items
             totItems = 1
-            # TODO Not sure if the amount are in td.dimensions or df.dimensions
+            # TODO Not sure if the amount are in td.dimensions or df.dimensions; maybe they need to be same?
             for dim in df.dimensions:
                 totItems *= dim & 0x7fffffff
             df.value = []
@@ -1850,7 +1850,7 @@ class DFDS(VarCodingBlock):
                 df.vflags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
             # TODO might need padding at end
         elif df.fulltype in (CONNECTOR_FULL_TYPE.Block,):
-            df.value = bldata.read(td.prop1)
+            df.value = bldata.read(td.blkSize)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.AlignedBlock,):
             df.value = bldata.read(td.numRepeats)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.RepeatedBlock,):
