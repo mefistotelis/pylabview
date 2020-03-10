@@ -3159,9 +3159,11 @@ class BDPW(Block):
             salt = self.scanForHashSalt(section_num, presalt_data=password_md5+LIBN_content+LVSR_content)
         return salt
 
-    def setPassword(self, section_num, password_text=None, password_md5=None, store=True):
+    def setPassword(self, section_num=None, password_text=None, password_md5=None, store=True):
         """ Sets new password, without recalculating hashes
         """
+        if section_num is None:
+            section_num = self.active_section_num
         section = self.sections[section_num]
 
         if password_text is not None:

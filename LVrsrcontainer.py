@@ -647,6 +647,13 @@ class VI():
         BDPW = self.get_or_raise('BDPW')
         BDPW.parseData()
         BDPW.recalculateHash1(store=False) # this is needed to find salt
+        if password_text == "":
+            # If removing password, also remove protected flag
+            LVSR = self.get('LVSR')
+            if LVSR is not None:
+                LVSR.parseData()
+                LVSR.protected = False
+                LVSR.updateSectionData()
         BDPW.setPassword(password_text=password_text, password_md5=password_md5, store=True)
         #BDPW.recalculateHash1(store=True) # called by updateSectionData()
         #BDPW.recalculateHash2(store=True) # called by updateSectionData()
