@@ -13,13 +13,13 @@ Classes for interpreting content of specific block types within RSRC files.
 
 import enum
 import re
+import io
 import os
 
 from PIL import Image
 from hashlib import md5
 from types import SimpleNamespace
 from zlib import compress, decompress
-from io import BytesIO
 from ctypes import *
 
 from LVmisc import *
@@ -216,7 +216,7 @@ class Block(object):
                 totlen = int.from_bytes(section.name_text[4:8], byteorder='big', signed=False)
                 if len(section.name_text) >= totlen + 4 + 4:
                     section.name_obj = LVclasses.LVPath0(self.vi, self.po)
-                    bldata = BytesIO(section.name_text)
+                    bldata = io.BytesIO(section.name_text)
                     section.name_obj.parseRSRCData(bldata)
 
 
@@ -559,7 +559,7 @@ class Block(object):
         if section_num is None:
             section_num = self.active_section_num
         raw_data_section = self.getRawData(section_num)
-        data = BytesIO(raw_data_section)
+        data = io.BytesIO(raw_data_section)
         if use_coding == BLOCK_CODING.NONE:
             pass
         elif use_coding == BLOCK_CODING.ZLIB:
@@ -574,10 +574,10 @@ class Block(object):
                 raise IOError("Unable to decompress section [%s:%d]: " \
                             "uncompress-size-error - size: %d - uncompress-size: %d"
                             % (self.ident, section_num, size, usize))
-            data = BytesIO(decompress(data.read(size)))
+            data = io.BytesIO(decompress(data.read(size)))
         elif use_coding == BLOCK_CODING.XOR:
             size = len(raw_data_section)
-            data = BytesIO(crypto_xor8320_decrypt(data.read(size)))
+            data = io.BytesIO(crypto_xor8320_decrypt(data.read(size)))
         else:
             raise ValueError("Unsupported compression type")
         return data
@@ -1895,6 +1895,17 @@ class DFDS(VarCodingBlock):
             elif td.refType() in (REFNUM_TYPE.UsrDefined,):
                 # These ref types represent Non-tag subtypes of UDRefnum
                 df.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            elif td.refType() in (REFNUM_TYPE.UDClassInst,):
+                df.value = []
+                numLevels = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+                df.libName = bldata.read(strlen)
+                if (bldata.tell() % 4) > 0:
+                    bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
+                for i in range(numLevels):
+                    datalen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                    libVersion = bldata.read(datalen)
+                    df.value.append(libVersion)
             else:
                 # All the normal refnums
                 # The format seem to be different for LV6.0.0 and older, but still 4 bytes
@@ -1942,6 +1953,10 @@ class DFDS(VarCodingBlock):
         section = self.sections[section_num]
         TM = self.vi.get_one_of('TM80')
         ver = self.vi.getFileVersion()
+        startpos = bldata.tell()
+        bldata.seek(0, io.SEEK_END)
+        totlen = bldata.tell()
+        bldata.seek(startpos)
 
         section.content = []
         if isGreaterOrEqVersion(ver, 8,0,0,1) and TM is not None:
@@ -2001,9 +2016,9 @@ class DFDS(VarCodingBlock):
                     pass
                 if df is not None:
                     section.content.append(df)
-            totlen = len(bldata.getvalue())
             if bldata.tell() < totlen:
-                print("Warning: Section size is {} and does not match parsed size {}".format(totlen, bldata.tell()))
+                print("{:s}: Warning: Block {} section {} size is {} and does not match parsed size {}"\
+                  .format(self.vi.src_fname, self.ident, section_num, totlen, bldata.tell()))
         else:
             # No support for the 7.1 format
             Block.parseRSRCData(self, section_num, bldata)
@@ -3658,7 +3673,7 @@ class HeapVerc(Block):
         container_len = content_len - data_len - container_start
 
         #raw_subdata = bldata.read(data_len)
-        #blsubdata = BytesIO(raw_subdata)
+        #blsubdata = io.BytesIO(raw_subdata)
         #bldata.seek(container_start)
 
         section.objects = []
