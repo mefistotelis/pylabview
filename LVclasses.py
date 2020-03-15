@@ -214,9 +214,10 @@ class LVVariant(LVObject):
     def __init__(self, index, *args):
         super().__init__(*args)
         self.clients2 = []
+        self.attrs = []
         self.varver = 0x0
         self.hasvaritem2 = 0
-        self.varitem2 = None
+        self.vartype2 = None
         self.index = index
 
     def parseRSRCTypeDef(self, bldata, pos):
@@ -257,14 +258,21 @@ class LVVariant(LVObject):
                 break
         hasvaritem2 = readVariableSizeFieldU2p2(bldata)
         self.hasvaritem2 = hasvaritem2
-        self.varitem2 = b''
+        self.vartype2 = b''
         if hasvaritem2 != 0:
-            self.varitem2 = bldata.read(6)
+            self.vartype2 = readVariableSizeFieldU2p2(bldata)
+        self.attrs = []
+        if hasvaritem2 != 0: # TODO Is there really a condition?
+            attrcount = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            for i in range(attrcount):
+                text_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                text_val = bldata.read(text_len)
+                self.attrs.append(text_val)
         pass
 
     def parseRSRCData(self, bldata):
         self.clients2 = []
-        self.varitem2 = None
+        self.vartype2 = None
         self.parseRSRCVariant(bldata)
         pass
 
@@ -278,9 +286,14 @@ class LVVariant(LVObject):
             client.nested.updateData(avoid_recompute=avoid_recompute)
             data_buf += client.nested.raw_data
         hasvaritem2 = self.hasvaritem2
-        data_buf += int(hasvaritem2).to_bytes(2, byteorder='big')
+        data_buf += prepareVariableSizeFieldU2p2(hasvaritem2)
         if hasvaritem2 != 0:
-            data_buf += self.varitem2
+            data_buf += prepareVariableSizeFieldU2p2(self.vartype2)
+            data_buf += len(self.attrs).to_bytes(4, byteorder='big')
+            for text_val in self.attrs:
+                data_buf += len(text_val).to_bytes(4, byteorder='big')
+                data_buf += text_val
+                pass
         return data_buf
 
     def expectedRSRCSize(self):
@@ -291,15 +304,17 @@ class LVVariant(LVObject):
             exp_whole_len += client.nested.expectedRSRCSize()
         exp_whole_len += 2
         if self.hasvaritem2 != 0:
-            exp_whole_len += len(self.varitem2)
+            exp_whole_len += 4
+            for text_val in self.attrs:
+                data_buf += 4 + len(text_val)
         return exp_whole_len
 
     def initWithXML(self, obj_elem):
         self.varver = int(obj_elem.get("VarVer"), 0)
         self.hasvaritem2 = int(obj_elem.get("HasVarItem2"), 0)
-        varitem2 = obj_elem.get("VarItem2")
-        if varitem2 is not None:
-            self.varitem2 = bytes.fromhex(varitem2)
+        vartype2 = obj_elem.get("VarType2")
+        if vartype2 is not None:
+            self.vartype2 = int(vartype2, 0)
         for subelem in obj_elem:
             if (subelem.tag == "DataType"):
                 obj_idx = int(subelem.get("Index"), 0)
@@ -314,6 +329,8 @@ class LVVariant(LVObject):
                 self.clients2.append(client)
                 # Set connector data based on XML properties
                 obj.initWithXML(subelem)
+            elif (subelem.tag == "Attribute"):
+                raise AttributeError("IMPLEMEMENT!!!")
             else:
                 raise AttributeError("LVVariant subtree contains unexpected tag")
         pass
@@ -323,7 +340,7 @@ class LVVariant(LVObject):
         obj_elem.set("VarVer", "0x{:08X}".format(self.varver))
         obj_elem.set("HasVarItem2", "{:d}".format(self.hasvaritem2))
         if self.hasvaritem2 != 0:
-            obj_elem.set("VarItem2", "{:s}".format(self.varitem2.hex()))
+            obj_elem.set("VarType2", "{:d}".format(self.vartype2))
         idx = -1
         for client in self.clients2:
             if client.index != -1:
@@ -337,6 +354,13 @@ class LVVariant(LVObject):
 
             client.nested.exportXML(subelem, fname_cli)
             client.nested.exportXMLFinish(subelem)
+        idx = -1
+        for text_val in self.attrs:
+            idx += 1
+            subelem = ET.SubElement(obj_elem,"Attribute")
+
+            subelem.set("Index", str(idx))
+            subelem.set("Name", text_val.decode(encoding=self.vi.textEncoding))
         pass
 
 class OleVariant(LVObject):
