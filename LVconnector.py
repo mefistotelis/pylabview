@@ -585,6 +585,17 @@ class ConnectorObject:
                     out_lists[k].extend(sub_lists[k])
         return out_lists
 
+    def __repr__(self):
+        d = self.__dict__.copy()
+        del d['vi']
+        del d['po']
+        del d['parsed_data_updated']
+        del d['raw_data_updated']
+        del d['raw_data']
+        del d['size']
+        from pprint import pformat
+        return type(self).__name__ + pformat(d, indent=0, compact=True, width=512)
+
 
 class ConnectorObjectVoid(ConnectorObject):
     """ Connector with Void data

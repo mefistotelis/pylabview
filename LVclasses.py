@@ -67,6 +67,14 @@ class LVObject:
         """
         pass
 
+    def __repr__(self):
+        d = self.__dict__.copy()
+        del d['vi']
+        del d['po']
+        from pprint import pformat
+        return type(self).__name__ + pformat(d, indent=0, compact=True, width=512)
+
+
 
 class LVPath1(LVObject):
     """ Path object ver 1 and 2
