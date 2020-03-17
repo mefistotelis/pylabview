@@ -1801,6 +1801,10 @@ class DFDS(VarCodingBlock):
             VCTP = self.vi.get_or_raise('VCTP')
             sub_td = VCTP.getFlatType(td.clients[0].index)
             #if sub_td.fullType() in (CONNECTOR_FULL_TYPE.Boolean,) and isSmallerVersion(ver, 4,5,0,1): # TODO expecting special case, never seen it though
+            if totItems > self.po.connector_list_limit * len(df.dimensions):
+                    raise RuntimeError("Data type {} claims to contain {} fields, expected below {}."\
+                      .format(sub_df.fulltype.name if isinstance(sub_df.fulltype, enum.IntEnum) else sub_df.fulltype,\
+                      totItems, self.po.connector_list_limit * len(df.dimensions)))
             for i in range(totItems):
                 sub_df = SimpleNamespace()
                 sub_df.typeid = td.clients[0].index
@@ -1857,6 +1861,10 @@ class DFDS(VarCodingBlock):
             df.value = []
             VCTP = self.vi.get_or_raise('VCTP')
             sub_td = VCTP.getFlatType(td.typeFlatIdx)
+            if td.numRepeats > self.po.connector_list_limit:
+                raise RuntimeError("Data type {} claims to contain {} fields, expected below {}."\
+                  .format(sub_df.fulltype.name if isinstance(sub_df.fulltype, enum.IntEnum) else sub_df.fulltype,\
+                  td.numRepeats, self.po.connector_list_limit))
             for i in range(td.numRepeats):
                 sub_df = SimpleNamespace()
                 sub_df.typeid = td.typeFlatIdx
@@ -1902,6 +1910,10 @@ class DFDS(VarCodingBlock):
                 df.libName = bldata.read(strlen)
                 if (bldata.tell() % 4) > 0:
                     bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
+                if numLevels > self.po.connector_list_limit:
+                    raise RuntimeError("Data type {} claims to contain {} fields, expected below {}."\
+                      .format(sub_df.fulltype.name if isinstance(sub_df.fulltype, enum.IntEnum) else sub_df.fulltype,\
+                      numLevels, self.po.connector_list_limit))
                 for i in range(numLevels):
                     datalen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
                     libVersion = bldata.read(datalen)
