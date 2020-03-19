@@ -1856,7 +1856,7 @@ class DFDS(VarCodingBlock):
         elif df.fulltype in (CONNECTOR_FULL_TYPE.Block,):
             df.value = bldata.read(td.blkSize)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.AlignedBlock,):
-            df.value = bldata.read(td.numRepeats)
+            df.value = bldata.read(td.blkSize)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.RepeatedBlock,):
             df.value = []
             VCTP = self.vi.get_or_raise('VCTP')
