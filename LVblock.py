@@ -1829,7 +1829,7 @@ class DFDS(VarCodingBlock):
         elif df.fulltype in (CONNECTOR_FULL_TYPE.LVVariant,):
             ver = self.vi.getFileVersion()
             if isGreaterOrEqVersion(ver, 6,0,0,2):
-                df.value = LVclasses.LVVariant(0, self.vi, self.po)
+                df.value = LVclasses.LVVariant(0, self.vi, self.po, useConsolidatedTypes=True)
             else:
                 df.value = LVclasses.OleVariant(0, self.vi, self.po)
             df.value.parseRSRCData(bldata)

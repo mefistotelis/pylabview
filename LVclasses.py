@@ -211,12 +211,12 @@ class LVPath0(LVObject):
 class LVVariant(LVObject):
     """ Object with variant type data
     """
-    def __init__(self, index, *args):
+    def __init__(self, index, *args, useConsolidatedTypes=False):
         super().__init__(*args)
         self.clients2 = []
         self.attrs = []
         self.version = decodeVersion(0x09000000)
-        self.useConsolidatedTypes = False
+        self.useConsolidatedTypes = useConsolidatedTypes
         self.hasvaritem2 = 0
         self.vartype2 = None
         self.index = index
