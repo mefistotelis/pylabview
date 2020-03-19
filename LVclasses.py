@@ -97,8 +97,8 @@ class LVPath1(LVObject):
             self.content.append(text_val)
             donelen += 2+text_len
         if donelen != totlen:
-            eprint("{:s}: Warning: LVPath1 has unexpected size, {} != {}"\
-              .format(self.vi.src_fname, donelen, totlen))
+            eprint("{:s}: Warning: {:s} has unexpected size, {} != {}"\
+              .format(self.vi.src_fname, type(self).__name__, donelen, totlen))
         pass
 
     def prepareRSRCData(self, avoid_recompute=False):
@@ -163,8 +163,8 @@ class LVPath0(LVObject):
             self.content.append(text_val)
         ctlen = 4 + sum(1+len(text_val) for text_val in self.content)
         if ctlen != totlen:
-            eprint("{:s}: Warning: LVPath0 has unexpected size, {} != {}"\
-              .format(self.vi.src_fname, ctlen, totlen))
+            eprint("{:s}: Warning: {:s} has unexpected size, {} != {}"\
+              .format(self.vi.src_fname, type(self).__name__, ctlen, totlen))
         pass
 
     def prepareRSRCData(self, avoid_recompute=False):
@@ -224,11 +224,12 @@ class LVVariant(LVObject):
         bldata.seek(pos)
         obj_type, obj_flags, obj_len = LVconnector.ConnectorObject.parseRSRCDataHeader(bldata)
         if (self.po.verbose > 2):
-            print("{:s}: Object {:d} sub {:d}, at 0x{:04x}, type 0x{:02x} flags 0x{:02x} len {:d}"\
-              .format(self.vi.src_fname, self.index, len(self.clients2), pos, obj_type, obj_flags, obj_len))
+            print("{:s}: {:s} {:d} sub-object {:d}, at 0x{:04x}, type 0x{:02x} flags 0x{:02x} len {:d}"\
+              .format(self.vi.src_fname, type(self).__name__, self.index, len(self.clients2), pos,\
+              obj_type, obj_flags, obj_len))
         if obj_len < 4:
-            eprint("{:s}: Warning: Object {:d} type 0x{:02x} data size {:d} too small to be valid"\
-              .format(self.vi.src_fname, len(self.clients2), obj_type, obj_len))
+            eprint("{:s}: Warning: {:s} {:d} sub-object {:d} type 0x{:02x} data size {:d} too small to be valid"\
+              .format(self.vi.src_fname, type(self).__name__, self.index, len(self.clients2), obj_type, obj_len))
             obj_type = LVconnector.CONNECTOR_FULL_TYPE.Void
         obj = LVconnector.newConnectorObject(self.vi, -1, obj_flags, obj_type, self.po)
         client = SimpleNamespace()

@@ -2029,7 +2029,7 @@ class DFDS(VarCodingBlock):
                 if df is not None:
                     section.content.append(df)
             if bldata.tell() < totlen:
-                print("{:s}: Warning: Block {} section {} size is {} and does not match parsed size {}"\
+                eprint("{:s}: Warning: Block {} section {} size is {} and does not match parsed size {}"\
                   .format(self.vi.src_fname, self.ident, section_num, totlen, bldata.tell()))
         else:
             # No support for the 7.1 format
@@ -3844,7 +3844,7 @@ class UCRF(Block):
 
 
 class VCTP(Block):
-    """ Virtual Connectors / Terminal Points
+    """ VI Consolidated Data Types
 
     All terminals used by the .VI and the terminals of the .VI itself are stored
     in this block.
