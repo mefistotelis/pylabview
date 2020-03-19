@@ -215,7 +215,8 @@ class LVVariant(LVObject):
         super().__init__(*args)
         self.clients2 = []
         self.attrs = []
-        self.varver = 0x0
+        self.version = decodeVersion(0x09000000)
+        self.useConsolidatedTypes = False
         self.hasvaritem2 = 0
         self.vartype2 = None
         self.index = index
@@ -243,27 +244,32 @@ class LVVariant(LVObject):
 
     def parseRSRCVariant(self, bldata):
         varver = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        self.varver = varver
-        varcount = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        if varcount > self.po.connector_list_limit:
-            eprint("{:s}: Warning: LVVariant {:d} has {:d} clients; truncating"\
-              .format(self.vi.src_fname, self.index, varcount))
-            varcount = self.po.connector_list_limit
-        pos = bldata.tell()
-        for i in range(varcount):
-            obj_idx, obj_len = self.parseRSRCTypeDef(bldata, pos)
-            pos += obj_len
-            if obj_len < 4:
-                eprint("{:s}: Warning: LVVariant {:d} data size too small for all clients"\
-                  .format(self.vi.src_fname, self.index))
-                break
-        hasvaritem2 = readVariableSizeFieldU2p2(bldata)
-        self.hasvaritem2 = hasvaritem2
-        self.vartype2 = b''
-        if hasvaritem2 != 0:
+        self.version = decodeVersion(varver)
+        if isSmallerVersion(self.version, 8,0,0,1):
+            raise NotImplementedError("Unsupported LVVariant older than LV8.0")
+        elif self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):
+            hasvaritem2 = 0
+            self.hasvaritem2 = 1
             self.vartype2 = readVariableSizeFieldU2p2(bldata)
-        self.attrs = []
-        if hasvaritem2 != 0: # TODO Is there really a condition?
+        else:
+            varcount = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            if varcount > self.po.connector_list_limit:
+                eprint("{:s}: Warning: {:s} {:d} ver 0x{:X} has {:d} clients; truncating"\
+                  .format(self.vi.src_fname, type(self).__name__, self.index, varver, varcount))
+                varcount = self.po.connector_list_limit
+            pos = bldata.tell()
+            for i in range(varcount):
+                obj_idx, obj_len = self.parseRSRCTypeDef(bldata, pos)
+                pos += obj_len
+                if obj_len < 4:
+                    eprint("{:s}: Warning: {:s} {:d} data size too small for all clients"\
+                      .format(self.vi.src_fname, type(self).__name__, self.index))
+                    break
+            hasvaritem2 = readVariableSizeFieldU2p2(bldata)
+            self.hasvaritem2 = hasvaritem2
+            if hasvaritem2 != 0:
+                self.vartype2 = readVariableSizeFieldU2p2(bldata)
+        if True: # TODO Is there really a condition?
             attrcount = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             for i in range(attrcount):
                 text_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
@@ -274,11 +280,13 @@ class LVVariant(LVObject):
     def parseRSRCData(self, bldata):
         self.clients2 = []
         self.vartype2 = None
+        self.attrs = []
         self.parseRSRCVariant(bldata)
         pass
 
     def prepareRSRCData(self, avoid_recompute=False):
-        data_buf = int(self.varver).to_bytes(4, byteorder='big')
+        varver = encodeVersion(self.version)
+        data_buf = int(varver).to_bytes(4, byteorder='big')
         varcount = sum(1 for client in self.clients2 if client.index == -1)
         data_buf += int(varcount).to_bytes(4, byteorder='big')
         for client in self.clients2:
@@ -311,13 +319,23 @@ class LVVariant(LVObject):
         return exp_whole_len
 
     def initWithXML(self, obj_elem):
-        self.varver = int(obj_elem.get("VarVer"), 0)
         self.hasvaritem2 = int(obj_elem.get("HasVarItem2"), 0)
         vartype2 = obj_elem.get("VarType2")
         if vartype2 is not None:
             self.vartype2 = int(vartype2, 0)
         for subelem in obj_elem:
-            if (subelem.tag == "DataType"):
+            if (subelem.tag == "Version"):
+                ver = {}
+                ver['major'] = int(subelem.get("Major"), 0)
+                ver['minor'] = int(subelem.get("Minor"), 0)
+                ver['bugfix'] = int(subelem.get("Bugfix"), 0)
+                ver['stage_text'] = subelem.get("Stage")
+                ver['build'] = int(subelem.get("Build"), 0)
+                ver['flags'] = int(subelem.get("Flags"), 0)
+                self.version = ver
+                # the call below sets numeric 'stage' from text; we do not care for actual encoding
+                encodeVersion(self.version)
+            elif (subelem.tag == "DataType"):
                 obj_idx = int(subelem.get("Index"), 0)
                 obj_type = valFromEnumOrIntString(LVconnector.CONNECTOR_FULL_TYPE, subelem.get("Type"))
                 obj_flags = importXMLBitfields(LVconnector.CONNECTOR_FLAGS, subelem)
@@ -331,17 +349,23 @@ class LVVariant(LVObject):
                 # Set connector data based on XML properties
                 obj.initWithXML(subelem)
             elif (subelem.tag == "Attribute"):
-                raise AttributeError("IMPLEMEMENT!!!")
+                raise NotImplementedError("Unsupported LVVariant containing Attributes")
             else:
                 raise AttributeError("LVVariant subtree contains unexpected tag")
         pass
 
     def exportXML(self, obj_elem, fname_base):
         obj_elem.tag = "LVVariant"
-        obj_elem.set("VarVer", "0x{:08X}".format(self.varver))
         obj_elem.set("HasVarItem2", "{:d}".format(self.hasvaritem2))
         if self.hasvaritem2 != 0:
             obj_elem.set("VarType2", "{:d}".format(self.vartype2))
+        subelem = ET.SubElement(obj_elem,"Version")
+        subelem.set("Major", "{:d}".format(self.version['major']))
+        subelem.set("Minor", "{:d}".format(self.version['minor']))
+        subelem.set("Bugfix", "{:d}".format(self.version['bugfix']))
+        subelem.set("Stage", "{:s}".format(self.version['stage_text']))
+        subelem.set("Build", "{:d}".format(self.version['build']))
+        subelem.set("Flags", "0x{:X}".format(self.version['flags']))
         idx = -1
         for client in self.clients2:
             if client.index != -1:
