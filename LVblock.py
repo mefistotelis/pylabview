@@ -169,16 +169,16 @@ class Block(object):
         for i in range(header.count + 1):
             section = self.createSection()
             if fh.readinto(section.start) != sizeof(section.start):
-                raise EOFError("Could not read BlockSectionStart data.")
+                raise EOFError("Could not read BlockSectionStart data")
             if self.po.file_map:
                 self.vi.rsrc_map.append( (fh.tell(), sizeof(section.start), \
                   "{}[{},{}]".format(type(section.start).__name__,pretty_ident,section.start.section_idx),) )
             if (self.po.verbose > 2):
                 print(section.start)
             if not section.start.checkSanity():
-                raise IOError("BlockSectionStart data sanity check failed.")
+                raise IOError("BlockSectionStart data sanity check failed")
             if section.start.section_idx in self.sections:
-                raise IOError("BlockSectionStart of given section_idx exists twice.")
+                raise IOError("BlockSectionStart of given section_idx exists twice")
             section.block_pos = \
                 self.vi.rsrc_headers[-1].rsrc_data_offset + \
                 section.start.data_offset
@@ -204,7 +204,7 @@ class Block(object):
             if section.start.name_offset == 0xFFFFFFFF: # This value means no name
                 continue
             if names_start + section.start.name_offset >= names_end:
-                raise IOError("Block {} section {:d} Name position exceeds RSRC Info size.".format(self.ident,snum))
+                raise IOError("Block {} section {:d} Name position exceeds RSRC Info size".format(self.ident,snum))
             fh.seek(names_start + section.start.name_offset)
             name_text_len = int.from_bytes(fh.read(1), byteorder='big', signed=False)
             section.name_text = fh.read(name_text_len)
@@ -245,7 +245,7 @@ class Block(object):
                 data_buf = bin_fh.read()
             self.setData(data_buf, section_num=snum)
         else:
-            raise NotImplementedError("Unsupported Block {} Section {:d} Format '{}'.".format(self.ident,snum,fmt))
+            raise NotImplementedError("Unsupported Block {} Section {:d} Format '{}'".format(self.ident,snum,fmt))
         pass
 
 
@@ -275,7 +275,7 @@ class Block(object):
             if name_text is not None:
                 section.name_text = name_text.encode(self.vi.textEncoding)
             if section.start.section_idx in self.sections:
-                raise IOError("BlockSectionStart of given section_idx exists twice.")
+                raise IOError("BlockSectionStart of given section_idx exists twice")
             self.sections[section.start.section_idx] = section
 
             for subelem in section_elem:
@@ -378,12 +378,12 @@ class Block(object):
             # This check assumes that all sections are written after each other in an array
             # It seem to be always the case, though file format does not mandate that
             if section.start.data_offset + sizeof(BlockSectionData) > rsrc_data_size:
-                raise IOError("Requested {} section {:d} data offset exceeds size of data block ({} > {})."\
+                raise IOError("Requested {} section {:d} data offset exceeds size of data block ({} > {})"\
                       .format(self.ident, i, section.start.data_offset + sizeof(BlockSectionData), rsrc_data_size))
             if fh.readinto(blksect) != sizeof(blksect):
-                raise EOFError("Could not read BlockSectionData struct for block {} at {:d}.".format(self.ident,section.block_pos))
+                raise EOFError("Could not read BlockSectionData struct for block {} at {:d}".format(self.ident,section.block_pos))
             if not blksect.checkSanity():
-                raise IOError("BlockSectionData struct for block {} sanity check failed.".format(self.ident))
+                raise IOError("BlockSectionData struct for block {} sanity check failed".format(self.ident))
             if (self.po.verbose > 2):
                 print(blksect)
 
@@ -1802,8 +1802,8 @@ class DFDS(VarCodingBlock):
             sub_td = VCTP.getFlatType(td.clients[0].index)
             #if sub_td.fullType() in (CONNECTOR_FULL_TYPE.Boolean,) and isSmallerVersion(ver, 4,5,0,1): # TODO expecting special case, never seen it though
             if totItems > self.po.connector_list_limit * len(df.dimensions):
-                    raise RuntimeError("Data type {} claims to contain {} fields, expected below {}."\
-                      .format(sub_df.fulltype.name if isinstance(sub_df.fulltype, enum.IntEnum) else sub_df.fulltype,\
+                    raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
+                      .format(df.fulltype.name if isinstance(df.fulltype, enum.IntEnum) else df.fulltype,\
                       totItems, self.po.connector_list_limit * len(df.dimensions)))
             for i in range(totItems):
                 sub_df = SimpleNamespace()
@@ -1823,7 +1823,7 @@ class DFDS(VarCodingBlock):
                 try:
                     self.parseRSRCTypeValue(section_num, sub_df, conn_obj, bldata)
                 except Exception as e:
-                    raise RuntimeError("Inside data type {} parsing: {}."\
+                    raise RuntimeError("Inside data type {} parsing: {}"\
                       .format(sub_df.fulltype.name if isinstance(sub_df.fulltype, enum.IntEnum) else sub_df.fulltype,str(e)))
                 df.value.append(sub_df)
         elif df.fulltype in (CONNECTOR_FULL_TYPE.LVVariant,):
@@ -1836,7 +1836,7 @@ class DFDS(VarCodingBlock):
         elif df.fulltype in (CONNECTOR_FULL_TYPE.MeasureData,):
             #if td.dtFlavor() in (MEASURE_DATA_FLAVOR.TimeStamp,):
             df.value = None # TODO implement
-            raise NotImplementedError("MeasureData default value read is not implemented.")
+            raise NotImplementedError("MeasureData default value read is not implemented")
         elif df.fulltype in (CONNECTOR_FULL_TYPE.ComplexFixedPt,):
             # Not sure about the order of values in this type
             df.value = 2 * [None]
@@ -1862,8 +1862,8 @@ class DFDS(VarCodingBlock):
             VCTP = self.vi.get_or_raise('VCTP')
             sub_td = VCTP.getFlatType(td.typeFlatIdx)
             if td.numRepeats > self.po.connector_list_limit:
-                raise RuntimeError("Data type {} claims to contain {} fields, expected below {}."\
-                  .format(sub_df.fulltype.name if isinstance(sub_df.fulltype, enum.IntEnum) else sub_df.fulltype,\
+                raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
+                  .format(df.fulltype.name if isinstance(df.fulltype, enum.IntEnum) else df.fulltype,\
                   td.numRepeats, self.po.connector_list_limit))
             for i in range(td.numRepeats):
                 sub_df = SimpleNamespace()
@@ -1911,8 +1911,8 @@ class DFDS(VarCodingBlock):
                 if (bldata.tell() % 4) > 0:
                     bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
                 if numLevels > self.po.connector_list_limit:
-                    raise RuntimeError("Data type {} claims to contain {} fields, expected below {}."\
-                      .format(sub_df.fulltype.name if isinstance(sub_df.fulltype, enum.IntEnum) else sub_df.fulltype,\
+                    raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
+                      .format(df.fulltype.name if isinstance(df.fulltype, enum.IntEnum) else df.fulltype,\
                       numLevels, self.po.connector_list_limit))
                 for i in range(numLevels):
                     datalen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
@@ -2409,7 +2409,7 @@ class LVIN(Block):
 
     def getVersion(self):
         self.parseData()
-        raise NotImplementedError("Parsing of the {} block is unfinished.".format(self.ident))
+        raise NotImplementedError("Parsing of the {} block is unfinished".format(self.ident))
         #return self.version
 
 
@@ -2463,7 +2463,7 @@ class LVSR(Block):
         # Data before byte 120 does not move - so it's always safe to read
         data = LVSRData(self.po)
         if bldata.readinto(data) not in [120, 136, 137, sizeof(LVSRData)]:
-            raise EOFError("Data block too short for parsing {} data.".format(self.ident))
+            raise EOFError("Data block too short for parsing {} data".format(self.ident))
 
         section.version = decodeVersion(data.version)
         section.protected = ((data.execFlags & VI_EXEC_FLAGS.LibProtected.value) != 0)
