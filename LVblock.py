@@ -1961,14 +1961,10 @@ class DFDS(VarCodingBlock):
               df.value, bldata.tell()))
         pass
 
-    def parseRSRCData(self, section_num, bldata):
+    def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
         TM = self.vi.get_one_of('TM80')
         ver = self.vi.getFileVersion()
-        startpos = bldata.tell()
-        bldata.seek(0, io.SEEK_END)
-        totlen = bldata.tell()
-        bldata.seek(startpos)
 
         section.content = []
         if isGreaterOrEqVersion(ver, 8,0,0,1) and TM is not None:
@@ -2028,12 +2024,20 @@ class DFDS(VarCodingBlock):
                     pass
                 if df is not None:
                     section.content.append(df)
-            if bldata.tell() < totlen:
-                eprint("{:s}: Warning: Block {} section {} size is {} and does not match parsed size {}"\
-                  .format(self.vi.src_fname, self.ident, section_num, totlen, bldata.tell()))
         else:
             # No support for the 7.1 format
             Block.parseRSRCData(self, section_num, bldata)
+
+    def parseRSRCData(self, section_num, bldata):
+        startpos = bldata.tell()
+        bldata.seek(0, io.SEEK_END)
+        totlen = bldata.tell()
+        bldata.seek(startpos)
+        self.parseRSRCSectionData(section_num, bldata)
+        if bldata.tell() < totlen:
+            eprint("{:s}: Warning: Block {} section {} size is {} and does not match parsed size {}"\
+              .format(self.vi.src_fname, self.ident, section_num, totlen, bldata.tell()))
+        pass
 
 
 class GCDI(Block):
