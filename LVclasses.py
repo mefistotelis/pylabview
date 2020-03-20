@@ -246,7 +246,7 @@ class LVVariant(LVObject):
         varver = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.version = decodeVersion(varver)
         if isSmallerVersion(self.version, 8,0,0,1):
-            raise NotImplementedError("Unsupported LVVariant older than LV8.0")
+            raise NotImplementedError("Unsupported LVVariant ver=0x{:06X} older than LV8.0".format(varver))
         elif self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):
             hasvaritem2 = 0
             self.hasvaritem2 = 1
