@@ -1418,15 +1418,19 @@ class ConnectorObjectTypeDef(ConnectorObject):
         return obj, obj_len
 
     def parseRSRCData(self, bldata):
+        ver = self.vi.getFileVersion()
         # Fields oflags,otype are set at constructor, but no harm in setting them again
         self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
 
         self.flag1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        self.labels = [b"" for _ in range(count)]
-        for i in range(count):
-            label_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-            self.labels[i] = bldata.read(label_len)
+
+        if isGreaterOrEqVersion(ver, 8,0,0,4):
+            self.labels = readQualifiedName(bldata, self.po)
+        else:
+            self.labels = [ None ]
+            self.labels[0] = readPStr(bldata, 2, self.po)
+
+
         # The underlying object is stored here directly, not as index in VCTP list
         pos = bldata.tell()
         self.clients = [ SimpleNamespace() ]
@@ -1440,12 +1444,16 @@ class ConnectorObjectTypeDef(ConnectorObject):
         self.parseRSRCDataFinish(bldata)
 
     def prepareRSRCData(self, avoid_recompute=False):
+        if not avoid_recompute:
+            ver = self.vi.getFileVersion()
+        else:
+            ver = decodeVersion(0x09000000)
         data_buf = b''
         data_buf += int(self.flag1).to_bytes(4, byteorder='big')
-        data_buf += int(len(self.labels)).to_bytes(4, byteorder='big')
-        for label in self.labels:
-            data_buf += int(len(label)).to_bytes(1, byteorder='big')
-            data_buf += label
+        if isGreaterOrEqVersion(ver, 8,0,0,4):
+            data_buf += prepareQualifiedName(self.labels, self.po)
+        else:
+            data_buf += preparePStr(b'/'.join(self.labels), 2, self.po)
         if len(self.clients) != 1:
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: Connector {:d} type 0x{:02x} has unexpacted amount of clients; should have 1"\
@@ -2050,11 +2058,11 @@ class ConnectorObjectCluster(ConnectorObject):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
         self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
 
-        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        count = readVariableSizeFieldU2p2(bldata)
         # Create _separate_ empty namespace for each connector
         self.clients = [SimpleNamespace() for _ in range(count)]
         for i in range(count):
-            cli_idx = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            cli_idx = readVariableSizeFieldU2p2(bldata)
             cli_flags = 0
             self.clients[i].index = cli_idx
             self.clients[i].flags = cli_flags

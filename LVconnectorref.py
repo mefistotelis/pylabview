@@ -490,17 +490,13 @@ class RefnumLVObjCtl(RefnumBase):
         if hasitem != 0:
             # Some early versions of LV8 have the identifier in reverted endianness; probably no need to support
             self.conn_obj.itmident = bldata.read(4)
-            count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            if count > 4095:
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} reftype {:d} claims to contain {} strings; trimmimng"\
-                  .format(self.vi.src_fname,self.conn_obj.index,self.conn_obj.otype,self.conn_obj.reftype,count))
-                count = 4095
-            items = [SimpleNamespace() for _ in range(count)]
-            for i in range(count):
-                strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-                items[i].strval = bldata.read(strlen)
+            items = readQualifiedName(bldata, self.po)
         self.conn_obj.hasitem = hasitem
-        self.conn_obj.items = items
+        self.conn_obj.items = [ ]
+        for strval in items:
+            item = SimpleNamespace()
+            item.strval = strval
+            self.conn_obj.items.append(item)
         pass
 
     def prepareRSRCData(self, avoid_recompute=False):
@@ -519,10 +515,7 @@ class RefnumLVObjCtl(RefnumBase):
         data_buf += int(self.conn_obj.hasitem).to_bytes(2, byteorder='big')
         if self.conn_obj.hasitem != 0:
             data_buf += self.conn_obj.itmident
-            data_buf += int(len(self.conn_obj.items)).to_bytes(4, byteorder='big')
-            for item in self.conn_obj.items:
-                data_buf += int(len(item.strval)).to_bytes(1, byteorder='big')
-                data_buf += item.strval
+            data_buf += prepareQualifiedName([item.strval for item in self.conn_obj.items], self.po)
         return data_buf
 
     def expectedRSRCSize(self):
