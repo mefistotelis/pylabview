@@ -341,3 +341,53 @@ def readQuadFloat(bldata):
     exponent = ((asint >> 112) & 0x7FFF) - 16383;
     significand = (asint & ((1 << 112) - 1)) | (1 << 112)
     return sign * significand * 2.0 ** (exponent - 112)
+
+def readQualifiedName(bldata, po):
+    count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+    if count > po.connector_list_limit:
+        raise RuntimeError("Qualified name consists of too many string elements")
+    items = [None for _ in range(count)]
+    for i in range(count):
+        strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        items[i] = bldata.read(strlen)
+    return items
+
+def prepareQualifiedName(items, po):
+    data_buf = b''
+    data_buf += int(len(items)).to_bytes(4, byteorder='big', signed=False)
+    for item in items:
+        data_buf += int(len(item)).to_bytes(1, byteorder='big', signed=False)
+        data_buf += item
+    return data_buf
+
+def readPStr(bldata, padto, po):
+    strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+    strval = bldata.read(strlen)
+    padlen = (strlen+1) % padto
+    bldata.read(padlen)
+    return strval
+
+def preparePStr(strval, padto, po):
+    data_buf = b''
+    strlen = len(strval)
+    data_buf += int(strlen).to_bytes(1, byteorder='big', signed=False)
+    data_buf += strval
+    padding_len = (strlen+1) % padto
+    data_buf += (b'\0' * padding_len)
+    return strval
+
+def readLStr(bldata, padto, po):
+    strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+    strval = bldata.read(strlen)
+    padlen = (strlen+4) % padto
+    bldata.read(padlen)
+    return strval
+
+def prepareLStr(strval, padto, po):
+    data_buf = b''
+    strlen = len(strval)
+    data_buf += int(strlen).to_bytes(4, byteorder='big', signed=False)
+    data_buf += strval
+    padding_len = (strlen+4) % padto
+    data_buf += (b'\0' * padding_len)
+    return strval
