@@ -21,6 +21,8 @@ from ctypes import *
 from LVmisc import *
 from LVblock import *
 import LVconnector
+import LVdatafill
+
 
 class LVObject:
     def __init__(self, vi, po):
@@ -211,12 +213,13 @@ class LVPath0(LVObject):
 class LVVariant(LVObject):
     """ Object with variant type data
     """
-    def __init__(self, index, *args, useConsolidatedTypes=False):
+    def __init__(self, index, *args, useConsolidatedTypes=False, allowFillValue=False):
         super().__init__(*args)
         self.clients2 = []
         self.attrs = []
         self.version = decodeVersion(0x09000000)
         self.useConsolidatedTypes = useConsolidatedTypes
+        self.allowFillValue = allowFillValue
         self.hasvaritem2 = 0
         self.vartype2 = None
         self.index = index
@@ -242,9 +245,20 @@ class LVVariant(LVObject):
         obj.initWithRSRC(bldata, obj_len)
         return obj.index, obj_len
 
+    def parseRSRCAttribs(self, bldata):
+        attrs = []
+        attrcount = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        for i in range(attrcount):
+            text_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            text_val = bldata.read(text_len)
+            raise NotImplementedError("Unsupported LVVariant attributes data read")
+            attrs.append(text_val)
+        return attrs
+
     def parseRSRCVariant(self, bldata):
         varver = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.version = decodeVersion(varver)
+        # Read types
         if isSmallerVersion(self.version, 8,0,0,1):
             raise NotImplementedError("Unsupported LVVariant ver=0x{:06X} older than LV8.0".format(varver))
         elif self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):
@@ -265,16 +279,21 @@ class LVVariant(LVObject):
                     eprint("{:s}: Warning: {:s} {:d} data size too small for all clients"\
                       .format(self.vi.src_fname, type(self).__name__, self.index))
                     break
+            bldata.seek(pos)
             hasvaritem2 = readVariableSizeFieldU2p2(bldata)
             self.hasvaritem2 = hasvaritem2
             if hasvaritem2 != 0:
                 self.vartype2 = readVariableSizeFieldU2p2(bldata)
-        if True: # TODO Is there really a condition?
-            attrcount = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            for i in range(attrcount):
-                text_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-                text_val = bldata.read(text_len)
-                self.attrs.append(text_val)
+        # Read value of vartype2
+        if self.allowFillValue and self.hasvaritem2:
+            TM = self.vi.get_one_of('TM80')
+            tmEntry = TM.getTypeEntry(self.vartype2)
+            df = LVdatafill.newDataFillObject(self.vi, tmEntry.index, tmEntry.flags, tmEntry.td, self.po)
+            #self.content.append(df) # TODO store that somewhere
+            #df.initWithRSRC(bldata) # TODO parse the content
+            pass
+        # Read attributes
+        self.attrs += self.parseRSRCAttribs(bldata)
         pass
 
     def parseRSRCData(self, bldata):
