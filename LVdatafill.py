@@ -82,6 +82,14 @@ class DataFill:
                self.value, bldata.tell()))
         pass
 
+    def prepareDict(self):
+        return { 'value': self.value }
+
+    def __repr__(self):
+        d = self.prepareDict()
+        from pprint import pformat
+        return type(self).__name__ + pformat(d, indent=0, compact=True, width=512)
+
 
 class DataFillVoid(DataFill):
     def initWithRSRCParse(self, bldata):
@@ -179,127 +187,168 @@ class DataFillBool(DataFill):
     def initWithRSRCParse(self, bldata):
         self.value = int.from_bytes(bldata.read(self.size), byteorder='big', signed=False)
 
+
+class DataFillString(DataFill):
+    def initWithRSRCParse(self, bldata):
+        strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        #if self.td.prop1 != 0xffffffff: # in such case part of the value might be irrelevant, as only
+        # part to the size (self.td.prop1 & 0x7fffffff) is used; but the length stored is still valid
+        self.value = bldata.read(strlen)
+
+
+class DataFillPath(DataFill):
+    def initWithRSRCParse(self, bldata):
+        startPos = bldata.tell()
+        clsident = bldata.read(4)
+        if clsident == b'PTH0':
+            self.value = LVclasses.LVPath0(self.vi, self.po)
+        elif clsident in (b'PTH1', b'PTH2',):
+            self.value = LVclasses.LVPath1(self.vi, self.po)
+        else:
+            fulltype = self.td.fullType()
+            raise RuntimeError("Data fill contains path data of unrecognized class {}"\
+              .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype))
+        bldata.seek(startPos)
+        self.value.parseRSRCData(bldata)
+
+
+class DataFillCString(DataFill):
+    def initWithRSRCParse(self, bldata):
+        # No idea why sonething which looks like string type stores 32-bit value instead
+        self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+
+class DataFillArray(DataFill):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.dimensions = []
+
+    def initWithRSRCParse(self, bldata):
+        self.dimensions = []
+        for dim in self.td.dimensions:
+            val = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            self.dimensions.append(val)
+        # Multiply sizes of each dimension to get total number of items
+        totItems = 1
+        # TODO Not sure if the amount are in self.td.dimensions or self.dimensions; maybe they need to be same?
+        for dim in self.dimensions:
+            totItems *= dim & 0x7fffffff
+        self.value = []
+        VCTP = self.vi.get_or_raise('VCTP')
+        sub_td = VCTP.getFlatType(self.td.clients[0].index)
+        #if sub_td.fullType() in (CONNECTOR_FULL_TYPE.Boolean,) and isSmallerVersion(ver, 4,5,0,1): # TODO expecting special case, never seen it though
+        if totItems > self.po.connector_list_limit * len(self.dimensions):
+                fulltype = self.td.fullType()
+                raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
+                  .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,\
+                  totItems, self.po.connector_list_limit * len(self.dimensions)))
+        for i in range(totItems):
+            try:
+                sub_df = newDataFillObject(self.vi, self.td.clients[0].index, self.tm_flags, sub_td, self.po)
+                self.value.append(sub_df)
+                sub_df.initWithRSRC(bldata)
+            except Exception as e:
+                fulltype = sub_td.fullType()
+                raise RuntimeError("Data type {}: {}"\
+                  .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,str(e)))
+        pass
+
+
+class DataFillArrayDataPtr(DataFill):
+    def initWithRSRCParse(self, bldata):
+        self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+
+class DataFillCluster(DataFill):
+    def initWithRSRCParse(self, bldata):
+        self.value = []
+        for cli_idx, conn_idx, conn_obj, conn_flags in self.td.clientsEnumerate():
+            try:
+                sub_df = newDataFillObject(self.vi, conn_idx, self.tm_flags, conn_obj, self.po)
+                self.value.append(sub_df)
+                sub_df.initWithRSRC(bldata)
+            except Exception as e:
+                fulltype = conn_obj.fullType()
+                raise RuntimeError("Data type {}: {}"\
+                  .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,str(e)))
+            pass
+
+
+class DataFillLVVariant(DataFill):
+    def initWithRSRCParse(self, bldata):
+        ver = self.vi.getFileVersion()
+        if isGreaterOrEqVersion(ver, 6,0,0,2):
+            self.value = LVclasses.LVVariant(0, self.vi, self.po, useConsolidatedTypes=True, allowFillValue=True)
+        else:
+            self.value = LVclasses.OleVariant(0, self.vi, self.po)
+        self.value.parseRSRCData(bldata)
+
+
+class DataFillMeasureData(DataFill):
+    def initWithRSRCParse(self, bldata):
+        #if self.td.dtFlavor() in (MEASURE_DATA_FLAVOR.TimeStamp,):
+        self.value = None # TODO implement
+        raise NotImplementedError("MeasureData default value read is not implemented")
+
+
+class DataFillComplexFixedPt(DataFill):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.value = 2 * [None]
+        self.vflags = 2 * [None]
+
+    def initWithRSRCParse(self, bldata):
+        # Not sure about the order of values in this type
+        self.value = 2 * [None]
+        self.vflags = 2 * [None]
+        for i in range(2):
+            self.value[i] = int.from_bytes(bldata.read(8), byteorder='big', signed=False)
+            if self.td.allocOv:
+                self.vflags[i] = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        pass
+
+
+class DataFillFixedPoint(DataFill):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.vflags = None
+
+    def initWithRSRCParse(self, bldata):
+        self.value = bldata.read(self.td.blkSize)
+
+
+class DataFillBlock(DataFill):
+    def initWithRSRCParse(self, bldata):
+        self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+
+class DataFillRepeatedBlock(DataFill):
+    def initWithRSRCParse(self, bldata):
+        self.value = []
+        VCTP = self.vi.get_or_raise('VCTP')
+        sub_td = VCTP.getFlatType(self.td.typeFlatIdx)
+        if self.td.numRepeats > self.po.connector_list_limit:
+            fulltype = self.td.fullType()
+            raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
+              .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,\
+              self.td.numRepeats, self.po.connector_list_limit))
+        for i in range(self.td.numRepeats):
+            try:
+                sub_df = newDataFillObject(self.vi, self.td.typeFlatIdx, self.tm_flags, sub_td, self.po)
+                self.value.append(sub_df)
+                sub_df.initWithRSRC(bldata)
+            except Exception as e:
+                fulltype = sub_td.fullType()
+                raise RuntimeError("Data type {}: {}"\
+                  .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,str(e)))
+        pass
+
+
 class DataFillAll(DataFill):
     def initWithRSRCParse(self, bldata):
         from LVconnector import CONNECTOR_FULL_TYPE
         fulltype = self.td.fullType()
-        if fulltype in (CONNECTOR_FULL_TYPE.String,CONNECTOR_FULL_TYPE.Tag,CONNECTOR_FULL_TYPE.Picture,):
-            strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            #if self.td.prop1 != 0xffffffff: # in such case part of the value might be irrelevant, as only
-            # part to the size (self.td.prop1 & 0x7fffffff) is used; but the length stored is still valid
-            self.value = bldata.read(strlen)
-        elif fulltype in (CONNECTOR_FULL_TYPE.Path,):
-            startPos = bldata.tell()
-            clsident = bldata.read(4)
-            if clsident == b'PTH0':
-                self.value = LVclasses.LVPath0(self.vi, self.po)
-                bldata.seek(startPos)
-                self.value.parseRSRCData(bldata)
-            elif clsident in (b'PTH1', b'PTH2',):
-                self.value = LVclasses.LVPath1(self.vi, self.po)
-                bldata.seek(startPos)
-                self.value.parseRSRCData(bldata)
-            else:
-                eprint("{:s}: Warning: Data fill contains path data of unrecognized class {}."\
-                  .format(self.vi.src_fname,clsident))
-                self.value = LVclasses.LVPath1(self.vi, self.po)
-        elif fulltype in (CONNECTOR_FULL_TYPE.PasString,CONNECTOR_FULL_TYPE.CString,):
-            # No idea why sonething which looks like string type stores 32-bit value instead
-            self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        elif fulltype in (CONNECTOR_FULL_TYPE.Array,CONNECTOR_FULL_TYPE.ArrayInterfc,):
-            self.dimensions = []
-            for dim in self.td.dimensions:
-                val = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-                self.dimensions.append(val)
-            # Multiply sizes of each dimension to get total number of items
-            totItems = 1
-            # TODO Not sure if the amount are in self.td.dimensions or self.dimensions; maybe they need to be same?
-            for dim in self.dimensions:
-                totItems *= dim & 0x7fffffff
-            self.value = []
-            VCTP = self.vi.get_or_raise('VCTP')
-            sub_td = VCTP.getFlatType(self.td.clients[0].index)
-            #if sub_td.fullType() in (CONNECTOR_FULL_TYPE.Boolean,) and isSmallerVersion(ver, 4,5,0,1): # TODO expecting special case, never seen it though
-            if totItems > self.po.connector_list_limit * len(self.dimensions):
-                    raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
-                      .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,\
-                      totItems, self.po.connector_list_limit * len(self.dimensions)))
-            for i in range(totItems):
-                try:
-                    sub_df = newDataFillObject(self.vi, self.td.clients[0].index, self.tm_flags, sub_td, self.po)
-                    self.value.append(sub_df)
-                    sub_df.initWithRSRC(bldata)
-                except Exception as e:
-                    fulltype = sub_td.fullType()
-                    raise RuntimeError("Data type {}: {}"\
-                      .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,str(e)))
-                pass
-        elif fulltype in (CONNECTOR_FULL_TYPE.ArrayDataPtr,):
-            self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        elif fulltype in (CONNECTOR_FULL_TYPE.Cluster,):
-            self.value = []
-            for cli_idx, conn_idx, conn_obj, conn_flags in self.td.clientsEnumerate():
-                try:
-                    sub_df = newDataFillObject(self.vi, conn_idx, self.tm_flags, conn_obj, self.po)
-                    self.value.append(sub_df)
-                    sub_df.initWithRSRC(bldata)
-                except Exception as e:
-                    fulltype = conn_obj.fullType()
-                    raise RuntimeError("Data type {}: {}"\
-                      .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,str(e)))
-                pass
-        elif fulltype in (CONNECTOR_FULL_TYPE.LVVariant,):
-            ver = self.vi.getFileVersion()
-            if isGreaterOrEqVersion(ver, 6,0,0,2):
-                self.value = LVclasses.LVVariant(0, self.vi, self.po, useConsolidatedTypes=True, allowFillValue=True)
-            else:
-                self.value = LVclasses.OleVariant(0, self.vi, self.po)
-            self.value.parseRSRCData(bldata)
-        elif fulltype in (CONNECTOR_FULL_TYPE.MeasureData,):
-            #if self.td.dtFlavor() in (MEASURE_DATA_FLAVOR.TimeStamp,):
-            self.value = None # TODO implement
-            raise NotImplementedError("MeasureData default value read is not implemented")
-        elif fulltype in (CONNECTOR_FULL_TYPE.ComplexFixedPt,):
-            # Not sure about the order of values in this type
-            self.value = 2 * [None]
-            self.vflags = 2 * [None]
-            for i in range(2):
-                self.value[i] = int.from_bytes(bldata.read(8), byteorder='big', signed=False)
-                if self.td.allocOv:
-                    self.vflags[i] = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-            pass
-        elif fulltype in (CONNECTOR_FULL_TYPE.FixedPoint,):
-            self.value = int.from_bytes(bldata.read(8), byteorder='big', signed=False)
-            self.vflags = None
-            if self.td.allocOv:
-                # Masks: 0x01 = OverflowStatus
-                self.vflags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-            # TODO might need padding at end
-        elif fulltype in (CONNECTOR_FULL_TYPE.Block,):
-            self.value = bldata.read(self.td.blkSize)
-        elif fulltype in (CONNECTOR_FULL_TYPE.AlignedBlock,):
-            self.value = bldata.read(self.td.blkSize)
-        elif fulltype in (CONNECTOR_FULL_TYPE.RepeatedBlock,):
-            self.value = []
-            VCTP = self.vi.get_or_raise('VCTP')
-            sub_td = VCTP.getFlatType(self.td.typeFlatIdx)
-            if self.td.numRepeats > self.po.connector_list_limit:
-                raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
-                  .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,\
-                  self.td.numRepeats, self.po.connector_list_limit))
-            for i in range(self.td.numRepeats):
-                try:
-                    sub_df = newDataFillObject(self.vi, self.td.typeFlatIdx, self.tm_flags, sub_td, self.po)
-                    self.value.append(sub_df)
-                    sub_df.initWithRSRC(bldata)
-                except Exception as e:
-                    fulltype = sub_td.fullType()
-                    raise RuntimeError("Data type {}: {}"\
-                      .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,str(e)))
-                pass
-        elif fulltype in (CONNECTOR_FULL_TYPE.AlignmntMarker,):
-            self.value = None
-        elif fulltype in (CONNECTOR_FULL_TYPE.Refnum,):
+        if fulltype in (CONNECTOR_FULL_TYPE.Refnum,):
             from LVconnectorref import REFNUM_TYPE
             if self.td.refType() in (REFNUM_TYPE.IVIRef,REFNUM_TYPE.VisaRef,REFNUM_TYPE.Imaq,):
                 # These ref types represent IORefnum
@@ -338,6 +387,7 @@ class DataFillAll(DataFill):
                 if (bldata.tell() % 4) > 0:
                     bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
                 if numLevels > self.po.connector_list_limit:
+                    fulltype = self.td.fullType()
                     raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
                       .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,\
                       numLevels, self.po.connector_list_limit))
@@ -453,25 +503,28 @@ def newDataFillObject(vi, idx, tm_flags, td, po):
         CONNECTOR_FULL_TYPE.UnitComplexExt: DataFillFloat,
         CONNECTOR_FULL_TYPE.BooleanU16: DataFillBool,
         CONNECTOR_FULL_TYPE.Boolean: DataFillBool,
-        #CONNECTOR_FULL_TYPE.String: DataFillBlob,
-        #CONNECTOR_FULL_TYPE.Path: DataFillBlob,
-        #CONNECTOR_FULL_TYPE.Picture: DataFillBlob,
-        #CONNECTOR_FULL_TYPE.CString: DataFillCString,
-        #CONNECTOR_FULL_TYPE.PasString: DataFillPasString,
-        #CONNECTOR_FULL_TYPE.Tag: DataFillTag,
+        CONNECTOR_FULL_TYPE.String: DataFillString,
+        CONNECTOR_FULL_TYPE.Path: DataFillPath,
+        CONNECTOR_FULL_TYPE.Picture: DataFillString,
+        CONNECTOR_FULL_TYPE.CString: DataFillCString,
+        CONNECTOR_FULL_TYPE.PasString: DataFillCString,
+        CONNECTOR_FULL_TYPE.Tag: DataFillString,
         #CONNECTOR_FULL_TYPE.SubString: DataFillBlob,
-        #CONNECTOR_FULL_TYPE.*Array*: DataFillArray,
-        #CONNECTOR_FULL_TYPE.Cluster: DataFillCluster,
-        #CONNECTOR_FULL_TYPE.LVVariant: DataFillLVVariant,
-        #CONNECTOR_FULL_TYPE.MeasureData: DataFillMeasureData,
-        #CONNECTOR_FULL_TYPE.ComplexFixedPt: DataFillFixedPoint,
-        #CONNECTOR_FULL_TYPE.FixedPoint: DataFillFixedPoint,
-        #CONNECTOR_FULL_TYPE.Block: DataFillBlock,
+        CONNECTOR_FULL_TYPE.Array: DataFillArray,
+        CONNECTOR_FULL_TYPE.ArrayDataPtr: DataFillArrayDataPtr,
+        #CONNECTOR_FULL_TYPE.SubArray: DataFillBlob,
+        CONNECTOR_FULL_TYPE.ArrayInterfc: DataFillArray,
+        CONNECTOR_FULL_TYPE.Cluster: DataFillCluster,
+        CONNECTOR_FULL_TYPE.LVVariant: DataFillLVVariant,
+        CONNECTOR_FULL_TYPE.MeasureData: DataFillMeasureData,
+        CONNECTOR_FULL_TYPE.ComplexFixedPt: DataFillComplexFixedPt,
+        CONNECTOR_FULL_TYPE.FixedPoint: DataFillFixedPoint,
+        CONNECTOR_FULL_TYPE.Block: DataFillBlock,
         #CONNECTOR_FULL_TYPE.TypeBlock: DataFillSingleContainer,
         CONNECTOR_FULL_TYPE.VoidBlock: DataFillVoid,
-        #CONNECTOR_FULL_TYPE.AlignedBlock: DataFillAlignedBlock,
-        #CONNECTOR_FULL_TYPE.RepeatedBlock: DataFillRepeatedBlock,
-        #CONNECTOR_FULL_TYPE.AlignmntMarker: DataFillSingleContainer,
+        CONNECTOR_FULL_TYPE.AlignedBlock: DataFillBlock,
+        CONNECTOR_FULL_TYPE.RepeatedBlock: DataFillRepeatedBlock,
+        CONNECTOR_FULL_TYPE.AlignmntMarker: DataFillVoid,
         #CONNECTOR_FULL_TYPE.Ptr: DataFillNumberPtr,
         #CONNECTOR_FULL_TYPE.PtrTo: DataFillSingleContainer,
         #CONNECTOR_FULL_TYPE.Function: DataFillFunction,
