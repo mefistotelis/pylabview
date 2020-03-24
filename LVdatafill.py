@@ -223,6 +223,9 @@ class DataFillArray(DataFill):
         super().__init__(*args)
         self.dimensions = []
 
+    def prepareDict(self):
+        return { 'dimensions': self.dimensions, 'value': self.value }
+
     def initWithRSRCParse(self, bldata):
         self.dimensions = []
         for dim in self.td.dimensions:
@@ -297,6 +300,9 @@ class DataFillComplexFixedPt(DataFill):
         self.value = 2 * [None]
         self.vflags = 2 * [None]
 
+    def prepareDict(self):
+        return { 'value': self.value, 'vflags': self.vflags }
+
     def initWithRSRCParse(self, bldata):
         # Not sure about the order of values in this type
         self.value = 2 * [None]
@@ -313,13 +319,16 @@ class DataFillFixedPoint(DataFill):
         super().__init__(*args)
         self.vflags = None
 
+    def prepareDict(self):
+        return { 'value': self.value, 'vflags': self.vflags }
+
     def initWithRSRCParse(self, bldata):
         self.value = bldata.read(self.td.blkSize)
 
 
 class DataFillBlock(DataFill):
     def initWithRSRCParse(self, bldata):
-        self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.value = bldata.read(self.td.blkSize)
 
 
 class DataFillRepeatedBlock(DataFill):
@@ -344,108 +353,105 @@ class DataFillRepeatedBlock(DataFill):
         pass
 
 
-class DataFillAll(DataFill):
+class DataFillRefnum(DataFill):
     def initWithRSRCParse(self, bldata):
-        from LVconnector import CONNECTOR_FULL_TYPE
-        fulltype = self.td.fullType()
-        if fulltype in (CONNECTOR_FULL_TYPE.Refnum,):
-            from LVconnectorref import REFNUM_TYPE
-            if self.td.refType() in (REFNUM_TYPE.IVIRef,REFNUM_TYPE.VisaRef,REFNUM_TYPE.Imaq,):
-                # These ref types represent IORefnum
-                ver = self.vi.getFileVersion()
-                if isGreaterOrEqVersion(ver, 6,0,0):
-                    if self.isRefnumTag(self.td):
-                        strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-                        self.value = bldata.read(strlen)
-                    else:
-                        self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        from LVconnectorref import REFNUM_TYPE
+        if self.td.refType() in (REFNUM_TYPE.IVIRef,REFNUM_TYPE.VisaRef,REFNUM_TYPE.Imaq,):
+            # These ref types represent IORefnum
+            ver = self.vi.getFileVersion()
+            if isGreaterOrEqVersion(ver, 6,0,0):
+                if self.isRefnumTag(self.td):
+                    strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                    self.value = bldata.read(strlen)
                 else:
                     self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            elif self.td.refType() in (REFNUM_TYPE.UsrDefTagFlt,REFNUM_TYPE.UsrDefndTag,):
-                # These ref types represent Tag subtypes of UDRefnum
-                ver = self.vi.getFileVersion()
-                strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-                self.value = bldata.read(strlen)
-                if isGreaterOrEqVersion(ver, 12,0,0,2) and isSmallerVersion(ver, 12,0,0,5):
-                    bldata.read(1)
-                if self.td.refType() in (REFNUM_TYPE.UsrDefTagFlt,):
-                    strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-                    self.usrdef1 = bldata.read(strlen)
-                    strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-                    self.usrdef2 = bldata.read(strlen)
-                    self.usrdef3 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-                    strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-                    self.usrdef4 = bldata.read(strlen)
-            elif self.td.refType() in (REFNUM_TYPE.UsrDefined,):
-                # These ref types represent Non-tag subtypes of UDRefnum
-                self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            elif self.td.refType() in (REFNUM_TYPE.UDClassInst,):
-                self.value = []
-                numLevels = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-                strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-                self.libName = bldata.read(strlen)
-                if (bldata.tell() % 4) > 0:
-                    bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
-                if numLevels > self.po.connector_list_limit:
-                    fulltype = self.td.fullType()
-                    raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
-                      .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,\
-                      numLevels, self.po.connector_list_limit))
-                for i in range(numLevels):
-                    datalen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-                    libVersion = bldata.read(datalen)
-                    self.value.append(libVersion)
             else:
-                # All the normal refnums
-                # The format seem to be different for LV6.0.0 and older, but still 4 bytes
                 self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        elif fulltype in (CONNECTOR_FULL_TYPE.Ptr,):
+        elif self.td.refType() in (REFNUM_TYPE.UsrDefTagFlt,REFNUM_TYPE.UsrDefndTag,):
+            # These ref types represent Tag subtypes of UDRefnum
             ver = self.vi.getFileVersion()
-            if isSmallerVersion(ver, 8,6,0,1):
-                self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            else:
-                self.value = None
-        elif fulltype in (CONNECTOR_FULL_TYPE.PtrTo,):
+            strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            self.value = bldata.read(strlen)
+            if isGreaterOrEqVersion(ver, 12,0,0,2) and isSmallerVersion(ver, 12,0,0,5):
+                bldata.read(1)
+            if self.td.refType() in (REFNUM_TYPE.UsrDefTagFlt,):
+                strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                self.usrdef1 = bldata.read(strlen)
+                strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                self.usrdef2 = bldata.read(strlen)
+                self.usrdef3 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                self.usrdef4 = bldata.read(strlen)
+        elif self.td.refType() in (REFNUM_TYPE.UsrDefined,):
+            # These ref types represent Non-tag subtypes of UDRefnum
             self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        elif fulltype in (CONNECTOR_FULL_TYPE.ExtData,):
-            eprint("{:s}: Warning: Data fill asks to read default value of {} type, this is not implemented."\
-              .format(self.vi.src_fname, fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype))
-            self.value = None
-        elif fulltype in (CONNECTOR_FULL_TYPE.Function,CONNECTOR_FULL_TYPE.SubArray,):
-            eprint("{:s}: Warning: Data fill asks to read default value of {} type, this should never happen."\
-              .format(self.vi.src_fname, fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype))
-            self.value = None
-        elif fulltype in (CONNECTOR_FULL_TYPE.TypeBlock,):
+        elif self.td.refType() in (REFNUM_TYPE.UDClassInst,):
             self.value = []
-            # We expect only one client within TypeDef
-            for client in self.td.clients:
-                try:
-                    sub_df = newDataFillObject(self.vi, -1, self.tm_flags, client.nested, self.po)
-                    self.value.append(sub_df)
-                    sub_df.initWithRSRC(bldata)
-                except Exception as e:
-                    fulltype = client.nested.fullType()
-                    raise RuntimeError("Data type {}: {}"\
-                      .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,str(e)))
-                pass
-        elif fulltype in (CONNECTOR_FULL_TYPE.TypeDef,):
-            self.value = []
-            # We expect only one client within TypeDef
-            for client in self.td.clients:
-                try:
-                    sub_df = newDataFillObject(self.vi, -1, self.tm_flags, client.nested, self.po)
-                    self.value.append(sub_df)
-                    sub_df.initWithRSRC(bldata)
-                except Exception as e:
-                    fulltype = client.nested.fullType()
-                    raise RuntimeError("Data type {}: {}"\
-                      .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,str(e)))
-                pass
-        elif fulltype in (CONNECTOR_FULL_TYPE.SubString,CONNECTOR_FULL_TYPE.PolyVI,):
-            # This would cause silently ignored error in LV14
-            self.value = None
+            numLevels = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            self.libName = bldata.read(strlen)
+            if (bldata.tell() % 4) > 0:
+                bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
+            if numLevels > self.po.connector_list_limit:
+                fulltype = self.td.fullType()
+                raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
+                  .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,\
+                  numLevels, self.po.connector_list_limit))
+            for i in range(numLevels):
+                datalen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                libVersion = bldata.read(datalen)
+                self.value.append(libVersion)
+        else:
+            # All the normal refnums
+            # The format seem to be different for LV6.0.0 and older, but still 4 bytes
+            self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+
+class DataFillPtr(DataFill):
+    def initWithRSRCParse(self, bldata):
+        ver = self.vi.getFileVersion()
+        if isSmallerVersion(ver, 8,6,0,1):
+            self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         else:
             self.value = None
+
+
+class DataFillPtrTo(DataFill):
+    def initWithRSRCParse(self, bldata):
+        self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+
+class DataFillExtData(DataFill):
+    def initWithRSRCParse(self, bldata):
+        self.value = None # TODO implement
+        raise NotImplementedError("ExtData default value read is not implemented")
+
+
+class DataFillUnexpected(DataFill):
+    """ Data fill for types for which we never expect this call, but it may be ignored
+
+    Types which reference this class would cause silently ignored error in LV14.
+    """
+    def initWithRSRCParse(self, bldata):
+        self.value = None # TODO implement
+        fulltype = self.td.fullType()
+        eprint("{:s}: Warning: Data fill asks to read default value of {} type, this should never happen."\
+          .format(self.vi.src_fname, fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype))
+
+
+class DataFillTypeDef(DataFill):
+    def initWithRSRCParse(self, bldata):
+        self.value = []
+        # We expect only one client within TypeDef
+        for client in self.td.clients:
+            try:
+                sub_df = newDataFillObject(self.vi, -1, self.tm_flags, client.nested, self.po)
+                self.value.append(sub_df)
+                sub_df.initWithRSRC(bldata)
+            except Exception as e:
+                fulltype = client.nested.fullType()
+                raise RuntimeError("Data type {}: {}"\
+                  .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,str(e)))
         pass
 
 
@@ -509,10 +515,10 @@ def newDataFillObject(vi, idx, tm_flags, td, po):
         CONNECTOR_FULL_TYPE.CString: DataFillCString,
         CONNECTOR_FULL_TYPE.PasString: DataFillCString,
         CONNECTOR_FULL_TYPE.Tag: DataFillString,
-        #CONNECTOR_FULL_TYPE.SubString: DataFillBlob,
+        CONNECTOR_FULL_TYPE.SubString: DataFillUnexpected,
         CONNECTOR_FULL_TYPE.Array: DataFillArray,
         CONNECTOR_FULL_TYPE.ArrayDataPtr: DataFillArrayDataPtr,
-        #CONNECTOR_FULL_TYPE.SubArray: DataFillBlob,
+        CONNECTOR_FULL_TYPE.SubArray: DataFillUnexpected,
         CONNECTOR_FULL_TYPE.ArrayInterfc: DataFillArray,
         CONNECTOR_FULL_TYPE.Cluster: DataFillCluster,
         CONNECTOR_FULL_TYPE.LVVariant: DataFillLVVariant,
@@ -520,17 +526,20 @@ def newDataFillObject(vi, idx, tm_flags, td, po):
         CONNECTOR_FULL_TYPE.ComplexFixedPt: DataFillComplexFixedPt,
         CONNECTOR_FULL_TYPE.FixedPoint: DataFillFixedPoint,
         CONNECTOR_FULL_TYPE.Block: DataFillBlock,
-        #CONNECTOR_FULL_TYPE.TypeBlock: DataFillSingleContainer,
+        CONNECTOR_FULL_TYPE.TypeBlock: DataFillTypeDef,
         CONNECTOR_FULL_TYPE.VoidBlock: DataFillVoid,
         CONNECTOR_FULL_TYPE.AlignedBlock: DataFillBlock,
         CONNECTOR_FULL_TYPE.RepeatedBlock: DataFillRepeatedBlock,
         CONNECTOR_FULL_TYPE.AlignmntMarker: DataFillVoid,
-        #CONNECTOR_FULL_TYPE.Ptr: DataFillNumberPtr,
-        #CONNECTOR_FULL_TYPE.PtrTo: DataFillSingleContainer,
-        #CONNECTOR_FULL_TYPE.Function: DataFillFunction,
-        #CONNECTOR_FULL_TYPE.TypeDef: DataFillTypeDef,
-        #CONNECTOR_FULL_TYPE.PolyVI: DataFillBlob,
+        CONNECTOR_FULL_TYPE.Refnum: DataFillRefnum,
+        CONNECTOR_FULL_TYPE.Ptr: DataFillPtr,
+        CONNECTOR_FULL_TYPE.PtrTo: DataFillPtrTo,
+        CONNECTOR_FULL_TYPE.ExtData: DataFillExtData,
+        CONNECTOR_FULL_TYPE.Function: DataFillUnexpected,
+        CONNECTOR_FULL_TYPE.TypeDef: DataFillTypeDef,
+        CONNECTOR_FULL_TYPE.PolyVI: DataFillUnexpected,
     }.get(obj_type, None)
     if ctor is None:
-        ctor = DataFillAll
+        raise RuntimeError("Data type {}: No known way to read default data"\
+          .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,str(e)))
     return ctor(vi, idx, tm_flags, td, po)
