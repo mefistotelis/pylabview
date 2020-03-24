@@ -215,6 +215,7 @@ class LVVariant(LVObject):
     """
     def __init__(self, index, *args, useConsolidatedTypes=False, allowFillValue=False):
         super().__init__(*args)
+        self.datafill = []
         self.clients2 = []
         self.attrs = []
         self.version = decodeVersion(0x09000000)
@@ -286,11 +287,11 @@ class LVVariant(LVObject):
                 self.vartype2 = readVariableSizeFieldU2p2(bldata)
         # Read value of vartype2
         if self.allowFillValue and self.hasvaritem2:
-            TM = self.vi.get_one_of('TM80')
-            tmEntry = TM.getTypeEntry(self.vartype2)
-            df = LVdatafill.newDataFillObject(self.vi, tmEntry.index, tmEntry.flags, tmEntry.td, self.po)
-            #self.content.append(df) # TODO store that somewhere
-            #df.initWithRSRC(bldata) # TODO parse the content
+            VCTP = self.vi.get_or_raise('VCTP')
+            td = VCTP.getTopType(self.vartype2 - 1)
+            df = LVdatafill.newDataFillObject(self.vi, self.vartype2, 0, td, self.po)
+            self.datafill.append(df)
+            df.initWithRSRC(bldata)
             pass
         # Read attributes
         self.attrs += self.parseRSRCAttribs(bldata)
