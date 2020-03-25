@@ -274,7 +274,7 @@ class DataFillCluster(DataFill):
                 fulltype = conn_obj.fullType()
                 raise RuntimeError("Data type {}: {}"\
                   .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,str(e)))
-            pass
+        pass
 
 
 class DataFillLVVariant(DataFill):
@@ -288,10 +288,71 @@ class DataFillLVVariant(DataFill):
 
 
 class DataFillMeasureData(DataFill):
+    def __init__(self, *args):
+        super().__init__(*args)
+        ver = self.vi.getFileVersion()
+        dtFlavor = self.td.dtFlavor()
+        from LVconnector import MEASURE_DATA_FLAVOR, CONNECTOR_FULL_TYPE
+
+        if isSmallerVersion(ver, 7,0,0,2):
+            raise NotImplementedError("MeasureData {} default value read is not implemented for versions below LV7"\
+              .format(dtFlavor.name if isinstance(dtFlavor, enum.IntEnum) else dtFlavor))
+
+        if dtFlavor in (MEASURE_DATA_FLAVOR.OldFloat64Waveform,):
+            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat64, self.po)
+        elif dtFlavor in (MEASURE_DATA_FLAVOR.Int16Waveform,):
+            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt16, self.po)
+        elif dtFlavor in (MEASURE_DATA_FLAVOR.Float64Waveform,):
+            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat64, self.po)
+        elif dtFlavor in (MEASURE_DATA_FLAVOR.Float32Waveform,):
+            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat32, self.po)
+        elif dtFlavor in (MEASURE_DATA_FLAVOR.TimeStamp,):
+            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.Block, self.po)
+            self.containedTd.blkSize = 16
+        #elif dtFlavor in (MEASURE_DATA_FLAVOR.Digitaldata,):
+        #    self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.Void, self.po)
+        #elif dtFlavor in (MEASURE_DATA_FLAVOR.DigitalWaveform,):
+        #    self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.Void, self.po)
+        #elif dtFlavor in (MEASURE_DATA_FLAVOR.Dynamicdata,):
+        #    self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.Void, self.po)
+        elif dtFlavor in (MEASURE_DATA_FLAVOR.FloatExtWaveform,):
+            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloatExt, self.po)
+        elif dtFlavor in (MEASURE_DATA_FLAVOR.UInt8Waveform,):
+            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt8, self.po)
+        elif dtFlavor in (MEASURE_DATA_FLAVOR.UInt16Waveform,):
+            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt16, self.po)
+        elif dtFlavor in (MEASURE_DATA_FLAVOR.UInt32Waveform,):
+            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt32, self.po)
+        elif dtFlavor in (MEASURE_DATA_FLAVOR.Int8Waveform,):
+            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt8, self.po)
+        elif dtFlavor in (MEASURE_DATA_FLAVOR.Int32Waveform,):
+            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt32, self.po)
+        elif dtFlavor in (MEASURE_DATA_FLAVOR.Complex64Waveform,):
+            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumComplex64, self.po)
+        elif dtFlavor in (MEASURE_DATA_FLAVOR.Complex128Waveform,):
+            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumComplex128, self.po)
+        elif dtFlavor in (MEASURE_DATA_FLAVOR.ComplexExtWaveform,):
+            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumComplexExt, self.po)
+        elif dtFlavor in (MEASURE_DATA_FLAVOR.Int64Waveform,):
+            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt64, self.po)
+        elif dtFlavor in (MEASURE_DATA_FLAVOR.UInt64Waveform,):
+            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt64, self.po)
+        else:
+            raise NotImplementedError("MeasureData {} default value read failed due to unsupported flavor"\
+              .format(dtFlavor.name if isinstance(dtFlavor, enum.IntEnum) else dtFlavor))
+
     def initWithRSRCParse(self, bldata):
-        #if self.td.dtFlavor() in (MEASURE_DATA_FLAVOR.TimeStamp,):
-        self.value = None # TODO implement
-        raise NotImplementedError("MeasureData default value read is not implemented")
+        self.value = []
+        for i in range(1): #TODO How come waveform has only one sample?
+            try:
+                sub_df = newDataFillObject(self.vi, -1, self.tm_flags, self.containedTd, self.po)
+                self.value.append(sub_df)
+                sub_df.initWithRSRC(bldata)
+            except Exception as e:
+                dtFlavor = self.td.dtFlavor()
+                raise RuntimeError("MeasureData kind {}: {}"\
+                  .format(dtFlavor.name if isinstance(dtFlavor, enum.IntEnum) else dtFlavor,str(e)))
+        pass
 
 
 class DataFillComplexFixedPt(DataFill):
