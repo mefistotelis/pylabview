@@ -292,7 +292,7 @@ class DataFillMeasureData(DataFill):
         super().__init__(*args)
         ver = self.vi.getFileVersion()
         dtFlavor = self.td.dtFlavor()
-        from LVconnector import MEASURE_DATA_FLAVOR, CONNECTOR_FULL_TYPE
+        from LVconnector import MEASURE_DATA_FLAVOR, CONNECTOR_FULL_TYPE, newConnectorObject
 
         if isSmallerVersion(ver, 7,0,0,2):
             raise NotImplementedError("MeasureData {} default value read is not implemented for versions below LV7"\
@@ -307,12 +307,62 @@ class DataFillMeasureData(DataFill):
         elif dtFlavor in (MEASURE_DATA_FLAVOR.Float32Waveform,):
             self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat32, self.po)
         elif dtFlavor in (MEASURE_DATA_FLAVOR.TimeStamp,):
+            # Use block of 16 bytes as Timestamp
             self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.Block, self.po)
             self.containedTd.blkSize = 16
         #elif dtFlavor in (MEASURE_DATA_FLAVOR.Digitaldata,):
         #    self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.Void, self.po)
-        #elif dtFlavor in (MEASURE_DATA_FLAVOR.DigitalWaveform,):
-        #    self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.Void, self.po)
+        elif dtFlavor in (MEASURE_DATA_FLAVOR.DigitalWaveform,):
+            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.Cluster, self.po)
+            tdList = []
+            tdEntry = SimpleNamespace() # t0
+            tdEntry.index = -1
+            tdEntry.flags = 0
+            # Use block of 16 bytes as Timestamp
+            tdEntry.nested = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.Block, self.po)
+            tdEntry.nested.blkSize = 16
+            tdList.append(tdEntry)
+            tdEntry = SimpleNamespace() # dt
+            tdEntry.index = -1
+            tdEntry.flags = 0
+            tdEntry.nested = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat64, self.po)
+            tdList.append(tdEntry)
+            tdEntry = SimpleNamespace() # Y
+            tdEntry.index = -1
+            tdEntry.flags = 0
+            tdEntry.nested = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.MeasureData, self.po)
+            # TODO set to DigitalTable
+            tdEntry.nested.flavor = MEASURE_DATA_FLAVOR.Int16Waveform
+            tdList.append(tdEntry)
+            tdEntry = SimpleNamespace() # error
+            tdEntry.index = -1
+            tdEntry.flags = 0
+            tdEntry.nested = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.Cluster, self.po)
+            if True: # Content of the error cluster
+                tdErrList = []
+                tdErrEnt = SimpleNamespace() # error status
+                tdErrEnt.index = -1
+                tdErrEnt.flags = 0
+                tdErrEnt.nested = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.Boolean, self.po)
+                tdErrList.append(tdErrEnt)
+                tdErrEnt = SimpleNamespace() # error code
+                tdErrEnt.index = -1
+                tdErrEnt.flags = 0
+                tdErrEnt.nested = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt32, self.po)
+                tdErrList.append(tdErrEnt)
+                tdErrEnt = SimpleNamespace() # error source
+                tdErrEnt.index = -1
+                tdErrEnt.flags = 0
+                tdErrEnt.nested = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.String, self.po)
+                tdErrList.append(tdErrEnt)
+                tdEntry.clients = tdErrList
+            tdList.append(tdEntry)
+            tdEntry = SimpleNamespace() # attributes
+            tdEntry.index = -1
+            tdEntry.flags = 0
+            tdEntry.nested = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.LVVariant, self.po)
+            tdList.append(tdEntry)
+            self.containedTd.clients = tdList
         #elif dtFlavor in (MEASURE_DATA_FLAVOR.Dynamicdata,):
         #    self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.Void, self.po)
         elif dtFlavor in (MEASURE_DATA_FLAVOR.FloatExtWaveform,):
