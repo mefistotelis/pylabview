@@ -2516,6 +2516,147 @@ class ConnectorObjectSingleContainer(ConnectorObject):
         return ret
 
 
+def newErrorCluster(vi, idx, obj_flags, po):
+    """ Error information is transferred in a specific Cluster
+    """
+    # Content (fields) of the error cluster
+    tdList = []
+
+    tdErrEnt = SimpleNamespace() # error status
+    tdErrEnt.index = -1
+    tdErrEnt.flags = 0
+    tdErrEnt.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.Boolean, po)
+    tdList.append(tdErrEnt)
+
+    tdErrEnt = SimpleNamespace() # error code
+    tdErrEnt.index = -1
+    tdErrEnt.flags = 0
+    tdErrEnt.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt32, po)
+    tdList.append(tdErrEnt)
+
+    tdErrEnt = SimpleNamespace() # error source
+    tdErrEnt.index = -1
+    tdErrEnt.flags = 0
+    tdErrEnt.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.String, po)
+    tdList.append(tdErrEnt)
+
+    # Prepare a cluster container for that list
+    tdCluster = newConnectorObject(vi, idx, obj_flags, CONNECTOR_FULL_TYPE.Cluster, po)
+    tdCluster.clients = tdList
+    return tdCluster
+
+def newDigitalTableCluster(vi, idx, obj_flags, po):
+    """ The DigitalTable is a Cluster with specific things inside
+    """
+    # make list of fields
+    tdList = []
+
+    tdDigTabEnt = SimpleNamespace() # DigitalTable transitions
+    tdDigTabEnt.index = -1
+    tdDigTabEnt.flags = 0
+    tdDigTabEnt.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.Array, po)
+    tdDigTabEnt.nested.dimensions = [SimpleNamespace() for _ in range(1)]
+    for dim in tdDigTabEnt.nested.dimensions:
+        dim.flags = 0
+        dim.fixedSize = -1
+    tdDigTabEnt.nested.clients = [ SimpleNamespace() ]
+    for client in tdDigTabEnt.nested.clients:
+        cli_flags = 0
+        client.index = -1
+        client.flags = 0
+        client.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt32, po)
+    tdList.append(tdDigTabEnt)
+
+    tdDigTabEnt = SimpleNamespace() # DigitalTable data
+    tdDigTabEnt.index = -1
+    tdDigTabEnt.flags = 0
+    tdDigTabEnt.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.Array, po)
+    tdDigTabEnt.nested.dimensions = [SimpleNamespace() for _ in range(2)]
+    for dim in tdDigTabEnt.nested.dimensions:
+        dim.flags = 0
+        dim.fixedSize = -1
+    tdDigTabEnt.nested.clients = [ SimpleNamespace() ]
+    for client in tdDigTabEnt.nested.clients:
+        cli_flags = 0
+        client.index = -1
+        client.flags = 0
+        client.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt8, po)
+    tdList.append(tdDigTabEnt)
+
+    # Prepare a cluster container for that list
+    tdCluster = newConnectorObject(vi, idx, obj_flags, CONNECTOR_FULL_TYPE.Cluster, po)
+    tdCluster.clients = tdList
+    return tdCluster
+
+
+def newDigitalWaveformCluster(vi, idx, obj_flags, po):
+    """ The DigitalWaveform is a Cluster with specific things inside
+    """
+    tdList = []
+    tdEntry = SimpleNamespace() # t0
+    tdEntry.index = -1
+    tdEntry.flags = 0
+    # Use block of 16 bytes as Timestamp
+    tdEntry.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.Block, po)
+    tdEntry.nested.blkSize = 16
+    tdList.append(tdEntry)
+    tdEntry = SimpleNamespace() # dt
+    tdEntry.index = -1
+    tdEntry.flags = 0
+    tdEntry.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat64, po)
+    tdList.append(tdEntry)
+    tdEntry = SimpleNamespace() # Y
+    tdEntry.index = -1
+    tdEntry.flags = 0
+    # The DigitalTable is a Cluster with specific things inside
+    tdEntry.nested = newDigitalTableCluster(vi, -1, 0, po)
+    tdList.append(tdEntry)
+    tdEntry = SimpleNamespace() # error
+    tdEntry.index = -1
+    tdEntry.flags = 0
+    tdEntry.nested = newErrorCluster(vi, -1, 0, po)
+    tdList.append(tdEntry)
+    tdEntry = SimpleNamespace() # attributes
+    tdEntry.index = -1
+    tdEntry.flags = 0
+    tdEntry.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.LVVariant, po)
+    tdList.append(tdEntry)
+
+    # Prepare a cluster container for that list
+    tdCluster = newConnectorObject(vi, idx, obj_flags, CONNECTOR_FULL_TYPE.Cluster, po)
+    tdCluster.clients = tdList
+    return tdCluster
+
+
+def newDynamicTableCluster(vi, idx, obj_flags, po):
+    """ The DynamicTable is a Cluster with specific things inside
+    """
+    # make list of fields
+    tdList = []
+
+    tdTabEnt = SimpleNamespace()
+    tdTabEnt.index = -1
+    tdTabEnt.flags = 0
+    tdTabEnt.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.Array, po)
+    tdTabEnt.nested.dimensions = [SimpleNamespace() for _ in range(1)]
+    for dim in tdTabEnt.nested.dimensions:
+        dim.flags = 0
+        dim.fixedSize = -1
+    tdTabEnt.nested.clients = [ SimpleNamespace() ]
+    for client in tdTabEnt.nested.clients:
+        cli_flags = 0
+        client.index = -1
+        client.flags = 0
+        # data inside as for MEASURE_DATA_FLAVOR.Float64Waveform
+        client.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat64, po)
+    tdList.append(tdTabEnt)
+
+    # Prepare a cluster container for that list
+    tdCluster = newConnectorObject(vi, idx, obj_flags, CONNECTOR_FULL_TYPE.Cluster, po)
+    tdCluster.clients = tdList
+    return tdCluster
+
+
 def newConnectorObject(vi, idx, obj_flags, obj_type, po):
     """ Creates and returns new terminal object with given parameters
     """
