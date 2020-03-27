@@ -251,9 +251,20 @@ class LVVariant(LVObject):
         attrcount = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         for i in range(attrcount):
             text_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            text_val = bldata.read(text_len)
-            raise NotImplementedError("Unsupported LVVariant attributes data read")
-            attrs.append(text_val)
+            attrib = SimpleNamespace()
+            attrib.flags = 0
+            attrib.index = -1
+            attrib.name = bldata.read(text_len)
+            # And now - inception. LVVariant has attributes of type LVVariant. Hopefully won't loop forever.
+            attrib.nested = LVconnector.newConnectorObject(self.vi, -1, 0, LVconnector.CONNECTOR_FULL_TYPE.LVVariant, self.po)
+            # Note that we won't parse the type itself, it is generic and not stored with the attributes; just use it to make data
+            # We have type of the attribute, now read the value
+            attrib.value = LVdatafill.newDataFillObject(self.vi, attrib.index, attrib.flags, attrib.nested, self.po)
+            attrib.value.initWithRSRC(bldata)
+            if (self.po.verbose > 2):
+                print("{:s}: {:s} {:d} attribute {}: {} {}"\
+                  .format(self.vi.src_fname, type(self).__name__, self.index, attrib.name, attrib.nested, attrib.value))
+            attrs.append( attrib )
         return attrs
 
     def parseRSRCVariant(self, bldata):
@@ -319,9 +330,10 @@ class LVVariant(LVObject):
         if hasvaritem2 != 0:
             data_buf += prepareVariableSizeFieldU2p2(self.vartype2)
             data_buf += len(self.attrs).to_bytes(4, byteorder='big')
-            for text_val in self.attrs:
-                data_buf += len(text_val).to_bytes(4, byteorder='big')
-                data_buf += text_val
+            for attrib in self.attrs:
+                data_buf += len(attrib.name).to_bytes(4, byteorder='big')
+                data_buf += attrib.name
+                data_buf += attrib.value.prepareRSRCData(avoid_recompute=avoid_recompute)
                 pass
         return data_buf
 
@@ -400,12 +412,13 @@ class LVVariant(LVObject):
             client.nested.exportXML(subelem, fname_cli)
             client.nested.exportXMLFinish(subelem)
         idx = -1
-        for text_val in self.attrs:
+        for attrib in self.attrs:
             idx += 1
             subelem = ET.SubElement(obj_elem,"Attribute")
 
             subelem.set("Index", str(idx))
-            subelem.set("Name", text_val.decode(encoding=self.vi.textEncoding))
+            subelem.set("Name", attrib.name.decode(encoding=self.vi.textEncoding))
+            attrib.value.exportXML(subelem, fname_base)
         pass
 
 class OleVariant(LVObject):

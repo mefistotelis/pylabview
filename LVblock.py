@@ -3622,7 +3622,7 @@ class VCTP(Block):
         for i in range(count):
             obj_idx, obj_len = self.parseRSRCConnector(section_num, bldata, pos)
             pos += obj_len
-        # After that,there is a list
+        # After that, there is a list
         section.topLevel = []
         count = readVariableSizeFieldU2p2(bldata)
         for i in range(count):
