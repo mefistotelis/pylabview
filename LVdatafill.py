@@ -76,14 +76,14 @@ class DataFill:
         self.initWithRSRCParse(bldata)
         if (self.po.verbose > 2):
             fulltype = self.td.fullType()
-            print("{:s}: {} Data fill for type {} value {} offs after {}"\
-              .format(self.vi.src_fname, type(self).__name__,\
-               fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,\
-               self.value, bldata.tell()))
+            print("{:s}: {} offs after {}"\
+              .format(self.vi.src_fname,str(self),bldata.tell()))
         pass
 
     def prepareDict(self):
-        return { 'value': self.value }
+        fulltype = self.td.fullType()
+        typeName = fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype
+        return { 'type': typeName, 'value': self.value }
 
     def __repr__(self):
         d = self.prepareDict()
@@ -224,7 +224,9 @@ class DataFillArray(DataFill):
         self.dimensions = []
 
     def prepareDict(self):
-        return { 'dimensions': self.dimensions, 'value': self.value }
+        d = super().prepareDict()
+        d.update( { 'dimensions': self.dimensions } )
+        return d
 
     def initWithRSRCParse(self, bldata):
         self.dimensions = []
@@ -237,8 +239,11 @@ class DataFillArray(DataFill):
         for dim in self.dimensions:
             totItems *= dim & 0x7fffffff
         self.value = []
-        VCTP = self.vi.get_or_raise('VCTP')
-        sub_td = VCTP.getFlatType(self.td.clients[0].index)
+        if self.td.clients[0].index >= 0:
+            VCTP = self.vi.get_or_raise('VCTP')
+            sub_td = VCTP.getFlatType(self.td.clients[0].index)
+        else:
+            sub_td = self.td.clients[0].nested
         #if sub_td.fullType() in (CONNECTOR_FULL_TYPE.Boolean,) and isSmallerVersion(ver, 4,5,0,1): # TODO expecting special case, never seen it though
         if totItems > self.po.connector_list_limit * len(self.dimensions):
                 fulltype = self.td.fullType()
@@ -292,21 +297,25 @@ class DataFillMeasureData(DataFill):
         super().__init__(*args)
         ver = self.vi.getFileVersion()
         dtFlavor = self.td.dtFlavor()
-        from LVconnector import MEASURE_DATA_FLAVOR, CONNECTOR_FULL_TYPE,\
-          newConnectorObject, newDigitalTableCluster, newDigitalWaveformCluster, newDynamicTableCluster
+        from LVconnector import MEASURE_DATA_FLAVOR, CONNECTOR_FULL_TYPE, newConnectorObject,\
+          newDigitalTableCluster, newDigitalWaveformCluster, newDynamicTableCluster,\
+          newAnalogWaveformCluster, newOldFloat64WaveformCluster
 
         if isSmallerVersion(ver, 7,0,0,2):
             raise NotImplementedError("MeasureData {} default value read is not implemented for versions below LV7"\
               .format(dtFlavor.name if isinstance(dtFlavor, enum.IntEnum) else dtFlavor))
 
         if dtFlavor in (MEASURE_DATA_FLAVOR.OldFloat64Waveform,):
-            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat64, self.po)
+            self.containedTd = newOldFloat64WaveformCluster(self.vi, -1, 0, self.po)
         elif dtFlavor in (MEASURE_DATA_FLAVOR.Int16Waveform,):
-            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt16, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt16, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif dtFlavor in (MEASURE_DATA_FLAVOR.Float64Waveform,):
-            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat64, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat64, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif dtFlavor in (MEASURE_DATA_FLAVOR.Float32Waveform,):
-            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat32, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat32, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif dtFlavor in (MEASURE_DATA_FLAVOR.TimeStamp,):
             # Use block of 16 bytes as Timestamp
             self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.Block, self.po)
@@ -318,30 +327,48 @@ class DataFillMeasureData(DataFill):
         elif dtFlavor in (MEASURE_DATA_FLAVOR.Dynamicdata,):
             self.containedTd = newDynamicTableCluster(self.vi, -1, 0, self.po)
         elif dtFlavor in (MEASURE_DATA_FLAVOR.FloatExtWaveform,):
-            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloatExt, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloatExt, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif dtFlavor in (MEASURE_DATA_FLAVOR.UInt8Waveform,):
-            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt8, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt8, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif dtFlavor in (MEASURE_DATA_FLAVOR.UInt16Waveform,):
-            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt16, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt16, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif dtFlavor in (MEASURE_DATA_FLAVOR.UInt32Waveform,):
-            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt32, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt32, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif dtFlavor in (MEASURE_DATA_FLAVOR.Int8Waveform,):
-            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt8, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt8, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif dtFlavor in (MEASURE_DATA_FLAVOR.Int32Waveform,):
-            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt32, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt32, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif dtFlavor in (MEASURE_DATA_FLAVOR.Complex64Waveform,):
-            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumComplex64, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumComplex64, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif dtFlavor in (MEASURE_DATA_FLAVOR.Complex128Waveform,):
-            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumComplex128, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumComplex128, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif dtFlavor in (MEASURE_DATA_FLAVOR.ComplexExtWaveform,):
-            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumComplexExt, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumComplexExt, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif dtFlavor in (MEASURE_DATA_FLAVOR.Int64Waveform,):
-            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt64, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt64, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif dtFlavor in (MEASURE_DATA_FLAVOR.UInt64Waveform,):
-            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt64, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt64, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         else:
             raise NotImplementedError("MeasureData {} default value read failed due to unsupported flavor"\
               .format(dtFlavor.name if isinstance(dtFlavor, enum.IntEnum) else dtFlavor))
+
+    def prepareDict(self):
+        flavour = self.td.dtFlavor()
+        flavourName = flavour.name if isinstance(flavour, enum.IntEnum) else flavour
+        d = super().prepareDict()
+        d.update( { 'flavour': flavourName } )
+        return d
 
     def initWithRSRCParse(self, bldata):
         self.value = []
@@ -363,7 +390,9 @@ class DataFillComplexFixedPt(DataFill):
         self.vflags = 2 * [None]
 
     def prepareDict(self):
-        return { 'value': self.value, 'vflags': self.vflags }
+        d = super().prepareDict()
+        d.update( { 'vflags': self.vflags } )
+        return d
 
     def initWithRSRCParse(self, bldata):
         # Not sure about the order of values in this type
@@ -382,7 +411,9 @@ class DataFillFixedPoint(DataFill):
         self.vflags = None
 
     def prepareDict(self):
-        return { 'value': self.value, 'vflags': self.vflags }
+        d = super().prepareDict()
+        d.update( { 'vflags': self.vflags } )
+        return d
 
     def initWithRSRCParse(self, bldata):
         self.value = bldata.read(self.td.blkSize)

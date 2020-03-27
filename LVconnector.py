@@ -2628,6 +2628,55 @@ def newDigitalWaveformCluster(vi, idx, obj_flags, po):
     return tdCluster
 
 
+def newAnalogWaveformCluster(vi, idx, obj_flags, tdInner, po):
+    """ The AnalogWaveform is a Cluster with specific things inside
+    """
+    tdList = []
+    tdEntry = SimpleNamespace() # t0
+    tdEntry.index = -1
+    tdEntry.flags = 0
+    # Use block of 16 bytes as Timestamp
+    tdEntry.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.Block, po)
+    tdEntry.nested.blkSize = 16
+    tdList.append(tdEntry)
+    tdEntry = SimpleNamespace() # dt
+    tdEntry.index = -1
+    tdEntry.flags = 0
+    tdEntry.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat64, po)
+    tdList.append(tdEntry)
+    tdEntry = SimpleNamespace() # Y
+    tdEntry.index = -1
+    tdEntry.flags = 0
+    # The AnalogTable is a Cluster with specific things inside
+    tdEntry.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.Array, po)
+    tdEntry.nested.dimensions = [SimpleNamespace() for _ in range(1)]
+    for dim in tdEntry.nested.dimensions:
+        dim.flags = 0
+        dim.fixedSize = -1
+    tdEntry.nested.clients = [ SimpleNamespace() ]
+    for client in tdEntry.nested.clients:
+        cli_flags = 0
+        client.index = -1
+        client.flags = 0
+        client.nested = tdInner
+    tdList.append(tdEntry)
+    tdEntry = SimpleNamespace() # error
+    tdEntry.index = -1
+    tdEntry.flags = 0
+    tdEntry.nested = newErrorCluster(vi, -1, 0, po)
+    tdList.append(tdEntry)
+    tdEntry = SimpleNamespace() # attributes
+    tdEntry.index = -1
+    tdEntry.flags = 0
+    tdEntry.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.LVVariant, po)
+    tdList.append(tdEntry)
+
+    # Prepare a cluster container for that list
+    tdCluster = newConnectorObject(vi, idx, obj_flags, CONNECTOR_FULL_TYPE.Cluster, po)
+    tdCluster.clients = tdList
+    return tdCluster
+
+
 def newDynamicTableCluster(vi, idx, obj_flags, po):
     """ The DynamicTable is a Cluster with specific things inside
     """
@@ -2644,16 +2693,24 @@ def newDynamicTableCluster(vi, idx, obj_flags, po):
         dim.fixedSize = -1
     tdTabEnt.nested.clients = [ SimpleNamespace() ]
     for client in tdTabEnt.nested.clients:
-        cli_flags = 0
         client.index = -1
         client.flags = 0
         # data inside as for MEASURE_DATA_FLAVOR.Float64Waveform
-        client.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat64, po)
+        tdInner = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat64, po)
+        client.nested = newAnalogWaveformCluster(vi, -1, 0, tdInner, po)
     tdList.append(tdTabEnt)
 
     # Prepare a cluster container for that list
     tdCluster = newConnectorObject(vi, idx, obj_flags, CONNECTOR_FULL_TYPE.Cluster, po)
     tdCluster.clients = tdList
+    return tdCluster
+
+def newOldFloat64WaveformCluster(vi, idx, obj_flags, po):
+    """ The OldFloat64 Waveform is a Cluster with specific things inside
+    """
+    #TODO this is not enough, some changes are required in the cluster
+    tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat64, self.po)
+    tdCluster = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
     return tdCluster
 
 
