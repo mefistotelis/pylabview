@@ -173,7 +173,21 @@ class DataFillFloat(DataFill):
             self.value = struct.unpack('>d', bldata.read(8))
         elif fulltype in (CONNECTOR_FULL_TYPE.NumFloatExt,CONNECTOR_FULL_TYPE.UnitFloatExt,):
             self.value = readQuadFloat(bldata)
-        elif fulltype in (CONNECTOR_FULL_TYPE.NumComplex64,CONNECTOR_FULL_TYPE.UnitComplex64,):
+        else:
+            raise RuntimeError("Class {} used for unexpected type {}"\
+              .format(type(self).__name__,\
+               fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype))
+
+    def exportXML(self, td_elem, fname_base):
+        td_elem.text = "{:g}".format(self.value)
+        pass
+
+
+class DataFillComplex(DataFill):
+    def initWithRSRCParse(self, bldata):
+        from LVconnector import CONNECTOR_FULL_TYPE
+        fulltype = self.td.fullType()
+        if fulltype in (CONNECTOR_FULL_TYPE.NumComplex64,CONNECTOR_FULL_TYPE.UnitComplex64,):
             self.value = struct.unpack('>ff', bldata.read(8))
         elif fulltype in (CONNECTOR_FULL_TYPE.NumComplex128,CONNECTOR_FULL_TYPE.UnitComplex128,):
             self.value = struct.unpack('>dd', bldata.read(16))
@@ -185,7 +199,10 @@ class DataFillFloat(DataFill):
                fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype))
 
     def exportXML(self, td_elem, fname_base):
-        td_elem.text = "{:g}".format(self.value)
+        tags = ("real", "imag",)
+        for i, val in enumerate(self.value):
+            subelem = ET.SubElement(td_elem, tags[i])
+            subelem.text = "{:g}".format(val)
         pass
 
 
@@ -304,7 +321,7 @@ class DataFillArray(DataFill):
         for i, dim in enumerate(self.dimensions):
             subelem = ET.SubElement(td_elem, "dim")
             subelem.set("Index", str(i))
-            subelem.text = "{:d}".format(self.value)
+            subelem.text = "{:d}".format(dim)
         for i, sub_df in enumerate(self.value):
             subelem = ET.SubElement(td_elem, sub_df.getXMLTagName())
             subelem.set("Index", str(i))
@@ -532,58 +549,99 @@ class DataFillRepeatedBlock(DataFill):
         pass
 
 
-class DataFillRefnum(DataFill):
+class DataFillSimpleRefnum(DataFill):
+    """ Data Fill for Simple Refnum types.
+
+    Used for "normal" ref types, which only contain 4 byte value.
+    """
     def initWithRSRCParse(self, bldata):
-        from LVconnectorref import REFNUM_TYPE
-        if self.td.refType() in (REFNUM_TYPE.IVIRef,REFNUM_TYPE.VisaRef,REFNUM_TYPE.Imaq,):
-            # These ref types represent IORefnum
-            ver = self.vi.getFileVersion()
-            if isGreaterOrEqVersion(ver, 6,0,0):
-                if self.isRefnumTag(self.td):
-                    strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-                    self.value = bldata.read(strlen)
-                else:
-                    self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        # The format seem to be different for LV6.0.0 and older, but still 4 bytes
+        self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+    def exportXML(self, td_elem, fname_base):
+        td_elem.text = "{:d}".format(self.value)
+        pass
+
+
+class DataFillIORefnum(DataFill):
+    """ Data Fill for IORefnum types.
+
+    Used for ref types which represent IORefnum.
+    """
+    def initWithRSRCParse(self, bldata):
+        ver = self.vi.getFileVersion()
+        if isGreaterOrEqVersion(ver, 6,0,0):
+            if self.isRefnumTag(self.td):
+                strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                self.value = bldata.read(strlen)
             else:
                 self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        elif self.td.refType() in (REFNUM_TYPE.UsrDefTagFlt,REFNUM_TYPE.UsrDefndTag,):
-            # These ref types represent Tag subtypes of UDRefnum
-            ver = self.vi.getFileVersion()
-            strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            self.value = bldata.read(strlen)
-            if isGreaterOrEqVersion(ver, 12,0,0,2) and isSmallerVersion(ver, 12,0,0,5):
-                bldata.read(1)
-            if self.td.refType() in (REFNUM_TYPE.UsrDefTagFlt,):
-                strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-                self.usrdef1 = bldata.read(strlen)
-                strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-                self.usrdef2 = bldata.read(strlen)
-                self.usrdef3 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-                strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-                self.usrdef4 = bldata.read(strlen)
-        elif self.td.refType() in (REFNUM_TYPE.UsrDefined,):
-            # These ref types represent Non-tag subtypes of UDRefnum
-            self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        elif self.td.refType() in (REFNUM_TYPE.UDClassInst,):
-            self.value = []
-            numLevels = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-            self.libName = bldata.read(strlen)
-            if (bldata.tell() % 4) > 0:
-                bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
-            if numLevels > self.po.connector_list_limit:
-                fulltype = self.td.fullType()
-                raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
-                  .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,\
-                  numLevels, self.po.connector_list_limit))
-            for i in range(numLevels):
-                datalen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-                libVersion = bldata.read(datalen)
-                self.value.append(libVersion)
         else:
-            # All the normal refnums
-            # The format seem to be different for LV6.0.0 and older, but still 4 bytes
             self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+    def exportXML(self, td_elem, fname_base):
+        #TODO implement export
+        pass
+
+
+class DataFillUDRefnum(DataFill):
+    """ Data Fill for non-tag UDRefnum types.
+
+    Used for ref types which represent Non-tag subtypes of UDRefnum.
+    """
+    def initWithRSRCParse(self, bldata):
+        self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+    def exportXML(self, td_elem, fname_base):
+        td_elem.text = "{:d}".format(self.value)
+        pass
+
+
+class DataFillUDTagRefnum(DataFill):
+    """ Data Fill for tag UDRefnum types.
+
+    Used for ref types which represent Tag subtypes of UDRefnum.
+    """
+    def initWithRSRCParse(self, bldata):
+        from LVconnectorref import REFNUM_TYPE
+        ver = self.vi.getFileVersion()
+        strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.value = bldata.read(strlen)
+        if isGreaterOrEqVersion(ver, 12,0,0,2) and isSmallerVersion(ver, 12,0,0,5):
+            bldata.read(1)
+        if self.td.refType() in (REFNUM_TYPE.UsrDefTagFlt,):
+            strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            self.usrdef1 = bldata.read(strlen)
+            strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            self.usrdef2 = bldata.read(strlen)
+            self.usrdef3 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            self.usrdef4 = bldata.read(strlen)
+
+    def exportXML(self, td_elem, fname_base):
+        #TODO implement export
+        pass
+
+
+class DataFillUDClassInst(DataFill):
+    """ Data Fill for UDClassInst Refnum types.
+    """
+    def initWithRSRCParse(self, bldata):
+        self.value = []
+        numLevels = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        self.libName = bldata.read(strlen)
+        if (bldata.tell() % 4) > 0:
+            bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
+        if numLevels > self.po.connector_list_limit:
+            fulltype = self.td.fullType()
+            raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
+              .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,\
+              numLevels, self.po.connector_list_limit))
+        for i in range(numLevels):
+            datalen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            libVersion = bldata.read(datalen)
+            self.value.append(libVersion)
 
     def exportXML(self, td_elem, fname_base):
         #TODO implement export
@@ -610,7 +668,7 @@ class DataFillPtrTo(DataFill):
 
 class DataFillExtData(DataFill):
     def initWithRSRCParse(self, bldata):
-        self.value = None # TODO implement
+        self.value = None # TODO implement reading ExtData
         raise NotImplementedError("ExtData default value read is not implemented")
 
 
@@ -677,6 +735,26 @@ class SpecialDSTMCluster(DataFill):
         pass
 
 
+def newDataFillRefnum(vi, idx, tm_flags, td, po):
+    """ Creates and returns new data fill object for refnum with given parameters
+    """
+    from LVconnectorref import REFNUM_TYPE
+    refType = td.refType()
+    ctor = {
+        REFNUM_TYPE.IVIRef: DataFillIORefnum,
+        REFNUM_TYPE.VisaRef: DataFillIORefnum,
+        REFNUM_TYPE.Imaq: DataFillIORefnum,
+        REFNUM_TYPE.UsrDefTagFlt: DataFillUDTagRefnum,
+        REFNUM_TYPE.UsrDefndTag: DataFillUDTagRefnum,
+        REFNUM_TYPE.UsrDefined: DataFillUDRefnum,
+        REFNUM_TYPE.UDClassInst: DataFillUDClassInst,
+    }.get(refType, DataFillSimpleRefnum)
+    if ctor is None:
+        raise RuntimeError("Data type Refnum kind {}: No known way to read default data"\
+          .format(refType.name if isinstance(refType, enum.IntEnum) else refType,str(e)))
+    return ctor(vi, idx, tm_flags, td, po)
+
+
 def newDataFillObject(vi, idx, tm_flags, td, po):
     """ Creates and returns new data fill object with given parameters
     """
@@ -695,18 +773,18 @@ def newDataFillObject(vi, idx, tm_flags, td, po):
         CONNECTOR_FULL_TYPE.NumFloat32: DataFillFloat,
         CONNECTOR_FULL_TYPE.NumFloat64: DataFillFloat,
         CONNECTOR_FULL_TYPE.NumFloatExt: DataFillFloat,
-        CONNECTOR_FULL_TYPE.NumComplex64: DataFillFloat,
-        CONNECTOR_FULL_TYPE.NumComplex128: DataFillFloat,
-        CONNECTOR_FULL_TYPE.NumComplexExt: DataFillFloat,
+        CONNECTOR_FULL_TYPE.NumComplex64: DataFillComplex,
+        CONNECTOR_FULL_TYPE.NumComplex128: DataFillComplex,
+        CONNECTOR_FULL_TYPE.NumComplexExt: DataFillComplex,
         CONNECTOR_FULL_TYPE.UnitUInt8: DataFillInt,
         CONNECTOR_FULL_TYPE.UnitUInt16: DataFillInt,
         CONNECTOR_FULL_TYPE.UnitUInt32: DataFillInt,
         CONNECTOR_FULL_TYPE.UnitFloat32: DataFillFloat,
         CONNECTOR_FULL_TYPE.UnitFloat64: DataFillFloat,
         CONNECTOR_FULL_TYPE.UnitFloatExt: DataFillFloat,
-        CONNECTOR_FULL_TYPE.UnitComplex64: DataFillFloat,
-        CONNECTOR_FULL_TYPE.UnitComplex128: DataFillFloat,
-        CONNECTOR_FULL_TYPE.UnitComplexExt: DataFillFloat,
+        CONNECTOR_FULL_TYPE.UnitComplex64: DataFillComplex,
+        CONNECTOR_FULL_TYPE.UnitComplex128: DataFillComplex,
+        CONNECTOR_FULL_TYPE.UnitComplexExt: DataFillComplex,
         CONNECTOR_FULL_TYPE.BooleanU16: DataFillBool,
         CONNECTOR_FULL_TYPE.Boolean: DataFillBool,
         CONNECTOR_FULL_TYPE.String: DataFillString,
@@ -731,7 +809,7 @@ def newDataFillObject(vi, idx, tm_flags, td, po):
         CONNECTOR_FULL_TYPE.AlignedBlock: DataFillBlock,
         CONNECTOR_FULL_TYPE.RepeatedBlock: DataFillRepeatedBlock,
         CONNECTOR_FULL_TYPE.AlignmntMarker: DataFillVoid,
-        CONNECTOR_FULL_TYPE.Refnum: DataFillRefnum,
+        CONNECTOR_FULL_TYPE.Refnum: newDataFillRefnum,
         CONNECTOR_FULL_TYPE.Ptr: DataFillPtr,
         CONNECTOR_FULL_TYPE.PtrTo: DataFillPtrTo,
         CONNECTOR_FULL_TYPE.ExtData: DataFillExtData,
