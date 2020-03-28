@@ -91,6 +91,7 @@ def main():
     po = parser.parse_args()
 
     po.connector_list_limit = 4095
+    po.array_data_limit = (2**30) - 1
 
     # Store base name - without path and extension
     if len(po.xml) > 0:

@@ -245,11 +245,11 @@ class DataFillArray(DataFill):
         else:
             sub_td = self.td.clients[0].nested
         #if sub_td.fullType() in (CONNECTOR_FULL_TYPE.Boolean,) and isSmallerVersion(ver, 4,5,0,1): # TODO expecting special case, never seen it though
-        if totItems > self.po.connector_list_limit * len(self.dimensions):
+        if totItems > self.po.array_data_limit:
                 fulltype = self.td.fullType()
                 raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
                   .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,\
-                  totItems, self.po.connector_list_limit * len(self.dimensions)))
+                  totItems, self.po.array_data_limit))
         for i in range(totItems):
             try:
                 sub_df = newDataFillObject(self.vi, self.td.clients[0].index, self.tm_flags, sub_td, self.po)
@@ -429,11 +429,11 @@ class DataFillRepeatedBlock(DataFill):
         self.value = []
         VCTP = self.vi.get_or_raise('VCTP')
         sub_td = VCTP.getFlatType(self.td.typeFlatIdx)
-        if self.td.numRepeats > self.po.connector_list_limit:
+        if self.td.numRepeats > self.po.array_data_limit:
             fulltype = self.td.fullType()
             raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
               .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,\
-              self.td.numRepeats, self.po.connector_list_limit))
+              self.td.numRepeats, self.po.array_data_limit))
         for i in range(self.td.numRepeats):
             try:
                 sub_df = newDataFillObject(self.vi, self.td.typeFlatIdx, self.tm_flags, sub_td, self.po)
