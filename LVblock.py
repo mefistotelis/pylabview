@@ -1676,6 +1676,7 @@ class DFDS(VarCodingBlock):
     """
     def createSection(self):
         section = super().createSection()
+        section.parse_failed = False
         return section
 
     def setDefaultEncoding(self):
@@ -1695,7 +1696,9 @@ class DFDS(VarCodingBlock):
         ver = self.vi.getFileVersion()
 
         section.content = []
-        if isGreaterOrEqVersion(ver, 8,0,0,1) and TM is not None:
+        if TM is None:
+            raise RuntimeError("No type map block to put default data into types")
+        elif isGreaterOrEqVersion(ver, 8,0,0,1):
             TypeMap = TM.getTypeMap()
 
             for tmEntry in TypeMap:
@@ -1730,10 +1733,12 @@ class DFDS(VarCodingBlock):
                     # No default value for this TD
                     pass
         else:
-            # No support for the 7.1 format
-            Block.parseRSRCData(self, section_num, bldata)
+            raise NotImplementedError("No support for the LV7.1 default data format")
+        pass
 
     def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+        section.parse_failed = False
         startpos = bldata.tell()
         bldata.seek(0, io.SEEK_END)
         totlen = bldata.tell()
@@ -1741,12 +1746,36 @@ class DFDS(VarCodingBlock):
         try:
             self.parseRSRCSectionData(section_num, bldata)
         except Exception as e:
+            section.parse_failed = True
             eprint("{:s}: Warning: Block {} section {} parse exception: {}."\
                 .format(self.vi.src_fname,self.ident,section_num,str(e)))
         if bldata.tell() < totlen:
+            section.parse_failed = True
             eprint("{:s}: Warning: Block {} section {} size is {} and does not match parsed size {}"\
               .format(self.vi.src_fname, self.ident, section_num, totlen, bldata.tell()))
+        if section.parse_failed:
+            bldata.seek(startpos)
+            Block.parseRSRCData(self, section_num, bldata)
         pass
+
+    def exportXMLSection(self, section_elem, snum, section, fname_base):
+        self.parseData(section_num=snum)
+
+        if section.parse_failed:
+            Block.exportXMLSection(self, section_elem, snum, section, fname_base)
+            return
+
+        if (self.po.verbose > 1):
+            print("{}: Writing XML for block {}".format(self.vi.src_fname, self.ident))
+        for i, df in enumerate(section.content):
+            subelem = ET.SubElement(section_elem, df.getXMLTagName())
+            subelem.set("Index", str(i))
+
+            df.exportXML(subelem, fname_base)
+
+        section_elem.set("Format", "inline")
+        #TODO storing raw file until the xml export is fully ready
+        Block.exportXMLSection(self, section_elem, snum, section, fname_base)
 
 
 class GCDI(Block):

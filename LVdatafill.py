@@ -20,6 +20,7 @@ from types import SimpleNamespace
 from ctypes import *
 
 from LVmisc import *
+import LVxml as ET
 import LVclasses
 import LVconnector
 import LVconnectorref
@@ -90,6 +91,20 @@ class DataFill:
         from pprint import pformat
         return type(self).__name__ + pformat(d, indent=0, compact=True, width=512)
 
+    def getXMLTagName(self):
+        from LVconnector import CONNECTOR_FULL_TYPE, tdEnToName, flavorEnToName
+        tdEn = self.td.fullType()
+        if tdEn == CONNECTOR_FULL_TYPE.MeasureData:
+            flavorEn = self.td.dtFlavor()
+            tagName = flavorEnToName(flavorEn)
+        else:
+            tagName = tdEnToName(tdEn)
+        return tagName
+
+    def exportXML(self, td_elem, fname_base):
+        #self.parseData() # no need, as we never store default fill in raw form
+        pass
+
 
 class DataFillVoid(DataFill):
     def initWithRSRCParse(self, bldata):
@@ -143,6 +158,10 @@ class DataFillInt(DataFill):
     def initWithRSRCParse(self, bldata):
         self.value = int.from_bytes(bldata.read(self.size), byteorder='big', signed=self.signed)
 
+    def exportXML(self, td_elem, fname_base):
+        td_elem.text = "{:d}".format(self.value)
+        pass
+
 
 class DataFillFloat(DataFill):
     def initWithRSRCParse(self, bldata):
@@ -164,6 +183,10 @@ class DataFillFloat(DataFill):
             raise RuntimeError("Class {} used for unexpected type {}"\
               .format(type(self).__name__,\
                fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype))
+
+    def exportXML(self, td_elem, fname_base):
+        td_elem.text = "{:g}".format(self.value)
+        pass
 
 
 class DataFillBool(DataFill):
@@ -187,6 +210,10 @@ class DataFillBool(DataFill):
     def initWithRSRCParse(self, bldata):
         self.value = int.from_bytes(bldata.read(self.size), byteorder='big', signed=False)
 
+    def exportXML(self, td_elem, fname_base):
+        td_elem.text = str(self.value)
+        pass
+
 
 class DataFillString(DataFill):
     def initWithRSRCParse(self, bldata):
@@ -194,6 +221,10 @@ class DataFillString(DataFill):
         #if self.td.prop1 != 0xffffffff: # in such case part of the value might be irrelevant, as only
         # part to the size (self.td.prop1 & 0x7fffffff) is used; but the length stored is still valid
         self.value = bldata.read(strlen)
+
+    def exportXML(self, td_elem, fname_base):
+        td_elem.text = self.value.decode(self.vi.textEncoding)
+        pass
 
 
 class DataFillPath(DataFill):
@@ -211,11 +242,19 @@ class DataFillPath(DataFill):
         bldata.seek(startPos)
         self.value.parseRSRCData(bldata)
 
+    def exportXML(self, td_elem, fname_base):
+        self.value.exportXML(td_elem, fname_base)
+        pass
+
 
 class DataFillCString(DataFill):
     def initWithRSRCParse(self, bldata):
         # No idea why sonething which looks like string type stores 32-bit value instead
         self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+    def exportXML(self, td_elem, fname_base):
+        td_elem.text = "{:d}".format(self.value)
+        pass
 
 
 class DataFillArray(DataFill):
@@ -235,7 +274,7 @@ class DataFillArray(DataFill):
             self.dimensions.append(val)
         # Multiply sizes of each dimension to get total number of items
         totItems = 1
-        # TODO Not sure if the amount are in self.td.dimensions or self.dimensions; maybe they need to be same?
+        # TODO the amounts are in self.dimensions; maybe they need to be same as self.td.dimensions, unless dynamic size is used? print warning?
         for dim in self.dimensions:
             totItems *= dim & 0x7fffffff
         self.value = []
@@ -261,10 +300,25 @@ class DataFillArray(DataFill):
                   .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,str(e)))
         pass
 
+    def exportXML(self, td_elem, fname_base):
+        for i, dim in enumerate(self.dimensions):
+            subelem = ET.SubElement(td_elem, "dim")
+            subelem.set("Index", str(i))
+            subelem.text = "{:d}".format(self.value)
+        for i, sub_df in enumerate(self.value):
+            subelem = ET.SubElement(td_elem, sub_df.getXMLTagName())
+            subelem.set("Index", str(i))
+            sub_df.exportXML(subelem, fname_base)
+        pass
+
 
 class DataFillArrayDataPtr(DataFill):
     def initWithRSRCParse(self, bldata):
         self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+    def exportXML(self, td_elem, fname_base):
+        td_elem.text = "{:d}".format(self.value)
+        pass
 
 
 class DataFillCluster(DataFill):
@@ -281,6 +335,13 @@ class DataFillCluster(DataFill):
                   .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,str(e)))
         pass
 
+    def exportXML(self, td_elem, fname_base):
+        for i, sub_df in enumerate(self.value):
+            subelem = ET.SubElement(td_elem, sub_df.getXMLTagName())
+            subelem.set("Index", str(i))
+            sub_df.exportXML(subelem, fname_base)
+        pass
+
 
 class DataFillLVVariant(DataFill):
     def initWithRSRCParse(self, bldata):
@@ -290,6 +351,10 @@ class DataFillLVVariant(DataFill):
         else:
             self.value = LVclasses.OleVariant(0, self.vi, self.po)
         self.value.parseRSRCData(bldata)
+
+    def exportXML(self, td_elem, fname_base):
+        self.value.exportXML(td_elem, fname_base)
+        pass
 
 
 class DataFillMeasureData(DataFill):
@@ -382,6 +447,10 @@ class DataFillMeasureData(DataFill):
               .format(dtFlavor.name if isinstance(dtFlavor, enum.IntEnum) else dtFlavor,str(e)))
         pass
 
+    def exportXML(self, td_elem, fname_base):
+        self.containedTd.exportXML(td_elem, fname_base)
+        pass
+
 
 class DataFillComplexFixedPt(DataFill):
     def __init__(self, *args):
@@ -404,24 +473,34 @@ class DataFillComplexFixedPt(DataFill):
                 self.vflags[i] = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         pass
 
+    def exportXML(self, td_elem, fname_base):
+        tags = ("real", "imag",)
+        for i, val in enumerate(self.value):
+            subelem = ET.SubElement(td_elem, tags[i])
+            subelem.text = "{:g}".format(val)
+            subelem.set("Flags", "0x{:02X}".format(self.vflags[i]))
+        pass
+
 
 class DataFillFixedPoint(DataFill):
     def __init__(self, *args):
         super().__init__(*args)
-        self.vflags = None
-
-    def prepareDict(self):
-        d = super().prepareDict()
-        d.update( { 'vflags': self.vflags } )
-        return d
 
     def initWithRSRCParse(self, bldata):
         self.value = bldata.read(self.td.blkSize)
+
+    def exportXML(self, td_elem, fname_base):
+        td_elem.text = self.value.hex()
+        pass
 
 
 class DataFillBlock(DataFill):
     def initWithRSRCParse(self, bldata):
         self.value = bldata.read(self.td.blkSize)
+
+    def exportXML(self, td_elem, fname_base):
+        td_elem.text = self.value.hex()
+        pass
 
 
 class DataFillRepeatedBlock(DataFill):
@@ -443,6 +522,13 @@ class DataFillRepeatedBlock(DataFill):
                 fulltype = sub_td.fullType()
                 raise RuntimeError("Data type {}: {}"\
                   .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,str(e)))
+        pass
+
+    def exportXML(self, td_elem, fname_base):
+        for i, sub_df in enumerate(self.value):
+            subelem = ET.SubElement(td_elem, sub_df.getXMLTagName())
+            subelem.set("Index", str(i))
+            sub_df.exportXML(subelem, fname_base)
         pass
 
 
@@ -499,6 +585,10 @@ class DataFillRefnum(DataFill):
             # The format seem to be different for LV6.0.0 and older, but still 4 bytes
             self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
+    def exportXML(self, td_elem, fname_base):
+        #TODO implement export
+        pass
+
 
 class DataFillPtr(DataFill):
     def initWithRSRCParse(self, bldata):
@@ -507,6 +597,10 @@ class DataFillPtr(DataFill):
             self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         else:
             self.value = None
+
+    def exportXML(self, td_elem, fname_base):
+        td_elem.text = "{}".format(self.value)
+        pass
 
 
 class DataFillPtrTo(DataFill):
@@ -526,7 +620,7 @@ class DataFillUnexpected(DataFill):
     Types which reference this class would cause silently ignored error in LV14.
     """
     def initWithRSRCParse(self, bldata):
-        self.value = None # TODO implement
+        self.value = None
         fulltype = self.td.fullType()
         eprint("{:s}: Warning: Data fill asks to read default value of {} type, this should never happen."\
           .format(self.vi.src_fname, fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype))
@@ -545,6 +639,12 @@ class DataFillTypeDef(DataFill):
                 fulltype = client.nested.fullType()
                 raise RuntimeError("Data type {}: {}"\
                   .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,str(e)))
+        pass
+
+    def exportXML(self, td_elem, fname_base):
+        for i, sub_df in enumerate(self.value):
+            subelem = ET.SubElement(td_elem, sub_df.getXMLTagName())
+            sub_df.exportXML(subelem, fname_base)
         pass
 
 
@@ -567,6 +667,13 @@ class SpecialDSTMCluster(DataFill):
                 raise RuntimeError("Data type {}: {}"\
                   .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,str(e)))
             pass
+        pass
+
+    def exportXML(self, td_elem, fname_base):
+        for i, sub_df in enumerate(self.value):
+            subelem = ET.SubElement(td_elem, sub_df.getXMLTagName())
+            subelem.set("Index", str(i))
+            sub_df.exportXML(subelem, fname_base)
         pass
 
 

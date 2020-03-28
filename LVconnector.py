@@ -2516,6 +2516,79 @@ class ConnectorObjectSingleContainer(ConnectorObject):
         return ret
 
 
+def tdEnToName(tdEn):
+    """ Return text name for CONNECTOR_FULL_TYPE element
+
+    Try to keep naming convention which LV uses.
+    """
+    tdName = {
+        #CONNECTOR_FULL_TYPE.Void: "Version",
+        CONNECTOR_FULL_TYPE.NumInt8: "I8",
+        CONNECTOR_FULL_TYPE.NumInt16: "I16",
+        CONNECTOR_FULL_TYPE.NumInt32: "I32",
+        CONNECTOR_FULL_TYPE.NumInt64: "I64",
+        CONNECTOR_FULL_TYPE.NumUInt8: "U8",
+        CONNECTOR_FULL_TYPE.NumUInt16: "U16",
+        CONNECTOR_FULL_TYPE.NumUInt32: "U32",
+        CONNECTOR_FULL_TYPE.NumUInt64: "U64",
+        CONNECTOR_FULL_TYPE.UnitUInt8: "EB",
+        CONNECTOR_FULL_TYPE.UnitUInt16: "EW",
+        CONNECTOR_FULL_TYPE.UnitUInt32: "EL",
+        CONNECTOR_FULL_TYPE.UnitFloat32: "SGL",
+        CONNECTOR_FULL_TYPE.UnitFloat64: "DBL",
+        CONNECTOR_FULL_TYPE.UnitFloatExt: "EXT",
+        CONNECTOR_FULL_TYPE.UnitComplex64: "CSG",
+        CONNECTOR_FULL_TYPE.UnitComplex128: "CDB",
+        CONNECTOR_FULL_TYPE.UnitComplexExt: "CXT",
+        #CONNECTOR_FULL_TYPE.Void: "DAQChannel",
+        CONNECTOR_FULL_TYPE.LVVariant: "LvVariant",
+    }.get(tdEn, None)
+
+    if tdName is not None:
+        pass
+    elif isinstance(tdEn, CONNECTOR_FULL_TYPE):
+        tdName = tdEn.name
+    else:
+        tdName = "TD{:02X}".format(tdEn)
+    return tdName
+
+
+def flavorEnToName(flavorEn):
+    """ Return text name for MEASURE_DATA_FLAVOR element
+
+    Try to keep naming convention which LV uses.
+    """
+    flavName = {
+        MEASURE_DATA_FLAVOR.OldFloat64Waveform: "WDT",
+        MEASURE_DATA_FLAVOR.Dynamicdata: "DynamicData",
+        MEASURE_DATA_FLAVOR.TimeStamp: "Timestamp",
+        MEASURE_DATA_FLAVOR.Digitaldata: "DigitalData",
+        MEASURE_DATA_FLAVOR.DigitalWaveform: "DigitalWaveform",
+        MEASURE_DATA_FLAVOR.Float64Waveform: "DBLWaveform",
+        MEASURE_DATA_FLAVOR.Int16Waveform: "I16Waveform",
+        MEASURE_DATA_FLAVOR.Float32Waveform: "SGLWaveform",
+        MEASURE_DATA_FLAVOR.FloatExtWaveform: "EXTWaveform",
+        MEASURE_DATA_FLAVOR.Int8Waveform: "I8Waveform",
+        MEASURE_DATA_FLAVOR.Int32Waveform: "I32Waveform",
+        MEASURE_DATA_FLAVOR.Int64Waveform: "I64Waveform",
+        MEASURE_DATA_FLAVOR.UInt8Waveform: "U8Waveform",
+        MEASURE_DATA_FLAVOR.UInt16Waveform: "U16Waveform",
+        MEASURE_DATA_FLAVOR.UInt32Waveform: "U32Waveform",
+        MEASURE_DATA_FLAVOR.UInt64Waveform: "U64Waveform",
+        MEASURE_DATA_FLAVOR.Complex64Waveform: "CSGWaveform",
+        MEASURE_DATA_FLAVOR.Complex128Waveform: "CDBWaveform",
+        MEASURE_DATA_FLAVOR.ComplexExtWaveform: "CXTWaveform",
+    }.get(flavorEn, None)
+
+    if flavName is not None:
+        pass
+    elif isinstance(flavorEn, MEASURE_DATA_FLAVOR):
+        flavName = flavorEn.name
+    else:
+        flavName = "MeasureData{:02X}".format(flavorEn)
+    return flavName
+
+
 def newErrorCluster(vi, idx, obj_flags, po):
     """ Error information is transferred in a specific Cluster
     """
