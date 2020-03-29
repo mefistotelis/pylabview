@@ -1771,10 +1771,7 @@ class DFDS(VarCodingBlock):
                 if tdType is None:
                     raise AttributeError("Section contains unexpected tag")
                 #TODO make the xml read
-                i = int(subelem.get("Index"), 0)
-                if i >= len(section.content):
-                    section.content.extend([None] * (i - len(section.content) + 1))
-                section.content[i] = val
+                section.content.append(val)
         else:
             Block.initWithXMLSection(self, section, section_elem)
         pass
@@ -1789,8 +1786,13 @@ class DFDS(VarCodingBlock):
         if (self.po.verbose > 1):
             print("{}: Writing XML for block {}".format(self.vi.src_fname, self.ident))
         for i, df in enumerate(section.content):
+
+            # For some old LV versions type map index may not make sense; but we are not supporting them ATM
+            if df.index >= 0:
+                comment_elem = ET.Comment(" Data Type entry {:d} ".format(df.index))
+                section_elem.append(comment_elem)
+
             subelem = ET.SubElement(section_elem, df.getXMLTagName())
-            subelem.set("Index", str(i))
 
             df.exportXML(subelem, fname_base)
 
@@ -1844,13 +1846,9 @@ class CPMp(Block):
                 if (subelem.tag == "NameObject"):
                     pass # Items parsed somewhere else
                 elif (subelem.tag == "Client"):
-                    i = int(subelem.get("Index"), 0)
                     val = int(subelem.get("ConnectorIndex"), 0)
                     if val == -1: val = 65535
-                    # Grow the list if needed (the labels may be in wrong order)
-                    if i >= len(section.content):
-                        section.content.extend([None] * (i - len(section.content) + 1))
-                    section.content[i] = val
+                    section.content.append(val)
                 else:
                     raise AttributeError("Section contains unexpected tag")
         else:
@@ -1890,7 +1888,6 @@ class CPMp(Block):
             for i, val in enumerate(section.content):
                 subelem = ET.SubElement(section_elem,"Client")
 
-                subelem.set("Index", "{:d}".format(i))
                 if val == 65535: val = -1
                 subelem.set("ConnectorIndex", "{:d}".format(val))
 
@@ -1978,12 +1975,9 @@ class DTHP(Block):
                 if (subelem.tag == "NameObject"):
                     pass # Items parsed somewhere else
                 elif (subelem.tag == "Client"):
-                    i = int(subelem.get("Index"), 0)
                     val = int(subelem.get("Flags"), 0)
                     # Grow the list if needed (the labels may be in wrong order)
-                    if i >= len(section.content):
-                        section.content.extend([None] * (i - len(section.content) + 1))
-                    section.content[i] = val
+                    section.content.append(val)
                 else:
                     raise AttributeError("Section contains unexpected tag")
         else:
@@ -2021,7 +2015,6 @@ class DTHP(Block):
             for i, val in enumerate(section.content):
                 subelem = ET.SubElement(section_elem,"Client")
 
-                subelem.set("Index", "{:d}".format(i))
                 subelem.set("Flags", "0x{:04X}".format(val))
 
             if len(section.content) == 0:
@@ -2074,17 +2067,14 @@ class TM80(VarCodingBlock):
             if (self.po.verbose > 2):
                 print("{:s}: For Block {} section {:d}, reading inline XML data"\
                   .format(self.vi.src_fname,self.ident,snum))
-            self.clients = []
+            self.content = []
             for subelem in section_elem:
                 if (subelem.tag == "NameObject"):
                     pass # Items parsed somewhere else
                 elif (subelem.tag == "Client"):
-                    i = int(subelem.get("Index"), 0)
                     val = int(subelem.get("Flags"), 0)
                     # Grow the list if needed (the labels may be in wrong order)
-                    if i >= len(section.content):
-                        section.content.extend([None] * (i - len(section.content) + 1))
-                    section.content[i] = val
+                    section.content.append(val)
                 else:
                     raise AttributeError("Section contains unexpected tag")
         else:
@@ -2109,13 +2099,26 @@ class TM80(VarCodingBlock):
 
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         self.parseData(section_num=snum)
+        # This is only for a comment, allowed to return None
+        VCTP = self.vi.get('VCTP')
 
         section_elem.set("IndexShift", "{:d}".format(section.indexShift))
 
         for i, val in enumerate(section.content):
+            td = None
+            tdIndex = section.indexShift + i - 1
+            if VCTP is not None:
+                td = VCTP.getTopType(tdIndex)
+            if td is not None:
+                comment_elem = ET.Comment(" Data Type entry {:d}: {} "\
+                  .format(tdIndex, enumOrIntToName(td.fullType())))
+            else:
+                comment_elem = ET.Comment(" Data Type entry {:d} "\
+                  .format(tdIndex))
+            section_elem.append(comment_elem)
+
             subelem = ET.SubElement(section_elem,"Client")
 
-            subelem.set("Index", "{:d}".format(i))
             subelem.set("Flags", "0x{:04X}".format(val))
 
         if len(section.content) == 0:

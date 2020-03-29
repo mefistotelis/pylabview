@@ -313,11 +313,9 @@ class DataFillArray(DataFill):
     def exportXML(self, td_elem, fname_base):
         for i, dim in enumerate(self.dimensions):
             subelem = ET.SubElement(td_elem, "dim")
-            subelem.set("Index", str(i))
             subelem.text = "{:d}".format(dim)
         for i, sub_df in enumerate(self.value):
             subelem = ET.SubElement(td_elem, sub_df.getXMLTagName())
-            subelem.set("Index", str(i))
             sub_df.exportXML(subelem, fname_base)
         pass
 
@@ -346,7 +344,6 @@ class DataFillCluster(DataFill):
     def exportXML(self, td_elem, fname_base):
         for i, sub_df in enumerate(self.value):
             subelem = ET.SubElement(td_elem, sub_df.getXMLTagName())
-            subelem.set("Index", str(i))
             sub_df.exportXML(subelem, fname_base)
         pass
 
@@ -453,7 +450,9 @@ class DataFillMeasureData(DataFill):
         pass
 
     def exportXML(self, td_elem, fname_base):
-        self.containedTd.exportXML(td_elem, fname_base)
+        for i, sub_df in enumerate(self.value):
+            subelem = ET.SubElement(td_elem, sub_df.getXMLTagName())
+            sub_df.exportXML(subelem, fname_base)
         pass
 
 
@@ -528,7 +527,6 @@ class DataFillRepeatedBlock(DataFill):
     def exportXML(self, td_elem, fname_base):
         for i, sub_df in enumerate(self.value):
             subelem = ET.SubElement(td_elem, sub_df.getXMLTagName())
-            subelem.set("Index", str(i))
             sub_df.exportXML(subelem, fname_base)
         pass
 
@@ -663,7 +661,6 @@ class DataFillUDClassInst(DataFill):
             ET.safe_store_element_text(subelem, elemText)
         for i, libVersion in enumerate(self.value):
             subelem = ET.SubElement(td_elem, "LibVersion")
-            subelem.set("Index", str(i))
             elemText = libVersion.decode(self.vi.textEncoding)
             ET.safe_store_element_text(subelem, elemText)
         pass
@@ -746,7 +743,6 @@ class SpecialDSTMCluster(DataFill):
     def exportXML(self, td_elem, fname_base):
         for i, sub_df in enumerate(self.value):
             subelem = ET.SubElement(td_elem, sub_df.getXMLTagName())
-            subelem.set("Index", str(i))
             sub_df.exportXML(subelem, fname_base)
         pass
 
@@ -765,7 +761,7 @@ def newDataFillRefnum(vi, idx, tm_flags, tdType, tdSubType, po):
     """ Creates and returns new data fill object for refnum with given parameters
     """
     from LVconnectorref import REFNUM_TYPE
-    refType = td.refType()
+    refType = tdSubType
     ctor = {
         REFNUM_TYPE.IVIRef: DataFillIORefnum,
         REFNUM_TYPE.VisaRef: DataFillIORefnum,
@@ -777,8 +773,8 @@ def newDataFillRefnum(vi, idx, tm_flags, tdType, tdSubType, po):
     }.get(refType, DataFillSimpleRefnum)
     if ctor is None:
         raise RuntimeError("Data type Refnum kind {}: No known way to read default data"\
-          .format(refType.name if isinstance(refType, enum.IntEnum) else refType,str(e)))
-    return ctor(vi, idx, tm_flags, td, po)
+          .format(enumOrIntToName(refType),str(e)))
+    return ctor(vi, idx, tm_flags, tdType, tdSubType, po)
 
 
 def newDataFillObject(vi, idx, tm_flags, tdType, tdSubType, po):
