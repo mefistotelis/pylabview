@@ -1530,11 +1530,7 @@ class HeapNode(object):
             elem.set(propName, attributeValueIntOrEnToStr(atId, atVal, self.parent))
 
         tagText = self.prepareContentXML(fname_base)
-        if tagText is not None:
-            if any(chr(ele) in tagText for ele in range(0,32)):
-                elem.append(ET.CDATA(ET.escape_cdata_control_chars(tagText)))
-            else:
-                elem.text = tagText
+        ET.safe_store_element_text(elem, tagText)
 
         if scopeInfo == NODE_SCOPE.TagClose:
             # Our automativc algorithm sometimes gives TagLeaf instead of TagOpen; this code

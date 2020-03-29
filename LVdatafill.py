@@ -168,9 +168,9 @@ class DataFillFloat(DataFill):
         from LVconnector import CONNECTOR_FULL_TYPE
         fulltype = self.td.fullType()
         if fulltype in (CONNECTOR_FULL_TYPE.NumFloat32,CONNECTOR_FULL_TYPE.UnitFloat32,):
-            self.value = struct.unpack('>f', bldata.read(4))
+            self.value = struct.unpack('>f', bldata.read(4))[0]
         elif fulltype in (CONNECTOR_FULL_TYPE.NumFloat64,CONNECTOR_FULL_TYPE.UnitFloat64,):
-            self.value = struct.unpack('>d', bldata.read(8))
+            self.value = struct.unpack('>d', bldata.read(8))[0]
         elif fulltype in (CONNECTOR_FULL_TYPE.NumFloatExt,CONNECTOR_FULL_TYPE.UnitFloatExt,):
             self.value = readQuadFloat(bldata)
         else:
@@ -240,7 +240,8 @@ class DataFillString(DataFill):
         self.value = bldata.read(strlen)
 
     def exportXML(self, td_elem, fname_base):
-        td_elem.text = self.value.decode(self.vi.textEncoding)
+        elemText = self.value.decode(self.vi.textEncoding)
+        ET.safe_store_element_text(td_elem, elemText)
         pass
 
 
@@ -580,7 +581,13 @@ class DataFillIORefnum(DataFill):
             self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
     def exportXML(self, td_elem, fname_base):
-        #TODO implement export
+        if isinstance(self.value, (bytes, bytearray,)):
+            elemText = self.value.decode(self.vi.textEncoding)
+            ET.safe_store_element_text(td_elem, elemText)
+            td_elem.set("StoredAs", "String")
+        else:
+            td_elem.text = "{:d}".format(self.value)
+            td_elem.set("StoredAs", "Int")
         pass
 
 
@@ -602,9 +609,25 @@ class DataFillUDTagRefnum(DataFill):
 
     Used for ref types which represent Tag subtypes of UDRefnum.
     """
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.usrdef1 = None
+        self.usrdef2 = None
+        self.usrdef3 = None
+        self.usrdef4 = None
+
+    def prepareDict(self):
+        d = super().prepareDict()
+        d.update( { 'usrdef1': self.usrdef1, 'usrdef2': self.usrdef2, 'usrdef3': self.usrdef3, 'usrdef4': self.usrdef4 } )
+        return d
+
     def initWithRSRCParse(self, bldata):
         from LVconnectorref import REFNUM_TYPE
         ver = self.vi.getFileVersion()
+        self.usrdef1 = None
+        self.usrdef2 = None
+        self.usrdef3 = None
+        self.usrdef4 = None
         strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.value = bldata.read(strlen)
         if isGreaterOrEqVersion(ver, 12,0,0,2) and isSmallerVersion(ver, 12,0,0,5):
@@ -619,7 +642,16 @@ class DataFillUDTagRefnum(DataFill):
             self.usrdef4 = bldata.read(strlen)
 
     def exportXML(self, td_elem, fname_base):
-        #TODO implement export
+        elemText = self.value.decode(self.vi.textEncoding)
+        ET.safe_store_element_text(td_elem, elemText)
+        if self.usrdef1 is not None:
+            td_elem.set("UsrDef1", self.usrdef1.decode(self.vi.textEncoding))
+        if self.usrdef2 is not None:
+            td_elem.set("UsrDef2", self.usrdef2.decode(self.vi.textEncoding))
+        if self.usrdef3 is not None:
+            td_elem.set("UsrDef3", "{:d}".format(self.usrdef3))
+        if self.usrdef4 is not None:
+            td_elem.set("UsrDef4", self.usrdef4.decode(self.vi.textEncoding))
         pass
 
 

@@ -115,3 +115,10 @@ def pretty_element_tree_heap(elem, level=0):
         pretty_element_tree_heap(subelem, level+1)
     pass
 
+def safe_store_element_text(elem, text):
+    if text is None:
+        return
+    if any(chr(ele) in text for ele in range(0,32)):
+        elem.append(CDATA(escape_cdata_control_chars(text)))
+    else:
+        elem.text = text
