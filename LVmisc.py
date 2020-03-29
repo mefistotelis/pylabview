@@ -120,6 +120,11 @@ def getRsrcTypeFromPrettyStr(pretty_ident):
     rsrc_ident = rsrc_ident[:4]
     return rsrc_ident
 
+def enumOrIntToName(val):
+    if isinstance(val, enum.IntEnum) or isinstance(val, enum.Enum):
+        return val.name
+    return str(val)
+
 def decodeVersion(vcode):
     ver = {}
     ver['major'] = ((vcode >> 28) & 0x0F) * 10 + ((vcode >> 24) & 0x0F)

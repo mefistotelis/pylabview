@@ -259,7 +259,7 @@ class LVVariant(LVObject):
             attrib.nested = LVconnector.newConnectorObject(self.vi, -1, 0, LVconnector.CONNECTOR_FULL_TYPE.LVVariant, self.po)
             # Note that we won't parse the type itself, it is generic and not stored with the attributes; just use it to make data
             # We have type of the attribute, now read the value
-            attrib.value = LVdatafill.newDataFillObject(self.vi, attrib.index, attrib.flags, attrib.nested, self.po)
+            attrib.value = LVdatafill.newDataFillObjectWithTD(self.vi, attrib.index, attrib.flags, attrib.nested, self.po)
             attrib.value.initWithRSRC(bldata)
             if (self.po.verbose > 2):
                 print("{:s}: {:s} {:d} attribute {}: {} {}"\
@@ -300,7 +300,7 @@ class LVVariant(LVObject):
         if self.allowFillValue and self.hasvaritem2:
             VCTP = self.vi.get_or_raise('VCTP')
             td = VCTP.getTopType(self.vartype2 - 1)
-            df = LVdatafill.newDataFillObject(self.vi, self.vartype2, 0, td, self.po)
+            df = LVdatafill.newDataFillObjectWithTD(self.vi, self.vartype2, 0, td, self.po)
             self.datafill.append(df)
             df.initWithRSRC(bldata)
             pass

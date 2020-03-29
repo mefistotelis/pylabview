@@ -23,6 +23,7 @@ from ctypes import *
 from LVmisc import *
 from LVblock import *
 import LVclasses
+import LVheap
 import LVconnectorref
 from LVconnectorref import REFNUM_TYPE
 
@@ -194,6 +195,56 @@ class NUMBER_UNIT(enum.IntEnum):
     Moles =	7
     Candelas =	8
     Invalid =	9
+
+
+class LV_INTERNAL_TD_NAMES(LVheap.ENUM_TAGS):
+    """ Names of types from LV
+
+    This maps the names of types this tool uses to names LV uses internally.
+    We may want to keep LV names when exporting data.
+    """
+    #Version = CONNECTOR_FULL_TYPE.Void,
+    I8 = CONNECTOR_FULL_TYPE.NumInt8
+    I16 = CONNECTOR_FULL_TYPE.NumInt16
+    I32 = CONNECTOR_FULL_TYPE.NumInt32
+    I64 = CONNECTOR_FULL_TYPE.NumInt64
+    U8 = CONNECTOR_FULL_TYPE.NumUInt8
+    U16 = CONNECTOR_FULL_TYPE.NumUInt16
+    U32 = CONNECTOR_FULL_TYPE.NumUInt32
+    U64 = CONNECTOR_FULL_TYPE.NumUInt64
+    EB = CONNECTOR_FULL_TYPE.UnitUInt8
+    EW = CONNECTOR_FULL_TYPE.UnitUInt16
+    EL = CONNECTOR_FULL_TYPE.UnitUInt32
+    SGL = CONNECTOR_FULL_TYPE.UnitFloat32
+    DBL = CONNECTOR_FULL_TYPE.UnitFloat64
+    EXT = CONNECTOR_FULL_TYPE.UnitFloatExt
+    CSG = CONNECTOR_FULL_TYPE.UnitComplex64
+    CDB = CONNECTOR_FULL_TYPE.UnitComplex128
+    CXT = CONNECTOR_FULL_TYPE.UnitComplexExt
+    #DAQChannel = CONNECTOR_FULL_TYPE.Void
+    LvVariant = CONNECTOR_FULL_TYPE.LVVariant
+
+
+class LV_INTERNAL_MEAS_FLAVOR_NAMES(LVheap.ENUM_TAGS):
+    WDT = MEASURE_DATA_FLAVOR.OldFloat64Waveform
+    DynamicData = MEASURE_DATA_FLAVOR.Dynamicdata
+    Timestamp = MEASURE_DATA_FLAVOR.TimeStamp
+    DigitalData = MEASURE_DATA_FLAVOR.Digitaldata
+    DigitalWaveform = MEASURE_DATA_FLAVOR.DigitalWaveform
+    DBLWaveform = MEASURE_DATA_FLAVOR.Float64Waveform
+    I16Waveform = MEASURE_DATA_FLAVOR.Int16Waveform
+    SGLWaveform = MEASURE_DATA_FLAVOR.Float32Waveform
+    EXTWaveform = MEASURE_DATA_FLAVOR.FloatExtWaveform
+    I8Waveform = MEASURE_DATA_FLAVOR.Int8Waveform
+    I32Waveform = MEASURE_DATA_FLAVOR.Int32Waveform
+    I64Waveform = MEASURE_DATA_FLAVOR.Int64Waveform
+    U8Waveform = MEASURE_DATA_FLAVOR.UInt8Waveform
+    U16Waveform = MEASURE_DATA_FLAVOR.UInt16Waveform
+    U32Waveform = MEASURE_DATA_FLAVOR.UInt32Waveform
+    U64Waveform = MEASURE_DATA_FLAVOR.UInt64Waveform
+    CSGWaveform = MEASURE_DATA_FLAVOR.Complex64Waveform
+    CDBWaveform = MEASURE_DATA_FLAVOR.Complex128Waveform
+    CXTWaveform = MEASURE_DATA_FLAVOR.ComplexExtWaveform
 
 
 class ConnectorObject:
@@ -2521,72 +2572,71 @@ def tdEnToName(tdEn):
 
     Try to keep naming convention which LV uses.
     """
-    tdName = {
-        #CONNECTOR_FULL_TYPE.Void: "Version",
-        CONNECTOR_FULL_TYPE.NumInt8: "I8",
-        CONNECTOR_FULL_TYPE.NumInt16: "I16",
-        CONNECTOR_FULL_TYPE.NumInt32: "I32",
-        CONNECTOR_FULL_TYPE.NumInt64: "I64",
-        CONNECTOR_FULL_TYPE.NumUInt8: "U8",
-        CONNECTOR_FULL_TYPE.NumUInt16: "U16",
-        CONNECTOR_FULL_TYPE.NumUInt32: "U32",
-        CONNECTOR_FULL_TYPE.NumUInt64: "U64",
-        CONNECTOR_FULL_TYPE.UnitUInt8: "EB",
-        CONNECTOR_FULL_TYPE.UnitUInt16: "EW",
-        CONNECTOR_FULL_TYPE.UnitUInt32: "EL",
-        CONNECTOR_FULL_TYPE.UnitFloat32: "SGL",
-        CONNECTOR_FULL_TYPE.UnitFloat64: "DBL",
-        CONNECTOR_FULL_TYPE.UnitFloatExt: "EXT",
-        CONNECTOR_FULL_TYPE.UnitComplex64: "CSG",
-        CONNECTOR_FULL_TYPE.UnitComplex128: "CDB",
-        CONNECTOR_FULL_TYPE.UnitComplexExt: "CXT",
-        #CONNECTOR_FULL_TYPE.Void: "DAQChannel",
-        CONNECTOR_FULL_TYPE.LVVariant: "LvVariant",
-    }.get(tdEn, None)
-
-    if tdName is not None:
-        pass
+    if LV_INTERNAL_TD_NAMES.has_value(int(tdEn)):
+        lvtdEn = LV_INTERNAL_TD_NAMES(tdEn)
+        tdName = lvtdEn.name
     elif isinstance(tdEn, CONNECTOR_FULL_TYPE):
         tdName = tdEn.name
     else:
         tdName = "TD{:02X}".format(tdEn)
     return tdName
 
+def tdNameToEnum(tdName):
+    tagEn = None
 
-def flavorEnToName(flavorEn):
+    if LV_INTERNAL_TD_NAMES.has_name(tdName):
+        lvtdEn = LV_INTERNAL_TD_NAMES[tdName]
+        tagEn = CONNECTOR_FULL_TYPE(lvtdEn.value)
+
+    if tagEn is None:
+        tagParse = re.match("^TD([0-9A-F]{2,4})$", tdName)
+        if tagParse is not None:
+            tagEn = int(tagParse[1], 16)
+
+    if tagEn is None:
+        flavorEn = mdFlavorNameToEnum(tdName)
+        if flavorEn is not None:
+            tagEn = CONNECTOR_FULL_TYPE.MeasureData
+
+    if tagEn is None:
+        refnumEn = LVconnectorref.refnumNameToEnum(tdName)
+        if refnumEn is not None:
+            tagEn = CONNECTOR_FULL_TYPE.Refnum
+
+    return tagEn
+
+
+def mdFlavorEnToName(flavorEn):
     """ Return text name for MEASURE_DATA_FLAVOR element
-
-    Try to keep naming convention which LV uses.
     """
-    flavName = {
-        MEASURE_DATA_FLAVOR.OldFloat64Waveform: "WDT",
-        MEASURE_DATA_FLAVOR.Dynamicdata: "DynamicData",
-        MEASURE_DATA_FLAVOR.TimeStamp: "Timestamp",
-        MEASURE_DATA_FLAVOR.Digitaldata: "DigitalData",
-        MEASURE_DATA_FLAVOR.DigitalWaveform: "DigitalWaveform",
-        MEASURE_DATA_FLAVOR.Float64Waveform: "DBLWaveform",
-        MEASURE_DATA_FLAVOR.Int16Waveform: "I16Waveform",
-        MEASURE_DATA_FLAVOR.Float32Waveform: "SGLWaveform",
-        MEASURE_DATA_FLAVOR.FloatExtWaveform: "EXTWaveform",
-        MEASURE_DATA_FLAVOR.Int8Waveform: "I8Waveform",
-        MEASURE_DATA_FLAVOR.Int32Waveform: "I32Waveform",
-        MEASURE_DATA_FLAVOR.Int64Waveform: "I64Waveform",
-        MEASURE_DATA_FLAVOR.UInt8Waveform: "U8Waveform",
-        MEASURE_DATA_FLAVOR.UInt16Waveform: "U16Waveform",
-        MEASURE_DATA_FLAVOR.UInt32Waveform: "U32Waveform",
-        MEASURE_DATA_FLAVOR.UInt64Waveform: "U64Waveform",
-        MEASURE_DATA_FLAVOR.Complex64Waveform: "CSGWaveform",
-        MEASURE_DATA_FLAVOR.Complex128Waveform: "CDBWaveform",
-        MEASURE_DATA_FLAVOR.ComplexExtWaveform: "CXTWaveform",
-    }.get(flavorEn, None)
-
-    if flavName is not None:
-        pass
+    if LV_INTERNAL_MEAS_FLAVOR_NAMES.has_value(int(flavorEn)):
+        lvflavorEn = LV_INTERNAL_MEAS_FLAVOR_NAMES(flavorEn)
+        flavName = lvflavorEn.name
     elif isinstance(flavorEn, MEASURE_DATA_FLAVOR):
         flavName = flavorEn.name
     else:
         flavName = "MeasureData{:02X}".format(flavorEn)
     return flavName
+
+def mdFlavorNameToEnum(flavName):
+    """ Return MEASURE_DATA_FLAVOR element for given text name
+    """
+    flavorEn = None
+
+    if LV_INTERNAL_MEAS_FLAVOR_NAMES.has_name(flavName):
+        lvflavEn = LV_INTERNAL_MEAS_FLAVOR_NAMES[flavName]
+        flavorEn = MEASURE_DATA_FLAVOR(lvflavEn.value)
+
+    if flavorEn is None:
+        if MEASURE_DATA_FLAVOR.has_name(flavName):
+            flavorEn = MEASURE_DATA_FLAVOR[flavName]
+
+    if flavorEn is None:
+        tagParse = re.match("^MeasureData([0-9A-F]{2,4})$", flavName)
+        if tagParse is not None:
+            flavorEn = int(tagParse[1], 16)
+
+    return flavorEn
 
 
 def newErrorCluster(vi, idx, obj_flags, po):

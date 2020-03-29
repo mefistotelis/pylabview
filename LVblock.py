@@ -1710,24 +1710,22 @@ class DFDS(VarCodingBlock):
                 if (tmEntry.flags & 0x2000) != 0 or \
                    (tmEntry.flags & 0x0001) != 0:
                     try:
-                        df = LVdatafill.newDataFillObject(self.vi, tmEntry.index, tmEntry.flags, tmEntry.td, self.po)
+                        df = LVdatafill.newDataFillObjectWithTD(self.vi, tmEntry.index, tmEntry.flags, tmEntry.td, self.po)
                         section.content.append(df)
                         df.initWithRSRC(bldata)
                     except Exception as e:
-                        fulltype = tmEntry.td.fullType()
-                        raise RuntimeError("Data type {}: {}".format(
-                          fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype, str(e)))
+                        tdType = tmEntry.td.fullType()
+                        raise RuntimeError("Data type {}: {}".format(enumOrIntToName(tdType), str(e)))
                     pass
                 elif tmEntry.td.fullType() == CONNECTOR_FULL_TYPE.Cluster and self.isSpecialDSTMCluster(tmEntry):
                     # This is Special DSTM Cluster
                     try:
-                        df = LVdatafill.SpecialDSTMCluster(self.vi, tmEntry.index, tmEntry.flags, tmEntry.td, self.po)
+                        df = LVdatafill.newSpecialDSTMClusterWithTD(self.vi, tmEntry.index, tmEntry.flags, tmEntry.td, self.po)
                         section.content.append(df)
                         df.initWithRSRC(bldata)
                     except Exception as e:
-                        fulltype = tmEntry.td.fullType()
-                        raise RuntimeError("Special DSTM {}: {}".format(
-                          fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype, str(e)))
+                        tdType = tmEntry.td.fullType()
+                        raise RuntimeError("Special DSTM {}: {}".format(enumOrIntToName(tdType), str(e)))
                     pass
                 else:
                     # No default value for this TD
@@ -1756,6 +1754,29 @@ class DFDS(VarCodingBlock):
         if section.parse_failed:
             bldata.seek(startpos)
             Block.parseRSRCData(self, section_num, bldata)
+        pass
+
+    def DISAinitWithXMLSection(self, section, section_elem):
+        snum = section.start.section_idx
+        fmt = section_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            section.content = []
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.ident,snum))
+            for subelem in section_elem:
+                if (subelem.tag == "NameObject"):
+                    continue # Items parsed somewhere else
+                tdType = tdNameToEnum(subelem.tag)
+                if tdType is None:
+                    raise AttributeError("Section contains unexpected tag")
+                #TODO make the xml read
+                i = int(subelem.get("Index"), 0)
+                if i >= len(section.content):
+                    section.content.extend([None] * (i - len(section.content) + 1))
+                section.content[i] = val
+        else:
+            Block.initWithXMLSection(self, section, section_elem)
         pass
 
     def exportXMLSection(self, section_elem, snum, section, fname_base):

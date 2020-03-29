@@ -62,8 +62,6 @@ class REFNUM_TYPE(enum.IntEnum):
     TDMSFile =	34
 
 
-
-
 class RefnumBase:
     """ Generic base for Connectors of type Refnum.
 
@@ -1110,6 +1108,31 @@ class RefnumTDMSFile(RefnumBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+
+
+def refnumEnToName(refnumEn):
+    """ Return text name for REFNUM_TYPE element
+    """
+    if isinstance(refnumEn, REFNUM_TYPE):
+        refnName = refnumEn.name
+    else:
+        refnName = "Refnum{:02X}".format(refnumEn)
+    return refnName
+
+def refnumNameToEnum(refnName):
+    """ Return REFNUM_TYPE element for given text name
+    """
+    refnumEn = None
+
+    if REFNUM_TYPE.has_name(refnName):
+        refnumEn = REFNUM_TYPE[refnName]
+
+    if refnumEn is None:
+        tagParse = re.match("^Refnum([0-9A-F]{2,4})$", refnName)
+        if tagParse is not None:
+            refnumEn = int(tagParse[1], 16)
+
+    return refnumEn
 
 
 def newConnectorObjectRef(vi, conn_obj, reftype, po):

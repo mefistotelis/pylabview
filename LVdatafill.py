@@ -27,14 +27,16 @@ import LVconnectorref
 
 
 class DataFill:
-    def __init__(self, vi, idx, tm_flags, td, po):
+    def __init__(self, vi, idx, tm_flags, tdType, tdSubType, po):
         """ Creates new DataFill object, capable of handling generic data.
         """
         self.vi = vi
         self.po = po
         self.index = idx
         self.tm_flags = tm_flags
-        self.td = td
+        self.tdType = tdType
+        self.tdSubType = tdSubType
+        self.td = None
         self.value = None
         self.raw_data = None
         # Whether RAW data has been updated and RSRC parsing is required to update properties
@@ -73,17 +75,19 @@ class DataFill:
                 return True
         return False
 
+
+    def setTD(self, td):
+        self.td = td
+
     def initWithRSRC(self, bldata):
         self.initWithRSRCParse(bldata)
         if (self.po.verbose > 2):
-            fulltype = self.td.fullType()
             print("{:s}: {} offs after {}"\
               .format(self.vi.src_fname,str(self),bldata.tell()))
         pass
 
     def prepareDict(self):
-        fulltype = self.td.fullType()
-        typeName = fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype
+        typeName = enumOrIntToName(self.tdType)
         return { 'type': typeName, 'value': self.value }
 
     def __repr__(self):
@@ -92,13 +96,14 @@ class DataFill:
         return type(self).__name__ + pformat(d, indent=0, compact=True, width=512)
 
     def getXMLTagName(self):
-        from LVconnector import CONNECTOR_FULL_TYPE, tdEnToName, flavorEnToName
-        tdEn = self.td.fullType()
-        if tdEn == CONNECTOR_FULL_TYPE.MeasureData:
-            flavorEn = self.td.dtFlavor()
-            tagName = flavorEnToName(flavorEn)
+        from LVconnector import CONNECTOR_FULL_TYPE, tdEnToName, mdFlavorEnToName
+        from LVconnectorref import refnumEnToName
+        if self.tdType == CONNECTOR_FULL_TYPE.MeasureData:
+            tagName = mdFlavorEnToName(self.tdSubType)
+        elif self.tdType == CONNECTOR_FULL_TYPE.Refnum:
+            tagName = refnumEnToName(self.tdSubType)
         else:
-            tagName = tdEnToName(tdEn)
+            tagName = tdEnToName(self.tdType)
         return tagName
 
     def exportXML(self, td_elem, fname_base):
@@ -116,44 +121,42 @@ class DataFillInt(DataFill):
         super().__init__(*args)
         self.base = 10
         from LVconnector import CONNECTOR_FULL_TYPE
-        fulltype = self.td.fullType()
-        if fulltype in (CONNECTOR_FULL_TYPE.NumInt8,):
+        if self.tdType in (CONNECTOR_FULL_TYPE.NumInt8,):
             self.size = 1
             self.signed = True
-        elif fulltype in (CONNECTOR_FULL_TYPE.NumInt16,):
+        elif self.tdType in (CONNECTOR_FULL_TYPE.NumInt16,):
             self.size = 2
             self.signed = True
-        elif fulltype in (CONNECTOR_FULL_TYPE.NumInt32,):
+        elif self.tdType in (CONNECTOR_FULL_TYPE.NumInt32,):
             self.size = 4
             self.signed = True
-        elif fulltype in (CONNECTOR_FULL_TYPE.NumInt64,):
+        elif self.tdType in (CONNECTOR_FULL_TYPE.NumInt64,):
             self.size = 8
             self.signed = True
-        elif fulltype in (CONNECTOR_FULL_TYPE.NumUInt8,):
+        elif self.tdType in (CONNECTOR_FULL_TYPE.NumUInt8,):
             self.size = 1
             self.signed = False
-        elif fulltype in (CONNECTOR_FULL_TYPE.NumUInt16,):
+        elif self.tdType in (CONNECTOR_FULL_TYPE.NumUInt16,):
             self.size = 2
             self.signed = False
-        elif fulltype in (CONNECTOR_FULL_TYPE.NumUInt32,):
+        elif self.tdType in (CONNECTOR_FULL_TYPE.NumUInt32,):
             self.size = 4
             self.signed = False
-        elif fulltype in (CONNECTOR_FULL_TYPE.NumUInt64,):
+        elif self.tdType in (CONNECTOR_FULL_TYPE.NumUInt64,):
             self.size = 8
             self.signed = False
-        elif fulltype in (CONNECTOR_FULL_TYPE.UnitUInt8,):
+        elif self.tdType in (CONNECTOR_FULL_TYPE.UnitUInt8,):
             self.size = 1
             self.signed = False
-        elif fulltype in (CONNECTOR_FULL_TYPE.UnitUInt16,):
+        elif self.tdType in (CONNECTOR_FULL_TYPE.UnitUInt16,):
             self.size = 2
             self.signed = False
-        elif fulltype in (CONNECTOR_FULL_TYPE.UnitUInt32,):
+        elif self.tdType in (CONNECTOR_FULL_TYPE.UnitUInt32,):
             self.size = 4
             self.signed = False
         else:
             raise RuntimeError("Class {} used for unexpected type {}"\
-              .format(type(self).__name__,\
-               fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype))
+              .format(type(self).__name__, self.getXMLTagName()))
 
     def initWithRSRCParse(self, bldata):
         self.value = int.from_bytes(bldata.read(self.size), byteorder='big', signed=self.signed)
@@ -166,17 +169,15 @@ class DataFillInt(DataFill):
 class DataFillFloat(DataFill):
     def initWithRSRCParse(self, bldata):
         from LVconnector import CONNECTOR_FULL_TYPE
-        fulltype = self.td.fullType()
-        if fulltype in (CONNECTOR_FULL_TYPE.NumFloat32,CONNECTOR_FULL_TYPE.UnitFloat32,):
+        if self.tdType in (CONNECTOR_FULL_TYPE.NumFloat32,CONNECTOR_FULL_TYPE.UnitFloat32,):
             self.value = struct.unpack('>f', bldata.read(4))[0]
-        elif fulltype in (CONNECTOR_FULL_TYPE.NumFloat64,CONNECTOR_FULL_TYPE.UnitFloat64,):
+        elif self.tdType in (CONNECTOR_FULL_TYPE.NumFloat64,CONNECTOR_FULL_TYPE.UnitFloat64,):
             self.value = struct.unpack('>d', bldata.read(8))[0]
-        elif fulltype in (CONNECTOR_FULL_TYPE.NumFloatExt,CONNECTOR_FULL_TYPE.UnitFloatExt,):
+        elif self.tdType in (CONNECTOR_FULL_TYPE.NumFloatExt,CONNECTOR_FULL_TYPE.UnitFloatExt,):
             self.value = readQuadFloat(bldata)
         else:
             raise RuntimeError("Class {} used for unexpected type {}"\
-              .format(type(self).__name__,\
-               fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype))
+              .format(type(self).__name__, self.getXMLTagName()))
 
     def exportXML(self, td_elem, fname_base):
         td_elem.text = "{:g}".format(self.value)
@@ -186,17 +187,15 @@ class DataFillFloat(DataFill):
 class DataFillComplex(DataFill):
     def initWithRSRCParse(self, bldata):
         from LVconnector import CONNECTOR_FULL_TYPE
-        fulltype = self.td.fullType()
-        if fulltype in (CONNECTOR_FULL_TYPE.NumComplex64,CONNECTOR_FULL_TYPE.UnitComplex64,):
+        if self.tdType in (CONNECTOR_FULL_TYPE.NumComplex64,CONNECTOR_FULL_TYPE.UnitComplex64,):
             self.value = struct.unpack('>ff', bldata.read(8))
-        elif fulltype in (CONNECTOR_FULL_TYPE.NumComplex128,CONNECTOR_FULL_TYPE.UnitComplex128,):
+        elif self.tdType in (CONNECTOR_FULL_TYPE.NumComplex128,CONNECTOR_FULL_TYPE.UnitComplex128,):
             self.value = struct.unpack('>dd', bldata.read(16))
-        elif fulltype in (CONNECTOR_FULL_TYPE.NumComplexExt,CONNECTOR_FULL_TYPE.UnitComplexExt,):
+        elif self.tdType in (CONNECTOR_FULL_TYPE.NumComplexExt,CONNECTOR_FULL_TYPE.UnitComplexExt,):
             self.value = (readQuadFloat(bldata),readQuadFloat(bldata),)
         else:
             raise RuntimeError("Class {} used for unexpected type {}"\
-              .format(type(self).__name__,\
-               fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype))
+              .format(type(self).__name__, self.getXMLTagName()))
 
     def exportXML(self, td_elem, fname_base):
         tags = ("real", "imag",)
@@ -210,10 +209,9 @@ class DataFillBool(DataFill):
     def __init__(self, *args):
         super().__init__(*args)
         from LVconnector import CONNECTOR_FULL_TYPE
-        fulltype = self.td.fullType()
-        if fulltype in (CONNECTOR_FULL_TYPE.BooleanU16,):
+        if self.tdType in (CONNECTOR_FULL_TYPE.BooleanU16,):
             self.size = 2
-        elif fulltype in (CONNECTOR_FULL_TYPE.Boolean,):
+        elif self.tdType in (CONNECTOR_FULL_TYPE.Boolean,):
             ver = self.vi.getFileVersion()
             if isGreaterOrEqVersion(ver, 4,5,0):
                 self.size = 1
@@ -221,8 +219,7 @@ class DataFillBool(DataFill):
                 self.size = 2
         else:
             raise RuntimeError("Class {} used for unexpected type {}"\
-              .format(type(self).__name__,\
-               fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype))
+              .format(type(self).__name__, self.getXMLTagName()))
 
     def initWithRSRCParse(self, bldata):
         self.value = int.from_bytes(bldata.read(self.size), byteorder='big', signed=False)
@@ -254,9 +251,8 @@ class DataFillPath(DataFill):
         elif clsident in (b'PTH1', b'PTH2',):
             self.value = LVclasses.LVPath1(self.vi, self.po)
         else:
-            fulltype = self.td.fullType()
-            raise RuntimeError("Data fill contains path data of unrecognized class {}"\
-              .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype))
+            raise RuntimeError("Data fill {} contains path data of unrecognized class {}"\
+              .format(self.getXMLTagName(),clsident))
         bldata.seek(startPos)
         self.value.parseRSRCData(bldata)
 
@@ -303,19 +299,15 @@ class DataFillArray(DataFill):
             sub_td = self.td.clients[0].nested
         #if sub_td.fullType() in (CONNECTOR_FULL_TYPE.Boolean,) and isSmallerVersion(ver, 4,5,0,1): # TODO expecting special case, never seen it though
         if totItems > self.po.array_data_limit:
-                fulltype = self.td.fullType()
                 raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
-                  .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,\
-                  totItems, self.po.array_data_limit))
+                  .format(self.getXMLTagName(), totItems, self.po.array_data_limit))
         for i in range(totItems):
             try:
-                sub_df = newDataFillObject(self.vi, self.td.clients[0].index, self.tm_flags, sub_td, self.po)
+                sub_df = newDataFillObjectWithTD(self.vi, self.td.clients[0].index, self.tm_flags, sub_td, self.po)
                 self.value.append(sub_df)
                 sub_df.initWithRSRC(bldata)
             except Exception as e:
-                fulltype = sub_td.fullType()
-                raise RuntimeError("Data type {}: {}"\
-                  .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,str(e)))
+                raise RuntimeError("Data type {}: {}".format(enumOrIntToName(sub_td.fullType()), str(e)))
         pass
 
     def exportXML(self, td_elem, fname_base):
@@ -342,15 +334,13 @@ class DataFillArrayDataPtr(DataFill):
 class DataFillCluster(DataFill):
     def initWithRSRCParse(self, bldata):
         self.value = []
-        for cli_idx, conn_idx, conn_obj, conn_flags in self.td.clientsEnumerate():
+        for cli_idx, conn_idx, sub_td, conn_flags in self.td.clientsEnumerate():
             try:
-                sub_df = newDataFillObject(self.vi, conn_idx, self.tm_flags, conn_obj, self.po)
+                sub_df = newDataFillObjectWithTD(self.vi, conn_idx, self.tm_flags, sub_td, self.po)
                 self.value.append(sub_df)
                 sub_df.initWithRSRC(bldata)
             except Exception as e:
-                fulltype = conn_obj.fullType()
-                raise RuntimeError("Data type {}: {}"\
-                  .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,str(e)))
+                raise RuntimeError("Data type {}: {}".format(enumOrIntToName(sub_td.fullType()), str(e)))
         pass
 
     def exportXML(self, td_elem, fname_base):
@@ -379,90 +369,87 @@ class DataFillMeasureData(DataFill):
     def __init__(self, *args):
         super().__init__(*args)
         ver = self.vi.getFileVersion()
-        dtFlavor = self.td.dtFlavor()
         from LVconnector import MEASURE_DATA_FLAVOR, CONNECTOR_FULL_TYPE, newConnectorObject,\
           newDigitalTableCluster, newDigitalWaveformCluster, newDynamicTableCluster,\
           newAnalogWaveformCluster, newOldFloat64WaveformCluster
 
         if isSmallerVersion(ver, 7,0,0,2):
             raise NotImplementedError("MeasureData {} default value read is not implemented for versions below LV7"\
-              .format(dtFlavor.name if isinstance(dtFlavor, enum.IntEnum) else dtFlavor))
+              .format(enumOrIntToName(sub_td.dtFlavor())))
 
-        if dtFlavor in (MEASURE_DATA_FLAVOR.OldFloat64Waveform,):
+        if self.tdSubType in (MEASURE_DATA_FLAVOR.OldFloat64Waveform,):
             self.containedTd = newOldFloat64WaveformCluster(self.vi, -1, 0, self.po)
-        elif dtFlavor in (MEASURE_DATA_FLAVOR.Int16Waveform,):
+        elif self.tdSubType in (MEASURE_DATA_FLAVOR.Int16Waveform,):
             tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt16, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
-        elif dtFlavor in (MEASURE_DATA_FLAVOR.Float64Waveform,):
+        elif self.tdSubType in (MEASURE_DATA_FLAVOR.Float64Waveform,):
             tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat64, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
-        elif dtFlavor in (MEASURE_DATA_FLAVOR.Float32Waveform,):
+        elif self.tdSubType in (MEASURE_DATA_FLAVOR.Float32Waveform,):
             tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat32, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
-        elif dtFlavor in (MEASURE_DATA_FLAVOR.TimeStamp,):
+        elif self.tdSubType in (MEASURE_DATA_FLAVOR.TimeStamp,):
             # Use block of 16 bytes as Timestamp
             self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.Block, self.po)
             self.containedTd.blkSize = 16
-        elif dtFlavor in (MEASURE_DATA_FLAVOR.Digitaldata,):
+        elif self.tdSubType in (MEASURE_DATA_FLAVOR.Digitaldata,):
             self.containedTd = newDigitalTableCluster(self.vi, -1, 0, self.po)
-        elif dtFlavor in (MEASURE_DATA_FLAVOR.DigitalWaveform,):
+        elif self.tdSubType in (MEASURE_DATA_FLAVOR.DigitalWaveform,):
             self.containedTd = newDigitalWaveformCluster(self.vi, -1, 0, self.po)
-        elif dtFlavor in (MEASURE_DATA_FLAVOR.Dynamicdata,):
+        elif self.tdSubType in (MEASURE_DATA_FLAVOR.Dynamicdata,):
             self.containedTd = newDynamicTableCluster(self.vi, -1, 0, self.po)
-        elif dtFlavor in (MEASURE_DATA_FLAVOR.FloatExtWaveform,):
+        elif self.tdSubType in (MEASURE_DATA_FLAVOR.FloatExtWaveform,):
             tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloatExt, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
-        elif dtFlavor in (MEASURE_DATA_FLAVOR.UInt8Waveform,):
+        elif self.tdSubType in (MEASURE_DATA_FLAVOR.UInt8Waveform,):
             tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt8, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
-        elif dtFlavor in (MEASURE_DATA_FLAVOR.UInt16Waveform,):
+        elif self.tdSubType in (MEASURE_DATA_FLAVOR.UInt16Waveform,):
             tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt16, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
-        elif dtFlavor in (MEASURE_DATA_FLAVOR.UInt32Waveform,):
+        elif self.tdSubType in (MEASURE_DATA_FLAVOR.UInt32Waveform,):
             tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt32, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
-        elif dtFlavor in (MEASURE_DATA_FLAVOR.Int8Waveform,):
+        elif self.tdSubType in (MEASURE_DATA_FLAVOR.Int8Waveform,):
             tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt8, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
-        elif dtFlavor in (MEASURE_DATA_FLAVOR.Int32Waveform,):
+        elif self.tdSubType in (MEASURE_DATA_FLAVOR.Int32Waveform,):
             tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt32, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
-        elif dtFlavor in (MEASURE_DATA_FLAVOR.Complex64Waveform,):
+        elif self.tdSubType in (MEASURE_DATA_FLAVOR.Complex64Waveform,):
             tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumComplex64, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
-        elif dtFlavor in (MEASURE_DATA_FLAVOR.Complex128Waveform,):
+        elif self.tdSubType in (MEASURE_DATA_FLAVOR.Complex128Waveform,):
             tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumComplex128, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
-        elif dtFlavor in (MEASURE_DATA_FLAVOR.ComplexExtWaveform,):
+        elif self.tdSubType in (MEASURE_DATA_FLAVOR.ComplexExtWaveform,):
             tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumComplexExt, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
-        elif dtFlavor in (MEASURE_DATA_FLAVOR.Int64Waveform,):
+        elif self.tdSubType in (MEASURE_DATA_FLAVOR.Int64Waveform,):
             tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt64, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
-        elif dtFlavor in (MEASURE_DATA_FLAVOR.UInt64Waveform,):
+        elif self.tdSubType in (MEASURE_DATA_FLAVOR.UInt64Waveform,):
             tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt64, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         else:
             raise NotImplementedError("MeasureData {} default value read failed due to unsupported flavor"\
-              .format(dtFlavor.name if isinstance(dtFlavor, enum.IntEnum) else dtFlavor))
+              .format(self.getXMLTagName()))
 
     def prepareDict(self):
-        flavour = self.td.dtFlavor()
-        flavourName = flavour.name if isinstance(flavour, enum.IntEnum) else flavour
+        flavorName = enumOrIntToName(self.tdSubType)
         d = super().prepareDict()
-        d.update( { 'flavour': flavourName } )
+        d.update( { 'flavor': flavorName } )
         return d
 
     def initWithRSRCParse(self, bldata):
         self.value = []
         try:
-            sub_df = newDataFillObject(self.vi, -1, self.tm_flags, self.containedTd, self.po)
+            sub_df = newDataFillObjectWithTD(self.vi, -1, self.tm_flags, self.containedTd, self.po)
             self.value.append(sub_df)
             sub_df.initWithRSRC(bldata)
         except Exception as e:
-            dtFlavor = self.td.dtFlavor()
-            raise RuntimeError("MeasureData kind {}: {}"\
-              .format(dtFlavor.name if isinstance(dtFlavor, enum.IntEnum) else dtFlavor,str(e)))
+            raise RuntimeError("MeasureData flavor {}: {}"\
+              .format(enumOrIntToName(self.containedTd.fullType()), str(e)))
         pass
 
     def exportXML(self, td_elem, fname_base):
@@ -527,19 +514,15 @@ class DataFillRepeatedBlock(DataFill):
         VCTP = self.vi.get_or_raise('VCTP')
         sub_td = VCTP.getFlatType(self.td.typeFlatIdx)
         if self.td.numRepeats > self.po.array_data_limit:
-            fulltype = self.td.fullType()
             raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
-              .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,\
-              self.td.numRepeats, self.po.array_data_limit))
+              .format(self.getXMLTagName(), self.td.numRepeats, self.po.array_data_limit))
         for i in range(self.td.numRepeats):
             try:
-                sub_df = newDataFillObject(self.vi, self.td.typeFlatIdx, self.tm_flags, sub_td, self.po)
+                sub_df = newDataFillObjectWithTD(self.vi, self.td.typeFlatIdx, self.tm_flags, sub_td, self.po)
                 self.value.append(sub_df)
                 sub_df.initWithRSRC(bldata)
             except Exception as e:
-                fulltype = sub_td.fullType()
-                raise RuntimeError("Data type {}: {}"\
-                  .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,str(e)))
+                raise RuntimeError("Data type {}: {}".format(enumOrIntToName(sub_td.fullType()), str(e)))
         pass
 
     def exportXML(self, td_elem, fname_base):
@@ -666,17 +649,23 @@ class DataFillUDClassInst(DataFill):
         if (bldata.tell() % 4) > 0:
             bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
         if numLevels > self.po.connector_list_limit:
-            fulltype = self.td.fullType()
             raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
-              .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,\
-              numLevels, self.po.connector_list_limit))
+              .format(self.getXMLTagName(), numLevels, self.po.connector_list_limit))
         for i in range(numLevels):
             datalen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             libVersion = bldata.read(datalen)
             self.value.append(libVersion)
 
     def exportXML(self, td_elem, fname_base):
-        #TODO implement export
+        if True:
+            subelem = ET.SubElement(td_elem, "LibName")
+            elemText = self.libName.decode(self.vi.textEncoding)
+            ET.safe_store_element_text(subelem, elemText)
+        for i, libVersion in enumerate(self.value):
+            subelem = ET.SubElement(td_elem, "LibVersion")
+            subelem.set("Index", str(i))
+            elemText = libVersion.decode(self.vi.textEncoding)
+            ET.safe_store_element_text(subelem, elemText)
         pass
 
 
@@ -711,9 +700,8 @@ class DataFillUnexpected(DataFill):
     """
     def initWithRSRCParse(self, bldata):
         self.value = None
-        fulltype = self.td.fullType()
         eprint("{:s}: Warning: Data fill asks to read default value of {} type, this should never happen."\
-          .format(self.vi.src_fname, fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype))
+          .format(self.vi.src_fname, self.getXMLTagName()))
 
 
 class DataFillTypeDef(DataFill):
@@ -722,13 +710,11 @@ class DataFillTypeDef(DataFill):
         # We expect only one client within TypeDef
         for client in self.td.clients:
             try:
-                sub_df = newDataFillObject(self.vi, -1, self.tm_flags, client.nested, self.po)
+                sub_df = newDataFillObjectWithTD(self.vi, -1, self.tm_flags, client.nested, self.po)
                 self.value.append(sub_df)
                 sub_df.initWithRSRC(bldata)
             except Exception as e:
-                fulltype = client.nested.fullType()
-                raise RuntimeError("Data type {}: {}"\
-                  .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,str(e)))
+                raise RuntimeError("Data type {}: {}".format(enumOrIntToName(client.nested.fullType()), str(e)))
         pass
 
     def exportXML(self, td_elem, fname_base):
@@ -742,20 +728,18 @@ class SpecialDSTMCluster(DataFill):
     def initWithRSRCParse(self, bldata):
         self.value = []
         skipNextEntry = ((self.tm_flags & 0x0200) != 0)
-        for cli_idx, conn_idx, conn_obj, conn_flags in self.td.clientsEnumerate():
+        for cli_idx, conn_idx, sub_td, conn_flags in self.td.clientsEnumerate():
             if not self.isSpecialDSTMClusterElement(cli_idx, self.tm_flags):
                 continue
             if skipNextEntry:
                 skipNextEntry = False
                 continue
             try:
-                sub_df = newDataFillObject(self.vi, conn_idx, self.tm_flags, conn_obj, self.po)
+                sub_df = newDataFillObjectWithTD(self.vi, conn_idx, self.tm_flags, sub_td, self.po)
                 self.value.append(sub_df)
                 sub_df.initWithRSRC(bldata)
             except Exception as e:
-                fulltype = conn_obj.fullType()
-                raise RuntimeError("Data type {}: {}"\
-                  .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,str(e)))
+                raise RuntimeError("Data type {}: {}".format(enumOrIntToName(sub_td.fullType()), str(e)))
             pass
         pass
 
@@ -767,7 +751,17 @@ class SpecialDSTMCluster(DataFill):
         pass
 
 
-def newDataFillRefnum(vi, idx, tm_flags, td, po):
+def newSpecialDSTMClusterWithTD(vi, idx, tm_flags, td, po):
+    """ Creates and returns new data fill object with given parameters
+    """
+    from LVconnector import CONNECTOR_FULL_TYPE
+    tdType = td.fullType()
+    tdSubType = None
+    df = SpecialDSTMCluster(vi, idx, tm_flags, tdType, tdSubType, po)
+    df.setTD(td)
+    return df
+
+def newDataFillRefnum(vi, idx, tm_flags, tdType, tdSubType, po):
     """ Creates and returns new data fill object for refnum with given parameters
     """
     from LVconnectorref import REFNUM_TYPE
@@ -787,11 +781,10 @@ def newDataFillRefnum(vi, idx, tm_flags, td, po):
     return ctor(vi, idx, tm_flags, td, po)
 
 
-def newDataFillObject(vi, idx, tm_flags, td, po):
+def newDataFillObject(vi, idx, tm_flags, tdType, tdSubType, po):
     """ Creates and returns new data fill object with given parameters
     """
     from LVconnector import CONNECTOR_FULL_TYPE
-    obj_type = td.fullType()
     ctor = {
         CONNECTOR_FULL_TYPE.Void: DataFillVoid,
         CONNECTOR_FULL_TYPE.NumInt8: DataFillInt,
@@ -848,8 +841,23 @@ def newDataFillObject(vi, idx, tm_flags, td, po):
         CONNECTOR_FULL_TYPE.Function: DataFillUnexpected,
         CONNECTOR_FULL_TYPE.TypeDef: DataFillTypeDef,
         CONNECTOR_FULL_TYPE.PolyVI: DataFillUnexpected,
-    }.get(obj_type, None)
+    }.get(tdType, None)
     if ctor is None:
         raise RuntimeError("Data type {}: No known way to read default data"\
-          .format(fulltype.name if isinstance(fulltype, enum.IntEnum) else fulltype,str(e)))
-    return ctor(vi, idx, tm_flags, td, po)
+          .format(enumOrIntToName(tdType),str(e)))
+    return ctor(vi, idx, tm_flags, tdType, tdSubType, po)
+
+def newDataFillObjectWithTD(vi, idx, tm_flags, td, po):
+    """ Creates and returns new data fill object with given parameters
+    """
+    from LVconnector import CONNECTOR_FULL_TYPE
+    tdType = td.fullType()
+    if tdType == CONNECTOR_FULL_TYPE.MeasureData:
+        tdSubType = td.dtFlavor()
+    elif tdType == CONNECTOR_FULL_TYPE.Refnum:
+        tdSubType = td.refType()
+    else:
+        tdSubType = None
+    df = newDataFillObject(vi, idx, tm_flags, tdType, tdSubType, po)
+    df.setTD(td)
+    return df
