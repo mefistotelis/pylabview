@@ -38,11 +38,6 @@ class DataFill:
         self.tdSubType = tdSubType
         self.td = None
         self.value = None
-        self.raw_data = None
-        # Whether RAW data has been updated and RSRC parsing is required to update properties
-        self.raw_data_updated = False
-        # Whether any properties have been updated and preparation of new RAW data is required
-        self.parsed_data_updated = False
 
     def isRefnumTag(self, td):
         """ Returns if given refnum td is a tag type.
@@ -105,6 +100,9 @@ class DataFill:
         else:
             tagName = tdEnToName(self.tdType)
         return tagName
+
+    def initWithXML(self, df_elem):
+        pass
 
     def initWithXMLLate(self):
         pass

@@ -1677,6 +1677,7 @@ class DFDS(VarCodingBlock):
     def createSection(self):
         section = super().createSection()
         section.parse_failed = False
+        section.content = []
         return section
 
     def setDefaultEncoding(self):
@@ -1756,8 +1757,9 @@ class DFDS(VarCodingBlock):
             Block.parseRSRCData(self, section_num, bldata)
         pass
 
-    def DISAinitWithXMLSection(self, section, section_elem):
+    def initWithXMLSection(self, section, section_elem):
         snum = section.start.section_idx
+        section.parse_failed = False
         fmt = section_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             section.content = []
@@ -1767,17 +1769,62 @@ class DFDS(VarCodingBlock):
             for subelem in section_elem:
                 if (subelem.tag == "NameObject"):
                     continue # Items parsed somewhere else
-                tdType = tdNameToEnum(subelem.tag)
+                tdType = LVconnector.tdNameToEnum(subelem.tag)
                 if tdType is None:
                     raise AttributeError("Section contains unexpected tag")
-                #TODO make the xml read
-                section.content.append(val)
+                if tdType == LVconnector.CONNECTOR_FULL_TYPE.MeasureData:
+                    tdSubType = LVconnector.mdFlavorNameToEnum(subelem.tag)
+                elif tdType == LVconnector.CONNECTOR_FULL_TYPE.Refnum:
+                    tdSubType = LVconnectorref.refnumNameToEnum(subelem.tag)
+                else:
+                    tdSubType = None
+                df = newDataFillObject(vi, idx, 0, tdType, tdSubType, po)
+                df.initWithXML(subelem)
+                section.content.append(df)
         else:
+            section.parse_failed = True
             Block.initWithXMLSection(self, section, section_elem)
         pass
 
     def initWithXMLLate(self):
         super().initWithXMLLate()
+        ver = self.vi.getFileVersion()
+        TM = self.vi.get_one_of('TM80')
+        if TM is None:
+            TypeMap = None
+        elif isGreaterOrEqVersion(ver, 8,0,0,1):
+            TypeMap = TM.getTypeMap()
+        else:
+            TypeMap = None
+        for snum in self.sections:
+            section = self.sections[snum]
+            df_idx = 0
+            if TypeMap is not None and not section.parse_failed:
+                for tmEntry in TypeMap:
+                    dtHasFill = False
+                    if (tmEntry.flags & 0x0008) != 0 or \
+                       (tmEntry.flags & 0x0800) != 0 or \
+                       (tmEntry.flags & 0x0400) != 0:
+                        continue
+                    if (tmEntry.flags & 0x2000) != 0 or \
+                       (tmEntry.flags & 0x0001) != 0:
+                        dtHasFill = True
+                    elif tmEntry.td.fullType() == CONNECTOR_FULL_TYPE.Cluster and self.isSpecialDSTMCluster(tmEntry):
+                        dtHasFill = True
+                    else:
+                        pass
+                    if dtHasFill:
+                        if df_idx >= len(section.content):
+                            raise AttributeError("Cannot apply Type Map to Default Fill; amounts of types exceed fills")
+                        df = section.content[df_idx]
+                        df_idx += 1
+                        df.setTD(tmEntry.td)
+                        df.tm_flags = tmEntry.flags
+                if df_idx != len(section.content):
+                    raise AttributeError("Cannot apply Type Map to Default Fill; amounts of types does not match")
+            # Now all TDs are propagated
+            for df in section.content:
+                df.initWithXMLLate()
         pass
 
     def exportXMLSection(self, section_elem, snum, section, fname_base):
