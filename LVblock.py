@@ -1776,6 +1776,10 @@ class DFDS(VarCodingBlock):
             Block.initWithXMLSection(self, section, section_elem)
         pass
 
+    def initWithXMLLate(self):
+        super().initWithXMLLate()
+        pass
+
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         self.parseData(section_num=snum)
 
@@ -1957,10 +1961,6 @@ class DTHP(Block):
             # No support for the 7.1 format
             Block.parseRSRCData(self, section_num, bldata)
 
-    def initWithXMLLate(self):
-        super().initWithXMLLate()
-        pass
-
     def initWithXMLSection(self, section, section_elem):
         snum = section.start.section_idx
         fmt = section_elem.get("Format")
@@ -1982,6 +1982,10 @@ class DTHP(Block):
                     raise AttributeError("Section contains unexpected tag")
         else:
             Block.initWithXMLSection(self, section, section_elem)
+        pass
+
+    def initWithXMLLate(self):
+        super().initWithXMLLate()
         pass
 
     def updateSectionData(self, section_num=None):
@@ -3727,6 +3731,14 @@ class VCTP(Block):
                     raise AttributeError("Section contains unexpected tag")
         else:
             Block.initWithXMLSection(self, section, section_elem)
+        pass
+
+    def initWithXMLLate(self):
+        super().initWithXMLLate()
+        for snum in self.sections:
+            section = self.sections[snum]
+            for connobj in section.content:
+                connobj.initWithXMLLate()
         pass
 
     def updateSectionData(self, section_num=None):

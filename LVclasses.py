@@ -61,6 +61,14 @@ class LVObject:
         """
         pass
 
+    def initWithXMLLate(self):
+        """ Late part of object loading from XML file
+
+        Can access some basic data from other blocks and sections.
+        Useful only if properties needs an update after other blocks are accessible.
+        """
+        pass
+
     def exportXML(self, obj_elem, fname_base):
         """ Fills XML branch with properties of the object.
 
@@ -355,6 +363,9 @@ class LVVariant(LVObject):
         vartype2 = obj_elem.get("VarType2")
         if vartype2 is not None:
             self.vartype2 = int(vartype2, 0)
+        autoVersion = (obj_elem.get("Version") == "auto")
+        if autoVersion:
+            self.version["auto"] = True # Existence of this key marks the need to replace version
         for subelem in obj_elem:
             if (subelem.tag == "Version"):
                 ver = {}
@@ -364,6 +375,9 @@ class LVVariant(LVObject):
                 ver['stage_text'] = subelem.get("Stage")
                 ver['build'] = int(subelem.get("Build"), 0)
                 ver['flags'] = int(subelem.get("Flags"), 0)
+                if "auto" in self.version:
+                    eprint("{:s}: Warning: {:s} {:d} uses auto version but has <Version> tag"\
+                      .format(self.vi.src_fname, type(self).__name__, self.index))
                 self.version = ver
                 # the call below sets numeric 'stage' from text; we do not care for actual encoding
                 encodeVersion(self.version)
@@ -386,18 +400,36 @@ class LVVariant(LVObject):
                 raise AttributeError("LVVariant subtree contains unexpected tag")
         pass
 
+    def initWithXMLLate(self):
+        super().initWithXMLLate()
+        if "auto" in self.version:
+            ver = self.vi.getFileVersion()
+            self.version = ver.copy()
+        for attrib in self.attrs:
+            attrib.value.initWithXMLLate()
+        pass
+
     def exportXML(self, obj_elem, fname_base):
         obj_elem.tag = "LVVariant"
         obj_elem.set("HasVarItem2", "{:d}".format(self.hasvaritem2))
         if self.hasvaritem2 != 0:
             obj_elem.set("VarType2", "{:d}".format(self.vartype2))
-        subelem = ET.SubElement(obj_elem,"Version")
-        subelem.set("Major", "{:d}".format(self.version['major']))
-        subelem.set("Minor", "{:d}".format(self.version['minor']))
-        subelem.set("Bugfix", "{:d}".format(self.version['bugfix']))
-        subelem.set("Stage", "{:s}".format(self.version['stage_text']))
-        subelem.set("Build", "{:d}".format(self.version['build']))
-        subelem.set("Flags", "0x{:X}".format(self.version['flags']))
+        # Check whether we want to store version
+        auto_ver = self.vi.getFileVersion()
+        if all(self.version[k] == auto_ver[k] for k in ('major','minor','bugfix','stage','build','flags')):
+            autoVersion = False#TODO set to True when updating the version in initWithXMLLate() works
+        else:
+            autoVersion = False
+        if autoVersion:
+            obj_elem.set("Version", "{:s}".format("auto"))
+        else:
+            subelem = ET.SubElement(obj_elem,"Version")
+            subelem.set("Major", "{:d}".format(self.version['major']))
+            subelem.set("Minor", "{:d}".format(self.version['minor']))
+            subelem.set("Bugfix", "{:d}".format(self.version['bugfix']))
+            subelem.set("Stage", "{:s}".format(self.version['stage_text']))
+            subelem.set("Build", "{:d}".format(self.version['build']))
+            subelem.set("Flags", "0x{:X}".format(self.version['flags']))
         idx = -1
         for client in self.clients2:
             if client.index != -1:

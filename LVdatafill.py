@@ -106,6 +106,9 @@ class DataFill:
             tagName = tdEnToName(self.tdType)
         return tagName
 
+    def initWithXMLLate(self):
+        pass
+
     def exportXML(self, td_elem, fname_base):
         #self.parseData() # no need, as we never store default fill in raw form
         pass

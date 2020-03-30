@@ -329,6 +329,14 @@ class ConnectorObject:
             raise NotImplementedError("Unsupported Connector {} Format '{}'.".format(self.index,fmt))
         pass
 
+    def initWithXMLLate(self):
+        """ Late part of TD loading from XML file
+
+        Can access some basic data from other blocks and sections.
+        Useful only if properties needs an update after other blocks are accessible.
+        """
+        pass
+
     @staticmethod
     def parseRSRCDataHeader(bldata):
         obj_len = readVariableSizeFieldU2p2(bldata)
@@ -1073,6 +1081,12 @@ class ConnectorObjectTag(ConnectorObject):
             ConnectorObject.initWithXML(self, conn_elem)
         pass
 
+    def initWithXMLLate(self):
+        super().initWithXMLLate()
+        if self.variobj is not None:
+            self.variobj.initWithXMLLate()
+        pass
+
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
 
@@ -1582,6 +1596,13 @@ class ConnectorObjectTypeDef(ConnectorObject):
             ConnectorObject.initWithXML(self, conn_elem)
         pass
 
+    def initWithXMLLate(self):
+        super().initWithXMLLate()
+        for client in self.clients:
+            if client.index < 0:
+                client.nested.initWithXMLLate()
+        pass
+
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
 
@@ -2036,6 +2057,14 @@ class ConnectorObjectRef(ConnectorObject):
             ConnectorObject.initWithXML(self, conn_elem)
         pass
 
+    def initWithXMLLate(self):
+        super().initWithXMLLate()
+        #if self.ref_obj is not None: # currently refnums have no initWithXMLLate
+        #    self.ref_obj.initWithXMLLate()
+        for obj in self.objects:
+            obj.initWithXMLLate()
+        pass
+
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
 
@@ -2164,6 +2193,13 @@ class ConnectorObjectCluster(ConnectorObject):
 
         else:
             ConnectorObject.initWithXML(self, conn_elem)
+        pass
+
+    def initWithXMLLate(self):
+        super().initWithXMLLate()
+        for client in self.clients:
+            if client.index < 0:
+                client.nested.initWithXMLLate()
         pass
 
     def exportXML(self, conn_elem, fname_base):
@@ -2521,6 +2557,13 @@ class ConnectorObjectSingleContainer(ConnectorObject):
 
         else:
             ConnectorObject.initWithXML(self, conn_elem)
+        pass
+
+    def initWithXMLLate(self):
+        super().initWithXMLLate()
+        for client in self.clients:
+            if client.index < 0:
+                client.nested.initWithXMLLate()
         pass
 
     def exportXML(self, conn_elem, fname_base):
