@@ -1818,8 +1818,7 @@ class DFDS(VarCodingBlock):
                             raise AttributeError("Cannot apply Type Map to Default Fill; amounts of types exceed fills")
                         df = section.content[df_idx]
                         df_idx += 1
-                        df.setTD(tmEntry.td)
-                        df.tm_flags = tmEntry.flags
+                        df.setTD(tmEntry.td, tmEntry.flags)
                 if df_idx != len(section.content):
                     raise AttributeError("Cannot apply Type Map to Default Fill; amounts of types does not match")
             # Now all TDs are propagated

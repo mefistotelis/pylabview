@@ -27,15 +27,15 @@ import LVconnectorref
 
 
 class DataFill:
-    def __init__(self, vi, idx, tm_flags, tdType, tdSubType, po):
+    def __init__(self, vi, idx, tdType, tdSubType, po):
         """ Creates new DataFill object, capable of handling generic data.
         """
         self.vi = vi
         self.po = po
         self.index = idx
-        self.tm_flags = tm_flags
         self.tdType = tdType
         self.tdSubType = tdSubType
+        self.tm_flags = None
         self.td = None
         self.value = None
 
@@ -71,8 +71,9 @@ class DataFill:
         return False
 
 
-    def setTD(self, td):
+    def setTD(self, td, tm_flags = 0):
         self.td = td
+        self.tm_flags = tm_flags
 
     def initWithRSRC(self, bldata):
         self.initWithRSRCParse(bldata)
@@ -754,11 +755,11 @@ def newSpecialDSTMClusterWithTD(vi, idx, tm_flags, td, po):
     from LVconnector import CONNECTOR_FULL_TYPE
     tdType = td.fullType()
     tdSubType = None
-    df = SpecialDSTMCluster(vi, idx, tm_flags, tdType, tdSubType, po)
-    df.setTD(td)
+    df = SpecialDSTMCluster(vi, idx, tdType, tdSubType, po)
+    df.setTD(td, tm_flags)
     return df
 
-def newDataFillRefnum(vi, idx, tm_flags, tdType, tdSubType, po):
+def newDataFillRefnum(vi, idx, tdType, tdSubType, po):
     """ Creates and returns new data fill object for refnum with given parameters
     """
     from LVconnectorref import REFNUM_TYPE
@@ -775,10 +776,10 @@ def newDataFillRefnum(vi, idx, tm_flags, tdType, tdSubType, po):
     if ctor is None:
         raise RuntimeError("Data type Refnum kind {}: No known way to read default data"\
           .format(enumOrIntToName(refType),str(e)))
-    return ctor(vi, idx, tm_flags, tdType, tdSubType, po)
+    return ctor(vi, idx, tdType, tdSubType, po)
 
 
-def newDataFillObject(vi, idx, tm_flags, tdType, tdSubType, po):
+def newDataFillObject(vi, idx, tdType, tdSubType, po):
     """ Creates and returns new data fill object with given parameters
     """
     from LVconnector import CONNECTOR_FULL_TYPE
@@ -842,7 +843,7 @@ def newDataFillObject(vi, idx, tm_flags, tdType, tdSubType, po):
     if ctor is None:
         raise RuntimeError("Data type {}: No known way to read default data"\
           .format(enumOrIntToName(tdType),str(e)))
-    return ctor(vi, idx, tm_flags, tdType, tdSubType, po)
+    return ctor(vi, idx, tdType, tdSubType, po)
 
 def newDataFillObjectWithTD(vi, idx, tm_flags, td, po):
     """ Creates and returns new data fill object with given parameters
@@ -855,6 +856,6 @@ def newDataFillObjectWithTD(vi, idx, tm_flags, td, po):
         tdSubType = td.refType()
     else:
         tdSubType = None
-    df = newDataFillObject(vi, idx, tm_flags, tdType, tdSubType, po)
-    df.setTD(td)
+    df = newDataFillObject(vi, idx, tdType, tdSubType, po)
+    df.setTD(td, tm_flags)
     return df
