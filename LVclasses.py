@@ -417,7 +417,7 @@ class LVVariant(LVObject):
         # Check whether we want to store version
         auto_ver = self.vi.getFileVersion()
         if all(self.version[k] == auto_ver[k] for k in ('major','minor','bugfix','stage','build','flags')):
-            autoVersion = False#TODO set to True when updating the version in initWithXMLLate() works
+            autoVersion = True
         else:
             autoVersion = False
         if autoVersion:
