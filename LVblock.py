@@ -1865,6 +1865,20 @@ class GCDI(Block):
         super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
 
+class CGRS(VarCodingBlock):
+    """ Conglomerate Resource
+
+    Stores a RSRC file, though the file inside is not stand-alone - has no info section.
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+    def setDefaultEncoding(self):
+        ver = self.vi.getFileVersion()
+        self.defaultBlockCoding = BLOCK_CODING.ZLIB
+
+
 class CPMp(Block):
     """ Connection Points Map
     """
@@ -3923,7 +3937,7 @@ class VICD(VarCodingBlock):
     def setDefaultEncoding(self):
         ver = self.vi.getFileVersion()
         # verified NONE in 5.1, ZLIB in 8.6
-        if isGreaterOrEqVersion(ver, 6,0,0):
+        if isGreaterOrEqVersion(ver, 8,0,0,3):
             self.defaultBlockCoding = BLOCK_CODING.ZLIB
         else:
             self.defaultBlockCoding = BLOCK_CODING.NONE
