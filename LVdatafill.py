@@ -27,14 +27,14 @@ import LVconnectorref
 
 
 class DataFill:
-    def __init__(self, vi, idx, tdType, tdSubType, po):
+    def __init__(self, vi, tdType, tdSubType, po):
         """ Creates new DataFill object, capable of handling generic data.
         """
         self.vi = vi
         self.po = po
-        self.index = idx
         self.tdType = tdType
         self.tdSubType = tdSubType
+        self.index = -1
         self.tm_flags = None
         self.td = None
         self.value = None
@@ -71,7 +71,8 @@ class DataFill:
         return False
 
 
-    def setTD(self, td, tm_flags = 0):
+    def setTD(self, td, idx, tm_flags = 0):
+        self.index = idx
         self.td = td
         self.tm_flags = tm_flags
 
@@ -103,12 +104,22 @@ class DataFill:
         return tagName
 
     def initWithXML(self, df_elem):
+        """ Early part of Data Fill loading from XML file
+
+        At the point it is executed, other sections are inaccessible.
+        To be overriden by child classes which want to load more properties from XML.
+        """
         pass
 
     def initWithXMLLate(self):
+        """ Late part of Data Fill loading from XML file
+
+        Can access some basic data from other blocks and sections.
+        Useful only if properties needs an update after other blocks are accessible.
+        """
         pass
 
-    def exportXML(self, td_elem, fname_base):
+    def exportXML(self, df_elem, fname_base):
         #self.parseData() # no need, as we never store default fill in raw form
         pass
 
@@ -116,6 +127,12 @@ class DataFill:
 class DataFillVoid(DataFill):
     def initWithRSRCParse(self, bldata):
         self.value = None
+
+    def initWithXML(self, df_elem):
+        pass
+
+    def exportXML(self, df_elem, fname_base):
+        pass
 
 
 class DataFillInt(DataFill):
@@ -163,8 +180,12 @@ class DataFillInt(DataFill):
     def initWithRSRCParse(self, bldata):
         self.value = int.from_bytes(bldata.read(self.size), byteorder='big', signed=self.signed)
 
-    def exportXML(self, td_elem, fname_base):
-        td_elem.text = "{:d}".format(self.value)
+    def initWithXML(self, df_elem):
+        self.value = int(df_elem.text, 0)
+        pass
+
+    def exportXML(self, df_elem, fname_base):
+        df_elem.text = "{:d}".format(self.value)
         pass
 
 
@@ -181,8 +202,12 @@ class DataFillFloat(DataFill):
             raise RuntimeError("Class {} used for unexpected type {}"\
               .format(type(self).__name__, self.getXMLTagName()))
 
-    def exportXML(self, td_elem, fname_base):
-        td_elem.text = "{:g}".format(self.value)
+    def initWithXML(self, df_elem):
+        self.value = float(df_elem.text)
+        pass
+
+    def exportXML(self, df_elem, fname_base):
+        df_elem.text = "{:g}".format(self.value)
         pass
 
 
@@ -199,10 +224,16 @@ class DataFillComplex(DataFill):
             raise RuntimeError("Class {} used for unexpected type {}"\
               .format(type(self).__name__, self.getXMLTagName()))
 
-    def exportXML(self, td_elem, fname_base):
-        tags = ("real", "imag",)
+    def initWithXML(self, df_elem):
+        valRe = float(df_elem.find('real').text)
+        valIm = float(df_elem.find('imag').text)
+        self.value = (valRe,valIm,)
+        pass
+
+    def exportXML(self, df_elem, fname_base):
+        tags = ('real', 'imag',)
         for i, val in enumerate(self.value):
-            subelem = ET.SubElement(td_elem, tags[i])
+            subelem = ET.SubElement(df_elem, tags[i])
             subelem.text = "{:g}".format(val)
         pass
 
@@ -226,8 +257,12 @@ class DataFillBool(DataFill):
     def initWithRSRCParse(self, bldata):
         self.value = int.from_bytes(bldata.read(self.size), byteorder='big', signed=False)
 
-    def exportXML(self, td_elem, fname_base):
-        td_elem.text = str(self.value)
+    def initWithXML(self, df_elem):
+        self.value = int(df_elem.text, 0)
+        pass
+
+    def exportXML(self, df_elem, fname_base):
+        df_elem.text = str(self.value)
         pass
 
 
@@ -238,9 +273,9 @@ class DataFillString(DataFill):
         # part to the size (self.td.prop1 & 0x7fffffff) is used; but the length stored is still valid
         self.value = bldata.read(strlen)
 
-    def exportXML(self, td_elem, fname_base):
+    def exportXML(self, df_elem, fname_base):
         elemText = self.value.decode(self.vi.textEncoding)
-        ET.safe_store_element_text(td_elem, elemText)
+        ET.safe_store_element_text(df_elem, elemText)
         pass
 
 
@@ -258,8 +293,21 @@ class DataFillPath(DataFill):
         bldata.seek(startPos)
         self.value.parseRSRCData(bldata)
 
-    def exportXML(self, td_elem, fname_base):
-        self.value.exportXML(td_elem, fname_base)
+    def initWithXML(self, df_elem):
+        for subelem in df_elem:
+            clsident = subelem.tag
+            if clsident == b'PTH0':
+                self.value = LVclasses.LVPath0(self.vi, self.po)
+            elif clsident in (b'PTH1', b'PTH2',):
+                self.value = LVclasses.LVPath1(self.vi, self.po)
+            else:
+                raise RuntimeError("Data fill {} contains path data of unrecognized class {}"\
+              .format(self.getXMLTagName(),clsident))
+        self.value.initWithXML(subelem)
+        pass
+
+    def exportXML(self, df_elem, fname_base):
+        self.value.exportXML(df_elem, fname_base)
         pass
 
 
@@ -268,8 +316,12 @@ class DataFillCString(DataFill):
         # No idea why sonething which looks like string type stores 32-bit value instead
         self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
-    def exportXML(self, td_elem, fname_base):
-        td_elem.text = "{:d}".format(self.value)
+    def initWithXML(self, df_elem):
+        self.value = int(df_elem.text, 0)
+        pass
+
+    def exportXML(self, df_elem, fname_base):
+        df_elem.text = "{:d}".format(self.value)
         pass
 
 
@@ -312,12 +364,34 @@ class DataFillArray(DataFill):
                 raise RuntimeError("Data type {}: {}".format(enumOrIntToName(sub_td.fullType()), str(e)))
         pass
 
-    def exportXML(self, td_elem, fname_base):
+    def initWithXML(self, df_elem):
+        self.dimensions = []
+        self.value = []
+        for i, subelem in enumerate(df_elem):
+            if (subelem.tag == 'dim'):
+                val = int(df_elem.text, 0)
+                self.dimensions.append(val)
+                continue
+            tdType = LVconnector.tdNameToEnum(subelem.tag)
+            if tdType is None:
+                raise AttributeError("Class {} encountered unexpected tag '{}'".format(type(self).__name__, subelem.tag))
+            if tdType == LVconnector.CONNECTOR_FULL_TYPE.MeasureData:
+                tdSubType = LVconnector.mdFlavorNameToEnum(subelem.tag)
+            elif tdType == LVconnector.CONNECTOR_FULL_TYPE.Refnum:
+                tdSubType = LVconnectorref.refnumNameToEnum(subelem.tag)
+            else:
+                tdSubType = None
+            sub_df = newDataFillObject(vi, tdType, tdSubType, po)
+            sub_df.initWithXML(subelem)
+            self.value.append(sub_df)
+        pass
+
+    def exportXML(self, df_elem, fname_base):
         for i, dim in enumerate(self.dimensions):
-            subelem = ET.SubElement(td_elem, "dim")
+            subelem = ET.SubElement(df_elem, 'dim')
             subelem.text = "{:d}".format(dim)
         for i, sub_df in enumerate(self.value):
-            subelem = ET.SubElement(td_elem, sub_df.getXMLTagName())
+            subelem = ET.SubElement(df_elem, sub_df.getXMLTagName())
             sub_df.exportXML(subelem, fname_base)
         pass
 
@@ -326,8 +400,12 @@ class DataFillArrayDataPtr(DataFill):
     def initWithRSRCParse(self, bldata):
         self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
-    def exportXML(self, td_elem, fname_base):
-        td_elem.text = "{:d}".format(self.value)
+    def initWithXML(self, df_elem):
+        self.value = int(df_elem.text, 0)
+        pass
+
+    def exportXML(self, df_elem, fname_base):
+        df_elem.text = "{:d}".format(self.value)
         pass
 
 
@@ -343,9 +421,26 @@ class DataFillCluster(DataFill):
                 raise RuntimeError("Data type {}: {}".format(enumOrIntToName(sub_td.fullType()), str(e)))
         pass
 
-    def exportXML(self, td_elem, fname_base):
+    def initWithXML(self, df_elem):
+        self.value = []
+        for i, subelem in enumerate(df_elem):
+            tdType = LVconnector.tdNameToEnum(subelem.tag)
+            if tdType is None:
+                raise AttributeError("Class {} encountered unexpected tag '{}'".format(type(self).__name__, subelem.tag))
+            if tdType == LVconnector.CONNECTOR_FULL_TYPE.MeasureData:
+                tdSubType = LVconnector.mdFlavorNameToEnum(subelem.tag)
+            elif tdType == LVconnector.CONNECTOR_FULL_TYPE.Refnum:
+                tdSubType = LVconnectorref.refnumNameToEnum(subelem.tag)
+            else:
+                tdSubType = None
+            sub_df = newDataFillObject(vi, tdType, tdSubType, po)
+            sub_df.initWithXML(subelem)
+            self.value.append(sub_df)
+        pass
+
+    def exportXML(self, df_elem, fname_base):
         for i, sub_df in enumerate(self.value):
-            subelem = ET.SubElement(td_elem, sub_df.getXMLTagName())
+            subelem = ET.SubElement(df_elem, sub_df.getXMLTagName())
             sub_df.exportXML(subelem, fname_base)
         pass
 
@@ -359,8 +454,18 @@ class DataFillLVVariant(DataFill):
             self.value = LVclasses.OleVariant(0, self.vi, self.po)
         self.value.parseRSRCData(bldata)
 
-    def exportXML(self, td_elem, fname_base):
-        self.value.exportXML(td_elem, fname_base)
+    def initWithXML(self, df_elem):
+        if df_elem.tag == LVclasses.LVVariant.__name__:
+            self.value = LVclasses.LVVariant(0, self.vi, self.po, useConsolidatedTypes=True, allowFillValue=True)
+        elif df_elem.tag == LVclasses.OleVariant.__name__:
+            self.value = LVclasses.OleVariant(0, self.vi, self.po)
+        else:
+            raise AttributeError("Class {} encountered unexpected tag '{}'".format(type(self).__name__, df_elem.tag))
+        self.value.initWithXML(df_elem)
+        pass
+
+    def exportXML(self, df_elem, fname_base):
+        self.value.exportXML(df_elem, fname_base)
         pass
 
 
@@ -451,9 +556,26 @@ class DataFillMeasureData(DataFill):
               .format(enumOrIntToName(self.containedTd.fullType()), str(e)))
         pass
 
-    def exportXML(self, td_elem, fname_base):
+    def initWithXML(self, df_elem):
+        self.value = []
+        for i, subelem in enumerate(df_elem):
+            tdType = LVconnector.tdNameToEnum(subelem.tag)
+            if tdType is None:
+                raise AttributeError("Class {} encountered unexpected tag '{}'".format(type(self).__name__, subelem.tag))
+            if tdType == LVconnector.CONNECTOR_FULL_TYPE.MeasureData:
+                tdSubType = LVconnector.mdFlavorNameToEnum(subelem.tag)
+            elif tdType == LVconnector.CONNECTOR_FULL_TYPE.Refnum:
+                tdSubType = LVconnectorref.refnumNameToEnum(subelem.tag)
+            else:
+                tdSubType = None
+            sub_df = newDataFillObject(vi, tdType, tdSubType, po)
+            sub_df.initWithXML(subelem)
+            self.value.append(sub_df)
+        pass
+
+    def exportXML(self, df_elem, fname_base):
         for i, sub_df in enumerate(self.value):
-            subelem = ET.SubElement(td_elem, sub_df.getXMLTagName())
+            subelem = ET.SubElement(df_elem, sub_df.getXMLTagName())
             sub_df.exportXML(subelem, fname_base)
         pass
 
@@ -479,11 +601,26 @@ class DataFillComplexFixedPt(DataFill):
                 self.vflags[i] = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         pass
 
-    def exportXML(self, td_elem, fname_base):
+    def initWithXML(self, df_elem):
+        subelem = df_elem.find('real')
+        valRe = int(subelem.text, 0)
+        flagRe = subelem.get("Flags")
+        if flagRe is not None:
+            flagRe = int(flagRe, 0)
+        subelem = df_elem.find('imag')
+        valIm = int(subelem.text, 0)
+        flagIm = subelem.get("Flags")
+        if flagIm is not None:
+            flagIm = int(flagIm, 0)
+        self.value = [valRe,valIm,]
+        self.vflags = [flagRe,flagIm,]
+        pass
+
+    def exportXML(self, df_elem, fname_base):
         tags = ("real", "imag",)
         for i, val in enumerate(self.value):
-            subelem = ET.SubElement(td_elem, tags[i])
-            subelem.text = "{:g}".format(val)
+            subelem = ET.SubElement(df_elem, tags[i])
+            subelem.text = "{:d}".format(val)
             subelem.set("Flags", "0x{:02X}".format(self.vflags[i]))
         pass
 
@@ -491,12 +628,28 @@ class DataFillComplexFixedPt(DataFill):
 class DataFillFixedPoint(DataFill):
     def __init__(self, *args):
         super().__init__(*args)
+        self.vflags = None
 
     def initWithRSRCParse(self, bldata):
-        self.value = bldata.read(self.td.blkSize)
+        self.value = int.from_bytes(bldata.read(8), byteorder='big', signed=False)
+        if self.td.allocOv:
+            self.vflags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        else:
+            self.vflags = None
 
-    def exportXML(self, td_elem, fname_base):
-        td_elem.text = self.value.hex()
+    def initWithXML(self, df_elem):
+        valRe = int(df_elem.text, 0)
+        flagRe = df_elem.get("Flags")
+        if flagRe is not None:
+            flagRe = int(flagRe, 0)
+        self.value = valRe
+        self.vflags = flagRe
+        pass
+
+    def exportXML(self, df_elem, fname_base):
+        df_elem.text = "{:d}".format(self.value)
+        if self.vflags is not None:
+            df_elem.set("Flags", "0x{:02X}".format(self.vflags))
         pass
 
 
@@ -504,8 +657,12 @@ class DataFillBlock(DataFill):
     def initWithRSRCParse(self, bldata):
         self.value = bldata.read(self.td.blkSize)
 
-    def exportXML(self, td_elem, fname_base):
-        td_elem.text = self.value.hex()
+    def initWithXML(self, df_elem):
+        self.value = bytes.fromhex(df_elem.text)
+        pass
+
+    def exportXML(self, df_elem, fname_base):
+        df_elem.text = self.value.hex()
         pass
 
 
@@ -526,9 +683,26 @@ class DataFillRepeatedBlock(DataFill):
                 raise RuntimeError("Data type {}: {}".format(enumOrIntToName(sub_td.fullType()), str(e)))
         pass
 
-    def exportXML(self, td_elem, fname_base):
+    def initWithXML(self, df_elem):
+        self.value = []
+        for i, subelem in enumerate(df_elem):
+            tdType = LVconnector.tdNameToEnum(subelem.tag)
+            if tdType is None:
+                raise AttributeError("Class {} encountered unexpected tag '{}'".format(type(self).__name__, subelem.tag))
+            if tdType == LVconnector.CONNECTOR_FULL_TYPE.MeasureData:
+                tdSubType = LVconnector.mdFlavorNameToEnum(subelem.tag)
+            elif tdType == LVconnector.CONNECTOR_FULL_TYPE.Refnum:
+                tdSubType = LVconnectorref.refnumNameToEnum(subelem.tag)
+            else:
+                tdSubType = None
+            sub_df = newDataFillObject(vi, tdType, tdSubType, po)
+            sub_df.initWithXML(subelem)
+            self.value.append(sub_df)
+        pass
+
+    def exportXML(self, df_elem, fname_base):
         for i, sub_df in enumerate(self.value):
-            subelem = ET.SubElement(td_elem, sub_df.getXMLTagName())
+            subelem = ET.SubElement(df_elem, sub_df.getXMLTagName())
             sub_df.exportXML(subelem, fname_base)
         pass
 
@@ -542,8 +716,12 @@ class DataFillSimpleRefnum(DataFill):
         # The format seem to be different for LV6.0.0 and older, but still 4 bytes
         self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
-    def exportXML(self, td_elem, fname_base):
-        td_elem.text = "{:d}".format(self.value)
+    def initWithXML(self, df_elem):
+        self.value = int(df_elem.text, 0)
+        pass
+
+    def exportXML(self, df_elem, fname_base):
+        df_elem.text = "{:d}".format(self.value)
         pass
 
 
@@ -563,14 +741,24 @@ class DataFillIORefnum(DataFill):
         else:
             self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
-    def exportXML(self, td_elem, fname_base):
+    def initWithXML(self, df_elem):
+        storedAs = df_elem.get("StoredAs")
+        if storedAs == "String":
+            self.value = df_elem.text.encode(self.vi.textEncoding)
+        elif storedAs == "Int":
+            self.value = int(df_elem.text, 0)
+        else:
+            raise AttributeError("Class {} encountered unexpected StoredAs value '{}'".format(type(self).__name__, storedAs))
+        pass
+
+    def exportXML(self, df_elem, fname_base):
         if isinstance(self.value, (bytes, bytearray,)):
             elemText = self.value.decode(self.vi.textEncoding)
-            ET.safe_store_element_text(td_elem, elemText)
-            td_elem.set("StoredAs", "String")
+            ET.safe_store_element_text(df_elem, elemText)
+            df_elem.set("StoredAs", "String")
         else:
-            td_elem.text = "{:d}".format(self.value)
-            td_elem.set("StoredAs", "Int")
+            df_elem.text = "{:d}".format(self.value)
+            df_elem.set("StoredAs", "Int")
         pass
 
 
@@ -582,8 +770,12 @@ class DataFillUDRefnum(DataFill):
     def initWithRSRCParse(self, bldata):
         self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
-    def exportXML(self, td_elem, fname_base):
-        td_elem.text = "{:d}".format(self.value)
+    def initWithXML(self, df_elem):
+        self.value = int(df_elem.text, 0)
+        pass
+
+    def exportXML(self, df_elem, fname_base):
+        df_elem.text = "{:d}".format(self.value)
         pass
 
 
@@ -624,23 +816,48 @@ class DataFillUDTagRefnum(DataFill):
             strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             self.usrdef4 = bldata.read(strlen)
 
-    def exportXML(self, td_elem, fname_base):
+    def initWithXML(self, df_elem):
+        self.usrdef1 = None
+        self.usrdef2 = None
+        self.usrdef3 = None
+        self.usrdef4 = None
+        self.value = df_elem.text.encode(self.vi.textEncoding)
+        usrdef = df_elem.get("UsrDef1")
+        if usrdef is not None:
+            self.usrdef1 = usrdef.encode(self.vi.textEncoding)
+        usrdef = df_elem.get("UsrDef2")
+        if usrdef is not None:
+            self.usrdef2 = usrdef.encode(self.vi.textEncoding)
+        usrdef = df_elem.get("UsrDef3")
+        if usrdef is not None:
+            self.usrdef3 = int(usrdef, 0)
+        usrdef = df_elem.get("UsrDef4")
+        if usrdef is not None:
+            self.usrdef4 = usrdef.encode(self.vi.textEncoding)
+        pass
+
+    def exportXML(self, df_elem, fname_base):
         elemText = self.value.decode(self.vi.textEncoding)
-        ET.safe_store_element_text(td_elem, elemText)
+        ET.safe_store_element_text(df_elem, elemText)
         if self.usrdef1 is not None:
-            td_elem.set("UsrDef1", self.usrdef1.decode(self.vi.textEncoding))
+            df_elem.set("UsrDef1", self.usrdef1.decode(self.vi.textEncoding))
         if self.usrdef2 is not None:
-            td_elem.set("UsrDef2", self.usrdef2.decode(self.vi.textEncoding))
+            df_elem.set("UsrDef2", self.usrdef2.decode(self.vi.textEncoding))
         if self.usrdef3 is not None:
-            td_elem.set("UsrDef3", "{:d}".format(self.usrdef3))
+            df_elem.set("UsrDef3", "{:d}".format(self.usrdef3))
         if self.usrdef4 is not None:
-            td_elem.set("UsrDef4", self.usrdef4.decode(self.vi.textEncoding))
+            df_elem.set("UsrDef4", self.usrdef4.decode(self.vi.textEncoding))
         pass
 
 
 class DataFillUDClassInst(DataFill):
     """ Data Fill for UDClassInst Refnum types.
     """
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.value = []
+        self.libName = b''
+
     def initWithRSRCParse(self, bldata):
         self.value = []
         numLevels = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
@@ -656,13 +873,26 @@ class DataFillUDClassInst(DataFill):
             libVersion = bldata.read(datalen)
             self.value.append(libVersion)
 
-    def exportXML(self, td_elem, fname_base):
+    def initWithXML(self, df_elem):
+        self.value = []
+        self.libName = b''
+        for i, subelem in enumerate(df_elem):
+            if subelem.tag == "LibName":
+                self.libName = subelem.text.encode(self.vi.textEncoding)
+            elif subelem.tag == "LibVersion":
+                val = subelem.text.encode(self.vi.textEncoding)
+                self.value.append(val)
+            else:
+                raise AttributeError("Class {} encountered unexpected tag '{}'".format(type(self).__name__, subelem.tag))
+        pass
+
+    def exportXML(self, df_elem, fname_base):
         if True:
-            subelem = ET.SubElement(td_elem, "LibName")
+            subelem = ET.SubElement(df_elem, "LibName")
             elemText = self.libName.decode(self.vi.textEncoding)
             ET.safe_store_element_text(subelem, elemText)
         for i, libVersion in enumerate(self.value):
-            subelem = ET.SubElement(td_elem, "LibVersion")
+            subelem = ET.SubElement(df_elem, "LibVersion")
             elemText = libVersion.decode(self.vi.textEncoding)
             ET.safe_store_element_text(subelem, elemText)
         pass
@@ -676,8 +906,15 @@ class DataFillPtr(DataFill):
         else:
             self.value = None
 
-    def exportXML(self, td_elem, fname_base):
-        td_elem.text = "{}".format(self.value)
+    def initWithXML(self, df_elem):
+        if df_elem.text != "None":
+            self.value = int(df_elem.text, 0)
+        else:
+            self.value = None
+        pass
+
+    def exportXML(self, df_elem, fname_base):
+        df_elem.text = "{}".format(self.value)
         pass
 
 
@@ -685,10 +922,21 @@ class DataFillPtrTo(DataFill):
     def initWithRSRCParse(self, bldata):
         self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
+    def initWithXML(self, df_elem):
+        self.value = int(df_elem.text, 0)
+        pass
+
+    def exportXML(self, df_elem, fname_base):
+        df_elem.text = "{:d}".format(self.value)
+        pass
+
 
 class DataFillExtData(DataFill):
     def initWithRSRCParse(self, bldata):
         self.value = None # TODO implement reading ExtData
+        raise NotImplementedError("ExtData default value read is not implemented")
+
+    def initWithXML(self, df_elem):
         raise NotImplementedError("ExtData default value read is not implemented")
 
 
@@ -701,6 +949,15 @@ class DataFillUnexpected(DataFill):
         self.value = None
         eprint("{:s}: Warning: Data fill asks to read default value of {} type, this should never happen."\
           .format(self.vi.src_fname, self.getXMLTagName()))
+
+    def initWithXML(self, df_elem):
+        self.value = None
+        eprint("{:s}: Warning: Data fill parsing found default value of {} type, this should never happen."\
+          .format(self.vi.src_fname, self.getXMLTagName()))
+        pass
+
+    def exportXML(self, df_elem, fname_base):
+        pass
 
 
 class DataFillTypeDef(DataFill):
@@ -716,14 +973,31 @@ class DataFillTypeDef(DataFill):
                 raise RuntimeError("Data type {}: {}".format(enumOrIntToName(client.nested.fullType()), str(e)))
         pass
 
-    def exportXML(self, td_elem, fname_base):
+    def initWithXML(self, df_elem):
+        self.value = []
+        for i, subelem in enumerate(df_elem):
+            tdType = LVconnector.tdNameToEnum(subelem.tag)
+            if tdType is None:
+                raise AttributeError("Class {} encountered unexpected tag '{}'".format(type(self).__name__, subelem.tag))
+            if tdType == LVconnector.CONNECTOR_FULL_TYPE.MeasureData:
+                tdSubType = LVconnector.mdFlavorNameToEnum(subelem.tag)
+            elif tdType == LVconnector.CONNECTOR_FULL_TYPE.Refnum:
+                tdSubType = LVconnectorref.refnumNameToEnum(subelem.tag)
+            else:
+                tdSubType = None
+            sub_df = newDataFillObject(vi, tdType, tdSubType, po)
+            sub_df.initWithXML(subelem)
+            self.value.append(sub_df)
+        pass
+
+    def exportXML(self, df_elem, fname_base):
         for i, sub_df in enumerate(self.value):
-            subelem = ET.SubElement(td_elem, sub_df.getXMLTagName())
+            subelem = ET.SubElement(df_elem, sub_df.getXMLTagName())
             sub_df.exportXML(subelem, fname_base)
         pass
 
 
-class SpecialDSTMCluster(DataFill):
+class SpecialDSTMCluster(DataFillCluster):
     def initWithRSRCParse(self, bldata):
         self.value = []
         skipNextEntry = ((self.tm_flags & 0x0200) != 0)
@@ -742,12 +1016,6 @@ class SpecialDSTMCluster(DataFill):
             pass
         pass
 
-    def exportXML(self, td_elem, fname_base):
-        for i, sub_df in enumerate(self.value):
-            subelem = ET.SubElement(td_elem, sub_df.getXMLTagName())
-            sub_df.exportXML(subelem, fname_base)
-        pass
-
 
 def newSpecialDSTMClusterWithTD(vi, idx, tm_flags, td, po):
     """ Creates and returns new data fill object with given parameters
@@ -755,11 +1023,11 @@ def newSpecialDSTMClusterWithTD(vi, idx, tm_flags, td, po):
     from LVconnector import CONNECTOR_FULL_TYPE
     tdType = td.fullType()
     tdSubType = None
-    df = SpecialDSTMCluster(vi, idx, tdType, tdSubType, po)
-    df.setTD(td, tm_flags)
+    df = SpecialDSTMCluster(vi, tdType, tdSubType, po)
+    df.setTD(td, idx, tm_flags)
     return df
 
-def newDataFillRefnum(vi, idx, tdType, tdSubType, po):
+def newDataFillRefnum(vi, tdType, tdSubType, po):
     """ Creates and returns new data fill object for refnum with given parameters
     """
     from LVconnectorref import REFNUM_TYPE
@@ -776,10 +1044,10 @@ def newDataFillRefnum(vi, idx, tdType, tdSubType, po):
     if ctor is None:
         raise RuntimeError("Data type Refnum kind {}: No known way to read default data"\
           .format(enumOrIntToName(refType),str(e)))
-    return ctor(vi, idx, tdType, tdSubType, po)
+    return ctor(vi, tdType, tdSubType, po)
 
 
-def newDataFillObject(vi, idx, tdType, tdSubType, po):
+def newDataFillObject(vi, tdType, tdSubType, po):
     """ Creates and returns new data fill object with given parameters
     """
     from LVconnector import CONNECTOR_FULL_TYPE
@@ -843,7 +1111,7 @@ def newDataFillObject(vi, idx, tdType, tdSubType, po):
     if ctor is None:
         raise RuntimeError("Data type {}: No known way to read default data"\
           .format(enumOrIntToName(tdType),str(e)))
-    return ctor(vi, idx, tdType, tdSubType, po)
+    return ctor(vi, tdType, tdSubType, po)
 
 def newDataFillObjectWithTD(vi, idx, tm_flags, td, po):
     """ Creates and returns new data fill object with given parameters
@@ -856,6 +1124,6 @@ def newDataFillObjectWithTD(vi, idx, tm_flags, td, po):
         tdSubType = td.refType()
     else:
         tdSubType = None
-    df = newDataFillObject(vi, idx, tdType, tdSubType, po)
-    df.setTD(td, tm_flags)
+    df = newDataFillObject(vi, tdType, tdSubType, po)
+    df.setTD(td, idx, tm_flags)
     return df

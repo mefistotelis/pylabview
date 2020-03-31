@@ -1778,7 +1778,7 @@ class DFDS(VarCodingBlock):
                     tdSubType = LVconnectorref.refnumNameToEnum(subelem.tag)
                 else:
                     tdSubType = None
-                df = newDataFillObject(vi, idx, 0, tdType, tdSubType, po)
+                df = newDataFillObject(vi, tdType, tdSubType, po)
                 df.initWithXML(subelem)
                 section.content.append(df)
         else:
@@ -1818,7 +1818,7 @@ class DFDS(VarCodingBlock):
                             raise AttributeError("Cannot apply Type Map to Default Fill; amounts of types exceed fills")
                         df = section.content[df_idx]
                         df_idx += 1
-                        df.setTD(tmEntry.td, tmEntry.flags)
+                        df.setTD(tmEntry.td, tmEntry.index, tmEntry.flags)
                 if df_idx != len(section.content):
                     raise AttributeError("Cannot apply Type Map to Default Fill; amounts of types does not match")
             # Now all TDs are propagated

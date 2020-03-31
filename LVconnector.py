@@ -2632,6 +2632,12 @@ def tdNameToEnum(tdName):
         tagEn = CONNECTOR_FULL_TYPE(lvtdEn.value)
 
     if tagEn is None:
+        if tdName == LVclasses.LVVariant.__name__:
+            tagEn = CONNECTOR_FULL_TYPE.LVVariant
+        elif tdName == LVclasses.OleVariant.__name__:
+            tagEn = CONNECTOR_FULL_TYPE.LVVariant
+
+    if tagEn is None:
         tagParse = re.match("^TD([0-9A-F]{2,4})$", tdName)
         if tagParse is not None:
             tagEn = int(tagParse[1], 16)
