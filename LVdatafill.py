@@ -372,16 +372,7 @@ class DataFillArray(DataFill):
                 val = int(df_elem.text, 0)
                 self.dimensions.append(val)
                 continue
-            tdType = LVconnector.tdNameToEnum(subelem.tag)
-            if tdType is None:
-                raise AttributeError("Class {} encountered unexpected tag '{}'".format(type(self).__name__, subelem.tag))
-            if tdType == LVconnector.CONNECTOR_FULL_TYPE.MeasureData:
-                tdSubType = LVconnector.mdFlavorNameToEnum(subelem.tag)
-            elif tdType == LVconnector.CONNECTOR_FULL_TYPE.Refnum:
-                tdSubType = LVconnectorref.refnumNameToEnum(subelem.tag)
-            else:
-                tdSubType = None
-            sub_df = newDataFillObject(vi, tdType, tdSubType, po)
+            sub_df = newDataFillObjectWithTag(self.vi, subelem.tag, self.po)
             sub_df.initWithXML(subelem)
             self.value.append(sub_df)
         pass
@@ -424,16 +415,7 @@ class DataFillCluster(DataFill):
     def initWithXML(self, df_elem):
         self.value = []
         for i, subelem in enumerate(df_elem):
-            tdType = LVconnector.tdNameToEnum(subelem.tag)
-            if tdType is None:
-                raise AttributeError("Class {} encountered unexpected tag '{}'".format(type(self).__name__, subelem.tag))
-            if tdType == LVconnector.CONNECTOR_FULL_TYPE.MeasureData:
-                tdSubType = LVconnector.mdFlavorNameToEnum(subelem.tag)
-            elif tdType == LVconnector.CONNECTOR_FULL_TYPE.Refnum:
-                tdSubType = LVconnectorref.refnumNameToEnum(subelem.tag)
-            else:
-                tdSubType = None
-            sub_df = newDataFillObject(vi, tdType, tdSubType, po)
+            sub_df = newDataFillObjectWithTag(self.vi, subelem.tag, self.po)
             sub_df.initWithXML(subelem)
             self.value.append(sub_df)
         pass
@@ -559,16 +541,7 @@ class DataFillMeasureData(DataFill):
     def initWithXML(self, df_elem):
         self.value = []
         for i, subelem in enumerate(df_elem):
-            tdType = LVconnector.tdNameToEnum(subelem.tag)
-            if tdType is None:
-                raise AttributeError("Class {} encountered unexpected tag '{}'".format(type(self).__name__, subelem.tag))
-            if tdType == LVconnector.CONNECTOR_FULL_TYPE.MeasureData:
-                tdSubType = LVconnector.mdFlavorNameToEnum(subelem.tag)
-            elif tdType == LVconnector.CONNECTOR_FULL_TYPE.Refnum:
-                tdSubType = LVconnectorref.refnumNameToEnum(subelem.tag)
-            else:
-                tdSubType = None
-            sub_df = newDataFillObject(vi, tdType, tdSubType, po)
+            sub_df = newDataFillObjectWithTag(self.vi, subelem.tag, self.po)
             sub_df.initWithXML(subelem)
             self.value.append(sub_df)
         pass
@@ -686,16 +659,7 @@ class DataFillRepeatedBlock(DataFill):
     def initWithXML(self, df_elem):
         self.value = []
         for i, subelem in enumerate(df_elem):
-            tdType = LVconnector.tdNameToEnum(subelem.tag)
-            if tdType is None:
-                raise AttributeError("Class {} encountered unexpected tag '{}'".format(type(self).__name__, subelem.tag))
-            if tdType == LVconnector.CONNECTOR_FULL_TYPE.MeasureData:
-                tdSubType = LVconnector.mdFlavorNameToEnum(subelem.tag)
-            elif tdType == LVconnector.CONNECTOR_FULL_TYPE.Refnum:
-                tdSubType = LVconnectorref.refnumNameToEnum(subelem.tag)
-            else:
-                tdSubType = None
-            sub_df = newDataFillObject(vi, tdType, tdSubType, po)
+            sub_df = newDataFillObjectWithTag(self.vi, subelem.tag, self.po)
             sub_df.initWithXML(subelem)
             self.value.append(sub_df)
         pass
@@ -976,16 +940,7 @@ class DataFillTypeDef(DataFill):
     def initWithXML(self, df_elem):
         self.value = []
         for i, subelem in enumerate(df_elem):
-            tdType = LVconnector.tdNameToEnum(subelem.tag)
-            if tdType is None:
-                raise AttributeError("Class {} encountered unexpected tag '{}'".format(type(self).__name__, subelem.tag))
-            if tdType == LVconnector.CONNECTOR_FULL_TYPE.MeasureData:
-                tdSubType = LVconnector.mdFlavorNameToEnum(subelem.tag)
-            elif tdType == LVconnector.CONNECTOR_FULL_TYPE.Refnum:
-                tdSubType = LVconnectorref.refnumNameToEnum(subelem.tag)
-            else:
-                tdSubType = None
-            sub_df = newDataFillObject(vi, tdType, tdSubType, po)
+            sub_df = newDataFillObjectWithTag(self.vi, subelem.tag, self.po)
             sub_df.initWithXML(subelem)
             self.value.append(sub_df)
         pass
@@ -1126,4 +1081,21 @@ def newDataFillObjectWithTD(vi, idx, tm_flags, td, po):
         tdSubType = None
     df = newDataFillObject(vi, tdType, tdSubType, po)
     df.setTD(td, idx, tm_flags)
+    return df
+
+def newDataFillObjectWithTag(vi, tagName, po):
+    """ Creates and returns new data fill object from given XML tag name
+    """
+    from LVconnector import CONNECTOR_FULL_TYPE, tdNameToEnum, mdFlavorNameToEnum
+    from LVconnectorref import refnumNameToEnum
+    tdType = tdNameToEnum(tagName)
+    if tdType is None:
+        raise AttributeError("Data Fill creation encountered unexpected tag '{}'".format(tagName))
+    if tdType == CONNECTOR_FULL_TYPE.MeasureData:
+        tdSubType = LVconnector.mdFlavorNameToEnum(subelem.tag)
+    elif tdType == CONNECTOR_FULL_TYPE.Refnum:
+        tdSubType = refnumNameToEnum(subelem.tag)
+    else:
+        tdSubType = None
+    df = newDataFillObject(vi, tdType, tdSubType, po)
     return df

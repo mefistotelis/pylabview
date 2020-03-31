@@ -1769,16 +1769,7 @@ class DFDS(VarCodingBlock):
             for subelem in section_elem:
                 if (subelem.tag == "NameObject"):
                     continue # Items parsed somewhere else
-                tdType = LVconnector.tdNameToEnum(subelem.tag)
-                if tdType is None:
-                    raise AttributeError("Section contains unexpected tag")
-                if tdType == LVconnector.CONNECTOR_FULL_TYPE.MeasureData:
-                    tdSubType = LVconnector.mdFlavorNameToEnum(subelem.tag)
-                elif tdType == LVconnector.CONNECTOR_FULL_TYPE.Refnum:
-                    tdSubType = LVconnectorref.refnumNameToEnum(subelem.tag)
-                else:
-                    tdSubType = None
-                df = newDataFillObject(vi, tdType, tdSubType, po)
+                df = LVdatafill.newDataFillObjectWithTag(self.vi, subelem.tag, self.po)
                 df.initWithXML(subelem)
                 section.content.append(df)
         else:
