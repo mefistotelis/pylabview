@@ -241,6 +241,11 @@ class DataFillComplex(DataFill):
 class DataFillBool(DataFill):
     def __init__(self, *args):
         super().__init__(*args)
+        self.size = None
+
+    def initVersion(self):
+        """ Initialization part which requires access to version
+        """
         from LVdatatype import CONNECTOR_FULL_TYPE
         if self.tdType in (CONNECTOR_FULL_TYPE.BooleanU16,):
             self.size = 2
@@ -253,17 +258,20 @@ class DataFillBool(DataFill):
         else:
             raise RuntimeError("Class {} used for unexpected type {}"\
               .format(type(self).__name__, self.getXMLTagName()))
+        pass
 
     def initWithRSRCParse(self, bldata):
+        self.initVersion()
         self.value = int.from_bytes(bldata.read(self.size), byteorder='big', signed=False)
 
     def initWithXML(self, df_elem):
         self.value = int(df_elem.text, 0)
-        pass
+
+    def initWithXMLLate(self):
+        self.initVersion()
 
     def exportXML(self, df_elem, fname_base):
         df_elem.text = str(self.value)
-        pass
 
 
 class DataFillString(DataFill):
@@ -448,12 +456,16 @@ class DataFillLVVariant(DataFill):
 
     def exportXML(self, df_elem, fname_base):
         self.value.exportXML(df_elem, fname_base)
-        pass
 
 
 class DataFillMeasureData(DataFill):
     def __init__(self, *args):
         super().__init__(*args)
+        self.containedTd = None
+
+    def initVersion(self):
+        """ Initialization part which requires access to version
+        """
         ver = self.vi.getFileVersion()
         from LVdatatype import MEASURE_DATA_FLAVOR, CONNECTOR_FULL_TYPE, newConnectorObject,\
           newDigitalTableCluster, newDigitalWaveformCluster, newDynamicTableCluster,\
@@ -520,6 +532,7 @@ class DataFillMeasureData(DataFill):
         else:
             raise NotImplementedError("MeasureData {} default value read failed due to unsupported flavor"\
               .format(self.getXMLTagName()))
+        pass
 
     def prepareDict(self):
         flavorName = enumOrIntToName(self.tdSubType)
@@ -528,6 +541,7 @@ class DataFillMeasureData(DataFill):
         return d
 
     def initWithRSRCParse(self, bldata):
+        self.initVersion()
         self.value = []
         try:
             sub_df = newDataFillObjectWithTD(self.vi, -1, self.tm_flags, self.containedTd, self.po)
@@ -545,6 +559,9 @@ class DataFillMeasureData(DataFill):
             sub_df.initWithXML(subelem)
             self.value.append(sub_df)
         pass
+
+    def initWithXMLLate(self):
+        self.initVersion()
 
     def exportXML(self, df_elem, fname_base):
         for i, sub_df in enumerate(self.value):
@@ -1092,9 +1109,9 @@ def newDataFillObjectWithTag(vi, tagName, po):
     if tdType is None:
         raise AttributeError("Data Fill creation encountered unexpected tag '{}'".format(tagName))
     if tdType == CONNECTOR_FULL_TYPE.MeasureData:
-        tdSubType = LVdatatype.mdFlavorNameToEnum(subelem.tag)
+        tdSubType = LVdatatype.mdFlavorNameToEnum(tagName)
     elif tdType == CONNECTOR_FULL_TYPE.Refnum:
-        tdSubType = refnumNameToEnum(subelem.tag)
+        tdSubType = refnumNameToEnum(tagName)
     else:
         tdSubType = None
     df = newDataFillObject(vi, tdType, tdSubType, po)

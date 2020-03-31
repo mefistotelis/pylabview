@@ -201,50 +201,95 @@ class LV_INTERNAL_TD_NAMES(LVheap.ENUM_TAGS):
     """ Names of types from LV
 
     This maps the names of types this tool uses to names LV uses internally.
-    We may want to keep LV names when exporting data.
+    We may want to keep LV names when exporting data. All values from
+    CONNECTOR_FULL_TYPE should be mapped here, even if the names are identical.
     """
-    #Version = CONNECTOR_FULL_TYPE.Void,
-    I8 = CONNECTOR_FULL_TYPE.NumInt8
-    I16 = CONNECTOR_FULL_TYPE.NumInt16
-    I32 = CONNECTOR_FULL_TYPE.NumInt32
-    I64 = CONNECTOR_FULL_TYPE.NumInt64
-    U8 = CONNECTOR_FULL_TYPE.NumUInt8
-    U16 = CONNECTOR_FULL_TYPE.NumUInt16
-    U32 = CONNECTOR_FULL_TYPE.NumUInt32
-    U64 = CONNECTOR_FULL_TYPE.NumUInt64
-    EB = CONNECTOR_FULL_TYPE.UnitUInt8
-    EW = CONNECTOR_FULL_TYPE.UnitUInt16
-    EL = CONNECTOR_FULL_TYPE.UnitUInt32
-    SGL = CONNECTOR_FULL_TYPE.NumFloat32
-    DBL = CONNECTOR_FULL_TYPE.NumFloat64
-    EXT = CONNECTOR_FULL_TYPE.NumFloatExt
-    CSG = CONNECTOR_FULL_TYPE.NumComplex64
-    CDB = CONNECTOR_FULL_TYPE.NumComplex128
-    CXT = CONNECTOR_FULL_TYPE.NumComplexExt
+    Void =	CONNECTOR_FULL_TYPE.Void
+    I8 =	CONNECTOR_FULL_TYPE.NumInt8
+    I16 =	CONNECTOR_FULL_TYPE.NumInt16
+    I32 =	CONNECTOR_FULL_TYPE.NumInt32
+    I64 =	CONNECTOR_FULL_TYPE.NumInt64
+    U8 =	CONNECTOR_FULL_TYPE.NumUInt8
+    U16 =	CONNECTOR_FULL_TYPE.NumUInt16
+    U32 =	CONNECTOR_FULL_TYPE.NumUInt32
+    U64 =	CONNECTOR_FULL_TYPE.NumUInt64
+    SGL =	CONNECTOR_FULL_TYPE.NumFloat32
+    DBL =	CONNECTOR_FULL_TYPE.NumFloat64
+    EXT =	CONNECTOR_FULL_TYPE.NumFloatExt
+    CSG =	CONNECTOR_FULL_TYPE.NumComplex64
+    CDB =	CONNECTOR_FULL_TYPE.NumComplex128
+    CXT =	CONNECTOR_FULL_TYPE.NumComplexExt
+    EB =	CONNECTOR_FULL_TYPE.UnitUInt8
+    EW =	CONNECTOR_FULL_TYPE.UnitUInt16
+    EL =	CONNECTOR_FULL_TYPE.UnitUInt32
+    UnitFloat32 =	CONNECTOR_FULL_TYPE.UnitFloat32
+    UnitFloat64 =	CONNECTOR_FULL_TYPE.UnitFloat64
+    UnitFloatExt =	CONNECTOR_FULL_TYPE.UnitFloatExt
+    UnitComplex64 =	CONNECTOR_FULL_TYPE.UnitComplex64
+    UnitComplex128 = CONNECTOR_FULL_TYPE.UnitComplex128
+    UnitComplexExt = CONNECTOR_FULL_TYPE.UnitComplexExt
+    BooleanU16 =	CONNECTOR_FULL_TYPE.BooleanU16
+    Boolean =	CONNECTOR_FULL_TYPE.Boolean
+    String =	CONNECTOR_FULL_TYPE.String
+    String2 =	CONNECTOR_FULL_TYPE.String2
+    Path =		CONNECTOR_FULL_TYPE.Path
+    Picture =	CONNECTOR_FULL_TYPE.Picture
+    CString =	CONNECTOR_FULL_TYPE.CString
+    PasString =	CONNECTOR_FULL_TYPE.PasString
+    Tag =		CONNECTOR_FULL_TYPE.Tag
+    SubString =	CONNECTOR_FULL_TYPE.SubString
+    Array =		CONNECTOR_FULL_TYPE.Array
+    ArrayDataPtr =	CONNECTOR_FULL_TYPE.ArrayDataPtr
+    SubArray =	CONNECTOR_FULL_TYPE.SubArray
+    Cluster =	CONNECTOR_FULL_TYPE.Cluster
+    LvVariant =	CONNECTOR_FULL_TYPE.LVVariant
+    MeasureData =	CONNECTOR_FULL_TYPE.MeasureData
+    ComplexFixedPt = CONNECTOR_FULL_TYPE.ComplexFixedPt
+    FixedPoint =	CONNECTOR_FULL_TYPE.FixedPoint
+    Block =		CONNECTOR_FULL_TYPE.Block
+    TypeBlock =	CONNECTOR_FULL_TYPE.TypeBlock
+    VoidBlock =	CONNECTOR_FULL_TYPE.VoidBlock
+    AlignedBlock =	CONNECTOR_FULL_TYPE.AlignedBlock
+    RepeatedBlock =	CONNECTOR_FULL_TYPE.RepeatedBlock
+    AlignmntMarker = CONNECTOR_FULL_TYPE.AlignmntMarker
+    Refnum =	CONNECTOR_FULL_TYPE.Refnum
+    Ptr =		CONNECTOR_FULL_TYPE.Ptr
+    PtrTo =		CONNECTOR_FULL_TYPE.PtrTo
+    ExtData =	CONNECTOR_FULL_TYPE.ExtData
+    ArrayInterfc =	CONNECTOR_FULL_TYPE.ArrayInterfc
+    InterfcToData =	CONNECTOR_FULL_TYPE.InterfcToData
+    Function =	CONNECTOR_FULL_TYPE.Function
+    TypeDef =	CONNECTOR_FULL_TYPE.TypeDef
+    PolyVI =	CONNECTOR_FULL_TYPE.PolyVI
+    #Version = CONNECTOR_FULL_TYPE.Void
     #DAQChannel = CONNECTOR_FULL_TYPE.Void
-    LvVariant = CONNECTOR_FULL_TYPE.LVVariant
 
 
 class LV_INTERNAL_MEAS_FLAVOR_NAMES(LVheap.ENUM_TAGS):
-    WDT = MEASURE_DATA_FLAVOR.OldFloat64Waveform
-    DynamicData = MEASURE_DATA_FLAVOR.Dynamicdata
-    Timestamp = MEASURE_DATA_FLAVOR.TimeStamp
-    DigitalData = MEASURE_DATA_FLAVOR.Digitaldata
+    """ Names of MeasureData flavors from LV
+
+    This maps the names of MeasureData flavors this tool uses to names LV uses
+    internally. All values from MEASURE_DATA_FLAVOR should be mapped here.
+    """
+    WDT =			MEASURE_DATA_FLAVOR.OldFloat64Waveform
+    I16Waveform =	MEASURE_DATA_FLAVOR.Int16Waveform
+    DBLWaveform =	MEASURE_DATA_FLAVOR.Float64Waveform
+    SGLWaveform =	MEASURE_DATA_FLAVOR.Float32Waveform
+    Timestamp =		MEASURE_DATA_FLAVOR.TimeStamp
+    DigitalData =	MEASURE_DATA_FLAVOR.Digitaldata
     DigitalWaveform = MEASURE_DATA_FLAVOR.DigitalWaveform
-    DBLWaveform = MEASURE_DATA_FLAVOR.Float64Waveform
-    I16Waveform = MEASURE_DATA_FLAVOR.Int16Waveform
-    SGLWaveform = MEASURE_DATA_FLAVOR.Float32Waveform
-    EXTWaveform = MEASURE_DATA_FLAVOR.FloatExtWaveform
-    I8Waveform = MEASURE_DATA_FLAVOR.Int8Waveform
-    I32Waveform = MEASURE_DATA_FLAVOR.Int32Waveform
-    I64Waveform = MEASURE_DATA_FLAVOR.Int64Waveform
-    U8Waveform = MEASURE_DATA_FLAVOR.UInt8Waveform
-    U16Waveform = MEASURE_DATA_FLAVOR.UInt16Waveform
-    U32Waveform = MEASURE_DATA_FLAVOR.UInt32Waveform
-    U64Waveform = MEASURE_DATA_FLAVOR.UInt64Waveform
-    CSGWaveform = MEASURE_DATA_FLAVOR.Complex64Waveform
-    CDBWaveform = MEASURE_DATA_FLAVOR.Complex128Waveform
-    CXTWaveform = MEASURE_DATA_FLAVOR.ComplexExtWaveform
+    DynamicData =	MEASURE_DATA_FLAVOR.Dynamicdata
+    EXTWaveform =	MEASURE_DATA_FLAVOR.FloatExtWaveform
+    U8Waveform =	MEASURE_DATA_FLAVOR.UInt8Waveform
+    U16Waveform =	MEASURE_DATA_FLAVOR.UInt16Waveform
+    U32Waveform =	MEASURE_DATA_FLAVOR.UInt32Waveform
+    I8Waveform =	MEASURE_DATA_FLAVOR.Int8Waveform
+    I32Waveform =	MEASURE_DATA_FLAVOR.Int32Waveform
+    CSGWaveform =	MEASURE_DATA_FLAVOR.Complex64Waveform
+    CDBWaveform =	MEASURE_DATA_FLAVOR.Complex128Waveform
+    CXTWaveform =	MEASURE_DATA_FLAVOR.ComplexExtWaveform
+    I64Waveform =	MEASURE_DATA_FLAVOR.Int64Waveform
+    U64Waveform =	MEASURE_DATA_FLAVOR.UInt64Waveform
 
 
 class ConnectorObject:
@@ -2620,6 +2665,7 @@ def tdEnToName(tdEn):
         tdName = lvtdEn.name
     elif isinstance(tdEn, CONNECTOR_FULL_TYPE):
         tdName = tdEn.name
+        raise NotImplementedError("Value {} not in {}.".format(tdEn.name,LV_INTERNAL_TD_NAMES.__name__))
     else:
         tdName = "TD{:02X}".format(tdEn)
     return tdName
@@ -2638,11 +2684,6 @@ def tdNameToEnum(tdName):
             tagEn = CONNECTOR_FULL_TYPE.LVVariant
 
     if tagEn is None:
-        tagParse = re.match("^TD([0-9A-F]{2,4})$", tdName)
-        if tagParse is not None:
-            tagEn = int(tagParse[1], 16)
-
-    if tagEn is None:
         flavorEn = mdFlavorNameToEnum(tdName)
         if flavorEn is not None:
             tagEn = CONNECTOR_FULL_TYPE.MeasureData
@@ -2651,6 +2692,14 @@ def tdNameToEnum(tdName):
         refnumEn = LVdatatyperef.refnumNameToEnum(tdName)
         if refnumEn is not None:
             tagEn = CONNECTOR_FULL_TYPE.Refnum
+
+    # no direct conversion from CONNECTOR_FULL_TYPE names
+    # These would be probllematic as it has no has_name().
+    # So just generic int value support
+    if tagEn is None:
+        tagParse = re.match("^TD([0-9A-F]{2,4})$", tdName)
+        if tagParse is not None:
+            tagEn = int(tagParse[1], 16)
 
     return tagEn
 
@@ -2663,6 +2712,7 @@ def mdFlavorEnToName(flavorEn):
         flavName = lvflavorEn.name
     elif isinstance(flavorEn, MEASURE_DATA_FLAVOR):
         flavName = flavorEn.name
+        raise NotImplementedError("Value {} not in {}.".format(flavorEn.name,LV_INTERNAL_MEAS_FLAVOR_NAMES.__name__))
     else:
         flavName = "MeasureData{:02X}".format(flavorEn)
     return flavName
@@ -2676,10 +2726,9 @@ def mdFlavorNameToEnum(flavName):
         lvflavEn = LV_INTERNAL_MEAS_FLAVOR_NAMES[flavName]
         flavorEn = MEASURE_DATA_FLAVOR(lvflavEn.value)
 
-    if flavorEn is None:
-        if MEASURE_DATA_FLAVOR.has_name(flavName):
-            flavorEn = MEASURE_DATA_FLAVOR[flavName]
-
+    # no direct conversion from MEASURE_DATA_FLAVOR names
+    # These would be probllematic as it has no has_name().
+    # So just generic int value support
     if flavorEn is None:
         tagParse = re.match("^MeasureData([0-9A-F]{2,4})$", flavName)
         if tagParse is not None:
