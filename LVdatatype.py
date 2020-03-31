@@ -24,8 +24,8 @@ from LVmisc import *
 from LVblock import *
 import LVclasses
 import LVheap
-import LVconnectorref
-from LVconnectorref import REFNUM_TYPE
+import LVdatatyperef
+from LVdatatyperef import REFNUM_TYPE
 
 
 class CONNECTOR_MAIN_TYPE(enum.IntEnum):
@@ -1973,7 +1973,7 @@ class ConnectorObjectRef(ConnectorObject):
         self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
 
         self.reftype = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        self.ref_obj = LVconnectorref.newConnectorObjectRef(self.vi, self, self.reftype, self.po)
+        self.ref_obj = LVdatatyperef.newConnectorObjectRef(self.vi, self, self.reftype, self.po)
         if self.ref_obj is not None:
             if (self.po.verbose > 2):
                 print("{:s}: Connector {:d} type 0x{:02x}, has ref_type=0x{:02X} class {:s}"\
@@ -2010,7 +2010,7 @@ class ConnectorObjectRef(ConnectorObject):
             self.initWithXMLInlineStart(conn_elem)
             self.reftype = valFromEnumOrIntString(REFNUM_TYPE, conn_elem.get("RefType"))
 
-            self.ref_obj = LVconnectorref.newConnectorObjectRef(self.vi, self, self.reftype, self.po)
+            self.ref_obj = LVdatatyperef.newConnectorObjectRef(self.vi, self, self.reftype, self.po)
             if self.ref_obj is not None:
                 if (self.po.verbose > 2):
                     print("{:s}: Connector {:d} type 0x{:02x}, has ref_type=0x{:02X} class {:s}"\
@@ -2648,7 +2648,7 @@ def tdNameToEnum(tdName):
             tagEn = CONNECTOR_FULL_TYPE.MeasureData
 
     if tagEn is None:
-        refnumEn = LVconnectorref.refnumNameToEnum(tdName)
+        refnumEn = LVdatatyperef.refnumNameToEnum(tdName)
         if refnumEn is not None:
             tagEn = CONNECTOR_FULL_TYPE.Refnum
 

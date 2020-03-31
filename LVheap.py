@@ -19,7 +19,7 @@ from io import BytesIO
 from types import SimpleNamespace
 from ctypes import *
 
-import LVconnector
+import LVdatatype
 import LVmisc
 from LVmisc import eprint
 import LVxml as ET

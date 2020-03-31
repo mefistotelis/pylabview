@@ -24,7 +24,7 @@ from ctypes import *
 
 from LVmisc import *
 import LVxml as ET
-from LVconnector import *
+from LVdatatype import *
 from LVinstrument import *
 import LVclasses
 import LVdatafill

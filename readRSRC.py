@@ -23,7 +23,7 @@ import argparse
 
 import LVxml as ET
 import LVblock
-import LVconnector
+import LVdatatype
 from LVrsrcontainer import *
 from LVmisc import eprint
 

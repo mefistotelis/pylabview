@@ -21,7 +21,7 @@ from ctypes import *
 from hashlib import md5
 
 import LVblock
-import LVconnector
+import LVdatatype
 import LVxml as ET
 from LVmisc import *
 

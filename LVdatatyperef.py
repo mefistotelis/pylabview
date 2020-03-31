@@ -22,7 +22,7 @@ from ctypes import *
 from LVmisc import *
 from LVblock import *
 import LVclasses
-import LVconnector
+import LVdatatype
 
 class REFNUM_TYPE(enum.IntEnum):
     Generic =	0

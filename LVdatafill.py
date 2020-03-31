@@ -22,8 +22,8 @@ from ctypes import *
 from LVmisc import *
 import LVxml as ET
 import LVclasses
-import LVconnector
-import LVconnectorref
+import LVdatatype
+import LVdatatyperef
 
 
 class DataFill:
@@ -42,7 +42,7 @@ class DataFill:
     def isRefnumTag(self, td):
         """ Returns if given refnum td is a tag type.
         """
-        from LVconnectorref import REFNUM_TYPE
+        from LVdatatyperef import REFNUM_TYPE
         if td.refType() in (REFNUM_TYPE.IVIRef,REFNUM_TYPE.VisaRef,\
           REFNUM_TYPE.UsrDefTagFlt,REFNUM_TYPE.UsrDefndTag,):
             return True
@@ -93,8 +93,8 @@ class DataFill:
         return type(self).__name__ + pformat(d, indent=0, compact=True, width=512)
 
     def getXMLTagName(self):
-        from LVconnector import CONNECTOR_FULL_TYPE, tdEnToName, mdFlavorEnToName
-        from LVconnectorref import refnumEnToName
+        from LVdatatype import CONNECTOR_FULL_TYPE, tdEnToName, mdFlavorEnToName
+        from LVdatatyperef import refnumEnToName
         if self.tdType == CONNECTOR_FULL_TYPE.MeasureData:
             tagName = mdFlavorEnToName(self.tdSubType)
         elif self.tdType == CONNECTOR_FULL_TYPE.Refnum:
@@ -139,7 +139,7 @@ class DataFillInt(DataFill):
     def __init__(self, *args):
         super().__init__(*args)
         self.base = 10
-        from LVconnector import CONNECTOR_FULL_TYPE
+        from LVdatatype import CONNECTOR_FULL_TYPE
         if self.tdType in (CONNECTOR_FULL_TYPE.NumInt8,):
             self.size = 1
             self.signed = True
@@ -191,7 +191,7 @@ class DataFillInt(DataFill):
 
 class DataFillFloat(DataFill):
     def initWithRSRCParse(self, bldata):
-        from LVconnector import CONNECTOR_FULL_TYPE
+        from LVdatatype import CONNECTOR_FULL_TYPE
         if self.tdType in (CONNECTOR_FULL_TYPE.NumFloat32,CONNECTOR_FULL_TYPE.UnitFloat32,):
             self.value = struct.unpack('>f', bldata.read(4))[0]
         elif self.tdType in (CONNECTOR_FULL_TYPE.NumFloat64,CONNECTOR_FULL_TYPE.UnitFloat64,):
@@ -213,7 +213,7 @@ class DataFillFloat(DataFill):
 
 class DataFillComplex(DataFill):
     def initWithRSRCParse(self, bldata):
-        from LVconnector import CONNECTOR_FULL_TYPE
+        from LVdatatype import CONNECTOR_FULL_TYPE
         if self.tdType in (CONNECTOR_FULL_TYPE.NumComplex64,CONNECTOR_FULL_TYPE.UnitComplex64,):
             self.value = struct.unpack('>ff', bldata.read(8))
         elif self.tdType in (CONNECTOR_FULL_TYPE.NumComplex128,CONNECTOR_FULL_TYPE.UnitComplex128,):
@@ -241,7 +241,7 @@ class DataFillComplex(DataFill):
 class DataFillBool(DataFill):
     def __init__(self, *args):
         super().__init__(*args)
-        from LVconnector import CONNECTOR_FULL_TYPE
+        from LVdatatype import CONNECTOR_FULL_TYPE
         if self.tdType in (CONNECTOR_FULL_TYPE.BooleanU16,):
             self.size = 2
         elif self.tdType in (CONNECTOR_FULL_TYPE.Boolean,):
@@ -455,7 +455,7 @@ class DataFillMeasureData(DataFill):
     def __init__(self, *args):
         super().__init__(*args)
         ver = self.vi.getFileVersion()
-        from LVconnector import MEASURE_DATA_FLAVOR, CONNECTOR_FULL_TYPE, newConnectorObject,\
+        from LVdatatype import MEASURE_DATA_FLAVOR, CONNECTOR_FULL_TYPE, newConnectorObject,\
           newDigitalTableCluster, newDigitalWaveformCluster, newDynamicTableCluster,\
           newAnalogWaveformCluster, newOldFloat64WaveformCluster
 
@@ -761,7 +761,7 @@ class DataFillUDTagRefnum(DataFill):
         return d
 
     def initWithRSRCParse(self, bldata):
-        from LVconnectorref import REFNUM_TYPE
+        from LVdatatyperef import REFNUM_TYPE
         ver = self.vi.getFileVersion()
         self.usrdef1 = None
         self.usrdef2 = None
@@ -975,7 +975,7 @@ class SpecialDSTMCluster(DataFillCluster):
 def newSpecialDSTMClusterWithTD(vi, idx, tm_flags, td, po):
     """ Creates and returns new data fill object with given parameters
     """
-    from LVconnector import CONNECTOR_FULL_TYPE
+    from LVdatatype import CONNECTOR_FULL_TYPE
     tdType = td.fullType()
     tdSubType = None
     df = SpecialDSTMCluster(vi, tdType, tdSubType, po)
@@ -985,7 +985,7 @@ def newSpecialDSTMClusterWithTD(vi, idx, tm_flags, td, po):
 def newDataFillRefnum(vi, tdType, tdSubType, po):
     """ Creates and returns new data fill object for refnum with given parameters
     """
-    from LVconnectorref import REFNUM_TYPE
+    from LVdatatyperef import REFNUM_TYPE
     refType = tdSubType
     ctor = {
         REFNUM_TYPE.IVIRef: DataFillIORefnum,
@@ -1005,7 +1005,7 @@ def newDataFillRefnum(vi, tdType, tdSubType, po):
 def newDataFillObject(vi, tdType, tdSubType, po):
     """ Creates and returns new data fill object with given parameters
     """
-    from LVconnector import CONNECTOR_FULL_TYPE
+    from LVdatatype import CONNECTOR_FULL_TYPE
     ctor = {
         CONNECTOR_FULL_TYPE.Void: DataFillVoid,
         CONNECTOR_FULL_TYPE.NumInt8: DataFillInt,
@@ -1071,7 +1071,7 @@ def newDataFillObject(vi, tdType, tdSubType, po):
 def newDataFillObjectWithTD(vi, idx, tm_flags, td, po):
     """ Creates and returns new data fill object with given parameters
     """
-    from LVconnector import CONNECTOR_FULL_TYPE
+    from LVdatatype import CONNECTOR_FULL_TYPE
     tdType = td.fullType()
     if tdType == CONNECTOR_FULL_TYPE.MeasureData:
         tdSubType = td.dtFlavor()
@@ -1086,13 +1086,13 @@ def newDataFillObjectWithTD(vi, idx, tm_flags, td, po):
 def newDataFillObjectWithTag(vi, tagName, po):
     """ Creates and returns new data fill object from given XML tag name
     """
-    from LVconnector import CONNECTOR_FULL_TYPE, tdNameToEnum, mdFlavorNameToEnum
-    from LVconnectorref import refnumNameToEnum
+    from LVdatatype import CONNECTOR_FULL_TYPE, tdNameToEnum, mdFlavorNameToEnum
+    from LVdatatyperef import refnumNameToEnum
     tdType = tdNameToEnum(tagName)
     if tdType is None:
         raise AttributeError("Data Fill creation encountered unexpected tag '{}'".format(tagName))
     if tdType == CONNECTOR_FULL_TYPE.MeasureData:
-        tdSubType = LVconnector.mdFlavorNameToEnum(subelem.tag)
+        tdSubType = LVdatatype.mdFlavorNameToEnum(subelem.tag)
     elif tdType == CONNECTOR_FULL_TYPE.Refnum:
         tdSubType = refnumNameToEnum(subelem.tag)
     else:

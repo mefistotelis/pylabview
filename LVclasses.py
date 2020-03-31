@@ -20,7 +20,7 @@ from ctypes import *
 
 from LVmisc import *
 from LVblock import *
-import LVconnector
+import LVdatatype
 import LVdatafill
 
 
@@ -235,7 +235,7 @@ class LVVariant(LVObject):
 
     def parseRSRCTypeDef(self, bldata, pos):
         bldata.seek(pos)
-        obj_type, obj_flags, obj_len = LVconnector.ConnectorObject.parseRSRCDataHeader(bldata)
+        obj_type, obj_flags, obj_len = LVdatatype.ConnectorObject.parseRSRCDataHeader(bldata)
         if (self.po.verbose > 2):
             print("{:s}: {:s} {:d} sub-object {:d}, at 0x{:04x}, type 0x{:02x} flags 0x{:02x} len {:d}"\
               .format(self.vi.src_fname, type(self).__name__, self.index, len(self.clients2), pos,\
@@ -243,8 +243,8 @@ class LVVariant(LVObject):
         if obj_len < 4:
             eprint("{:s}: Warning: {:s} {:d} sub-object {:d} type 0x{:02x} data size {:d} too small to be valid"\
               .format(self.vi.src_fname, type(self).__name__, self.index, len(self.clients2), obj_type, obj_len))
-            obj_type = LVconnector.CONNECTOR_FULL_TYPE.Void
-        obj = LVconnector.newConnectorObject(self.vi, -1, obj_flags, obj_type, self.po)
+            obj_type = LVdatatype.CONNECTOR_FULL_TYPE.Void
+        obj = LVdatatype.newConnectorObject(self.vi, -1, obj_flags, obj_type, self.po)
         client = SimpleNamespace()
         client.flags = 0
         client.index = -1
@@ -264,7 +264,7 @@ class LVVariant(LVObject):
             attrib.index = -1
             attrib.name = bldata.read(text_len)
             # And now - inception. LVVariant has attributes of type LVVariant. Hopefully won't loop forever.
-            attrib.nested = LVconnector.newConnectorObject(self.vi, -1, 0, LVconnector.CONNECTOR_FULL_TYPE.LVVariant, self.po)
+            attrib.nested = LVdatatype.newConnectorObject(self.vi, -1, 0, LVdatatype.CONNECTOR_FULL_TYPE.LVVariant, self.po)
             # Note that we won't parse the type itself, it is generic and not stored with the attributes; just use it to make data
             # We have type of the attribute, now read the value
             attrib.value = LVdatafill.newDataFillObjectWithTD(self.vi, attrib.index, attrib.flags, attrib.nested, self.po)
@@ -383,9 +383,9 @@ class LVVariant(LVObject):
                 encodeVersion(self.version)
             elif (subelem.tag == "DataType"):
                 obj_idx = int(subelem.get("Index"), 0)
-                obj_type = valFromEnumOrIntString(LVconnector.CONNECTOR_FULL_TYPE, subelem.get("Type"))
-                obj_flags = importXMLBitfields(LVconnector.CONNECTOR_FLAGS, subelem)
-                obj = LVconnector.newConnectorObject(self.vi, obj_idx, obj_flags, obj_type, self.po)
+                obj_type = valFromEnumOrIntString(LVdatatype.CONNECTOR_FULL_TYPE, subelem.get("Type"))
+                obj_flags = importXMLBitfields(LVdatatype.CONNECTOR_FLAGS, subelem)
+                obj = LVdatatype.newConnectorObject(self.vi, obj_idx, obj_flags, obj_type, self.po)
                 # Grow the list if needed (the connectors may be in wrong order)
                 client = SimpleNamespace()
                 client.flags = 0
@@ -439,7 +439,7 @@ class LVVariant(LVObject):
             subelem = ET.SubElement(obj_elem,"DataType")
 
             subelem.set("Index", str(idx))
-            subelem.set("Type", stringFromValEnumOrInt(LVconnector.CONNECTOR_FULL_TYPE, client.nested.otype))
+            subelem.set("Type", stringFromValEnumOrInt(LVdatatype.CONNECTOR_FULL_TYPE, client.nested.otype))
 
             client.nested.exportXML(subelem, fname_cli)
             client.nested.exportXMLFinish(subelem)
