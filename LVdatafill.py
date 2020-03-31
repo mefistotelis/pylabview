@@ -377,7 +377,7 @@ class DataFillArray(DataFill):
         self.value = []
         for i, subelem in enumerate(df_elem):
             if (subelem.tag == 'dim'):
-                val = int(df_elem.text, 0)
+                val = int(subelem.text, 0)
                 self.dimensions.append(val)
                 continue
             sub_df = newDataFillObjectWithTag(self.vi, subelem.tag, self.po)

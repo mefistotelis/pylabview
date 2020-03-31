@@ -394,10 +394,10 @@ class LVVariant(LVObject):
                 self.clients2.append(client)
                 # Set connector data based on XML properties
                 obj.initWithXML(subelem)
-            elif (subelem.tag == "Attribute"):
+            elif (subelem.tag == "Attributes"):
                 raise NotImplementedError("Unsupported LVVariant containing Attributes")
             else:
-                raise AttributeError("LVVariant subtree contains unexpected tag")
+                raise AttributeError("LVVariant subtree contains unexpected tag '{}'".format(subelem.tag))
         pass
 
     def initWithXMLLate(self):
@@ -444,9 +444,11 @@ class LVVariant(LVObject):
             client.nested.exportXML(subelem, fname_cli)
             client.nested.exportXMLFinish(subelem)
         idx = -1
+        if len(self.attrs) > 0:
+            attrs_elem = ET.SubElement(obj_elem,"Attributes")
         for attrib in self.attrs:
             idx += 1
-            subelem = ET.SubElement(obj_elem,"Attribute")
+            subelem = ET.SubElement(attrs_elem,"Object")
 
             subelem.set("Index", str(idx))
             subelem.set("Name", attrib.name.decode(encoding=self.vi.textEncoding))
