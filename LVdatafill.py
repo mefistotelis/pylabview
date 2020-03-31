@@ -93,11 +93,11 @@ class DataFill:
         return type(self).__name__ + pformat(d, indent=0, compact=True, width=512)
 
     def getXMLTagName(self):
-        from LVdatatype import CONNECTOR_FULL_TYPE, tdEnToName, mdFlavorEnToName
+        from LVdatatype import TD_FULL_TYPE, tdEnToName, mdFlavorEnToName
         from LVdatatyperef import refnumEnToName
-        if self.tdType == CONNECTOR_FULL_TYPE.MeasureData:
+        if self.tdType == TD_FULL_TYPE.MeasureData:
             tagName = mdFlavorEnToName(self.tdSubType)
-        elif self.tdType == CONNECTOR_FULL_TYPE.Refnum:
+        elif self.tdType == TD_FULL_TYPE.Refnum:
             tagName = refnumEnToName(self.tdSubType)
         else:
             tagName = tdEnToName(self.tdType)
@@ -139,38 +139,38 @@ class DataFillInt(DataFill):
     def __init__(self, *args):
         super().__init__(*args)
         self.base = 10
-        from LVdatatype import CONNECTOR_FULL_TYPE
-        if self.tdType in (CONNECTOR_FULL_TYPE.NumInt8,):
+        from LVdatatype import TD_FULL_TYPE
+        if self.tdType in (TD_FULL_TYPE.NumInt8,):
             self.size = 1
             self.signed = True
-        elif self.tdType in (CONNECTOR_FULL_TYPE.NumInt16,):
+        elif self.tdType in (TD_FULL_TYPE.NumInt16,):
             self.size = 2
             self.signed = True
-        elif self.tdType in (CONNECTOR_FULL_TYPE.NumInt32,):
+        elif self.tdType in (TD_FULL_TYPE.NumInt32,):
             self.size = 4
             self.signed = True
-        elif self.tdType in (CONNECTOR_FULL_TYPE.NumInt64,):
+        elif self.tdType in (TD_FULL_TYPE.NumInt64,):
             self.size = 8
             self.signed = True
-        elif self.tdType in (CONNECTOR_FULL_TYPE.NumUInt8,):
+        elif self.tdType in (TD_FULL_TYPE.NumUInt8,):
             self.size = 1
             self.signed = False
-        elif self.tdType in (CONNECTOR_FULL_TYPE.NumUInt16,):
+        elif self.tdType in (TD_FULL_TYPE.NumUInt16,):
             self.size = 2
             self.signed = False
-        elif self.tdType in (CONNECTOR_FULL_TYPE.NumUInt32,):
+        elif self.tdType in (TD_FULL_TYPE.NumUInt32,):
             self.size = 4
             self.signed = False
-        elif self.tdType in (CONNECTOR_FULL_TYPE.NumUInt64,):
+        elif self.tdType in (TD_FULL_TYPE.NumUInt64,):
             self.size = 8
             self.signed = False
-        elif self.tdType in (CONNECTOR_FULL_TYPE.UnitUInt8,):
+        elif self.tdType in (TD_FULL_TYPE.UnitUInt8,):
             self.size = 1
             self.signed = False
-        elif self.tdType in (CONNECTOR_FULL_TYPE.UnitUInt16,):
+        elif self.tdType in (TD_FULL_TYPE.UnitUInt16,):
             self.size = 2
             self.signed = False
-        elif self.tdType in (CONNECTOR_FULL_TYPE.UnitUInt32,):
+        elif self.tdType in (TD_FULL_TYPE.UnitUInt32,):
             self.size = 4
             self.signed = False
         else:
@@ -191,12 +191,12 @@ class DataFillInt(DataFill):
 
 class DataFillFloat(DataFill):
     def initWithRSRCParse(self, bldata):
-        from LVdatatype import CONNECTOR_FULL_TYPE
-        if self.tdType in (CONNECTOR_FULL_TYPE.NumFloat32,CONNECTOR_FULL_TYPE.UnitFloat32,):
+        from LVdatatype import TD_FULL_TYPE
+        if self.tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
             self.value = struct.unpack('>f', bldata.read(4))[0]
-        elif self.tdType in (CONNECTOR_FULL_TYPE.NumFloat64,CONNECTOR_FULL_TYPE.UnitFloat64,):
+        elif self.tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
             self.value = struct.unpack('>d', bldata.read(8))[0]
-        elif self.tdType in (CONNECTOR_FULL_TYPE.NumFloatExt,CONNECTOR_FULL_TYPE.UnitFloatExt,):
+        elif self.tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
             self.value = readQuadFloat(bldata)
         else:
             raise RuntimeError("Class {} used for unexpected type {}"\
@@ -213,12 +213,12 @@ class DataFillFloat(DataFill):
 
 class DataFillComplex(DataFill):
     def initWithRSRCParse(self, bldata):
-        from LVdatatype import CONNECTOR_FULL_TYPE
-        if self.tdType in (CONNECTOR_FULL_TYPE.NumComplex64,CONNECTOR_FULL_TYPE.UnitComplex64,):
+        from LVdatatype import TD_FULL_TYPE
+        if self.tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
             self.value = struct.unpack('>ff', bldata.read(8))
-        elif self.tdType in (CONNECTOR_FULL_TYPE.NumComplex128,CONNECTOR_FULL_TYPE.UnitComplex128,):
+        elif self.tdType in (TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,):
             self.value = struct.unpack('>dd', bldata.read(16))
-        elif self.tdType in (CONNECTOR_FULL_TYPE.NumComplexExt,CONNECTOR_FULL_TYPE.UnitComplexExt,):
+        elif self.tdType in (TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
             self.value = (readQuadFloat(bldata),readQuadFloat(bldata),)
         else:
             raise RuntimeError("Class {} used for unexpected type {}"\
@@ -246,10 +246,10 @@ class DataFillBool(DataFill):
     def initVersion(self):
         """ Initialization part which requires access to version
         """
-        from LVdatatype import CONNECTOR_FULL_TYPE
-        if self.tdType in (CONNECTOR_FULL_TYPE.BooleanU16,):
+        from LVdatatype import TD_FULL_TYPE
+        if self.tdType in (TD_FULL_TYPE.BooleanU16,):
             self.size = 2
-        elif self.tdType in (CONNECTOR_FULL_TYPE.Boolean,):
+        elif self.tdType in (TD_FULL_TYPE.Boolean,):
             ver = self.vi.getFileVersion()
             if isGreaterOrEqVersion(ver, 4,5,0):
                 self.size = 1
@@ -359,7 +359,7 @@ class DataFillArray(DataFill):
             sub_td = VCTP.getFlatType(self.td.clients[0].index)
         else:
             sub_td = self.td.clients[0].nested
-        #if sub_td.fullType() in (CONNECTOR_FULL_TYPE.Boolean,) and isSmallerVersion(ver, 4,5,0,1): # TODO expecting special case, never seen it though
+        #if sub_td.fullType() in (TD_FULL_TYPE.Boolean,) and isSmallerVersion(ver, 4,5,0,1): # TODO expecting special case, never seen it though
         if totItems > self.po.array_data_limit:
                 raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
                   .format(self.getXMLTagName(), totItems, self.po.array_data_limit))
@@ -467,7 +467,7 @@ class DataFillMeasureData(DataFill):
         """ Initialization part which requires access to version
         """
         ver = self.vi.getFileVersion()
-        from LVdatatype import MEASURE_DATA_FLAVOR, CONNECTOR_FULL_TYPE, newConnectorObject,\
+        from LVdatatype import MEASURE_DATA_FLAVOR, TD_FULL_TYPE, newConnectorObject,\
           newDigitalTableCluster, newDigitalWaveformCluster, newDynamicTableCluster,\
           newAnalogWaveformCluster, newOldFloat64WaveformCluster
 
@@ -478,17 +478,17 @@ class DataFillMeasureData(DataFill):
         if self.tdSubType in (MEASURE_DATA_FLAVOR.OldFloat64Waveform,):
             self.containedTd = newOldFloat64WaveformCluster(self.vi, -1, 0, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Int16Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt16, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumInt16, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Float64Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat64, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumFloat64, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Float32Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat32, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumFloat32, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.TimeStamp,):
             # Use block of 16 bytes as Timestamp
-            self.containedTd = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.Block, self.po)
+            self.containedTd = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.Block, self.po)
             self.containedTd.blkSize = 16
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Digitaldata,):
             self.containedTd = newDigitalTableCluster(self.vi, -1, 0, self.po)
@@ -497,37 +497,37 @@ class DataFillMeasureData(DataFill):
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Dynamicdata,):
             self.containedTd = newDynamicTableCluster(self.vi, -1, 0, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.FloatExtWaveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloatExt, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumFloatExt, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.UInt8Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt8, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumUInt8, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.UInt16Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt16, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumUInt16, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.UInt32Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt32, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumUInt32, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Int8Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt8, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumInt8, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Int32Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt32, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumInt32, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Complex64Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumComplex64, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumComplex64, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Complex128Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumComplex128, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumComplex128, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.ComplexExtWaveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumComplexExt, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumComplexExt, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Int64Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt64, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumInt64, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.UInt64Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt64, self.po)
+            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumUInt64, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         else:
             raise NotImplementedError("MeasureData {} default value read failed due to unsupported flavor"\
@@ -992,7 +992,7 @@ class SpecialDSTMCluster(DataFillCluster):
 def newSpecialDSTMClusterWithTD(vi, idx, tm_flags, td, po):
     """ Creates and returns new data fill object with given parameters
     """
-    from LVdatatype import CONNECTOR_FULL_TYPE
+    from LVdatatype import TD_FULL_TYPE
     tdType = td.fullType()
     tdSubType = None
     df = SpecialDSTMCluster(vi, tdType, tdSubType, po)
@@ -1022,63 +1022,63 @@ def newDataFillRefnum(vi, tdType, tdSubType, po):
 def newDataFillObject(vi, tdType, tdSubType, po):
     """ Creates and returns new data fill object with given parameters
     """
-    from LVdatatype import CONNECTOR_FULL_TYPE
+    from LVdatatype import TD_FULL_TYPE
     ctor = {
-        CONNECTOR_FULL_TYPE.Void: DataFillVoid,
-        CONNECTOR_FULL_TYPE.NumInt8: DataFillInt,
-        CONNECTOR_FULL_TYPE.NumInt16: DataFillInt,
-        CONNECTOR_FULL_TYPE.NumInt32: DataFillInt,
-        CONNECTOR_FULL_TYPE.NumInt64: DataFillInt,
-        CONNECTOR_FULL_TYPE.NumUInt8: DataFillInt,
-        CONNECTOR_FULL_TYPE.NumUInt16: DataFillInt,
-        CONNECTOR_FULL_TYPE.NumUInt32: DataFillInt,
-        CONNECTOR_FULL_TYPE.NumUInt64: DataFillInt,
-        CONNECTOR_FULL_TYPE.NumFloat32: DataFillFloat,
-        CONNECTOR_FULL_TYPE.NumFloat64: DataFillFloat,
-        CONNECTOR_FULL_TYPE.NumFloatExt: DataFillFloat,
-        CONNECTOR_FULL_TYPE.NumComplex64: DataFillComplex,
-        CONNECTOR_FULL_TYPE.NumComplex128: DataFillComplex,
-        CONNECTOR_FULL_TYPE.NumComplexExt: DataFillComplex,
-        CONNECTOR_FULL_TYPE.UnitUInt8: DataFillInt,
-        CONNECTOR_FULL_TYPE.UnitUInt16: DataFillInt,
-        CONNECTOR_FULL_TYPE.UnitUInt32: DataFillInt,
-        CONNECTOR_FULL_TYPE.UnitFloat32: DataFillFloat,
-        CONNECTOR_FULL_TYPE.UnitFloat64: DataFillFloat,
-        CONNECTOR_FULL_TYPE.UnitFloatExt: DataFillFloat,
-        CONNECTOR_FULL_TYPE.UnitComplex64: DataFillComplex,
-        CONNECTOR_FULL_TYPE.UnitComplex128: DataFillComplex,
-        CONNECTOR_FULL_TYPE.UnitComplexExt: DataFillComplex,
-        CONNECTOR_FULL_TYPE.BooleanU16: DataFillBool,
-        CONNECTOR_FULL_TYPE.Boolean: DataFillBool,
-        CONNECTOR_FULL_TYPE.String: DataFillString,
-        CONNECTOR_FULL_TYPE.Path: DataFillPath,
-        CONNECTOR_FULL_TYPE.Picture: DataFillString,
-        CONNECTOR_FULL_TYPE.CString: DataFillCString,
-        CONNECTOR_FULL_TYPE.PasString: DataFillCString,
-        CONNECTOR_FULL_TYPE.Tag: DataFillString,
-        CONNECTOR_FULL_TYPE.SubString: DataFillUnexpected,
-        CONNECTOR_FULL_TYPE.Array: DataFillArray,
-        CONNECTOR_FULL_TYPE.ArrayDataPtr: DataFillArrayDataPtr,
-        CONNECTOR_FULL_TYPE.SubArray: DataFillUnexpected,
-        CONNECTOR_FULL_TYPE.ArrayInterfc: DataFillArray,
-        CONNECTOR_FULL_TYPE.Cluster: DataFillCluster,
-        CONNECTOR_FULL_TYPE.LVVariant: DataFillLVVariant,
-        CONNECTOR_FULL_TYPE.MeasureData: DataFillMeasureData,
-        CONNECTOR_FULL_TYPE.ComplexFixedPt: DataFillComplexFixedPt,
-        CONNECTOR_FULL_TYPE.FixedPoint: DataFillFixedPoint,
-        CONNECTOR_FULL_TYPE.Block: DataFillBlock,
-        CONNECTOR_FULL_TYPE.TypeBlock: DataFillTypeDef,
-        CONNECTOR_FULL_TYPE.VoidBlock: DataFillVoid,
-        CONNECTOR_FULL_TYPE.AlignedBlock: DataFillBlock,
-        CONNECTOR_FULL_TYPE.RepeatedBlock: DataFillRepeatedBlock,
-        CONNECTOR_FULL_TYPE.AlignmntMarker: DataFillVoid,
-        CONNECTOR_FULL_TYPE.Refnum: newDataFillRefnum,
-        CONNECTOR_FULL_TYPE.Ptr: DataFillPtr,
-        CONNECTOR_FULL_TYPE.PtrTo: DataFillPtrTo,
-        CONNECTOR_FULL_TYPE.ExtData: DataFillExtData,
-        CONNECTOR_FULL_TYPE.Function: DataFillUnexpected,
-        CONNECTOR_FULL_TYPE.TypeDef: DataFillTypeDef,
-        CONNECTOR_FULL_TYPE.PolyVI: DataFillUnexpected,
+        TD_FULL_TYPE.Void: DataFillVoid,
+        TD_FULL_TYPE.NumInt8: DataFillInt,
+        TD_FULL_TYPE.NumInt16: DataFillInt,
+        TD_FULL_TYPE.NumInt32: DataFillInt,
+        TD_FULL_TYPE.NumInt64: DataFillInt,
+        TD_FULL_TYPE.NumUInt8: DataFillInt,
+        TD_FULL_TYPE.NumUInt16: DataFillInt,
+        TD_FULL_TYPE.NumUInt32: DataFillInt,
+        TD_FULL_TYPE.NumUInt64: DataFillInt,
+        TD_FULL_TYPE.NumFloat32: DataFillFloat,
+        TD_FULL_TYPE.NumFloat64: DataFillFloat,
+        TD_FULL_TYPE.NumFloatExt: DataFillFloat,
+        TD_FULL_TYPE.NumComplex64: DataFillComplex,
+        TD_FULL_TYPE.NumComplex128: DataFillComplex,
+        TD_FULL_TYPE.NumComplexExt: DataFillComplex,
+        TD_FULL_TYPE.UnitUInt8: DataFillInt,
+        TD_FULL_TYPE.UnitUInt16: DataFillInt,
+        TD_FULL_TYPE.UnitUInt32: DataFillInt,
+        TD_FULL_TYPE.UnitFloat32: DataFillFloat,
+        TD_FULL_TYPE.UnitFloat64: DataFillFloat,
+        TD_FULL_TYPE.UnitFloatExt: DataFillFloat,
+        TD_FULL_TYPE.UnitComplex64: DataFillComplex,
+        TD_FULL_TYPE.UnitComplex128: DataFillComplex,
+        TD_FULL_TYPE.UnitComplexExt: DataFillComplex,
+        TD_FULL_TYPE.BooleanU16: DataFillBool,
+        TD_FULL_TYPE.Boolean: DataFillBool,
+        TD_FULL_TYPE.String: DataFillString,
+        TD_FULL_TYPE.Path: DataFillPath,
+        TD_FULL_TYPE.Picture: DataFillString,
+        TD_FULL_TYPE.CString: DataFillCString,
+        TD_FULL_TYPE.PasString: DataFillCString,
+        TD_FULL_TYPE.Tag: DataFillString,
+        TD_FULL_TYPE.SubString: DataFillUnexpected,
+        TD_FULL_TYPE.Array: DataFillArray,
+        TD_FULL_TYPE.ArrayDataPtr: DataFillArrayDataPtr,
+        TD_FULL_TYPE.SubArray: DataFillUnexpected,
+        TD_FULL_TYPE.ArrayInterfc: DataFillArray,
+        TD_FULL_TYPE.Cluster: DataFillCluster,
+        TD_FULL_TYPE.LVVariant: DataFillLVVariant,
+        TD_FULL_TYPE.MeasureData: DataFillMeasureData,
+        TD_FULL_TYPE.ComplexFixedPt: DataFillComplexFixedPt,
+        TD_FULL_TYPE.FixedPoint: DataFillFixedPoint,
+        TD_FULL_TYPE.Block: DataFillBlock,
+        TD_FULL_TYPE.TypeBlock: DataFillTypeDef,
+        TD_FULL_TYPE.VoidBlock: DataFillVoid,
+        TD_FULL_TYPE.AlignedBlock: DataFillBlock,
+        TD_FULL_TYPE.RepeatedBlock: DataFillRepeatedBlock,
+        TD_FULL_TYPE.AlignmntMarker: DataFillVoid,
+        TD_FULL_TYPE.Refnum: newDataFillRefnum,
+        TD_FULL_TYPE.Ptr: DataFillPtr,
+        TD_FULL_TYPE.PtrTo: DataFillPtrTo,
+        TD_FULL_TYPE.ExtData: DataFillExtData,
+        TD_FULL_TYPE.Function: DataFillUnexpected,
+        TD_FULL_TYPE.TypeDef: DataFillTypeDef,
+        TD_FULL_TYPE.PolyVI: DataFillUnexpected,
     }.get(tdType, None)
     if ctor is None:
         raise RuntimeError("Data type {}: No known way to read default data"\
@@ -1088,11 +1088,11 @@ def newDataFillObject(vi, tdType, tdSubType, po):
 def newDataFillObjectWithTD(vi, idx, tm_flags, td, po):
     """ Creates and returns new data fill object with given parameters
     """
-    from LVdatatype import CONNECTOR_FULL_TYPE
+    from LVdatatype import TD_FULL_TYPE
     tdType = td.fullType()
-    if tdType == CONNECTOR_FULL_TYPE.MeasureData:
+    if tdType == TD_FULL_TYPE.MeasureData:
         tdSubType = td.dtFlavor()
-    elif tdType == CONNECTOR_FULL_TYPE.Refnum:
+    elif tdType == TD_FULL_TYPE.Refnum:
         tdSubType = td.refType()
     else:
         tdSubType = None
@@ -1103,14 +1103,14 @@ def newDataFillObjectWithTD(vi, idx, tm_flags, td, po):
 def newDataFillObjectWithTag(vi, tagName, po):
     """ Creates and returns new data fill object from given XML tag name
     """
-    from LVdatatype import CONNECTOR_FULL_TYPE, tdNameToEnum, mdFlavorNameToEnum
+    from LVdatatype import TD_FULL_TYPE, tdNameToEnum, mdFlavorNameToEnum
     from LVdatatyperef import refnumNameToEnum
     tdType = tdNameToEnum(tagName)
     if tdType is None:
         raise AttributeError("Data Fill creation encountered unexpected tag '{}'".format(tagName))
-    if tdType == CONNECTOR_FULL_TYPE.MeasureData:
+    if tdType == TD_FULL_TYPE.MeasureData:
         tdSubType = LVdatatype.mdFlavorNameToEnum(tagName)
-    elif tdType == CONNECTOR_FULL_TYPE.Refnum:
+    elif tdType == TD_FULL_TYPE.Refnum:
         tdSubType = refnumNameToEnum(tagName)
     else:
         tdSubType = None

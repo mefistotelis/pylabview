@@ -1718,7 +1718,7 @@ class DFDS(VarCodingBlock):
                         tdType = tmEntry.td.fullType()
                         raise RuntimeError("Data type {}: {}".format(enumOrIntToName(tdType), str(e)))
                     pass
-                elif tmEntry.td.fullType() == CONNECTOR_FULL_TYPE.Cluster and self.isSpecialDSTMCluster(tmEntry):
+                elif tmEntry.td.fullType() == TD_FULL_TYPE.Cluster and self.isSpecialDSTMCluster(tmEntry):
                     # This is Special DSTM Cluster
                     try:
                         df = LVdatafill.newSpecialDSTMClusterWithTD(self.vi, tmEntry.index, tmEntry.flags, tmEntry.td, self.po)
@@ -1800,7 +1800,7 @@ class DFDS(VarCodingBlock):
                     if (tmEntry.flags & 0x2000) != 0 or \
                        (tmEntry.flags & 0x0001) != 0:
                         dtHasFill = True
-                    elif tmEntry.td.fullType() == CONNECTOR_FULL_TYPE.Cluster and self.isSpecialDSTMCluster(tmEntry):
+                    elif tmEntry.td.fullType() == TD_FULL_TYPE.Cluster and self.isSpecialDSTMCluster(tmEntry):
                         dtHasFill = True
                     else:
                         pass
@@ -2969,7 +2969,7 @@ class BDPW(Block):
             # Figure out the salt
             salt_iface_idx = None
             VCTP = self.vi.get_or_raise('VCTP')
-            interfaceEnumerate = self.vi.connectorEnumerate(fullType=CONNECTOR_FULL_TYPE.Function)
+            interfaceEnumerate = self.vi.connectorEnumerate(fullType=TD_FULL_TYPE.Function)
             # Connectors count if one of the interfaces is the source of salt; usually it's the last interface, so check in reverse
             for i, iface_idx, iface_obj in reversed(interfaceEnumerate):
                 term_connectors = VCTP.getClientConnectorsByType(iface_obj)
@@ -3713,7 +3713,7 @@ class VCTP(Block):
         if obj_len < 4:
             eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d} too small to be valid"\
               .format(self.vi.src_fname, len(section.content), obj_type, obj_len))
-            obj_type = CONNECTOR_FULL_TYPE.Void
+            obj_type = TD_FULL_TYPE.Void
         obj = newConnectorObject(self.vi, len(section.content), obj_flags, obj_type, self.po)
         section.content.append(obj)
         bldata.seek(pos)
@@ -3758,7 +3758,7 @@ class VCTP(Block):
                     pass # Items parsed somewhere else
                 elif (subelem.tag == "Connector"):
                     obj_idx = int(subelem.get("Index"), 0)
-                    obj_type = valFromEnumOrIntString(CONNECTOR_FULL_TYPE, subelem.get("Type"))
+                    obj_type = valFromEnumOrIntString(TD_FULL_TYPE, subelem.get("Type"))
                     obj_flags = importXMLBitfields(CONNECTOR_FLAGS, subelem)
                     obj = newConnectorObject(self.vi, obj_idx, obj_flags, obj_type, self.po)
                     # Grow the list if needed (the connectors may be in wrong order)
@@ -3823,7 +3823,7 @@ class VCTP(Block):
             subelem = ET.SubElement(section_elem,"Connector")
 
             subelem.set("Index", str(connobj.index))
-            subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(CONNECTOR_FULL_TYPE, connobj.otype)))
+            subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(TD_FULL_TYPE, connobj.otype)))
 
             if not self.po.raw_connectors:
                 connobj.exportXML(subelem, fname_base)

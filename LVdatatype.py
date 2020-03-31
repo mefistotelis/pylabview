@@ -28,7 +28,7 @@ import LVdatatyperef
 from LVdatatyperef import REFNUM_TYPE
 
 
-class CONNECTOR_MAIN_TYPE(enum.IntEnum):
+class TD_MAIN_TYPE(enum.IntEnum):
     Number = 0x0	# INT/DBL/complex/...
     Unit = 0x1		# INT+Format: Enum/Units
     Bool = 0x2		# only Boolean
@@ -45,7 +45,7 @@ class CONNECTOR_MAIN_TYPE(enum.IntEnum):
     EnumValue = -2		# Entry for Enum
 
 
-class CONNECTOR_FULL_TYPE(enum.IntEnum):
+class TD_FULL_TYPE(enum.IntEnum):
     """ known types of connectors
 
     All types from LabVIEW 2014 are there.
@@ -202,67 +202,67 @@ class LV_INTERNAL_TD_NAMES(LVheap.ENUM_TAGS):
 
     This maps the names of types this tool uses to names LV uses internally.
     We may want to keep LV names when exporting data. All values from
-    CONNECTOR_FULL_TYPE should be mapped here, even if the names are identical.
+    TD_FULL_TYPE should be mapped here, even if the names are identical.
     """
-    Void =	CONNECTOR_FULL_TYPE.Void
-    I8 =	CONNECTOR_FULL_TYPE.NumInt8
-    I16 =	CONNECTOR_FULL_TYPE.NumInt16
-    I32 =	CONNECTOR_FULL_TYPE.NumInt32
-    I64 =	CONNECTOR_FULL_TYPE.NumInt64
-    U8 =	CONNECTOR_FULL_TYPE.NumUInt8
-    U16 =	CONNECTOR_FULL_TYPE.NumUInt16
-    U32 =	CONNECTOR_FULL_TYPE.NumUInt32
-    U64 =	CONNECTOR_FULL_TYPE.NumUInt64
-    SGL =	CONNECTOR_FULL_TYPE.NumFloat32
-    DBL =	CONNECTOR_FULL_TYPE.NumFloat64
-    EXT =	CONNECTOR_FULL_TYPE.NumFloatExt
-    CSG =	CONNECTOR_FULL_TYPE.NumComplex64
-    CDB =	CONNECTOR_FULL_TYPE.NumComplex128
-    CXT =	CONNECTOR_FULL_TYPE.NumComplexExt
-    EB =	CONNECTOR_FULL_TYPE.UnitUInt8
-    EW =	CONNECTOR_FULL_TYPE.UnitUInt16
-    EL =	CONNECTOR_FULL_TYPE.UnitUInt32
-    UnitFloat32 =	CONNECTOR_FULL_TYPE.UnitFloat32
-    UnitFloat64 =	CONNECTOR_FULL_TYPE.UnitFloat64
-    UnitFloatExt =	CONNECTOR_FULL_TYPE.UnitFloatExt
-    UnitComplex64 =	CONNECTOR_FULL_TYPE.UnitComplex64
-    UnitComplex128 = CONNECTOR_FULL_TYPE.UnitComplex128
-    UnitComplexExt = CONNECTOR_FULL_TYPE.UnitComplexExt
-    BooleanU16 =	CONNECTOR_FULL_TYPE.BooleanU16
-    Boolean =	CONNECTOR_FULL_TYPE.Boolean
-    String =	CONNECTOR_FULL_TYPE.String
-    String2 =	CONNECTOR_FULL_TYPE.String2
-    Path =		CONNECTOR_FULL_TYPE.Path
-    Picture =	CONNECTOR_FULL_TYPE.Picture
-    CString =	CONNECTOR_FULL_TYPE.CString
-    PasString =	CONNECTOR_FULL_TYPE.PasString
-    Tag =		CONNECTOR_FULL_TYPE.Tag
-    SubString =	CONNECTOR_FULL_TYPE.SubString
-    Array =		CONNECTOR_FULL_TYPE.Array
-    ArrayDataPtr =	CONNECTOR_FULL_TYPE.ArrayDataPtr
-    SubArray =	CONNECTOR_FULL_TYPE.SubArray
-    Cluster =	CONNECTOR_FULL_TYPE.Cluster
-    LvVariant =	CONNECTOR_FULL_TYPE.LVVariant
-    MeasureData =	CONNECTOR_FULL_TYPE.MeasureData
-    ComplexFixedPt = CONNECTOR_FULL_TYPE.ComplexFixedPt
-    FixedPoint =	CONNECTOR_FULL_TYPE.FixedPoint
-    Block =		CONNECTOR_FULL_TYPE.Block
-    TypeBlock =	CONNECTOR_FULL_TYPE.TypeBlock
-    VoidBlock =	CONNECTOR_FULL_TYPE.VoidBlock
-    AlignedBlock =	CONNECTOR_FULL_TYPE.AlignedBlock
-    RepeatedBlock =	CONNECTOR_FULL_TYPE.RepeatedBlock
-    AlignmntMarker = CONNECTOR_FULL_TYPE.AlignmntMarker
-    Refnum =	CONNECTOR_FULL_TYPE.Refnum
-    Ptr =		CONNECTOR_FULL_TYPE.Ptr
-    PtrTo =		CONNECTOR_FULL_TYPE.PtrTo
-    ExtData =	CONNECTOR_FULL_TYPE.ExtData
-    ArrayInterfc =	CONNECTOR_FULL_TYPE.ArrayInterfc
-    InterfcToData =	CONNECTOR_FULL_TYPE.InterfcToData
-    Function =	CONNECTOR_FULL_TYPE.Function
-    TypeDef =	CONNECTOR_FULL_TYPE.TypeDef
-    PolyVI =	CONNECTOR_FULL_TYPE.PolyVI
-    #Version = CONNECTOR_FULL_TYPE.Void
-    #DAQChannel = CONNECTOR_FULL_TYPE.Void
+    Void =	TD_FULL_TYPE.Void
+    I8 =	TD_FULL_TYPE.NumInt8
+    I16 =	TD_FULL_TYPE.NumInt16
+    I32 =	TD_FULL_TYPE.NumInt32
+    I64 =	TD_FULL_TYPE.NumInt64
+    U8 =	TD_FULL_TYPE.NumUInt8
+    U16 =	TD_FULL_TYPE.NumUInt16
+    U32 =	TD_FULL_TYPE.NumUInt32
+    U64 =	TD_FULL_TYPE.NumUInt64
+    SGL =	TD_FULL_TYPE.NumFloat32
+    DBL =	TD_FULL_TYPE.NumFloat64
+    EXT =	TD_FULL_TYPE.NumFloatExt
+    CSG =	TD_FULL_TYPE.NumComplex64
+    CDB =	TD_FULL_TYPE.NumComplex128
+    CXT =	TD_FULL_TYPE.NumComplexExt
+    EB =	TD_FULL_TYPE.UnitUInt8
+    EW =	TD_FULL_TYPE.UnitUInt16
+    EL =	TD_FULL_TYPE.UnitUInt32
+    UnitFloat32 =	TD_FULL_TYPE.UnitFloat32
+    UnitFloat64 =	TD_FULL_TYPE.UnitFloat64
+    UnitFloatExt =	TD_FULL_TYPE.UnitFloatExt
+    UnitComplex64 =	TD_FULL_TYPE.UnitComplex64
+    UnitComplex128 = TD_FULL_TYPE.UnitComplex128
+    UnitComplexExt = TD_FULL_TYPE.UnitComplexExt
+    BooleanU16 =	TD_FULL_TYPE.BooleanU16
+    Boolean =	TD_FULL_TYPE.Boolean
+    String =	TD_FULL_TYPE.String
+    String2 =	TD_FULL_TYPE.String2
+    Path =		TD_FULL_TYPE.Path
+    Picture =	TD_FULL_TYPE.Picture
+    CString =	TD_FULL_TYPE.CString
+    PasString =	TD_FULL_TYPE.PasString
+    Tag =		TD_FULL_TYPE.Tag
+    SubString =	TD_FULL_TYPE.SubString
+    Array =		TD_FULL_TYPE.Array
+    ArrayDataPtr =	TD_FULL_TYPE.ArrayDataPtr
+    SubArray =	TD_FULL_TYPE.SubArray
+    Cluster =	TD_FULL_TYPE.Cluster
+    LvVariant =	TD_FULL_TYPE.LVVariant
+    MeasureData =	TD_FULL_TYPE.MeasureData
+    ComplexFixedPt = TD_FULL_TYPE.ComplexFixedPt
+    FixedPoint =	TD_FULL_TYPE.FixedPoint
+    Block =		TD_FULL_TYPE.Block
+    TypeBlock =	TD_FULL_TYPE.TypeBlock
+    VoidBlock =	TD_FULL_TYPE.VoidBlock
+    AlignedBlock =	TD_FULL_TYPE.AlignedBlock
+    RepeatedBlock =	TD_FULL_TYPE.RepeatedBlock
+    AlignmntMarker = TD_FULL_TYPE.AlignmntMarker
+    Refnum =	TD_FULL_TYPE.Refnum
+    Ptr =		TD_FULL_TYPE.Ptr
+    PtrTo =		TD_FULL_TYPE.PtrTo
+    ExtData =	TD_FULL_TYPE.ExtData
+    ArrayInterfc =	TD_FULL_TYPE.ArrayInterfc
+    InterfcToData =	TD_FULL_TYPE.InterfcToData
+    Function =	TD_FULL_TYPE.Function
+    TypeDef =	TD_FULL_TYPE.TypeDef
+    PolyVI =	TD_FULL_TYPE.PolyVI
+    #Version = TD_FULL_TYPE.Void
+    #DAQChannel = TD_FULL_TYPE.Void
 
 
 class LV_INTERNAL_MEAS_FLAVOR_NAMES(LVheap.ENUM_TAGS):
@@ -607,34 +607,34 @@ class ConnectorObject:
         if self.otype == 0x00:
             # Special case; if lower bits are non-zero, it is treated as int
             # But if the whole value is 0, then its just void
-            return CONNECTOR_MAIN_TYPE.Void
+            return TD_MAIN_TYPE.Void
         elif self.otype < 0:
             # Types internal to this parser - mapped without bitshift
-            return CONNECTOR_MAIN_TYPE(self.otype)
+            return TD_MAIN_TYPE(self.otype)
         else:
-            return CONNECTOR_MAIN_TYPE(self.otype >> 4)
+            return TD_MAIN_TYPE(self.otype >> 4)
 
     def fullType(self):
-        if self.otype not in set(item.value for item in CONNECTOR_FULL_TYPE):
+        if self.otype not in set(item.value for item in TD_FULL_TYPE):
             return self.otype
-        return CONNECTOR_FULL_TYPE(self.otype)
+        return TD_FULL_TYPE(self.otype)
 
     def isNumber(self):
         return ( \
-          (self.mainType() == CONNECTOR_MAIN_TYPE.Number) or \
-          (self.mainType() == CONNECTOR_MAIN_TYPE.Unit) or \
-          (self.fullType() == CONNECTOR_FULL_TYPE.FixedPoint));
+          (self.mainType() == TD_MAIN_TYPE.Number) or \
+          (self.mainType() == TD_MAIN_TYPE.Unit) or \
+          (self.fullType() == TD_FULL_TYPE.FixedPoint));
 
     def isString(self):
         return ( \
-          (self.fullType() == CONNECTOR_FULL_TYPE.String));
+          (self.fullType() == TD_FULL_TYPE.String));
         # looks like these are not counted as strings?
-        #  (self.fullType() == CONNECTOR_FULL_TYPE.CString) or \
-        #  (self.fullType() == CONNECTOR_FULL_TYPE.PasString));
+        #  (self.fullType() == TD_FULL_TYPE.CString) or \
+        #  (self.fullType() == TD_FULL_TYPE.PasString));
 
     def isPath(self):
         return ( \
-          (self.fullType() == CONNECTOR_FULL_TYPE.Path));
+          (self.fullType() == TD_FULL_TYPE.Path));
 
     def hasClients(self):
         return (len(self.clients) > 0)
@@ -992,19 +992,19 @@ class ConnectorObjectNumber(ConnectorObject):
 
     def isEnum(self):
         return self.fullType() in [
-          CONNECTOR_FULL_TYPE.UnitUInt8,
-          CONNECTOR_FULL_TYPE.UnitUInt16,
-          CONNECTOR_FULL_TYPE.UnitUInt32,
+          TD_FULL_TYPE.UnitUInt8,
+          TD_FULL_TYPE.UnitUInt16,
+          TD_FULL_TYPE.UnitUInt32,
         ]
 
     def isPhys(self):
         return self.fullType() in [
-          CONNECTOR_FULL_TYPE.UnitFloat32,
-          CONNECTOR_FULL_TYPE.UnitFloat64,
-          CONNECTOR_FULL_TYPE.UnitFloatExt,
-          CONNECTOR_FULL_TYPE.UnitComplex64,
-          CONNECTOR_FULL_TYPE.UnitComplex128,
-          CONNECTOR_FULL_TYPE.UnitComplexExt,
+          TD_FULL_TYPE.UnitFloat32,
+          TD_FULL_TYPE.UnitFloat64,
+          TD_FULL_TYPE.UnitFloatExt,
+          TD_FULL_TYPE.UnitComplex64,
+          TD_FULL_TYPE.UnitComplex128,
+          TD_FULL_TYPE.UnitComplexExt,
         ]
 
 
@@ -1222,7 +1222,7 @@ class ConnectorObjectBlob(ConnectorObject):
 
     def checkSanity(self):
         ret = True
-        if self.otype not in (CONNECTOR_FULL_TYPE.PolyVI, CONNECTOR_FULL_TYPE.Block,):
+        if self.otype not in (TD_FULL_TYPE.PolyVI, TD_FULL_TYPE.Block,):
             if self.prop1 != 0xFFFFFFFF:
                 if (self.po.verbose > 1):
                     eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}"\
@@ -1600,7 +1600,7 @@ class ConnectorObjectTypeDef(ConnectorObject):
         i = int(conn_subelem.get("Index"), 0)
         client.index = -1
         client.flags = 0
-        obj_type = valFromEnumOrIntString(CONNECTOR_FULL_TYPE, conn_subelem.get("Type"))
+        obj_type = valFromEnumOrIntString(TD_FULL_TYPE, conn_subelem.get("Type"))
         obj_flags = importXMLBitfields(CONNECTOR_FLAGS, conn_subelem)
         obj = newConnectorObject(self.vi, client.index, obj_flags, obj_type, self.po)
         client.nested = obj
@@ -1657,7 +1657,7 @@ class ConnectorObjectTypeDef(ConnectorObject):
             subelem = ET.SubElement(conn_elem,"Client")
 
             subelem.set("Index", "{:d}".format(i))
-            subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(CONNECTOR_FULL_TYPE, client.nested.otype)))
+            subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(TD_FULL_TYPE, client.nested.otype)))
             subelem.set("Nested", "True")
             if self.index >= 0:
                 part_fname = "{:s}_{:04d}_cli{:02d}".format(fname_base,self.index,i)
@@ -2656,14 +2656,14 @@ class ConnectorObjectSingleContainer(ConnectorObject):
 
 
 def tdEnToName(tdEn):
-    """ Return text name for CONNECTOR_FULL_TYPE element
+    """ Return text name for TD_FULL_TYPE element
 
     Try to keep naming convention which LV uses.
     """
     if LV_INTERNAL_TD_NAMES.has_value(int(tdEn)):
         lvtdEn = LV_INTERNAL_TD_NAMES(tdEn)
         tdName = lvtdEn.name
-    elif isinstance(tdEn, CONNECTOR_FULL_TYPE):
+    elif isinstance(tdEn, TD_FULL_TYPE):
         tdName = tdEn.name
         raise NotImplementedError("Value {} not in {}.".format(tdEn.name,LV_INTERNAL_TD_NAMES.__name__))
     else:
@@ -2675,25 +2675,25 @@ def tdNameToEnum(tdName):
 
     if LV_INTERNAL_TD_NAMES.has_name(tdName):
         lvtdEn = LV_INTERNAL_TD_NAMES[tdName]
-        tagEn = CONNECTOR_FULL_TYPE(lvtdEn.value)
+        tagEn = TD_FULL_TYPE(lvtdEn.value)
 
     if tagEn is None:
         if tdName == LVclasses.LVVariant.__name__:
-            tagEn = CONNECTOR_FULL_TYPE.LVVariant
+            tagEn = TD_FULL_TYPE.LVVariant
         elif tdName == LVclasses.OleVariant.__name__:
-            tagEn = CONNECTOR_FULL_TYPE.LVVariant
+            tagEn = TD_FULL_TYPE.LVVariant
 
     if tagEn is None:
         flavorEn = mdFlavorNameToEnum(tdName)
         if flavorEn is not None:
-            tagEn = CONNECTOR_FULL_TYPE.MeasureData
+            tagEn = TD_FULL_TYPE.MeasureData
 
     if tagEn is None:
         refnumEn = LVdatatyperef.refnumNameToEnum(tdName)
         if refnumEn is not None:
-            tagEn = CONNECTOR_FULL_TYPE.Refnum
+            tagEn = TD_FULL_TYPE.Refnum
 
-    # no direct conversion from CONNECTOR_FULL_TYPE names
+    # no direct conversion from TD_FULL_TYPE names
     # These would be probllematic as it has no has_name().
     # So just generic int value support
     if tagEn is None:
@@ -2746,23 +2746,23 @@ def newErrorCluster(vi, idx, obj_flags, po):
     tdErrEnt = SimpleNamespace() # error status
     tdErrEnt.index = -1
     tdErrEnt.flags = 0
-    tdErrEnt.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.Boolean, po)
+    tdErrEnt.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.Boolean, po)
     tdList.append(tdErrEnt)
 
     tdErrEnt = SimpleNamespace() # error code
     tdErrEnt.index = -1
     tdErrEnt.flags = 0
-    tdErrEnt.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.NumInt32, po)
+    tdErrEnt.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.NumInt32, po)
     tdList.append(tdErrEnt)
 
     tdErrEnt = SimpleNamespace() # error source
     tdErrEnt.index = -1
     tdErrEnt.flags = 0
-    tdErrEnt.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.String, po)
+    tdErrEnt.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.String, po)
     tdList.append(tdErrEnt)
 
     # Prepare a cluster container for that list
-    tdCluster = newConnectorObject(vi, idx, obj_flags, CONNECTOR_FULL_TYPE.Cluster, po)
+    tdCluster = newConnectorObject(vi, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
     tdCluster.clients = tdList
     return tdCluster
 
@@ -2775,7 +2775,7 @@ def newDigitalTableCluster(vi, idx, obj_flags, po):
     tdDigTabEnt = SimpleNamespace() # DigitalTable transitions
     tdDigTabEnt.index = -1
     tdDigTabEnt.flags = 0
-    tdDigTabEnt.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.Array, po)
+    tdDigTabEnt.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.Array, po)
     tdDigTabEnt.nested.dimensions = [SimpleNamespace() for _ in range(1)]
     for dim in tdDigTabEnt.nested.dimensions:
         dim.flags = 0
@@ -2785,13 +2785,13 @@ def newDigitalTableCluster(vi, idx, obj_flags, po):
         cli_flags = 0
         client.index = -1
         client.flags = 0
-        client.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt32, po)
+        client.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.NumUInt32, po)
     tdList.append(tdDigTabEnt)
 
     tdDigTabEnt = SimpleNamespace() # DigitalTable data
     tdDigTabEnt.index = -1
     tdDigTabEnt.flags = 0
-    tdDigTabEnt.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.Array, po)
+    tdDigTabEnt.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.Array, po)
     tdDigTabEnt.nested.dimensions = [SimpleNamespace() for _ in range(2)]
     for dim in tdDigTabEnt.nested.dimensions:
         dim.flags = 0
@@ -2801,11 +2801,11 @@ def newDigitalTableCluster(vi, idx, obj_flags, po):
         cli_flags = 0
         client.index = -1
         client.flags = 0
-        client.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.NumUInt8, po)
+        client.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.NumUInt8, po)
     tdList.append(tdDigTabEnt)
 
     # Prepare a cluster container for that list
-    tdCluster = newConnectorObject(vi, idx, obj_flags, CONNECTOR_FULL_TYPE.Cluster, po)
+    tdCluster = newConnectorObject(vi, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
     tdCluster.clients = tdList
     return tdCluster
 
@@ -2818,13 +2818,13 @@ def newDigitalWaveformCluster(vi, idx, obj_flags, po):
     tdEntry.index = -1
     tdEntry.flags = 0
     # Use block of 16 bytes as Timestamp
-    tdEntry.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.Block, po)
+    tdEntry.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.Block, po)
     tdEntry.nested.blkSize = 16
     tdList.append(tdEntry)
     tdEntry = SimpleNamespace() # dt
     tdEntry.index = -1
     tdEntry.flags = 0
-    tdEntry.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat64, po)
+    tdEntry.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.NumFloat64, po)
     tdList.append(tdEntry)
     tdEntry = SimpleNamespace() # Y
     tdEntry.index = -1
@@ -2840,11 +2840,11 @@ def newDigitalWaveformCluster(vi, idx, obj_flags, po):
     tdEntry = SimpleNamespace() # attributes
     tdEntry.index = -1
     tdEntry.flags = 0
-    tdEntry.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.LVVariant, po)
+    tdEntry.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.LVVariant, po)
     tdList.append(tdEntry)
 
     # Prepare a cluster container for that list
-    tdCluster = newConnectorObject(vi, idx, obj_flags, CONNECTOR_FULL_TYPE.Cluster, po)
+    tdCluster = newConnectorObject(vi, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
     tdCluster.clients = tdList
     return tdCluster
 
@@ -2857,19 +2857,19 @@ def newAnalogWaveformCluster(vi, idx, obj_flags, tdInner, po):
     tdEntry.index = -1
     tdEntry.flags = 0
     # Use block of 16 bytes as Timestamp
-    tdEntry.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.Block, po)
+    tdEntry.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.Block, po)
     tdEntry.nested.blkSize = 16
     tdList.append(tdEntry)
     tdEntry = SimpleNamespace() # dt
     tdEntry.index = -1
     tdEntry.flags = 0
-    tdEntry.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat64, po)
+    tdEntry.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.NumFloat64, po)
     tdList.append(tdEntry)
     tdEntry = SimpleNamespace() # Y
     tdEntry.index = -1
     tdEntry.flags = 0
     # The AnalogTable is a Cluster with specific things inside
-    tdEntry.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.Array, po)
+    tdEntry.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.Array, po)
     tdEntry.nested.dimensions = [SimpleNamespace() for _ in range(1)]
     for dim in tdEntry.nested.dimensions:
         dim.flags = 0
@@ -2889,11 +2889,11 @@ def newAnalogWaveformCluster(vi, idx, obj_flags, tdInner, po):
     tdEntry = SimpleNamespace() # attributes
     tdEntry.index = -1
     tdEntry.flags = 0
-    tdEntry.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.LVVariant, po)
+    tdEntry.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.LVVariant, po)
     tdList.append(tdEntry)
 
     # Prepare a cluster container for that list
-    tdCluster = newConnectorObject(vi, idx, obj_flags, CONNECTOR_FULL_TYPE.Cluster, po)
+    tdCluster = newConnectorObject(vi, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
     tdCluster.clients = tdList
     return tdCluster
 
@@ -2907,7 +2907,7 @@ def newDynamicTableCluster(vi, idx, obj_flags, po):
     tdTabEnt = SimpleNamespace()
     tdTabEnt.index = -1
     tdTabEnt.flags = 0
-    tdTabEnt.nested = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.Array, po)
+    tdTabEnt.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.Array, po)
     tdTabEnt.nested.dimensions = [SimpleNamespace() for _ in range(1)]
     for dim in tdTabEnt.nested.dimensions:
         dim.flags = 0
@@ -2917,12 +2917,12 @@ def newDynamicTableCluster(vi, idx, obj_flags, po):
         client.index = -1
         client.flags = 0
         # data inside as for MEASURE_DATA_FLAVOR.Float64Waveform
-        tdInner = newConnectorObject(vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat64, po)
+        tdInner = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.NumFloat64, po)
         client.nested = newAnalogWaveformCluster(vi, -1, 0, tdInner, po)
     tdList.append(tdTabEnt)
 
     # Prepare a cluster container for that list
-    tdCluster = newConnectorObject(vi, idx, obj_flags, CONNECTOR_FULL_TYPE.Cluster, po)
+    tdCluster = newConnectorObject(vi, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
     tdCluster.clients = tdList
     return tdCluster
 
@@ -2930,7 +2930,7 @@ def newOldFloat64WaveformCluster(vi, idx, obj_flags, po):
     """ The OldFloat64 Waveform is a Cluster with specific things inside
     """
     #TODO this is not enough, some changes are required in the cluster
-    tdInner = newConnectorObject(self.vi, -1, 0, CONNECTOR_FULL_TYPE.NumFloat64, self.po)
+    tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumFloat64, self.po)
     tdCluster = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
     return tdCluster
 
@@ -2940,50 +2940,50 @@ def newConnectorObject(vi, idx, obj_flags, obj_type, po):
     """
     # Try types for which we have specific constructors
     ctor = {
-        CONNECTOR_FULL_TYPE.Void: ConnectorObjectVoid,
-        #CONNECTOR_FULL_TYPE.Num*: ConnectorObjectNumber, # Handled by main type
-        #CONNECTOR_FULL_TYPE.Unit*: ConnectorObjectNumber, # Handled by main type
-        #CONNECTOR_FULL_TYPE.Boolean*: ConnectorObjectBool, # Handled by main type
-        CONNECTOR_FULL_TYPE.String: ConnectorObjectBlob,
-        CONNECTOR_FULL_TYPE.Path: ConnectorObjectBlob,
-        CONNECTOR_FULL_TYPE.Picture: ConnectorObjectBlob,
-        CONNECTOR_FULL_TYPE.CString: ConnectorObjectCString,
-        CONNECTOR_FULL_TYPE.PasString: ConnectorObjectPasString,
-        CONNECTOR_FULL_TYPE.Tag: ConnectorObjectTag,
-        CONNECTOR_FULL_TYPE.SubString: ConnectorObjectBlob,
-        #CONNECTOR_FULL_TYPE.*Array*: ConnectorObjectArray, # Handled by main type
-        CONNECTOR_FULL_TYPE.Cluster: ConnectorObjectCluster,
-        CONNECTOR_FULL_TYPE.LVVariant: ConnectorObjectLVVariant,
-        CONNECTOR_FULL_TYPE.MeasureData: ConnectorObjectMeasureData,
-        CONNECTOR_FULL_TYPE.ComplexFixedPt: ConnectorObjectFixedPoint,
-        CONNECTOR_FULL_TYPE.FixedPoint: ConnectorObjectFixedPoint,
-        CONNECTOR_FULL_TYPE.Block: ConnectorObjectBlock,
-        CONNECTOR_FULL_TYPE.TypeBlock: ConnectorObjectSingleContainer,
-        CONNECTOR_FULL_TYPE.VoidBlock: ConnectorObjectSingleContainer,
-        CONNECTOR_FULL_TYPE.AlignedBlock: ConnectorObjectAlignedBlock,
-        CONNECTOR_FULL_TYPE.RepeatedBlock: ConnectorObjectRepeatedBlock,
-        CONNECTOR_FULL_TYPE.AlignmntMarker: ConnectorObjectSingleContainer,
-        CONNECTOR_FULL_TYPE.Ptr: ConnectorObjectNumberPtr,
-        CONNECTOR_FULL_TYPE.PtrTo: ConnectorObjectSingleContainer,
-        CONNECTOR_FULL_TYPE.Function: ConnectorObjectFunction,
-        CONNECTOR_FULL_TYPE.TypeDef: ConnectorObjectTypeDef,
-        CONNECTOR_FULL_TYPE.PolyVI: ConnectorObjectBlob,
+        TD_FULL_TYPE.Void: ConnectorObjectVoid,
+        #TD_FULL_TYPE.Num*: ConnectorObjectNumber, # Handled by main type
+        #TD_FULL_TYPE.Unit*: ConnectorObjectNumber, # Handled by main type
+        #TD_FULL_TYPE.Boolean*: ConnectorObjectBool, # Handled by main type
+        TD_FULL_TYPE.String: ConnectorObjectBlob,
+        TD_FULL_TYPE.Path: ConnectorObjectBlob,
+        TD_FULL_TYPE.Picture: ConnectorObjectBlob,
+        TD_FULL_TYPE.CString: ConnectorObjectCString,
+        TD_FULL_TYPE.PasString: ConnectorObjectPasString,
+        TD_FULL_TYPE.Tag: ConnectorObjectTag,
+        TD_FULL_TYPE.SubString: ConnectorObjectBlob,
+        #TD_FULL_TYPE.*Array*: ConnectorObjectArray, # Handled by main type
+        TD_FULL_TYPE.Cluster: ConnectorObjectCluster,
+        TD_FULL_TYPE.LVVariant: ConnectorObjectLVVariant,
+        TD_FULL_TYPE.MeasureData: ConnectorObjectMeasureData,
+        TD_FULL_TYPE.ComplexFixedPt: ConnectorObjectFixedPoint,
+        TD_FULL_TYPE.FixedPoint: ConnectorObjectFixedPoint,
+        TD_FULL_TYPE.Block: ConnectorObjectBlock,
+        TD_FULL_TYPE.TypeBlock: ConnectorObjectSingleContainer,
+        TD_FULL_TYPE.VoidBlock: ConnectorObjectSingleContainer,
+        TD_FULL_TYPE.AlignedBlock: ConnectorObjectAlignedBlock,
+        TD_FULL_TYPE.RepeatedBlock: ConnectorObjectRepeatedBlock,
+        TD_FULL_TYPE.AlignmntMarker: ConnectorObjectSingleContainer,
+        TD_FULL_TYPE.Ptr: ConnectorObjectNumberPtr,
+        TD_FULL_TYPE.PtrTo: ConnectorObjectSingleContainer,
+        TD_FULL_TYPE.Function: ConnectorObjectFunction,
+        TD_FULL_TYPE.TypeDef: ConnectorObjectTypeDef,
+        TD_FULL_TYPE.PolyVI: ConnectorObjectBlob,
     }.get(obj_type, None)
     if ctor is None:
         # If no specific constructor - go by general type
         obj_main_type = obj_type >> 4
         ctor = {
-            CONNECTOR_MAIN_TYPE.Number: ConnectorObjectNumber,
-            CONNECTOR_MAIN_TYPE.Unit: ConnectorObjectNumber,
-            CONNECTOR_MAIN_TYPE.Bool: ConnectorObjectBool,
-            CONNECTOR_MAIN_TYPE.Blob: ConnectorObject,
-            CONNECTOR_MAIN_TYPE.Array: ConnectorObjectArray,
-            CONNECTOR_MAIN_TYPE.Cluster: ConnectorObject,
-            CONNECTOR_MAIN_TYPE.Block: ConnectorObject,
-            CONNECTOR_MAIN_TYPE.Ref: ConnectorObjectRef,
-            CONNECTOR_MAIN_TYPE.NumberPointer: ConnectorObject,
-            CONNECTOR_MAIN_TYPE.Terminal: ConnectorObject,
-            CONNECTOR_MAIN_TYPE.Void: ConnectorObject, # With the way we get main_type, this condition is impossible
+            TD_MAIN_TYPE.Number: ConnectorObjectNumber,
+            TD_MAIN_TYPE.Unit: ConnectorObjectNumber,
+            TD_MAIN_TYPE.Bool: ConnectorObjectBool,
+            TD_MAIN_TYPE.Blob: ConnectorObject,
+            TD_MAIN_TYPE.Array: ConnectorObjectArray,
+            TD_MAIN_TYPE.Cluster: ConnectorObject,
+            TD_MAIN_TYPE.Block: ConnectorObject,
+            TD_MAIN_TYPE.Ref: ConnectorObjectRef,
+            TD_MAIN_TYPE.NumberPointer: ConnectorObject,
+            TD_MAIN_TYPE.Terminal: ConnectorObject,
+            TD_MAIN_TYPE.Void: ConnectorObject, # With the way we get main_type, this condition is impossible
         }.get(obj_main_type, ConnectorObject) # Void is the default type in case of no match
     return ctor(vi, idx, obj_flags, obj_type, po)
 
