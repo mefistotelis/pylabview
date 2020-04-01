@@ -268,6 +268,7 @@ class DataFillBool(DataFill):
         self.value = int(df_elem.text, 0)
 
     def initWithXMLLate(self):
+        super().initWithXMLLate()
         self.initVersion()
 
     def exportXML(self, df_elem, fname_base):
@@ -281,10 +282,15 @@ class DataFillString(DataFill):
         # part to the size (self.td.prop1 & 0x7fffffff) is used; but the length stored is still valid
         self.value = bldata.read(strlen)
 
+    def initWithXML(self, df_elem):
+        if df_elem.text is not None: # Empty string may be None after parsing
+            self.value = df_elem.text.encode(self.vi.textEncoding)
+        else:
+            self.value = b''
+
     def exportXML(self, df_elem, fname_base):
         elemText = self.value.decode(self.vi.textEncoding)
         ET.safe_store_element_text(df_elem, elemText)
-        pass
 
 
 class DataFillPath(DataFill):
@@ -313,6 +319,10 @@ class DataFillPath(DataFill):
               .format(self.getXMLTagName(),clsident))
         self.value.initWithXML(subelem)
         pass
+
+    def initWithXMLLate(self):
+        super().initWithXMLLate()
+        self.value.initWithXMLLate()
 
     def exportXML(self, df_elem, fname_base):
         self.value.exportXML(df_elem, fname_base)
@@ -385,6 +395,11 @@ class DataFillArray(DataFill):
             self.value.append(sub_df)
         pass
 
+    def initWithXMLLate(self):
+        super().initWithXMLLate()
+        for sub_df in self.value:
+            sub_df.initWithXMLLate()
+
     def exportXML(self, df_elem, fname_base):
         for i, dim in enumerate(self.dimensions):
             subelem = ET.SubElement(df_elem, 'dim')
@@ -428,6 +443,11 @@ class DataFillCluster(DataFill):
             self.value.append(sub_df)
         pass
 
+    def initWithXMLLate(self):
+        super().initWithXMLLate()
+        for sub_df in self.value:
+            sub_df.initWithXMLLate()
+
     def exportXML(self, df_elem, fname_base):
         for i, sub_df in enumerate(self.value):
             subelem = ET.SubElement(df_elem, sub_df.getXMLTagName())
@@ -453,6 +473,10 @@ class DataFillLVVariant(DataFill):
             raise AttributeError("Class {} encountered unexpected tag '{}'".format(type(self).__name__, df_elem.tag))
         self.value.initWithXML(df_elem)
         pass
+
+    def initWithXMLLate(self):
+        super().initWithXMLLate()
+        self.value.initWithXMLLate()
 
     def exportXML(self, df_elem, fname_base):
         self.value.exportXML(df_elem, fname_base)
@@ -561,7 +585,11 @@ class DataFillMeasureData(DataFill):
         pass
 
     def initWithXMLLate(self):
+        super().initWithXMLLate()
         self.initVersion()
+        self.containedTd.initWithXMLLate()
+        for sub_df in self.value:
+            sub_df.initWithXMLLate()
 
     def exportXML(self, df_elem, fname_base):
         for i, sub_df in enumerate(self.value):
@@ -681,6 +709,11 @@ class DataFillRepeatedBlock(DataFill):
             self.value.append(sub_df)
         pass
 
+    def initWithXMLLate(self):
+        super().initWithXMLLate()
+        for sub_df in self.value:
+            sub_df.initWithXMLLate()
+
     def exportXML(self, df_elem, fname_base):
         for i, sub_df in enumerate(self.value):
             subelem = ET.SubElement(df_elem, sub_df.getXMLTagName())
@@ -725,7 +758,10 @@ class DataFillIORefnum(DataFill):
     def initWithXML(self, df_elem):
         storedAs = df_elem.get("StoredAs")
         if storedAs == "String":
-            self.value = df_elem.text.encode(self.vi.textEncoding)
+            if df_elem.text is not None: # Empty string may be None after parsing
+                self.value = df_elem.text.encode(self.vi.textEncoding)
+            else:
+                self.value = b''
         elif storedAs == "Int":
             self.value = int(df_elem.text, 0)
         else:
@@ -802,7 +838,10 @@ class DataFillUDTagRefnum(DataFill):
         self.usrdef2 = None
         self.usrdef3 = None
         self.usrdef4 = None
-        self.value = df_elem.text.encode(self.vi.textEncoding)
+        if df_elem.text is not None: # Empty string may be None after parsing
+            self.value = df_elem.text.encode(self.vi.textEncoding)
+        else:
+            self.value = b''
         usrdef = df_elem.get("UsrDef1")
         if usrdef is not None:
             self.usrdef1 = usrdef.encode(self.vi.textEncoding)
@@ -859,9 +898,16 @@ class DataFillUDClassInst(DataFill):
         self.libName = b''
         for i, subelem in enumerate(df_elem):
             if subelem.tag == "LibName":
-                self.libName = subelem.text.encode(self.vi.textEncoding)
+                if subelem.text is not None: # Empty string may be None after parsing
+                    val = subelem.text.encode(self.vi.textEncoding)
+                else:
+                    val = b''
+                self.libName = val
             elif subelem.tag == "LibVersion":
-                val = subelem.text.encode(self.vi.textEncoding)
+                if subelem.text is not None: # Empty string may be None after parsing
+                    val = subelem.text.encode(self.vi.textEncoding)
+                else:
+                    val = b''
                 self.value.append(val)
             else:
                 raise AttributeError("Class {} encountered unexpected tag '{}'".format(type(self).__name__, subelem.tag))
@@ -961,6 +1007,11 @@ class DataFillTypeDef(DataFill):
             sub_df.initWithXML(subelem)
             self.value.append(sub_df)
         pass
+
+    def initWithXMLLate(self):
+        super().initWithXMLLate()
+        for sub_df in self.value:
+            sub_df.initWithXMLLate()
 
     def exportXML(self, df_elem, fname_base):
         for i, sub_df in enumerate(self.value):

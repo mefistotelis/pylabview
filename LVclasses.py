@@ -366,6 +366,7 @@ class LVVariant(LVObject):
         autoVersion = (obj_elem.get("Version") == "auto")
         if autoVersion:
             self.version["auto"] = True # Existence of this key marks the need to replace version
+        attrs = []
         for subelem in obj_elem:
             if (subelem.tag == "Version"):
                 ver = {}
@@ -395,9 +396,22 @@ class LVVariant(LVObject):
                 # Set connector data based on XML properties
                 obj.initWithXML(subelem)
             elif (subelem.tag == "Attributes"):
-                raise NotImplementedError("Unsupported LVVariant containing Attributes")
+                for attr_elem in subelem:
+                    attrib = SimpleNamespace()
+                    attrib.flags = 0
+                    attrib.index = -1
+                    name_str = attr_elem.get("Name")
+                    attrib.name = name_str.encode(encoding=self.vi.textEncoding)
+                    attrib.nested = LVdatatype.newConnectorObject(self.vi, -1, 0, LVdatatype.TD_FULL_TYPE.LVVariant, self.po)
+                    attrib.value = LVdatafill.newDataFillObjectWithTD(self.vi, attrib.index, attrib.flags, attrib.nested, self.po)
+                    attrib.value.initWithXML(attr_elem)
+                    if (self.po.verbose > 2):
+                        print("{:s}: {:s} {:d} attribute {}: {} {}"\
+                          .format(self.vi.src_fname, type(self).__name__, self.index, attrib.name, attrib.nested, attrib.value))
+                    attrs.append(attrib)
             else:
                 raise AttributeError("LVVariant subtree contains unexpected tag '{}'".format(subelem.tag))
+        self.attrs = attrs
         pass
 
     def initWithXMLLate(self):
@@ -410,7 +424,7 @@ class LVVariant(LVObject):
         pass
 
     def exportXML(self, obj_elem, fname_base):
-        obj_elem.tag = "LVVariant"
+        obj_elem.tag = type(self).__name__
         obj_elem.set("HasVarItem2", "{:d}".format(self.hasvaritem2))
         if self.hasvaritem2 != 0:
             obj_elem.set("VarType2", "{:d}".format(self.vartype2))
@@ -443,16 +457,13 @@ class LVVariant(LVObject):
 
             client.nested.exportXML(subelem, fname_cli)
             client.nested.exportXMLFinish(subelem)
-        idx = -1
         if len(self.attrs) > 0:
             attrs_elem = ET.SubElement(obj_elem,"Attributes")
-        for attrib in self.attrs:
-            idx += 1
-            subelem = ET.SubElement(attrs_elem,"Object")
+            for attrib in self.attrs:
+                subelem = ET.SubElement(attrs_elem,"Object")
 
-            subelem.set("Index", str(idx))
-            subelem.set("Name", attrib.name.decode(encoding=self.vi.textEncoding))
-            attrib.value.exportXML(subelem, fname_base)
+                subelem.set("Name", attrib.name.decode(encoding=self.vi.textEncoding))
+                attrib.value.exportXML(subelem, fname_base)
         pass
 
 class OleVariant(LVObject):

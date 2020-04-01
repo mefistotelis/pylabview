@@ -3094,6 +3094,7 @@ class BDPW(Block):
         else:
             LIBN_content = b''
 
+        LVSR.updateData()
         LVSR_content = LVSR.getRawData()
 
         if (self.po.verbose > 2):
