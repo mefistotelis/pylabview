@@ -341,11 +341,24 @@ def readQuadFloat(bldata):
 
     Note: Untested! maybe should be big endian?
     """
-    asint = int.from_bytes(bldata.read(16), byteorder='little')
+    asint = int.from_bytes(bldata.read(16), byteorder='little', signed=False)
     sign = (-1.0) ** (asint >> 127);
     exponent = ((asint >> 112) & 0x7FFF) - 16383;
     significand = (asint & ((1 << 112) - 1)) | (1 << 112)
     return sign * significand * 2.0 ** (exponent - 112)
+
+def prepareQuadFloat(val):
+    """ Build quad precision float value (aka FloatExt).
+
+    Note: Untested! maybe should be big endian? is significand computation correct?
+    """
+    mantissa, exponent = math.frexp(val)
+    sign = -1 if mantissa < 0 else 1
+    significand = int(abs(mantissa) * (2 ** 112)) & ((1 << 112) - 1)
+    asint = ((1 << 127) if sign < 0 else 0) |\
+      (((exponent + 16383) & 0x7FFF) << 112) |\
+      significand & ((1 << 112) - 1)
+    return int(asint).to_bytes(16, byteorder='little', signed=False)
 
 def readQualifiedName(bldata, po):
     count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)

@@ -76,13 +76,6 @@ class DataFill:
         self.td = td
         self.tm_flags = tm_flags
 
-    def initWithRSRC(self, bldata):
-        self.initWithRSRCParse(bldata)
-        if (self.po.verbose > 2):
-            print("{:s}: {} offs after {}"\
-              .format(self.vi.src_fname,str(self),bldata.tell()))
-        pass
-
     def prepareDict(self):
         typeName = enumOrIntToName(self.tdType)
         return { 'type': typeName, 'value': self.value }
@@ -102,6 +95,21 @@ class DataFill:
         else:
             tagName = tdEnToName(self.tdType)
         return tagName
+
+    def initWithRSRC(self, bldata):
+        self.initWithRSRCParse(bldata)
+        if (self.po.verbose > 2):
+            print("{:s}: {} offs after {}"\
+              .format(self.vi.src_fname,str(self),bldata.tell()))
+        pass
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        """ Returns part of the Data Fill re-created from properties.
+
+        To be overloaded in classes for specific Data Fill types.
+        """
+        data_buf = b''
+        return data_buf
 
     def initWithXML(self, df_elem):
         """ Early part of Data Fill loading from XML file
@@ -127,6 +135,10 @@ class DataFill:
 class DataFillVoid(DataFill):
     def initWithRSRCParse(self, bldata):
         self.value = None
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        return data_buf
 
     def initWithXML(self, df_elem):
         pass
@@ -180,13 +192,15 @@ class DataFillInt(DataFill):
     def initWithRSRCParse(self, bldata):
         self.value = int.from_bytes(bldata.read(self.size), byteorder='big', signed=self.signed)
 
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = int(self.value).to_bytes(self.size, byteorder='big', signed=self.signed)
+        return data_buf
+
     def initWithXML(self, df_elem):
         self.value = int(df_elem.text, 0)
-        pass
 
     def exportXML(self, df_elem, fname_base):
         df_elem.text = "{:d}".format(self.value)
-        pass
 
 
 class DataFillFloat(DataFill):
@@ -202,6 +216,20 @@ class DataFillFloat(DataFill):
             raise RuntimeError("Class {} used for unexpected type {}"\
               .format(type(self).__name__, self.getXMLTagName()))
 
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        from LVdatatype import TD_FULL_TYPE
+        if self.tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
+            data_buf += struct.pack('>f', self.value)
+        elif self.tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
+            data_buf += struct.pack('>d', self.value)
+        elif self.tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
+            data_buf += prepareQuadFloat(self.value)
+        else:
+            raise RuntimeError("Class {} used for unexpected type {}"\
+              .format(type(self).__name__, self.getXMLTagName()))
+        return data_buf
+
     def initWithXML(self, df_elem):
         self.value = float(df_elem.text)
         pass
@@ -212,6 +240,10 @@ class DataFillFloat(DataFill):
 
 
 class DataFillComplex(DataFill):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.value = (None,None,)
+
     def initWithRSRCParse(self, bldata):
         from LVdatatype import TD_FULL_TYPE
         if self.tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
@@ -223,6 +255,21 @@ class DataFillComplex(DataFill):
         else:
             raise RuntimeError("Class {} used for unexpected type {}"\
               .format(type(self).__name__, self.getXMLTagName()))
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        from LVdatatype import TD_FULL_TYPE
+        if self.tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
+            data_buf += struct.pack('>ff', self.value[0], self.value[1])
+        elif self.tdType in (TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,):
+            data_buf += struct.pack('>dd', self.value[0], self.value[1])
+        elif self.tdType in (TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
+            data_buf += prepareQuadFloat(self.value[0])
+            data_buf += prepareQuadFloat(self.value[1])
+        else:
+            raise RuntimeError("Class {} used for unexpected type {}"\
+              .format(type(self).__name__, self.getXMLTagName()))
+        return data_buf
 
     def initWithXML(self, df_elem):
         valRe = float(df_elem.find('real').text)
@@ -264,6 +311,10 @@ class DataFillBool(DataFill):
         self.initVersion()
         self.value = int.from_bytes(bldata.read(self.size), byteorder='big', signed=False)
 
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = int(self.value).to_bytes(self.size, byteorder='big', signed=False)
+        return data_buf
+
     def initWithXML(self, df_elem):
         self.value = int(df_elem.text, 0)
 
@@ -281,6 +332,11 @@ class DataFillString(DataFill):
         #if self.td.prop1 != 0xffffffff: # in such case part of the value might be irrelevant, as only
         # part to the size (self.td.prop1 & 0x7fffffff) is used; but the length stored is still valid
         self.value = bldata.read(strlen)
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.value
+        return data_buf
 
     def initWithXML(self, df_elem):
         if df_elem.text is not None: # Empty string may be None after parsing
@@ -306,6 +362,11 @@ class DataFillPath(DataFill):
               .format(self.getXMLTagName(),clsident))
         bldata.seek(startPos)
         self.value.parseRSRCData(bldata)
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.value.parseRSRCData()
+        return data_buf
 
     def initWithXML(self, df_elem):
         for subelem in df_elem:
@@ -333,6 +394,11 @@ class DataFillCString(DataFill):
     def initWithRSRCParse(self, bldata):
         # No idea why sonething which looks like string type stores 32-bit value instead
         self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(self.value).to_bytes(4, byteorder='big', signed=False)
+        return data_buf
 
     def initWithXML(self, df_elem):
         self.value = int(df_elem.text, 0)
@@ -382,6 +448,14 @@ class DataFillArray(DataFill):
                 raise RuntimeError("Data type {}: {}".format(enumOrIntToName(sub_td.fullType()), str(e)))
         pass
 
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        for dim in self.dimensions:
+            data_buf += int(dim).to_bytes(4, byteorder='big', signed=False)
+        for sub_df in self.value:
+            data_buf += sub_df.prepareRSRCData(avoid_recompute=avoid_recompute)
+        return data_buf
+
     def initWithXML(self, df_elem):
         self.dimensions = []
         self.value = []
@@ -414,6 +488,11 @@ class DataFillArrayDataPtr(DataFill):
     def initWithRSRCParse(self, bldata):
         self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(self.value).to_bytes(4, byteorder='big', signed=False)
+        return data_buf
+
     def initWithXML(self, df_elem):
         self.value = int(df_elem.text, 0)
         pass
@@ -434,6 +513,12 @@ class DataFillCluster(DataFill):
             except Exception as e:
                 raise RuntimeError("Data type {}: {}".format(enumOrIntToName(sub_td.fullType()), str(e)))
         pass
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        for sub_df in self.value:
+            data_buf += sub_df.prepareRSRCData(avoid_recompute=avoid_recompute)
+        return data_buf
 
     def initWithXML(self, df_elem):
         self.value = []
@@ -463,6 +548,11 @@ class DataFillLVVariant(DataFill):
         else:
             self.value = LVclasses.OleVariant(0, self.vi, self.po)
         self.value.parseRSRCData(bldata)
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.value.prepareRSRCData(avoid_recompute=avoid_recompute)
+        return data_buf
 
     def initWithXML(self, df_elem):
         if df_elem.tag == LVclasses.LVVariant.__name__:
@@ -576,6 +666,12 @@ class DataFillMeasureData(DataFill):
               .format(enumOrIntToName(self.containedTd.fullType()), str(e)))
         pass
 
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        for sub_df in self.value:
+            data_buf += sub_df.prepareRSRCData(avoid_recompute=avoid_recompute)
+        return data_buf
+
     def initWithXML(self, df_elem):
         self.value = []
         for i, subelem in enumerate(df_elem):
@@ -619,6 +715,14 @@ class DataFillComplexFixedPt(DataFill):
                 self.vflags[i] = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         pass
 
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        for i in range(2):
+            data_buf += int(self.value[i]).to_bytes(8, byteorder='big', signed=False)
+            if self.td.allocOv:
+                data_buf += int(self.vflags[i]).to_bytes(1, byteorder='big', signed=False)
+        return data_buf
+
     def initWithXML(self, df_elem):
         subelem = df_elem.find('real')
         valRe = int(subelem.text, 0)
@@ -655,6 +759,13 @@ class DataFillFixedPoint(DataFill):
         else:
             self.vflags = None
 
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(self.value).to_bytes(8, byteorder='big', signed=False)
+        if self.td.allocOv:
+            data_buf += int(self.vflags).to_bytes(1, byteorder='big', signed=False)
+        return data_buf
+
     def initWithXML(self, df_elem):
         valRe = int(df_elem.text, 0)
         flagRe = df_elem.get("Flags")
@@ -674,6 +785,11 @@ class DataFillFixedPoint(DataFill):
 class DataFillBlock(DataFill):
     def initWithRSRCParse(self, bldata):
         self.value = bldata.read(self.td.blkSize)
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.value
+        return data_buf
 
     def initWithXML(self, df_elem):
         self.value = bytes.fromhex(df_elem.text)
@@ -700,6 +816,12 @@ class DataFillRepeatedBlock(DataFill):
             except Exception as e:
                 raise RuntimeError("Data type {}: {}".format(enumOrIntToName(sub_td.fullType()), str(e)))
         pass
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        for sub_df in self.value:
+            data_buf += sub_df.prepareRSRCData(avoid_recompute=avoid_recompute)
+        return data_buf
 
     def initWithXML(self, df_elem):
         self.value = []
@@ -730,6 +852,11 @@ class DataFillSimpleRefnum(DataFill):
         # The format seem to be different for LV6.0.0 and older, but still 4 bytes
         self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(self.value).to_bytes(4, byteorder='big', signed=False)
+        return data_buf
+
     def initWithXML(self, df_elem):
         self.value = int(df_elem.text, 0)
         pass
@@ -754,6 +881,19 @@ class DataFillIORefnum(DataFill):
                 self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         else:
             self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        ver = self.vi.getFileVersion()
+        if isGreaterOrEqVersion(ver, 6,0,0):
+            if self.isRefnumTag(self.td):
+                data_buf += len(self.value).to_bytes(4, byteorder='big', signed=False)
+                data_buf += self.value
+            else:
+                data_buf += int(self.value).to_bytes(4, byteorder='big', signed=False)
+        else:
+            data_buf += int(self.value).to_bytes(4, byteorder='big', signed=False)
+        return data_buf
 
     def initWithXML(self, df_elem):
         storedAs = df_elem.get("StoredAs")
@@ -786,6 +926,11 @@ class DataFillUDRefnum(DataFill):
     """
     def initWithRSRCParse(self, bldata):
         self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(self.value).to_bytes(4, byteorder='big', signed=False)
+        return data_buf
 
     def initWithXML(self, df_elem):
         self.value = int(df_elem.text, 0)
@@ -832,6 +977,24 @@ class DataFillUDTagRefnum(DataFill):
             self.usrdef3 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             self.usrdef4 = bldata.read(strlen)
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        from LVdatatyperef import REFNUM_TYPE
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+        data_buf += int(self.value).to_bytes(4, byteorder='big', signed=False)
+        data_buf += self.value
+        if isGreaterOrEqVersion(ver, 12,0,0,2) and isSmallerVersion(ver, 12,0,0,5):
+            data_buf += b'\0'
+        if self.td.refType() in (REFNUM_TYPE.UsrDefTagFlt,):
+            data_buf += len(self.usrdef1).to_bytes(4, byteorder='big', signed=False)
+            data_buf += self.usrdef1
+            data_buf += len(self.usrdef2).to_bytes(4, byteorder='big', signed=False)
+            data_buf += self.usrdef2
+            data_buf += len(self.usrdef3).to_bytes(4, byteorder='big', signed=False)
+            data_buf += len(self.usrdef4).to_bytes(4, byteorder='big', signed=False)
+            data_buf += self.usrdef4
+        return data_buf
 
     def initWithXML(self, df_elem):
         self.usrdef1 = None
@@ -893,6 +1056,19 @@ class DataFillUDClassInst(DataFill):
             libVersion = bldata.read(datalen)
             self.value.append(libVersion)
 
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += len(self.value).to_bytes(4, byteorder='big', signed=False)
+        data_buf += len(self.libName).to_bytes(1, byteorder='big', signed=False)
+        data_buf += self.libName
+        if len(data_buf) % 4 > 0:
+            padding_len = 4 - (len(data_buf) % 4)
+            data_buf += (b'\0' * padding_len)
+        for libVersion in self.value:
+            data_buf += len(libVersion).to_bytes(4, byteorder='big', signed=False)
+            data_buf += libVersion
+        return data_buf
+
     def initWithXML(self, df_elem):
         self.value = []
         self.libName = b''
@@ -933,6 +1109,13 @@ class DataFillPtr(DataFill):
         else:
             self.value = None
 
+    def prepareRSRCData(self, avoid_recompute=False):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+        if isSmallerVersion(ver, 8,6,0,1):
+            data_buf += int(self.value).to_bytes(4, byteorder='big', signed=False)
+        return data_buf
+
     def initWithXML(self, df_elem):
         if df_elem.text != "None":
             self.value = int(df_elem.text, 0)
@@ -948,6 +1131,11 @@ class DataFillPtr(DataFill):
 class DataFillPtrTo(DataFill):
     def initWithRSRCParse(self, bldata):
         self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += int(self.value).to_bytes(4, byteorder='big', signed=False)
+        return data_buf
 
     def initWithXML(self, df_elem):
         self.value = int(df_elem.text, 0)
@@ -977,6 +1165,10 @@ class DataFillUnexpected(DataFill):
         eprint("{:s}: Warning: Data fill asks to read default value of {} type, this should never happen."\
           .format(self.vi.src_fname, self.getXMLTagName()))
 
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        return data_buf
+
     def initWithXML(self, df_elem):
         self.value = None
         eprint("{:s}: Warning: Data fill parsing found default value of {} type, this should never happen."\
@@ -999,6 +1191,12 @@ class DataFillTypeDef(DataFill):
             except Exception as e:
                 raise RuntimeError("Data type {}: {}".format(enumOrIntToName(client.nested.fullType()), str(e)))
         pass
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        for sub_df in self.value:
+            data_buf += sub_df.prepareRSRCData(avoid_recompute=avoid_recompute)
+        return data_buf
 
     def initWithXML(self, df_elem):
         self.value = []
@@ -1038,6 +1236,13 @@ class SpecialDSTMCluster(DataFillCluster):
                 raise RuntimeError("Data type {}: {}".format(enumOrIntToName(sub_td.fullType()), str(e)))
             pass
         pass
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        data_buf = b''
+        for sub_df in self.value:
+            data_buf += sub_df.prepareRSRCData(avoid_recompute=avoid_recompute)
+        return data_buf
+
 
 
 def newSpecialDSTMClusterWithTD(vi, idx, tm_flags, td, po):
