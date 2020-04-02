@@ -117,7 +117,7 @@ class LVPath1(LVObject):
         data_buf += int(totlen).to_bytes(4, byteorder='big')
         data_buf += bytes(self.tpident)[0:4]
         for text_val in self.content:
-            data_buf += len(text_val).to_bytes(2, byteorder='big')
+            data_buf += len(text_val).to_bytes(2, byteorder='big', signed=False)
             data_buf += bytes(text_val)
         return data_buf
 

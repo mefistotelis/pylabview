@@ -2508,15 +2508,16 @@ class ConnectorObjectFixedPoint(ConnectorObject):
 
             subelem.set("Index", "{:d}".format(i))
             if self.rangeFormat == 0:
-                subelem.set("Value", "{:g}".format(rang.value))
+                # 64-bit float has 17 digit precision
+                subelem.set("Value", "{:.17g}".format(rang.value))
             elif self.rangeFormat == 1:
                 if (self.field1E > 0x40) or (self.dataVersion > 0):
                     subelem.set("Prop1", "{:d}".format(rang.prop1))
                     subelem.set("Prop2", "{:d}".format(rang.prop2))
                     subelem.set("Prop3", "{:d}".format(rang.prop3))
-                    subelem.set("Value", "{:g}".format(rang.value))
+                    subelem.set("Value", "{:.17g}".format(rang.value))
                 else:
-                    subelem.set("Value", "{:g}".format(rang.value))
+                    subelem.set("Value", "{:.17g}".format(rang.value))
             pass
 
         conn_elem.set("Format", "inline")

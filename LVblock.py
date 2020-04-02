@@ -1849,8 +1849,6 @@ class DFDS(VarCodingBlock):
             df.exportXML(subelem, fname_base)
 
         section_elem.set("Format", "inline")
-        #TODO storing raw file until the xml export is fully ready
-        Block.exportXMLSection(self, section_elem, snum, section, fname_base)
 
 
 class GCDI(Block):

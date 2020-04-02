@@ -238,7 +238,8 @@ class DataFillFloat(DataFill):
         pass
 
     def exportXML(self, df_elem, fname_base):
-        df_elem.text = "{:g}".format(self.value)
+        # Precision of 128-bit float is circa 71 digits
+        df_elem.text = "{:.71g}".format(self.value)
         pass
 
 
@@ -284,7 +285,7 @@ class DataFillComplex(DataFill):
         tags = ('real', 'imag',)
         for i, val in enumerate(self.value):
             subelem = ET.SubElement(df_elem, tags[i])
-            subelem.text = "{:g}".format(val)
+            subelem.text = "{:.71g}".format(val)
         pass
 
 
@@ -345,7 +346,8 @@ class DataFillString(DataFill):
 
     def initWithXML(self, df_elem):
         if df_elem.text is not None: # Empty string may be None after parsing
-            self.value = df_elem.text.encode(self.vi.textEncoding)
+            elem_text = ET.unescape_safe_store_element_text(df_elem.text)
+            self.value = elem_text.encode(self.vi.textEncoding)
         else:
             self.value = b''
         pass
@@ -371,20 +373,19 @@ class DataFillPath(DataFill):
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
-        data_buf += self.value.parseRSRCData()
+        data_buf += self.value.prepareRSRCData(avoid_recompute=avoid_recompute)
         return data_buf
 
     def initWithXML(self, df_elem):
-        for subelem in df_elem:
-            clsident = subelem.tag
-            if clsident == b'PTH0':
-                self.value = LVclasses.LVPath0(self.vi, self.po)
-            elif clsident in (b'PTH1', b'PTH2',):
-                self.value = LVclasses.LVPath1(self.vi, self.po)
-            else:
-                raise RuntimeError("Data fill {} contains path data of unrecognized class {}"\
-              .format(self.getXMLTagName(),clsident))
-        self.value.initWithXML(subelem)
+        clsident = df_elem.get("Ident")
+        if clsident == 'PTH0':
+            self.value = LVclasses.LVPath0(self.vi, self.po)
+        elif clsident in ('PTH1', 'PTH2',):
+            self.value = LVclasses.LVPath1(self.vi, self.po)
+        else:
+            raise RuntimeError("Data fill {} contains path data of unrecognized class {}"\
+          .format(self.getXMLTagName(),clsident))
+        self.value.initWithXML(df_elem)
         pass
 
     def initWithXMLLate(self):
@@ -962,7 +963,8 @@ class DataFillIORefnum(DataFill):
         storedAs = df_elem.get("StoredAs")
         if storedAs == "String":
             if df_elem.text is not None: # Empty string may be None after parsing
-                self.value = df_elem.text.encode(self.vi.textEncoding)
+                elem_text = ET.unescape_safe_store_element_text(df_elem.text)
+                self.value = elem_text.encode(self.vi.textEncoding)
             else:
                 self.value = b''
         elif storedAs == "Int":
@@ -1065,7 +1067,8 @@ class DataFillUDTagRefnum(DataFill):
         self.usrdef3 = None
         self.usrdef4 = None
         if df_elem.text is not None: # Empty string may be None after parsing
-            self.value = df_elem.text.encode(self.vi.textEncoding)
+            elem_text = ET.unescape_safe_store_element_text(df_elem.text)
+            self.value = elem_text.encode(self.vi.textEncoding)
         else:
             self.value = b''
         usrdef = df_elem.get("UsrDef1")
@@ -1138,13 +1141,15 @@ class DataFillUDClassInst(DataFill):
         for i, subelem in enumerate(df_elem):
             if subelem.tag == "LibName":
                 if subelem.text is not None: # Empty string may be None after parsing
-                    val = subelem.text.encode(self.vi.textEncoding)
+                    val_text = ET.unescape_safe_store_element_text(subelem.text)
+                    val = val_text.encode(self.vi.textEncoding)
                 else:
                     val = b''
                 self.libName = val
             elif subelem.tag == "LibVersion":
                 if subelem.text is not None: # Empty string may be None after parsing
-                    val = subelem.text.encode(self.vi.textEncoding)
+                    val_text = ET.unescape_safe_store_element_text(subelem.text)
+                    val = val_text.encode(self.vi.textEncoding)
                 else:
                     val = b''
                 self.value.append(val)

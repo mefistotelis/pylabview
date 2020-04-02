@@ -122,3 +122,7 @@ def safe_store_element_text(elem, text):
         elem.append(CDATA(escape_cdata_control_chars(text)))
     else:
         elem.text = text
+
+def unescape_safe_store_element_text(elem_text):
+    text = unescape_cdata_control_chars(elem_text)
+    return text

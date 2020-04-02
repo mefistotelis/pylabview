@@ -22,6 +22,7 @@ from ctypes import *
 from LVmisc import *
 from LVblock import *
 import LVclasses
+import LVheap
 import LVdatatype
 
 class REFNUM_TYPE(enum.IntEnum):
@@ -60,6 +61,49 @@ class REFNUM_TYPE(enum.IntEnum):
     DataValueRef =	32
     FIFORef =	33
     TDMSFile =	34
+
+
+class LV_INTERNAL_REFNUM_TYPE_NAMES(LVheap.ENUM_TAGS):
+    """ Names of Refnum types from LV
+
+    This maps the names of Refnum types this tool uses to names LV uses
+    internally. All values from REFNUM_TYPE should be mapped here.
+    """
+    Generic =	REFNUM_TYPE.Generic
+    DataLog =	REFNUM_TYPE.DataLog
+    ByteStream =	REFNUM_TYPE.ByteStream
+    Device =	REFNUM_TYPE.Device
+    Occurrence =	REFNUM_TYPE.Occurrence
+    TCPNetConn =	REFNUM_TYPE.TCPNetConn
+    Unused6 =	REFNUM_TYPE.Unused6
+    AutoRef =	REFNUM_TYPE.AutoRef
+    LVObjCtl =	REFNUM_TYPE.LVObjCtl
+    Menu =		REFNUM_TYPE.Menu
+    Unused10 =	REFNUM_TYPE.Unused10
+    Imaq =		REFNUM_TYPE.Imaq
+    Unused12 =	REFNUM_TYPE.Unused12
+    DataSocket =	REFNUM_TYPE.DataSocket
+    VisaRef =	REFNUM_TYPE.VisaRef
+    IVIRef =	REFNUM_TYPE.IVIRef
+    UDPNetConn =	REFNUM_TYPE.UDPNetConn
+    NotifierRef =	REFNUM_TYPE.NotifierRef
+    Queue =		REFNUM_TYPE.Queue
+    IrdaNetConn =	REFNUM_TYPE.IrdaNetConn
+    UsrDefined =	REFNUM_TYPE.UsrDefined
+    UsrDefndTag =	REFNUM_TYPE.UsrDefndTag
+    Unused22 =	REFNUM_TYPE.Unused22
+    EventReg =	REFNUM_TYPE.EventReg
+    DotNet =	REFNUM_TYPE.DotNet
+    UserEvent =	REFNUM_TYPE.UserEvent
+    Unused26 =	REFNUM_TYPE.Unused26
+    Callback =	REFNUM_TYPE.Callback
+    Unused28 =	REFNUM_TYPE.Unused28
+    UsrDefTagFlt =	REFNUM_TYPE.UsrDefTagFlt
+    UDClassInst =	REFNUM_TYPE.UDClassInst
+    BluetoothCon =	REFNUM_TYPE.BluetoothCon
+    DataValueRef =	REFNUM_TYPE.DataValueRef
+    FIFORef =	REFNUM_TYPE.FIFORef
+    TDMSFile =	REFNUM_TYPE.TDMSFile
 
 
 class RefnumBase:
@@ -1113,20 +1157,28 @@ class RefnumTDMSFile(RefnumBase):
 def refnumEnToName(refnumEn):
     """ Return text name for REFNUM_TYPE element
     """
-    if isinstance(refnumEn, REFNUM_TYPE):
+    if LV_INTERNAL_REFNUM_TYPE_NAMES.has_value(int(refnumEn)):
+        lvrefEn = LV_INTERNAL_REFNUM_TYPE_NAMES(refnumEn)
+        refnName = lvrefEn.name
+    elif isinstance(refnumEn, REFNUM_TYPE):
         refnName = refnumEn.name
+        raise NotImplementedError("Value {} not in {}.".format(refnumEn.name,LV_INTERNAL_REFNUM_TYPE_NAMES.__name__))
     else:
         refnName = "Refnum{:02X}".format(refnumEn)
     return refnName
+
 
 def refnumNameToEnum(refnName):
     """ Return REFNUM_TYPE element for given text name
     """
     refnumEn = None
 
-    if REFNUM_TYPE.has_name(refnName):
-        refnumEn = REFNUM_TYPE[refnName]
+    if LV_INTERNAL_REFNUM_TYPE_NAMES.has_name(refnName):
+        lvrefEn = LV_INTERNAL_TD_NAMES[refnName]
+        tagEn = TD_FULL_TYPE(lvrefEn.value)
 
+    # no direct conversion from REFNUM_TYPE names
+    # These would be probllematic as it has no has_name().
     if refnumEn is None:
         tagParse = re.match("^Refnum([0-9A-F]{2,4})$", refnName)
         if tagParse is not None:
