@@ -70,8 +70,11 @@ class DataFill:
                 return True
         return False
 
-
     def setTD(self, td, idx, tm_flags = 0):
+        if self.tdType != td.fullType():
+            raise RuntimeError("Class {} type {} cannot be linked to TD type {}"\
+              .format(type(self).__name__, self.getXMLTagName(),\
+               enumOrIntToName(sub_td.fullType()) ))
         self.index = idx
         self.td = td
         self.tm_flags = tm_flags
@@ -312,7 +315,8 @@ class DataFillBool(DataFill):
         self.value = int.from_bytes(bldata.read(self.size), byteorder='big', signed=False)
 
     def prepareRSRCData(self, avoid_recompute=False):
-        data_buf = int(self.value).to_bytes(self.size, byteorder='big', signed=False)
+        data_buf = b''
+        data_buf += int(self.value).to_bytes(self.size, byteorder='big', signed=False)
         return data_buf
 
     def initWithXML(self, df_elem):
@@ -335,6 +339,7 @@ class DataFillString(DataFill):
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
+        data_buf += len(self.value).to_bytes(4, byteorder='big', signed=False)
         data_buf += self.value
         return data_buf
 
@@ -343,6 +348,7 @@ class DataFillString(DataFill):
             self.value = df_elem.text.encode(self.vi.textEncoding)
         else:
             self.value = b''
+        pass
 
     def exportXML(self, df_elem, fname_base):
         elemText = self.value.decode(self.vi.textEncoding)
@@ -412,12 +418,27 @@ class DataFillCString(DataFill):
 class DataFillArray(DataFill):
     def __init__(self, *args):
         super().__init__(*args)
+        self.value = []
         self.dimensions = []
 
     def prepareDict(self):
         d = super().prepareDict()
         d.update( { 'dimensions': self.dimensions } )
         return d
+
+    def setTD(self, td, idx, tm_flags = 0):
+        super().setTD(td, idx, tm_flags)
+        if len(self.value) < 1:
+            return # If value list is not filled yet, no further work to do
+        # We expect exactly one client within Array
+        for client in self.td.clients:
+            if client.index >= 0:
+                VCTP = self.vi.get_or_raise('VCTP')
+                sub_td = VCTP.getFlatType(client.index)
+            else:
+                sub_td = client.nested
+        for sub_df in self.value:
+            sub_df.setTD(sub_td, -1, self.tm_flags)
 
     def initWithRSRCParse(self, bldata):
         self.dimensions = []
@@ -430,11 +451,13 @@ class DataFillArray(DataFill):
         for dim in self.dimensions:
             totItems *= dim & 0x7fffffff
         self.value = []
-        if self.td.clients[0].index >= 0:
-            VCTP = self.vi.get_or_raise('VCTP')
-            sub_td = VCTP.getFlatType(self.td.clients[0].index)
-        else:
-            sub_td = self.td.clients[0].nested
+        # We expect exactly one client within Array
+        for client in self.td.clients:
+            if client.index >= 0:
+                VCTP = self.vi.get_or_raise('VCTP')
+                sub_td = VCTP.getFlatType(client.index)
+            else:
+                sub_td = client.nested
         #if sub_td.fullType() in (TD_FULL_TYPE.Boolean,) and isSmallerVersion(ver, 4,5,0,1): # TODO expecting special case, never seen it though
         if totItems > self.po.array_data_limit:
                 raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
@@ -475,10 +498,10 @@ class DataFillArray(DataFill):
             sub_df.initWithXMLLate()
 
     def exportXML(self, df_elem, fname_base):
-        for i, dim in enumerate(self.dimensions):
+        for dim in self.dimensions:
             subelem = ET.SubElement(df_elem, 'dim')
             subelem.text = "{:d}".format(dim)
-        for i, sub_df in enumerate(self.value):
+        for sub_df in self.value:
             subelem = ET.SubElement(df_elem, sub_df.getXMLTagName())
             sub_df.exportXML(subelem, fname_base)
         pass
@@ -503,6 +526,18 @@ class DataFillArrayDataPtr(DataFill):
 
 
 class DataFillCluster(DataFill):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.value = []
+
+    def setTD(self, td, idx, tm_flags = 0):
+        super().setTD(td, idx, tm_flags)
+        if len(self.value) < 1:
+            return # If value list is not filled yet, no further work to do
+        for cli_idx, conn_idx, sub_td, conn_flags in self.td.clientsEnumerate():
+            sub_df = self.value[cli_idx]
+            sub_df.setTD(sub_td, conn_idx, self.tm_flags)
+
     def initWithRSRCParse(self, bldata):
         self.value = []
         for cli_idx, conn_idx, sub_td, conn_flags in self.td.clientsEnumerate():
@@ -534,7 +569,7 @@ class DataFillCluster(DataFill):
             sub_df.initWithXMLLate()
 
     def exportXML(self, df_elem, fname_base):
-        for i, sub_df in enumerate(self.value):
+        for sub_df in self.value:
             subelem = ET.SubElement(df_elem, sub_df.getXMLTagName())
             sub_df.exportXML(subelem, fname_base)
         pass
@@ -648,6 +683,11 @@ class DataFillMeasureData(DataFill):
               .format(self.getXMLTagName()))
         pass
 
+    def setTD(self, td, idx, tm_flags = 0):
+        super().setTD(td, idx, tm_flags)
+        # Do not propagate to clients - self.containedTd should be propagated
+        # And it is propagates somewhere else
+
     def prepareDict(self):
         flavorName = enumOrIntToName(self.tdSubType)
         d = super().prepareDict()
@@ -684,6 +724,8 @@ class DataFillMeasureData(DataFill):
         super().initWithXMLLate()
         self.initVersion()
         self.containedTd.initWithXMLLate()
+        for sub_df in self.value:
+            sub_df.setTD(self.containedTd, -1, self.tm_flags)
         for sub_df in self.value:
             sub_df.initWithXMLLate()
 
@@ -787,6 +829,14 @@ class DataFillBlock(DataFill):
         self.value = bldata.read(self.td.blkSize)
 
     def prepareRSRCData(self, avoid_recompute=False):
+        if len(self.value) != self.td.blkSize:
+            eprint("{:s}: Length of value ({}) is different than expected block size ({})"\
+              .format(self.vi.src_fname, len(self.value), self.td.blkSize))
+            padding_len = self.td.blkSize - len(self.value)
+            if padding_len > 0:
+                self.value += (padding_len * b'\0')
+            else:
+                self.value = self.value[:self.td.blkSize]
         data_buf = b''
         data_buf += self.value
         return data_buf
@@ -801,6 +851,19 @@ class DataFillBlock(DataFill):
 
 
 class DataFillRepeatedBlock(DataFill):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.value = []
+
+    def setTD(self, td, idx, tm_flags = 0):
+        super().setTD(td, idx, tm_flags)
+        if len(self.value) < 1:
+            return # If value list is not filled yet, no further work to do
+        VCTP = self.vi.get_or_raise('VCTP')
+        sub_td = VCTP.getFlatType(self.td.typeFlatIdx)
+        for sub_df in self.value:
+            sub_df.setTD(sub_td, -1, self.tm_flags)
+
     def initWithRSRCParse(self, bldata):
         self.value = []
         VCTP = self.vi.get_or_raise('VCTP')
@@ -837,7 +900,7 @@ class DataFillRepeatedBlock(DataFill):
             sub_df.initWithXMLLate()
 
     def exportXML(self, df_elem, fname_base):
-        for i, sub_df in enumerate(self.value):
+        for sub_df in self.value:
             subelem = ET.SubElement(df_elem, sub_df.getXMLTagName())
             sub_df.exportXML(subelem, fname_base)
         pass
@@ -1180,12 +1243,35 @@ class DataFillUnexpected(DataFill):
 
 
 class DataFillTypeDef(DataFill):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.value = []
+
+    def setTD(self, td, idx, tm_flags = 0):
+        super().setTD(td, idx, tm_flags)
+        if len(self.value) < 1:
+            return # If value list is not filled yet, no further work to do
+        # We expect exactly one client within TypeDef
+        for client in self.td.clients:
+            if client.index >= 0:
+                VCTP = self.vi.get_or_raise('VCTP')
+                sub_td = VCTP.getFlatType(client.index)
+            else:
+                sub_td = client.nested
+        for sub_df in self.value:
+            sub_df.setTD(sub_td, -1, self.tm_flags)
+
     def initWithRSRCParse(self, bldata):
         self.value = []
-        # We expect only one client within TypeDef
+        # We expect exactly one client within TypeDef
         for client in self.td.clients:
             try:
-                sub_df = newDataFillObjectWithTD(self.vi, -1, self.tm_flags, client.nested, self.po)
+                if client.index >= 0:
+                    VCTP = self.vi.get_or_raise('VCTP')
+                    sub_td = VCTP.getFlatType(client.index)
+                else:
+                    sub_td = client.nested
+                sub_df = newDataFillObjectWithTD(self.vi, -1, self.tm_flags, sub_td, self.po)
                 self.value.append(sub_df)
                 sub_df.initWithRSRC(bldata)
             except Exception as e:
@@ -1212,13 +1298,16 @@ class DataFillTypeDef(DataFill):
             sub_df.initWithXMLLate()
 
     def exportXML(self, df_elem, fname_base):
-        for i, sub_df in enumerate(self.value):
+        for sub_df in self.value:
             subelem = ET.SubElement(df_elem, sub_df.getXMLTagName())
             sub_df.exportXML(subelem, fname_base)
         pass
 
 
 class SpecialDSTMCluster(DataFillCluster):
+    def getXMLTagName(self):
+        return "SpecialDSTMCluster"
+
     def initWithRSRCParse(self, bldata):
         self.value = []
         skipNextEntry = ((self.tm_flags & 0x0200) != 0)
@@ -1239,6 +1328,7 @@ class SpecialDSTMCluster(DataFillCluster):
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
+        # TODO make proper conditions
         for sub_df in self.value:
             data_buf += sub_df.prepareRSRCData(avoid_recompute=avoid_recompute)
         return data_buf

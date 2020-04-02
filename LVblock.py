@@ -1757,6 +1757,17 @@ class DFDS(VarCodingBlock):
             Block.parseRSRCData(self, section_num, bldata)
         pass
 
+    def updateSectionData(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+
+        data_buf = b''
+        for i, df in enumerate(section.content):
+            data_buf += df.prepareRSRCData()
+
+        self.setData(data_buf, section_num=section_num)
+
     def initWithXMLSection(self, section, section_elem):
         snum = section.start.section_idx
         section.parse_failed = False

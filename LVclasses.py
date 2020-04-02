@@ -464,6 +464,11 @@ class LVVariant(LVObject):
 
                 subelem.set("Name", attrib.name.decode(encoding=self.vi.textEncoding))
                 attrib.value.exportXML(subelem, fname_base)
+        if self.allowFillValue and self.hasvaritem2:
+            for df in self.datafill:
+                subelem = ET.SubElement(obj_elem,df.getXMLTagName())
+
+                df.exportXML(subelem, fname_base)
         pass
 
 class OleVariant(LVObject):
