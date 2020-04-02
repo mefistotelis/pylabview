@@ -304,8 +304,8 @@ class LVVariant(LVObject):
             self.hasvaritem2 = hasvaritem2
             if hasvaritem2 != 0:
                 self.vartype2 = readVariableSizeFieldU2p2(bldata)
-        # Read value of vartype2
-        if self.allowFillValue and self.hasvaritem2:
+        # Read fill of vartype2
+        if self.allowFillValue and self.hasvaritem2 != 0:
             VCTP = self.vi.get_or_raise('VCTP')
             td = VCTP.getTopType(self.vartype2 - 1)
             df = LVdatafill.newDataFillObjectWithTD(self.vi, self.vartype2, 0, td, self.po)
@@ -323,27 +323,48 @@ class LVVariant(LVObject):
         self.parseRSRCVariant(bldata)
         pass
 
-    def prepareRSRCData(self, avoid_recompute=False):
-        varver = encodeVersion(self.version)
-        data_buf = int(varver).to_bytes(4, byteorder='big')
-        varcount = sum(1 for client in self.clients2 if client.index == -1)
-        data_buf += int(varcount).to_bytes(4, byteorder='big')
-        for client in self.clients2:
-            if client.index != -1:
-                continue
-            client.nested.updateData(avoid_recompute=avoid_recompute)
-            data_buf += client.nested.raw_data
-        hasvaritem2 = self.hasvaritem2
-        data_buf += prepareVariableSizeFieldU2p2(hasvaritem2)
-        if hasvaritem2 != 0:
-            data_buf += prepareVariableSizeFieldU2p2(self.vartype2)
-            data_buf += len(self.attrs).to_bytes(4, byteorder='big')
-            for attrib in self.attrs:
-                data_buf += len(attrib.name).to_bytes(4, byteorder='big')
-                data_buf += attrib.name
-                data_buf += attrib.value.prepareRSRCData(avoid_recompute=avoid_recompute)
-                pass
+    def prepareRSRCAttribs(self, avoid_recompute=False):
+        data_buf = b''
+        data_buf += len(self.attrs).to_bytes(4, byteorder='big')
+        for attrib in self.attrs:
+            data_buf += len(attrib.name).to_bytes(4, byteorder='big')
+            data_buf += attrib.name
+            data_buf += attrib.value.prepareRSRCData(avoid_recompute=avoid_recompute)
         return data_buf
+
+    def prepareRSRCVariant(self, avoid_recompute=False):
+        varver = encodeVersion(self.version)
+        data_buf = b''
+        data_buf += int(varver).to_bytes(4, byteorder='big')
+
+        if isSmallerVersion(self.version, 8,0,0,1):
+            raise NotImplementedError("Unsupported LVVariant ver=0x{:06X} older than LV8.0".format(varver))
+        elif self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):
+            hasvaritem2 = 0
+            data_buf += prepareVariableSizeFieldU2p2(self.vartype2)
+        else:
+            varcount = sum(1 for client in self.clients2 if client.index == -1)
+            data_buf += int(varcount).to_bytes(4, byteorder='big')
+            for client in self.clients2:
+                if client.index != -1:
+                    continue
+                client.nested.updateData(avoid_recompute=avoid_recompute)
+                data_buf += client.nested.raw_data
+            hasvaritem2 = self.hasvaritem2
+            data_buf += prepareVariableSizeFieldU2p2(hasvaritem2)
+
+            if hasvaritem2 != 0:
+                data_buf += prepareVariableSizeFieldU2p2(self.vartype2)
+
+        if self.allowFillValue and self.hasvaritem2 != 0:
+            for df in self.datafill:
+                data_buf += df.prepareRSRCData(avoid_recompute=avoid_recompute)
+
+        data_buf += self.prepareRSRCAttribs(avoid_recompute=avoid_recompute)
+        return data_buf
+
+    def prepareRSRCData(self, avoid_recompute=False):
+        return self.prepareRSRCVariant(avoid_recompute=avoid_recompute)
 
     def expectedRSRCSize(self):
         exp_whole_len = 4 + 4
@@ -366,7 +387,8 @@ class LVVariant(LVObject):
         autoVersion = (obj_elem.get("Version") == "auto")
         if autoVersion:
             self.version["auto"] = True # Existence of this key marks the need to replace version
-        attrs = []
+        self.attrs = []
+        self.datafill = []
         for subelem in obj_elem:
             if (subelem.tag == "Version"):
                 ver = {}
@@ -408,10 +430,14 @@ class LVVariant(LVObject):
                     if (self.po.verbose > 2):
                         print("{:s}: {:s} {:d} attribute {}: {} {}"\
                           .format(self.vi.src_fname, type(self).__name__, self.index, attrib.name, attrib.nested, attrib.value))
-                    attrs.append(attrib)
+                    self.attrs.append(attrib)
+            elif (subelem.tag == "DataFill"):
+                for df_elem in subelem:
+                    df = LVdatafill.newDataFillObjectWithTag(self.vi, df_elem.tag, self.po)
+                    self.datafill.append(df)
+                    df.initWithXML(df_elem)
             else:
                 raise AttributeError("LVVariant subtree contains unexpected tag '{}'".format(subelem.tag))
-        self.attrs = attrs
         pass
 
     def initWithXMLLate(self):
@@ -421,6 +447,13 @@ class LVVariant(LVObject):
             self.version = ver.copy()
         for attrib in self.attrs:
             attrib.value.initWithXMLLate()
+        if self.hasvaritem2 != 0:
+            VCTP = self.vi.get_or_raise('VCTP')
+            td = VCTP.getTopType(self.vartype2 - 1)
+            for df in self.datafill:
+                df.setTD(td, self.vartype2, 0)
+        for df in self.datafill:
+            df.initWithXMLLate()
         pass
 
     def exportXML(self, obj_elem, fname_base):
@@ -457,6 +490,7 @@ class LVVariant(LVObject):
 
             client.nested.exportXML(subelem, fname_cli)
             client.nested.exportXMLFinish(subelem)
+
         if len(self.attrs) > 0:
             attrs_elem = ET.SubElement(obj_elem,"Attributes")
             for attrib in self.attrs:
@@ -464,11 +498,13 @@ class LVVariant(LVObject):
 
                 subelem.set("Name", attrib.name.decode(encoding=self.vi.textEncoding))
                 attrib.value.exportXML(subelem, fname_base)
-        if self.allowFillValue and self.hasvaritem2:
-            for df in self.datafill:
-                subelem = ET.SubElement(obj_elem,df.getXMLTagName())
 
-                df.exportXML(subelem, fname_base)
+        if self.allowFillValue and self.hasvaritem2 and len(self.datafill) > 0:
+            df_elem = ET.SubElement(obj_elem,"DataFill")
+            for df in self.datafill:
+                df_subelem = ET.SubElement(df_elem, df.getXMLTagName())
+
+                df.exportXML(df_subelem, fname_base)
         pass
 
 class OleVariant(LVObject):
