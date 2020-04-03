@@ -1047,7 +1047,7 @@ class DataFillUDTagRefnum(DataFill):
         from LVdatatyperef import REFNUM_TYPE
         ver = self.vi.getFileVersion()
         data_buf = b''
-        data_buf += int(self.value).to_bytes(4, byteorder='big', signed=False)
+        data_buf += len(self.value).to_bytes(4, byteorder='big', signed=False)
         data_buf += self.value
         if isGreaterOrEqVersion(ver, 12,0,0,2) and isSmallerVersion(ver, 12,0,0,5):
             data_buf += b'\0'
