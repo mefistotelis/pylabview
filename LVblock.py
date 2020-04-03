@@ -1764,6 +1764,8 @@ class DFDS(VarCodingBlock):
 
         # Do not re-create raw data if parsing failed and we still have the original
         if (section.parse_failed and self.hasRawData(section_num)):
+            eprint("{:s}: Warning: Block {} section {} left in original raw form, without re-building"\
+              .format(self.vi.src_fname,self.ident,section_num))
             return
 
         data_buf = b''
@@ -2904,8 +2906,13 @@ class BDPW(Block):
 
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         self.parseData(section_num=snum)
-        self.recalculateHash1(section_num=snum, store=False) # this is needed to find salt
-        self.recognizePassword(section_num=snum)
+        try:
+            self.recalculateHash1(section_num=snum, store=False) # this is needed to find salt
+            self.recognizePassword(section_num=snum)
+        except Exception as e:
+            eprint("{:s}: Warning: Block {} section {} could not be fully parametrized: {}"\
+              .format(self.vi.src_fname,self.ident,snum,str(e)))
+            pass
 
         subelem = ET.SubElement(section_elem,"Password")
 
@@ -2917,8 +2924,11 @@ class BDPW(Block):
         # TODO If CPC2 stores the proper connector, we should mark this somehow and not store this connector index here
         if section.salt_iface_idx is not None:
             subelem.set("SaltSource", str(section.salt_iface_idx))
-        else:
+        elif section.salt is not None:
             subelem.set("SaltData", section.salt.hex())
+        else:
+            subelem.set("RawHash1", section.hash_1.hex())
+            subelem.set("RawHash2", section.hash_2.hex())
 
         section_elem.set("Format", "inline")
 
@@ -2945,8 +2955,17 @@ class BDPW(Block):
                     salt_data = subelem.get("SaltData")
                     if salt_iface_idx is not None:
                         section.salt_iface_idx = int(salt_iface_idx, 0)
-                    else:
+                    elif salt_data is not None:
                         section.salt = bytes.fromhex(salt_data)
+                    else:
+                        section.salt = None
+                    # Raw hashes are stored when something was seriously wrong and nothing else was computed
+                    rawhash = subelem.get("RawHash1")
+                    if rawhash is not None:
+                        section.hash_1 = bytes.fromhex(rawhash)
+                    rawhash = subelem.get("RawHash2")
+                    if rawhash is not None:
+                        section.hash_2 = bytes.fromhex(rawhash)
                 else:
                     raise AttributeError("Section contains something else than 'Password'")
         else:
