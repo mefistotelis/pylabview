@@ -1174,8 +1174,8 @@ def refnumNameToEnum(refnName):
     refnumEn = None
 
     if LV_INTERNAL_REFNUM_TYPE_NAMES.has_name(refnName):
-        lvrefEn = LV_INTERNAL_TD_NAMES[refnName]
-        tagEn = TD_FULL_TYPE(lvrefEn.value)
+        lvrefEn = LV_INTERNAL_REFNUM_TYPE_NAMES[refnName]
+        refnumEn = REFNUM_TYPE(lvrefEn.value)
 
     # no direct conversion from REFNUM_TYPE names
     # These would be probllematic as it has no has_name().

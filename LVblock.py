@@ -1762,6 +1762,10 @@ class DFDS(VarCodingBlock):
             section_num = self.active_section_num
         section = self.sections[section_num]
 
+        # Do not re-create raw data if parsing failed and we still have the original
+        if (section.parse_failed and self.hasRawData(section_num)):
+            return
+
         data_buf = b''
         for i, df in enumerate(section.content):
             data_buf += df.prepareRSRCData()
