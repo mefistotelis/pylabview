@@ -1786,7 +1786,13 @@ class DFDS(VarCodingBlock):
             for subelem in section_elem:
                 if (subelem.tag == "NameObject"):
                     continue # Items parsed somewhere else
-                df = LVdatafill.newDataFillObjectWithTag(self.vi, subelem.tag, self.po)
+                if (subelem.tag == "SpecialDSTMCluster"):
+                    # Special condition for special cluster - its type is just Cluster
+                    tdType = TD_FULL_TYPE.Cluster
+                    df = LVdatafill.SpecialDSTMCluster(self.vi, tdType, None, self.po)
+                else:
+                    # Normal processing for everything else
+                    df = LVdatafill.newDataFillObjectWithTag(self.vi, subelem.tag, self.po)
                 df.initWithXML(subelem)
                 section.content.append(df)
         else:

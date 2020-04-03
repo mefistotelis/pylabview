@@ -74,7 +74,7 @@ class DataFill:
         if self.tdType != td.fullType():
             raise RuntimeError("Class {} type {} cannot be linked to TD type {}"\
               .format(type(self).__name__, self.getXMLTagName(),\
-               enumOrIntToName(sub_td.fullType()) ))
+               enumOrIntToName(td.fullType()) ))
         self.index = idx
         self.td = td
         self.tm_flags = tm_flags
@@ -1313,6 +1313,23 @@ class SpecialDSTMCluster(DataFillCluster):
     def getXMLTagName(self):
         return "SpecialDSTMCluster"
 
+    def setTD(self, td, idx, tm_flags = 0):
+        DataFill.setTD(self, td, idx, tm_flags)
+        if len(self.value) < 1:
+            return # If value list is not filled yet, no further work to do
+        skipNextEntry = ((self.tm_flags & 0x0200) != 0)
+        cli_idx = 0
+        for cli_bad_idx, conn_idx, sub_td, conn_flags in self.td.clientsEnumerate():
+            if not self.isSpecialDSTMClusterElement(cli_idx, self.tm_flags):
+                continue
+            if skipNextEntry:
+                skipNextEntry = False
+                continue
+            sub_df = self.value[cli_idx]
+            cli_idx += 1
+            sub_df.setTD(sub_td, conn_idx, self.tm_flags)
+        pass
+
     def initWithRSRCParse(self, bldata):
         self.value = []
         skipNextEntry = ((self.tm_flags & 0x0200) != 0)
@@ -1333,7 +1350,6 @@ class SpecialDSTMCluster(DataFillCluster):
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
-        # TODO make proper conditions
         for sub_df in self.value:
             data_buf += sub_df.prepareRSRCData(avoid_recompute=avoid_recompute)
         return data_buf
