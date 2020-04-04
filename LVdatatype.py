@@ -1244,6 +1244,25 @@ class ConnectorObjectNumberPtr(ConnectorObjectVoid):
     """
     pass
 
+class ConnectorObjectString(ConnectorObjectBlob):
+    pass
+
+
+class ConnectorObjectPath(ConnectorObjectBlob):
+    pass
+
+
+class ConnectorObjectPicture(ConnectorObjectBlob):
+    pass
+
+
+class ConnectorObjectSubString(ConnectorObjectBlob):
+    pass
+
+
+class ConnectorObjectPolyVI(ConnectorObjectBlob):
+    pass
+
 
 class ConnectorObjectFunction(ConnectorObject):
     def __init__(self, *args):
@@ -2945,13 +2964,13 @@ def newConnectorObject(vi, idx, obj_flags, obj_type, po):
         #TD_FULL_TYPE.Num*: ConnectorObjectNumber, # Handled by main type
         #TD_FULL_TYPE.Unit*: ConnectorObjectNumber, # Handled by main type
         #TD_FULL_TYPE.Boolean*: ConnectorObjectBool, # Handled by main type
-        TD_FULL_TYPE.String: ConnectorObjectBlob,
-        TD_FULL_TYPE.Path: ConnectorObjectBlob,
-        TD_FULL_TYPE.Picture: ConnectorObjectBlob,
+        TD_FULL_TYPE.String: ConnectorObjectString,
+        TD_FULL_TYPE.Path: ConnectorObjectPath,
+        TD_FULL_TYPE.Picture: ConnectorObjectPicture,
         TD_FULL_TYPE.CString: ConnectorObjectCString,
         TD_FULL_TYPE.PasString: ConnectorObjectPasString,
         TD_FULL_TYPE.Tag: ConnectorObjectTag,
-        TD_FULL_TYPE.SubString: ConnectorObjectBlob,
+        TD_FULL_TYPE.SubString: ConnectorObjectSubString,
         #TD_FULL_TYPE.*Array*: ConnectorObjectArray, # Handled by main type
         TD_FULL_TYPE.Cluster: ConnectorObjectCluster,
         TD_FULL_TYPE.LVVariant: ConnectorObjectLVVariant,
@@ -2968,7 +2987,7 @@ def newConnectorObject(vi, idx, obj_flags, obj_type, po):
         TD_FULL_TYPE.PtrTo: ConnectorObjectSingleContainer,
         TD_FULL_TYPE.Function: ConnectorObjectFunction,
         TD_FULL_TYPE.TypeDef: ConnectorObjectTypeDef,
-        TD_FULL_TYPE.PolyVI: ConnectorObjectBlob,
+        TD_FULL_TYPE.PolyVI: ConnectorObjectPolyVI,
     }.get(obj_type, None)
     if ctor is None:
         # If no specific constructor - go by general type
