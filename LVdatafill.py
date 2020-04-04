@@ -446,6 +446,8 @@ class DataFillArray(DataFill):
         for dim in self.td.dimensions:
             val = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             self.dimensions.append(val)
+        if len(self.td.clients) < 1:
+            raise RuntimeError("TD {} used for DataFill before being initialized".format(enumOrIntToName(self.td.fullType())))
         # Multiply sizes of each dimension to get total number of items
         totItems = 1
         # TODO the amounts are in self.dimensions; maybe they need to be same as self.td.dimensions, unless dynamic size is used? print warning?

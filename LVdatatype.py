@@ -1720,6 +1720,8 @@ class ConnectorObjectTypeDef(ConnectorObject):
 class ConnectorObjectArray(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
+        self.dimensions = [ ]
+        self.clients = [ ]
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again

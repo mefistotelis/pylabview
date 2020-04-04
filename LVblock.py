@@ -2182,7 +2182,7 @@ class TM80(VarCodingBlock):
 
         for i, val in enumerate(section.content):
             td = None
-            tdIndex = section.indexShift + i - 1
+            tdIndex = section.indexShift + i
             if VCTP is not None:
                 td = VCTP.getTopType(tdIndex)
             if td is not None:
@@ -2215,7 +2215,7 @@ class TM80(VarCodingBlock):
             i = tme_index
             val = section.content[i]
             tmEntry = SimpleNamespace()
-            tmEntry.index = section.indexShift + i - 1
+            tmEntry.index = section.indexShift + i
             tmEntry.flags = val
             tmEntry.td = VCTP.getTopType(tmEntry.index)
             if tmEntry.td is None:
@@ -2235,7 +2235,7 @@ class TM80(VarCodingBlock):
         typeMap = []
         for i, val in enumerate(section.content):
             tmEntry = SimpleNamespace()
-            tmEntry.index = section.indexShift + i - 1
+            tmEntry.index = section.indexShift + i
             tmEntry.flags = val
             tmEntry.td = VCTP.getTopType(tmEntry.index)
             if tmEntry.td is None:
@@ -3809,7 +3809,7 @@ class VCTP(Block):
                 elif (subelem.tag == "TopLevel"):
                     for subtlelem in subelem:
                         if (subtlelem.tag == "Client"):
-                            i = int(subtlelem.get("Index"), 0)
+                            i = int(subtlelem.get("Index"), 0) - 1
                             val = int(subtlelem.get("ConnectorIndex"), 0)
                             # Grow the list if needed (the labels may be in wrong order)
                             if i >= len(self.topLevel):
@@ -3876,7 +3876,7 @@ class VCTP(Block):
         for i, val in enumerate(self.topLevel):
             subelem = ET.SubElement(toplstelem,"Client")
 
-            subelem.set("Index", "{:d}".format(i))
+            subelem.set("Index", "{:d}".format(i+1))
             subelem.set("ConnectorIndex", "{:d}".format(val))
 
         section_elem.set("Format", "inline")
@@ -3948,6 +3948,9 @@ class VCTP(Block):
             section_num = self.active_section_num
         self.parseData(section_num=section_num)
         section = self.sections[section_num]
+        if idx < 1:
+            return None
+        idx -= 1
         if len(section.topLevel) <= idx:
             return None
         flatIdx = section.topLevel[idx]
@@ -3977,30 +3980,74 @@ class VITS(Block):
     """
     def createSection(self):
         section = super().createSection()
+        section.parse_failed = False
         section.content = []
         return section
 
-    def parseRSRCData(self, section_num, bldata):
+    def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
+        ver = self.vi.getFileVersion()
 
-        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        # Endianness was wrong in some versions
+        if isGreaterOrEqVersion(ver, 6,1,0,4):
+            count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        else:
+            count = int.from_bytes(bldata.read(4), byteorder='little', signed=False)
         section.content = []
         for i in range(count):
-            break # TODO continue parsing
-            value = SimpleNamespace()
-            name_text_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            if name_text_len > 0x200000:
-                raise RuntimeError("Block {} section {} contains tag {} of name length {:d} which exceeds limit"\
-                  .format(self.ident,section_num,i,name_text_len))
-            value.name_text = bldata.read(name_text_len)
-            value.obj = LVclasses.LVVariant(0, self.vi, self.po)
-            value.obj.parseRSRCData(bldata)
-            # TODO finish parsing
-            section.content.append(value)
-        # TODO remove message after parsing done
+            val = SimpleNamespace()
+            val.name = readLStr(bldata, 1, self.po)
+            if isSmallerVersion(ver, 6,5,0,2):
+                bldata.read(4)
+            val.obj = LVdatafill.newDataFillObject(self.vi, TD_FULL_TYPE.LVVariant, None, self.po)
+            val.obj.useConsolidatedTypes = False
+            val.obj.initWithRSRC(bldata)
+            section.content.append(val)
         if (self.po.verbose > 2):
             print("{:s}: Block {} data format is not fully known; leaving raw only".format(self.vi.src_fname,self.ident))
         pass
+
+    def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+        section.parse_failed = False
+        startpos = bldata.tell()
+        bldata.seek(0, io.SEEK_END)
+        totlen = bldata.tell()
+        bldata.seek(startpos)
+        try:
+            self.parseRSRCSectionData(section_num, bldata)
+        except Exception as e:
+            section.parse_failed = True
+            eprint("{:s}: Warning: Block {} section {} parse exception: {}."\
+                .format(self.vi.src_fname,self.ident,section_num,str(e)))
+        if bldata.tell() < totlen:
+            section.parse_failed = True
+            eprint("{:s}: Warning: Block {} section {} size is {} and does not match parsed size {}"\
+              .format(self.vi.src_fname, self.ident, section_num, totlen, bldata.tell()))
+        if section.parse_failed:
+            bldata.seek(startpos)
+            Block.parseRSRCData(self, section_num, bldata)
+        pass
+
+    def exportXMLSection(self, section_elem, snum, section, fname_base):
+        self.parseData(section_num=snum)
+
+        if section.parse_failed:
+            Block.exportXMLSection(self, section_elem, snum, section, fname_base)
+            return
+
+        if (self.po.verbose > 1):
+            print("{}: Writing XML for block {}".format(self.vi.src_fname, self.ident))
+
+        for i, val in enumerate(section.content):
+            subelem = ET.SubElement(section_elem, "Object")
+            subelem.set("Name", val.name.decode(self.vi.textEncoding))
+
+            val.obj.exportXML(subelem, fname_base)
+
+        section_elem.set("Format", "inline")
+        #TODO Export as binary data, because re-creation from properties is unfinished
+        Block.exportXMLSection(self, section_elem, snum, section, fname_base)
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = super().getData(section_num=section_num, use_coding=use_coding)

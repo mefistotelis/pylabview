@@ -230,7 +230,7 @@ class LVVariant(LVObject):
         self.useConsolidatedTypes = useConsolidatedTypes
         self.allowFillValue = allowFillValue
         self.hasvaritem2 = 0
-        self.vartype2 = None
+        self.vartype2 = 0
         self.index = index
 
     def parseRSRCTypeDef(self, bldata, pos):
@@ -257,6 +257,8 @@ class LVVariant(LVObject):
     def parseRSRCAttribs(self, bldata):
         attrs = []
         attrcount = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        if attrcount > self.po.connector_list_limit:
+            raise RuntimeError("{} attributes count {} exceeds limit".format(type(self).__name__, attrcount))
         for i in range(attrcount):
             text_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             attrib = SimpleNamespace()
@@ -279,6 +281,11 @@ class LVVariant(LVObject):
         varver = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.version = decodeVersion(varver)
         # Read types
+        self.datafill = []
+        self.clients2 = []
+        self.attrs = []
+        self.hasvaritem2 = 0
+        self.vartype2 = 0
         if isSmallerVersion(self.version, 8,0,0,1):
             raise NotImplementedError("Unsupported LVVariant ver=0x{:06X} older than LV8.0".format(varver))
         elif self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):
@@ -288,9 +295,8 @@ class LVVariant(LVObject):
         else:
             varcount = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             if varcount > self.po.connector_list_limit:
-                eprint("{:s}: Warning: {:s} {:d} ver 0x{:X} has {:d} clients; truncating"\
-                  .format(self.vi.src_fname, type(self).__name__, self.index, varver, varcount))
-                varcount = self.po.connector_list_limit
+                raise AttributeError("{:s} {:d} ver 0x{:X} types count {:d} exceeds limit"\
+                  .format(type(self).__name__, self.index, varver, varcount))
             pos = bldata.tell()
             for i in range(varcount):
                 obj_idx, obj_len = self.parseRSRCTypeDef(bldata, pos)
@@ -305,12 +311,19 @@ class LVVariant(LVObject):
             if hasvaritem2 != 0:
                 self.vartype2 = readVariableSizeFieldU2p2(bldata)
         # Read fill of vartype2
-        if self.allowFillValue and self.hasvaritem2 != 0:
-            VCTP = self.vi.get_or_raise('VCTP')
-            td = VCTP.getTopType(self.vartype2 - 1)
-            df = LVdatafill.newDataFillObjectWithTD(self.vi, self.vartype2, 0, td, self.po)
-            self.datafill.append(df)
-            df.initWithRSRC(bldata)
+        if self.allowFillValue:
+            # We expect only one to be present - either vartype2, or clients2
+            for client in self.clients2:
+                client.nested.parseData()
+                df = LVdatafill.newDataFillObjectWithTD(self.vi, -1, 0, client.nested, self.po)
+                self.datafill.append(df)
+                df.initWithRSRC(bldata)
+            if self.hasvaritem2 != 0 and self.vartype2 != 0:
+                VCTP = self.vi.get_or_raise('VCTP')
+                td = VCTP.getTopType(self.vartype2)
+                df = LVdatafill.newDataFillObjectWithTD(self.vi, self.vartype2, 0, td, self.po)
+                self.datafill.append(df)
+                df.initWithRSRC(bldata)
             pass
         # Read attributes
         self.attrs += self.parseRSRCAttribs(bldata)
@@ -449,7 +462,7 @@ class LVVariant(LVObject):
             attrib.value.initWithXMLLate()
         if self.hasvaritem2 != 0:
             VCTP = self.vi.get_or_raise('VCTP')
-            td = VCTP.getTopType(self.vartype2 - 1)
+            td = VCTP.getTopType(self.vartype2)
             for df in self.datafill:
                 df.setTD(td, self.vartype2, 0)
         for df in self.datafill:
