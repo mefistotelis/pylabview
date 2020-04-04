@@ -577,10 +577,14 @@ class DataFillCluster(DataFill):
 
 
 class DataFillLVVariant(DataFill):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.useConsolidatedTypes = True
+
     def initWithRSRCParse(self, bldata):
         ver = self.vi.getFileVersion()
         if isGreaterOrEqVersion(ver, 6,0,0,2):
-            self.value = LVclasses.LVVariant(0, self.vi, self.po, useConsolidatedTypes=True, allowFillValue=True)
+            self.value = LVclasses.LVVariant(0, self.vi, self.po, useConsolidatedTypes=self.useConsolidatedTypes, allowFillValue=True)
         else:
             self.value = LVclasses.OleVariant(0, self.vi, self.po)
         self.value.parseRSRCData(bldata)
@@ -912,6 +916,12 @@ class DataFillSimpleRefnum(DataFill):
 
     Used for "normal" ref types, which only contain 4 byte value.
     """
+    def prepareDict(self):
+        refName = enumOrIntToName(self.tdSubType)
+        d = super().prepareDict()
+        d.update( { 'refType': refName } )
+        return d
+
     def initWithRSRCParse(self, bldata):
         # The format seem to be different for LV6.0.0 and older, but still 4 bytes
         self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
@@ -935,6 +945,12 @@ class DataFillIORefnum(DataFill):
 
     Used for ref types which represent IORefnum.
     """
+    def prepareDict(self):
+        refName = enumOrIntToName(self.tdSubType)
+        d = super().prepareDict()
+        d.update( { 'refType': refName } )
+        return d
+
     def initWithRSRCParse(self, bldata):
         ver = self.vi.getFileVersion()
         if isGreaterOrEqVersion(ver, 6,0,0):
@@ -989,6 +1005,12 @@ class DataFillUDRefnum(DataFill):
 
     Used for ref types which represent Non-tag subtypes of UDRefnum.
     """
+    def prepareDict(self):
+        refName = enumOrIntToName(self.tdSubType)
+        d = super().prepareDict()
+        d.update( { 'refType': refName } )
+        return d
+
     def initWithRSRCParse(self, bldata):
         self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
