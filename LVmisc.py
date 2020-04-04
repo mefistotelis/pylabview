@@ -394,6 +394,8 @@ def preparePStr(strval, padto, po):
 
 def readLStr(bldata, padto, po):
     strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+    if strlen > 0x20000000:
+        raise RuntimeError("Long string is suspiciously long")
     strval = bldata.read(strlen)
     padlen = (strlen+4) % padto
     bldata.read(padlen)
