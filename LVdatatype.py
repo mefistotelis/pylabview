@@ -345,7 +345,7 @@ class ConnectorObject:
         # TODO the inline block belongs to inheriting classes, not here - move
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -401,7 +401,7 @@ class ConnectorObject:
         self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
 
         if (self.po.verbose > 2):
-            print("{:s}: Connector {:d} type 0x{:02x} data format isn't known; leaving raw only"\
+            print("{:s}: TD {:d} type 0x{:02x} data format isn't known; leaving raw only"\
               .format(self.vi.src_fname,self.index,self.otype))
 
         self.parseRSRCDataFinish(bldata)
@@ -440,12 +440,12 @@ class ConnectorObject:
                     break
             if self.label is None:
                 if (self.po.verbose > 0):
-                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} label text not found"\
+                    eprint("{:s}: Warning: TD {:d} type 0x{:02x} label text not found"\
                       .format(self.vi.src_fname, self.index, self.otype))
                 self.label = b""
             elif i > 0:
                 if (self.po.verbose > 0):
-                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} has label not immediatelly following data"\
+                    eprint("{:s}: Warning: TD {:d} type 0x{:02x} has label not immediatelly following data"\
                       .format(self.vi.src_fname, self.index, self.otype))
         self.raw_data_updated = False
 
@@ -665,7 +665,7 @@ class ConnectorObject:
             conn_obj.parseData()
             if not conn_obj.checkSanity():
                 if (self.po.verbose > 0):
-                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} sanity check failed!"\
+                    eprint("{:s}: Warning: TD {:d} type 0x{:02x} sanity check failed!"\
                       .format(self.vi.src_fname,conn_obj.index,conn_obj.otype))
             # Add connectors of this Terminal to list
             if conn_obj.isNumber():
@@ -737,7 +737,7 @@ class ConnectorObjectVoid(ConnectorObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -758,7 +758,7 @@ class ConnectorObjectVoid(ConnectorObject):
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
@@ -853,7 +853,7 @@ class ConnectorObjectNumber(ConnectorObject):
             data_buf += int(value.intval1).to_bytes(2, byteorder='big')
             data_buf += int(value.intval2).to_bytes(2, byteorder='big')
             if (self.po.verbose > 2):
-                print("{:s}: Connector {:d} type 0x{:02x} Units Attr {} are 0x{:02X} 0x{:02X}"\
+                print("{:s}: TD {:d} type 0x{:02x} Units Attr {} are 0x{:02X} 0x{:02X}"\
                   .format(self.vi.src_fname,self.index,self.otype,i,value.intval1,value.intval2))
         return data_buf
 
@@ -911,7 +911,7 @@ class ConnectorObjectNumber(ConnectorObject):
                 value.intval2 = int(subelem.get("UnitVal2"), 0)
                 value.label = "0x{:02X}:0x{:02X}".format(value.intval1,value.intval2)
                 if (self.po.verbose > 2):
-                    print("{:s}: Connector {:d} type 0x{:02x} Units Attr {} are 0x{:02X} 0x{:02X}"\
+                    print("{:s}: TD {:d} type 0x{:02x} Units Attr {} are 0x{:02X} 0x{:02X}"\
                       .format(self.vi.src_fname,self.index,self.otype,i,value.intval1,value.intval2))
                 # Grow the list if needed (the values may be in wrong order)
                 if i >= len(self.values):
@@ -925,7 +925,7 @@ class ConnectorObjectNumber(ConnectorObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -975,24 +975,24 @@ class ConnectorObjectNumber(ConnectorObject):
         ret = True
         if (self.prop1 & ~1) != 0: # 0 or 1
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02X} property1 {:d}, expected 1 bit value"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02X} property1 {:d}, expected 1 bit value"\
                   .format(self.vi.src_fname,self.index,self.otype,self.prop1))
             ret = False
         if (self.isEnum() or self.isPhys()):
             if len(self.values) < 1:
                 if (self.po.verbose > 1):
-                    eprint("{:s}: Warning: Connector {:d} type 0x{:02X} has empty values list"\
+                    eprint("{:s}: Warning: TD {:d} type 0x{:02X} has empty values list"\
                       .format(self.vi.src_fname,self.index,self.otype))
                 ret = False
         if len(self.padding1) > 0 and (self.padding1 != b'\0'):
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02X} padding1 {}, expected zeros"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02X} padding1 {}, expected zeros"\
                   .format(self.vi.src_fname,self.index,self.otype,self.padding1))
             ret = False
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02X} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02X} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
@@ -1106,7 +1106,7 @@ class ConnectorObjectTag(ConnectorObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -1166,13 +1166,13 @@ class ConnectorObjectTag(ConnectorObject):
         ret = True
         if self.prop1 != 0xFFFFFFFF:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}"\
                   .format(self.vi.src_fname,self.index,self.otype,self.prop1,0xFFFFFFFF))
             ret = False
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
@@ -1210,7 +1210,7 @@ class ConnectorObjectBlob(ConnectorObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -1232,13 +1232,13 @@ class ConnectorObjectBlob(ConnectorObject):
         if self.otype not in (TD_FULL_TYPE.PolyVI, TD_FULL_TYPE.Block,):
             if self.prop1 != 0xFFFFFFFF:
                 if (self.po.verbose > 1):
-                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}"\
+                    eprint("{:s}: Warning: TD {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}"\
                       .format(self.vi.src_fname,self.index,self.otype,self.prop1,0xFFFFFFFF))
                 ret = False
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
@@ -1420,7 +1420,7 @@ class ConnectorObjectFunction(ConnectorObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -1497,7 +1497,7 @@ class ConnectorObjectFunction(ConnectorObject):
         ret = True
         if (len(self.clients) > 125):
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} clients count {:d}, expected below {:d}"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} clients count {:d}, expected below {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.clients),125+1))
             ret = False
         typeList = None
@@ -1512,20 +1512,20 @@ class ConnectorObjectFunction(ConnectorObject):
                 if client.index == -1: # Special case this is how we mark nested client
                     if client.nested is None:
                         if (self.po.verbose > 1):
-                            eprint("{:s}: Warning: Connector {:d} nested client {:d} does not exist"\
+                            eprint("{:s}: Warning: TD {:d} nested client {:d} does not exist"\
                               .format(self.vi.src_fname,self.index,i))
                         ret = False
                 else:
                     if client.index >= len(typeList):
                         if (self.po.verbose > 1):
-                            eprint("{:s}: Warning: Connector {:d} client {:d} references outranged connector {:d}"\
+                            eprint("{:s}: Warning: TD {:d} client {:d} references outranged TD {:d}"\
                               .format(self.vi.src_fname,self.index,i,client.index))
                         ret = False
                 pass
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
@@ -1598,7 +1598,7 @@ class ConnectorObjectTypeDef(ConnectorObject):
             data_buf += preparePStr(b'/'.join(self.labels), 2, self.po)
         if len(self.clients) != 1:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} has unexpacted amount of clients; should have 1"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} has unexpacted amount of clients; should have 1"\
                   .format(self.vi.src_fname,self.index,self.otype))
         for client in self.clients:
             cli_data_buf = client.nested.prepareRSRCData(avoid_recompute=avoid_recompute)
@@ -1643,7 +1643,7 @@ class ConnectorObjectTypeDef(ConnectorObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -1711,20 +1711,20 @@ class ConnectorObjectTypeDef(ConnectorObject):
         ret = True
         if (len(self.clients) != 1):
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} clients count {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} clients count {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.clients),1))
             ret = False
         for i, client in enumerate(self.clients):
             if client.index != -1:
                 if (self.po.verbose > 1):
-                    eprint("{:s}: Warning: Connector {:d} expected to have nested client"\
+                    eprint("{:s}: Warning: TD {:d} expected to have nested client"\
                       .format(self.vi.src_fname,i))
                 ret = False
             pass
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
@@ -1764,7 +1764,7 @@ class ConnectorObjectArray(ConnectorObject):
             data_buf += int(flags).to_bytes(4, byteorder='big')
         if len(self.clients) != 1:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} has unexpacted amount of clients; should have 1"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} has unexpacted amount of clients; should have 1"\
                   .format(self.vi.src_fname,self.index,self.otype))
         for client in self.clients:
             data_buf += int(client.index).to_bytes(2, byteorder='big')
@@ -1786,7 +1786,7 @@ class ConnectorObjectArray(ConnectorObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -1853,7 +1853,7 @@ class ConnectorObjectArray(ConnectorObject):
                 pass
             elif client.index >= self.index:
                 if (self.po.verbose > 1):
-                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} client {:d} is reference to higher index"\
+                    eprint("{:s}: Warning: TD {:d} type 0x{:02x} client {:d} is reference to higher index"\
                       .format(self.vi.src_fname,self.index,self.otype,client.index))
                 ret = False
             pass
@@ -1897,7 +1897,7 @@ class ConnectorObjectBlock(ConnectorObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -1922,7 +1922,7 @@ class ConnectorObjectBlock(ConnectorObject):
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
@@ -2074,7 +2074,7 @@ class ConnectorObjectRepeatedBlock(ConnectorObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -2123,7 +2123,7 @@ class ConnectorObjectRepeatedBlock(ConnectorObject):
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
@@ -2145,7 +2145,7 @@ class ConnectorObjectRef(ConnectorObject):
         self.ref_obj = LVdatatyperef.newConnectorObjectRef(self.vi, self, self.reftype, self.po)
         if self.ref_obj is not None:
             if (self.po.verbose > 2):
-                print("{:s}: Connector {:d} type 0x{:02x}, has ref_type=0x{:02X} class {:s}"\
+                print("{:s}: TD {:d} type 0x{:02x}, has ref_type=0x{:02X} class {:s}"\
                   .format(self.vi.src_fname,self.index,self.otype,self.reftype,type(self.ref_obj).__name__))
             self.ref_obj.parseRSRCData(bldata)
         self.parseRSRCDataFinish(bldata)
@@ -2173,7 +2173,7 @@ class ConnectorObjectRef(ConnectorObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -2182,7 +2182,7 @@ class ConnectorObjectRef(ConnectorObject):
             self.ref_obj = LVdatatyperef.newConnectorObjectRef(self.vi, self, self.reftype, self.po)
             if self.ref_obj is not None:
                 if (self.po.verbose > 2):
-                    print("{:s}: Connector {:d} type 0x{:02x}, has ref_type=0x{:02X} class {:s}"\
+                    print("{:s}: TD {:d} type 0x{:02x}, has ref_type=0x{:02X} class {:s}"\
                       .format(self.vi.src_fname,self.index,self.otype,self.reftype,type(self.ref_obj).__name__))
                 self.ref_obj.initWithXML(conn_elem)
 
@@ -2288,7 +2288,7 @@ class ConnectorObjectRef(ConnectorObject):
                 pass
             elif client.index >= self.index:
                 if (self.po.verbose > 1):
-                    eprint("{:s}: Warning: Connector {:d} type 0x{:02x} reftype {:d} client {:d} is reference to higher index"\
+                    eprint("{:s}: Warning: TD {:d} type 0x{:02x} reftype {:d} client {:d} is reference to higher index"\
                       .format(self.vi.src_fname,self.index,self.otype,self.reftype,client.index))
                 ret = False
         return ret
@@ -2339,7 +2339,7 @@ class ConnectorObjectCluster(ConnectorObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -2386,13 +2386,13 @@ class ConnectorObjectCluster(ConnectorObject):
         ret = True
         if len(self.clients) > 500:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} has {:d} clients, expected below {:d}"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} has {:d} clients, expected below {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.clients),500+1))
             ret = False
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
@@ -2430,7 +2430,7 @@ class ConnectorObjectMeasureData(ConnectorObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -2451,13 +2451,13 @@ class ConnectorObjectMeasureData(ConnectorObject):
         ret = True
         if self.flavor > 127: # Not sure how many cluster formats are there
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} flavor {:d}, expected below {:d}"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} flavor {:d}, expected below {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,self.flavor,127+1))
             ret = False
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
@@ -2563,7 +2563,7 @@ class ConnectorObjectFixedPoint(ConnectorObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -2650,13 +2650,13 @@ class ConnectorObjectFixedPoint(ConnectorObject):
         ret = True
         if len(self.clients) > 500:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} has {:d} clients, expected below {:d}"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} has {:d} clients, expected below {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.clients),500+1))
             ret = False
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
@@ -2705,7 +2705,7 @@ class ConnectorObjectSingleContainer(ConnectorObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For Connector {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -2752,7 +2752,7 @@ class ConnectorObjectSingleContainer(ConnectorObject):
         ret = True
         if (len(self.clients) != 1):
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} clients count {:d}, expected exactly {:d}"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} clients count {:d}, expected exactly {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.clients),1))
             ret = False
         typeList = None
@@ -2767,20 +2767,20 @@ class ConnectorObjectSingleContainer(ConnectorObject):
                 if client.index == -1: # This is how we mark nested client
                     if client.nested is None:
                         if (self.po.verbose > 1):
-                            eprint("{:s}: Warning: Connector {:d} nested client {:d} does not exist"\
+                            eprint("{:s}: Warning: TD {:d} nested client {:d} does not exist"\
                               .format(self.vi.src_fname,self.index,i))
                         ret = False
                 else:
                     if client.index >= len(typeList):
                         if (self.po.verbose > 1):
-                            eprint("{:s}: Warning: Connector {:d} client {:d} references outranged connector {:d}"\
+                            eprint("{:s}: Warning: TD {:d} client {:d} references outranged TD {:d}"\
                               .format(self.vi.src_fname,self.index,i,client.index))
                         ret = False
                 pass
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
