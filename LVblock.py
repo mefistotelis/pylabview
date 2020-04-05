@@ -4040,6 +4040,72 @@ class VITS(Block):
             Block.parseRSRCData(self, section_num, bldata)
         pass
 
+    def XXXupdateSectionData(self, section_num=None):#TODO enable when re-created section works
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+        ver = self.vi.getFileVersion()
+
+        # Do not re-create raw data if parsing failed and we still have the original
+        if (section.parse_failed and self.hasRawData(section_num)):
+            eprint("{:s}: Warning: Block {} section {} left in original raw form, without re-building"\
+              .format(self.vi.src_fname,self.ident,section_num))
+            return
+
+        data_buf = b''
+        # Endianness was wrong in some versions
+        if isGreaterOrEqVersion(ver, 6,1,0,4):
+            data_buf += len(section.content).to_bytes(4, byteorder='big', signed=False)
+        else:
+            data_buf += len(section.content).to_bytes(4, byteorder='little', signed=False)
+        for val in section.content:
+            data_buf += prepareLStr(val.name, 1, self.po)
+            if isSmallerVersion(ver, 6,5,0,2):
+                data_buf += ( b'\0' * 4 )
+            data_buf += val.obj.prepareRSRCData()
+
+        self.setData(data_buf, section_num=section_num)
+
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
+        return bldata
+
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
+
+    def initWithXMLSection(self, section, section_elem):
+        snum = section.start.section_idx
+        section.parse_failed = False
+        fmt = section_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            section.content = []
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.ident,snum))
+            for subelem in section_elem:
+                if (subelem.tag == "NameObject"):
+                    continue # Items parsed somewhere else
+
+                val = SimpleNamespace()
+                name_str = subelem.get("Name")
+                val.name = name_str.encode(self.vi.textEncoding)
+                val.obj = LVdatafill.newDataFillObjectWithTag(self.vi, subelem.tag, self.po)
+                val.obj.useConsolidatedTypes = False
+                val.obj.initWithXML(subelem)
+                section.content.append(val)
+        else:
+            section.parse_failed = True
+            Block.initWithXMLSection(self, section, section_elem)
+        pass
+
+    def initWithXMLLate(self):
+        super().initWithXMLLate()
+        for snum in self.sections:
+            section = self.sections[snum]
+            for val in section.content:
+                val.obj.initWithXMLLate()
+        pass
+
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         self.parseData(section_num=snum)
 
@@ -4059,10 +4125,3 @@ class VITS(Block):
         section_elem.set("Format", "inline")
         #TODO Export as binary data, because re-creation from properties is unfinished
         Block.exportXMLSection(self, section_elem, snum, section, fname_base)
-
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = super().getData(section_num=section_num, use_coding=use_coding)
-        return bldata
-
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
