@@ -432,12 +432,8 @@ class DataFillArray(DataFill):
         if len(self.value) < 1:
             return # If value list is not filled yet, no further work to do
         # We expect exactly one client within Array
-        for client in self.td.clients:
-            if client.index >= 0:
-                VCTP = self.vi.get_or_raise('VCTP')
-                sub_td = VCTP.getFlatType(client.index)
-            else:
-                sub_td = client.nested
+        for cli_idx, td_idx, td_obj, td_flags in self.td.clientsEnumerate():
+                sub_td = td_obj
         for sub_df in self.value:
             sub_df.setTD(sub_td, -1, self.tm_flags)
 
@@ -455,19 +451,16 @@ class DataFillArray(DataFill):
             totItems *= dim & 0x7fffffff
         self.value = []
         # We expect exactly one client within Array
-        for client in self.td.clients:
-            if client.index >= 0:
-                VCTP = self.vi.get_or_raise('VCTP')
-                sub_td = VCTP.getFlatType(client.index)
-            else:
-                sub_td = client.nested
+        for cli_idx, td_idx, td_obj, td_flags in self.td.clientsEnumerate():
+                sub_td = td_obj
+                sub_td_idx = td_idx
         #if sub_td.fullType() in (TD_FULL_TYPE.Boolean,) and isSmallerVersion(ver, 4,5,0,1): # TODO expecting special case, never seen it though
         if totItems > self.po.array_data_limit:
                 raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
                   .format(self.getXMLTagName(), totItems, self.po.array_data_limit))
         for i in range(totItems):
             try:
-                sub_df = newDataFillObjectWithTD(self.vi, self.td.clients[0].index, self.tm_flags, sub_td, self.po)
+                sub_df = newDataFillObjectWithTD(self.vi, sub_td_idx, self.tm_flags, sub_td, self.po)
                 self.value.append(sub_df)
                 sub_df.initWithRSRC(bldata)
             except Exception as e:
@@ -537,15 +530,15 @@ class DataFillCluster(DataFill):
         super().setTD(td, idx, tm_flags)
         if len(self.value) < 1:
             return # If value list is not filled yet, no further work to do
-        for cli_idx, conn_idx, sub_td, conn_flags in self.td.clientsEnumerate():
+        for cli_idx, td_idx, sub_td, td_flags in self.td.clientsEnumerate():
             sub_df = self.value[cli_idx]
-            sub_df.setTD(sub_td, conn_idx, self.tm_flags)
+            sub_df.setTD(sub_td, td_idx, self.tm_flags)
 
     def initWithRSRCParse(self, bldata):
         self.value = []
-        for cli_idx, conn_idx, sub_td, conn_flags in self.td.clientsEnumerate():
+        for cli_idx, td_idx, sub_td, td_flags in self.td.clientsEnumerate():
             try:
-                sub_df = newDataFillObjectWithTD(self.vi, conn_idx, self.tm_flags, sub_td, self.po)
+                sub_df = newDataFillObjectWithTD(self.vi, td_idx, self.tm_flags, sub_td, self.po)
                 self.value.append(sub_df)
                 sub_df.initWithRSRC(bldata)
             except Exception as e:
@@ -866,21 +859,24 @@ class DataFillRepeatedBlock(DataFill):
         super().setTD(td, idx, tm_flags)
         if len(self.value) < 1:
             return # If value list is not filled yet, no further work to do
-        VCTP = self.vi.get_or_raise('VCTP')
-        sub_td = VCTP.getFlatType(self.td.typeFlatIdx)
+        for cli_idx, td_idx, td_obj, td_flags in self.td.clientsEnumerate():
+                sub_td = td_obj
+                sub_td_idx = td_idx
         for sub_df in self.value:
-            sub_df.setTD(sub_td, -1, self.tm_flags)
+            sub_df.setTD(sub_td, sub_td_idx, self.tm_flags)
 
     def initWithRSRCParse(self, bldata):
         self.value = []
         VCTP = self.vi.get_or_raise('VCTP')
-        sub_td = VCTP.getFlatType(self.td.typeFlatIdx)
+        for cli_idx, td_idx, td_obj, td_flags in self.td.clientsEnumerate():
+                sub_td = td_obj
+                sub_td_idx = td_idx
         if self.td.numRepeats > self.po.array_data_limit:
             raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
               .format(self.getXMLTagName(), self.td.numRepeats, self.po.array_data_limit))
         for i in range(self.td.numRepeats):
             try:
-                sub_df = newDataFillObjectWithTD(self.vi, self.td.typeFlatIdx, self.tm_flags, sub_td, self.po)
+                sub_df = newDataFillObjectWithTD(self.vi, sub_td_idx, self.tm_flags, sub_td, self.po)
                 self.value.append(sub_df)
                 sub_df.initWithRSRC(bldata)
             except Exception as e:
@@ -1281,25 +1277,16 @@ class DataFillTypeDef(DataFill):
         if len(self.value) < 1:
             return # If value list is not filled yet, no further work to do
         # We expect exactly one client within TypeDef
-        for client in self.td.clients:
-            if client.index >= 0:
-                VCTP = self.vi.get_or_raise('VCTP')
-                sub_td = VCTP.getFlatType(client.index)
-            else:
-                sub_td = client.nested
+        for cli_idx, td_idx, td_obj, td_flags in self.td.clientsEnumerate():
+            sub_td = td_obj
         for sub_df in self.value:
             sub_df.setTD(sub_td, -1, self.tm_flags)
 
     def initWithRSRCParse(self, bldata):
         self.value = []
         # We expect exactly one client within TypeDef
-        for client in self.td.clients:
+        for cli_idx, td_idx, sub_td, td_flags in self.td.clientsEnumerate():
             try:
-                if client.index >= 0:
-                    VCTP = self.vi.get_or_raise('VCTP')
-                    sub_td = VCTP.getFlatType(client.index)
-                else:
-                    sub_td = client.nested
                 sub_df = newDataFillObjectWithTD(self.vi, -1, self.tm_flags, sub_td, self.po)
                 self.value.append(sub_df)
                 sub_df.initWithRSRC(bldata)
@@ -1343,7 +1330,7 @@ class SpecialDSTMCluster(DataFillCluster):
             return # If value list is not filled yet, no further work to do
         skipNextEntry = ((self.tm_flags & 0x0200) != 0)
         cli_idx = 0
-        for cli_bad_idx, conn_idx, sub_td, conn_flags in self.td.clientsEnumerate():
+        for cli_bad_idx, td_idx, sub_td, td_flags in self.td.clientsEnumerate():
             if not self.isSpecialDSTMClusterElement(cli_idx, self.tm_flags):
                 continue
             if skipNextEntry:
@@ -1351,20 +1338,20 @@ class SpecialDSTMCluster(DataFillCluster):
                 continue
             sub_df = self.value[cli_idx]
             cli_idx += 1
-            sub_df.setTD(sub_td, conn_idx, self.tm_flags)
+            sub_df.setTD(sub_td, td_idx, self.tm_flags)
         pass
 
     def initWithRSRCParse(self, bldata):
         self.value = []
         skipNextEntry = ((self.tm_flags & 0x0200) != 0)
-        for cli_idx, conn_idx, sub_td, conn_flags in self.td.clientsEnumerate():
+        for cli_idx, td_idx, sub_td, td_flags in self.td.clientsEnumerate():
             if not self.isSpecialDSTMClusterElement(cli_idx, self.tm_flags):
                 continue
             if skipNextEntry:
                 skipNextEntry = False
                 continue
             try:
-                sub_df = newDataFillObjectWithTD(self.vi, conn_idx, self.tm_flags, sub_td, self.po)
+                sub_df = newDataFillObjectWithTD(self.vi, td_idx, self.tm_flags, sub_td, self.po)
                 self.value.append(sub_df)
                 sub_df.initWithRSRC(bldata)
             except Exception as e:

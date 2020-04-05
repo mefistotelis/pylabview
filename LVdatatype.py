@@ -303,6 +303,8 @@ class ConnectorObject:
         self.oflags = obj_flags
         self.otype = obj_type
         self.clients = []
+        # Dependencies to other types are either indexes in Consolidated List, or locally stored topTypeList
+        self.topTypeList = None
         self.label = None
         self.size = None
         self.raw_data = None
@@ -311,11 +313,12 @@ class ConnectorObject:
         # Whether any properties have been updated and preparation of new RAW data is required
         self.parsed_data_updated = False
 
-    def initWithRSRC(self, bldata, obj_len):
+    def initWithRSRC(self, bldata, obj_len, typeList=None):
         """ Early part of connector loading from RSRC file
 
         At the point it is executed, other sections are inaccessible.
         """
+        self.topTypeList = typeList
         self.size = obj_len
         self.raw_data = bldata.read(obj_len)
         self.raw_data_updated = True
@@ -640,13 +643,17 @@ class ConnectorObject:
         return (len(self.clients) > 0)
 
     def clientsEnumerate(self):
-        VCTP = self.vi.get_or_raise('VCTP')
+        if self.topTypeList is not None:
+            typeList = self.topTypeList
+        else:
+            VCTP = self.vi.get_or_raise('VCTP')
+            typeList = VCTP.getContent()
         out_enum = []
         for i, client in enumerate(self.clients):
-            if client.index == -1: # Special case this is how we mark nested client
+            if client.index == -1: # This is how we mark nested client
                 conn_obj = client.nested
             else:
-                conn_obj = VCTP.content[client.index]
+                conn_obj = typeList[client.index].nested
             out_enum.append( (i, client.index, conn_obj, client.flags, ) )
         return out_enum
 
@@ -1493,8 +1500,14 @@ class ConnectorObjectFunction(ConnectorObject):
                 eprint("{:s}: Warning: Connector {:d} type 0x{:02x} clients count {:d}, expected below {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.clients),125+1))
             ret = False
-        VCTP = self.vi.get('VCTP')
-        if VCTP is not None:
+        typeList = None
+        if self.topTypeList is not None:
+            typeList = self.topTypeList
+        else:
+            VCTP = self.vi.get('VCTP')
+            if VCTP is not None:
+                typeList = VCTP.getContent()
+        if typeList is not None:
             for i, client in enumerate(self.clients):
                 if client.index == -1: # Special case this is how we mark nested client
                     if client.nested is None:
@@ -1503,7 +1516,7 @@ class ConnectorObjectFunction(ConnectorObject):
                               .format(self.vi.src_fname,self.index,i))
                         ret = False
                 else:
-                    if client.index >= len(VCTP.content):
+                    if client.index >= len(typeList):
                         if (self.po.verbose > 1):
                             eprint("{:s}: Warning: Connector {:d} client {:d} references outranged connector {:d}"\
                               .format(self.vi.src_fname,self.index,i,client.index))
@@ -1529,7 +1542,7 @@ class ConnectorObjectTypeDef(ConnectorObject):
         self.flag1 = 0
         self.labels = []
 
-    def parseRSRCNestedConnector(self, bldata, pos):
+    def parseRSRCNestedTD(self, bldata, pos):
         """ Parse RSRC data of a connector which is not in main list of connectors
 
         This is a variant of VCTP.parseRSRCConnector() which assigns index -1 and
@@ -1543,7 +1556,7 @@ class ConnectorObjectTypeDef(ConnectorObject):
         bldata.seek(pos)
         # The object length of this nested connector is 4 bytes larger than real thing.
         # Not everyone is aiming for consistency.
-        obj.initWithRSRC(bldata, obj_len-4)
+        obj.initWithRSRC(bldata, obj_len-4, typeList=self.topTypeList)
         return obj, obj_len
 
     def parseRSRCData(self, bldata):
@@ -1565,7 +1578,7 @@ class ConnectorObjectTypeDef(ConnectorObject):
         self.clients = [ SimpleNamespace() ]
         # In "Vi Explorer" code, the length value of this object is treated differently
         # (decreased by 4); not sure if this is correct and an issue here
-        cli, cli_len = self.parseRSRCNestedConnector(bldata, pos)
+        cli, cli_len = self.parseRSRCNestedTD(bldata, pos)
         cli_flags = 0
         self.clients[0].index = cli.index # Nested clients have index -1
         self.clients[0].flags = cli_flags
@@ -1614,7 +1627,7 @@ class ConnectorObjectTypeDef(ConnectorObject):
             exp_whole_len += label_len
         return exp_whole_len
 
-    def initWithXMLNestedConnector(self, conn_subelem):
+    def initWithXMLNestedTD(self, conn_subelem):
         client = SimpleNamespace()
         i = int(conn_subelem.get("Index"), 0)
         client.index = -1
@@ -1640,7 +1653,7 @@ class ConnectorObjectTypeDef(ConnectorObject):
             self.clients = []
             for subelem in conn_elem:
                 if (subelem.tag == "Client"):
-                    client, i = self.initWithXMLNestedConnector(subelem)
+                    client, i = self.initWithXMLNestedTD(subelem)
                     if i != 0:
                         raise AttributeError("Connector expected to contain exactly one nested sub-connector")
                     self.clients.append(client)
@@ -1918,79 +1931,144 @@ class ConnectorObjectBlock(ConnectorObject):
 class ConnectorObjectAlignedBlock(ConnectorObjectBlock):
     def __init__(self, *args):
         super().__init__(*args)
-        self.typeFlatIdx = 0
+        self.clients = []
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
         self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
 
+        self.clients = []
         self.blkSize = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        self.typeFlatIdx = readVariableSizeFieldU2p2(bldata)
+        if True:
+            client = SimpleNamespace()
+            client.index = readVariableSizeFieldU2p2(bldata)
+            client.flags = 0
+            self.clients.append(client)
+
         # No more known data inside
         self.parseRSRCDataFinish(bldata)
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
         data_buf += int(self.blkSize).to_bytes(4, byteorder='big')
-        data_buf += prepareVariableSizeFieldU2p2(self.typeFlatIdx)
+        for client in self.clients:
+            data_buf += prepareVariableSizeFieldU2p2(client.index)
+            break # only one client is supported
         return data_buf
 
     def expectedRSRCDataSize(self):
         exp_whole_len = 0
         exp_whole_len += 4
-        exp_whole_len += 2 if self.typeFlatIdx <= 0x7FFF else 4
+        for client in self.clients:
+            exp_whole_len += ( 2 if (client.index <= 0x7fff) else 4 )
+            break # only one client is valid
         return exp_whole_len
 
     def initWithXMLInlineData(self, conn_elem):
+        self.clients = []
         self.blkSize = int(conn_elem.get("BlockSize"), 0)
-        self.typeFlatIdx = int(conn_elem.get("TypeFlatIdx"), 0)
+
+        for subelem in conn_elem:
+            if (subelem.tag == "Client"):
+                client = SimpleNamespace()
+                client.index = int(subelem.get("ConnectorIndex"), 0)
+                client.flags = int(subelem.get("Flags"), 0)
+                self.clients.append(client)
+            else:
+                raise AttributeError("Connector contains unexpected tag")
+        pass
 
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
         conn_elem.set("BlockSize", "0x{:X}".format(self.blkSize))
-        conn_elem.set("TypeFlatIdx", "{:d}".format(self.typeFlatIdx))
+        for client in self.clients:
+            subelem = ET.SubElement(conn_elem,"Client")
+
+            subelem.set("ConnectorIndex", str(client.index))
+            subelem.set("Flags", "0x{:04X}".format(client.flags))
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
         ret = super().checkSanity()
-        if self.typeFlatIdx < 1:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} references invalid type index {}"\
-                  .format(self.vi.src_fname,self.index,self.otype,self.typeFlatIdx))
-            ret = False
+        typeList = None
+        if self.topTypeList is not None:
+            typeList = self.topTypeList
+        else:
+            VCTP = self.vi.get('VCTP')
+            if VCTP is not None:
+                typeList = VCTP.getContent()
+        if typeList is not None:
+            for i, client in enumerate(self.clients):
+                if client.index == -1: # This is how we mark nested client
+                    if client.nested is None:
+                        if (self.po.verbose > 1):
+                            eprint("{:s}: Warning: TD {:d} nested client {:d} does not exist"\
+                              .format(self.vi.src_fname,self.index,i))
+                        ret = False
+                else:
+                    if client.index >= len(typeList):
+                        if (self.po.verbose > 1):
+                            eprint("{:s}: Warning: TD {:d} client {:d} references outranged TD {:d}"\
+                              .format(self.vi.src_fname,self.index,i,client.index))
+                        ret = False
+                pass
         return ret
 
 
 class ConnectorObjectRepeatedBlock(ConnectorObject):
     def __init__(self, *args):
         super().__init__(*args)
+        self.clients = []
         self.numRepeats = 0
-        self.typeFlatIdx = 0
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
         self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
 
+        self.clients = []
         self.numRepeats = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        self.typeFlatIdx = readVariableSizeFieldU2p2(bldata)
+        if True:
+            client = SimpleNamespace()
+            client.index = readVariableSizeFieldU2p2(bldata)
+            client.flags = 0
+            self.clients.append(client)
         # No more known data inside
         self.parseRSRCDataFinish(bldata)
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
         data_buf += int(self.numRepeats).to_bytes(4, byteorder='big')
-        data_buf += prepareVariableSizeFieldU2p2(self.typeFlatIdx)
+        for client in self.clients:
+            data_buf += prepareVariableSizeFieldU2p2(client.index)
+            break # only one client is supported
         return data_buf
 
     def expectedRSRCSize(self):
         exp_whole_len = 4
-        exp_whole_len += 4 + 2
+        exp_whole_len += 4
+        for client in self.clients:
+            exp_whole_len += ( 2 if (client.index <= 0x7fff) else 4 )
+            break # only one client is valid
         if self.label is not None:
             label_len = 1 + len(self.label)
             if label_len % 2 > 0: # Include padding
                 label_len += 2 - (label_len % 2)
             exp_whole_len += label_len
         return exp_whole_len
+
+    def initWithXMLInlineData(self, conn_elem):
+        self.clients = []
+        self.numRepeats = int(conn_elem.get("NumRepeats"), 0)
+
+        for subelem in conn_elem:
+            if (subelem.tag == "Client"):
+                client = SimpleNamespace()
+                client.index = int(subelem.get("ConnectorIndex"), 0)
+                client.flags = int(subelem.get("Flags"), 0)
+                self.clients.append(client)
+            else:
+                raise AttributeError("Connector contains unexpected tag")
+        pass
 
     def initWithXML(self, conn_elem):
         fmt = conn_elem.get("Format")
@@ -2000,8 +2078,7 @@ class ConnectorObjectRepeatedBlock(ConnectorObject):
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
-            self.numRepeats = int(conn_elem.get("NumRepeats"), 0)
-            self.typeFlatIdx = int(conn_elem.get("TypeFlatIdx"), 0)
+            self.initWithXMLInlineData(conn_elem)
 
             self.updateData(avoid_recompute=True)
 
@@ -2012,11 +2089,37 @@ class ConnectorObjectRepeatedBlock(ConnectorObject):
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
         conn_elem.set("NumRepeats", "{:d}".format(self.numRepeats))
-        conn_elem.set("TypeFlatIdx", "{:d}".format(self.typeFlatIdx))
+        for client in self.clients:
+            subelem = ET.SubElement(conn_elem,"Client")
+
+            subelem.set("ConnectorIndex", str(client.index))
+            subelem.set("Flags", "0x{:04X}".format(client.flags))
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
-        ret = True
+        ret = super().checkSanity()
+        typeList = None
+        if self.topTypeList is not None:
+            typeList = self.topTypeList
+        else:
+            VCTP = self.vi.get('VCTP')
+            if VCTP is not None:
+                typeList = VCTP.getContent()
+        if typeList is not None:
+            for i, client in enumerate(self.clients):
+                if client.index == -1: # This is how we mark nested client
+                    if client.nested is None:
+                        if (self.po.verbose > 1):
+                            eprint("{:s}: Warning: TD {:d} nested client {:d} does not exist"\
+                              .format(self.vi.src_fname,self.index,i))
+                        ret = False
+                else:
+                    if client.index >= len(typeList):
+                        if (self.po.verbose > 1):
+                            eprint("{:s}: Warning: TD {:d} client {:d} references outranged TD {:d}"\
+                              .format(self.vi.src_fname,self.index,i,client.index))
+                        ret = False
+                pass
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
@@ -2652,17 +2755,23 @@ class ConnectorObjectSingleContainer(ConnectorObject):
                 eprint("{:s}: Warning: Connector {:d} type 0x{:02x} clients count {:d}, expected exactly {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.clients),1))
             ret = False
-        VCTP = self.vi.get('VCTP')
-        if VCTP is not None:
+        typeList = None
+        if self.topTypeList is not None:
+            typeList = self.topTypeList
+        else:
+            VCTP = self.vi.get('VCTP')
+            if VCTP is not None:
+                typeList = VCTP.getContent()
+        if typeList is not None:
             for i, client in enumerate(self.clients):
-                if client.index == -1: # Special case this is how we mark nested client
+                if client.index == -1: # This is how we mark nested client
                     if client.nested is None:
                         if (self.po.verbose > 1):
                             eprint("{:s}: Warning: Connector {:d} nested client {:d} does not exist"\
                               .format(self.vi.src_fname,self.index,i))
                         ret = False
                 else:
-                    if client.index >= len(VCTP.content):
+                    if client.index >= len(typeList):
                         if (self.po.verbose > 1):
                             eprint("{:s}: Warning: Connector {:d} client {:d} references outranged connector {:d}"\
                               .format(self.vi.src_fname,self.index,i,client.index))

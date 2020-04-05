@@ -629,16 +629,16 @@ class VI():
         blkinf_rsrchead = self.rsrc_headers[-1]
         return blkinf_rsrchead.rsrc_info_offset + blkinf_rsrchead.rsrc_info_size
 
-    def connectorEnumerate(self, mainType=None, fullType=None):
+    def consolidatedTDEnumerate(self, mainType=None, fullType=None):
         VCTP = self.get_or_raise('VCTP')
-        VCTP.parseData() # Make sure the block is parsed
+        typeList = VCTP.getContent()
         out_list = []
-        for conn_idx, conn_obj in enumerate(VCTP.content):
-            if mainType is not None and conn_obj.mainType() != mainType:
+        for conn_idx, clientTD in enumerate(typeList):
+            if mainType is not None and clientTD.nested.mainType() != mainType:
                 continue
-            if fullType is not None and conn_obj.fullType() != fullType:
+            if fullType is not None and clientTD.nested.fullType() != fullType:
                 continue
-            out_list.append( (len(out_list), conn_idx, conn_obj,) )
+            out_list.append( (len(out_list), conn_idx, clientTD.nested,) )
         return out_list
 
     def setNewPassword(self, password_text=None, password_md5=None):

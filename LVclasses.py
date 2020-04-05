@@ -251,7 +251,7 @@ class LVVariant(LVObject):
         client.nested = obj
         self.clients2.append(client)
         bldata.seek(pos)
-        obj.initWithRSRC(bldata, obj_len)
+        obj.initWithRSRC(bldata, obj_len, typeList=self.clients2)
         return obj.index, obj_len
 
     def parseRSRCAttribs(self, bldata):
@@ -289,9 +289,9 @@ class LVVariant(LVObject):
         if isSmallerVersion(self.version, 8,0,0,1):
             raise NotImplementedError("Unsupported LVVariant ver=0x{:06X} older than LV8.0".format(varver))
         elif self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):
-            hasvaritem2 = 0
             self.hasvaritem2 = 1
             self.vartype2 = readVariableSizeFieldU2p2(bldata)
+            noConsolidatedTD = False
         else:
             varcount = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             if varcount > self.po.connector_list_limit:
@@ -306,24 +306,27 @@ class LVVariant(LVObject):
                       .format(self.vi.src_fname, type(self).__name__, self.index))
                     break
             bldata.seek(pos)
-            hasvaritem2 = readVariableSizeFieldU2p2(bldata)
-            self.hasvaritem2 = hasvaritem2
-            if hasvaritem2 != 0:
+            self.hasvaritem2 = readVariableSizeFieldU2p2(bldata)
+            if self.hasvaritem2 != 0:
                 self.vartype2 = readVariableSizeFieldU2p2(bldata)
+            noConsolidatedTD = True
         # Read fill of vartype2
         if self.allowFillValue:
-            # We expect only one to be present - either vartype2, or clients2
-            for client in self.clients2:
-                client.nested.parseData()
-                df = LVdatafill.newDataFillObjectWithTD(self.vi, -1, 0, client.nested, self.po)
-                self.datafill.append(df)
-                df.initWithRSRC(bldata)
-            if self.hasvaritem2 != 0 and self.vartype2 != 0:
+            if not self.hasvaritem2:
+                raise NotImplementedError("Unsupported LVVariant type storage case with no hasvaritem2 but with DataFill")
+            td = None
+            if noConsolidatedTD:
+                # TODO the lack of use of ConsolidatedTD should be propagated.. now the types don't know they shouldn't use VCTP
+                for client in self.clients2:
+                    client.nested.parseData()
+                td = self.clients2[self.vartype2].nested
+            else:
                 VCTP = self.vi.get_or_raise('VCTP')
                 td = VCTP.getTopType(self.vartype2)
-                df = LVdatafill.newDataFillObjectWithTD(self.vi, self.vartype2, 0, td, self.po)
-                self.datafill.append(df)
-                df.initWithRSRC(bldata)
+
+            df = LVdatafill.newDataFillObjectWithTD(self.vi, -1, 0, td, self.po)
+            self.datafill.append(df)
+            df.initWithRSRC(bldata)
             pass
         # Read attributes
         self.attrs += self.parseRSRCAttribs(bldata)

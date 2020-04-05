@@ -3007,7 +3007,7 @@ class BDPW(Block):
             # Figure out the salt
             salt_iface_idx = None
             VCTP = self.vi.get_or_raise('VCTP')
-            interfaceEnumerate = self.vi.connectorEnumerate(fullType=TD_FULL_TYPE.Function)
+            interfaceEnumerate = self.vi.consolidatedTDEnumerate(fullType=TD_FULL_TYPE.Function)
             # Connectors count if one of the interfaces is the source of salt; usually it's the last interface, so check in reverse
             for i, iface_idx, iface_obj in reversed(interfaceEnumerate):
                 term_connectors = VCTP.getClientConnectorsByType(iface_obj)
@@ -3754,9 +3754,14 @@ class VCTP(Block):
               .format(self.vi.src_fname, len(section.content), obj_type, obj_len))
             obj_type = TD_FULL_TYPE.Void
         obj = newConnectorObject(self.vi, len(section.content), obj_flags, obj_type, self.po)
-        section.content.append(obj)
+
+        clientTD = SimpleNamespace()
+        clientTD.index = -1 # Nested clients have index -1
+        clientTD.flags = 0 # Only Type Mapped entries have it non-zero
+        clientTD.nested = obj
+        section.content.append(clientTD)
         bldata.seek(pos)
-        obj.initWithRSRC(bldata, obj_len)
+        obj.initWithRSRC(bldata, obj_len) # No need to set topTypeList within VCTP
         return obj.index, obj_len
 
     def parseRSRCData(self, section_num, bldata):
@@ -3803,7 +3808,11 @@ class VCTP(Block):
                     # Grow the list if needed (the connectors may be in wrong order)
                     if obj_idx >= len(section.content):
                         section.content.extend([None] * (obj_idx - len(section.content) + 1))
-                    section.content[obj_idx] = obj
+                    clientTD = SimpleNamespace()
+                    clientTD.index = -1 # Nested clients have index -1
+                    clientTD.flags = 0 # Only Type Mapped entries have it non-zero
+                    clientTD.nested = obj
+                    section.content[obj_idx] = clientTD
                     # Set connector data based on XML properties
                     obj.initWithXML(subelem)
                 elif (subelem.tag == "TopLevel"):
@@ -3827,8 +3836,8 @@ class VCTP(Block):
         super().initWithXMLLate()
         for snum in self.sections:
             section = self.sections[snum]
-            for connobj in section.content:
-                connobj.initWithXMLLate()
+            for clientTD in section.content:
+                clientTD.nested.initWithXMLLate()
         pass
 
     def updateSectionData(self, section_num=None):
@@ -3836,13 +3845,13 @@ class VCTP(Block):
             section_num = self.active_section_num
         section = self.sections[section_num]
 
-        for connobj in section.content:
-            if not connobj.raw_data_updated:
-                connobj.updateData()
+        for clientTD in section.content:
+            if not clientTD.nested.raw_data_updated:
+                clientTD.nested.updateData()
 
         data_buf = int(len(section.content)).to_bytes(4, byteorder='big')
-        for i, connobj in enumerate(section.content):
-            bldata = connobj.getData()
+        for i, clientTD in enumerate(section.content):
+            bldata = clientTD.nested.getData()
             data_buf += bldata.read()
 
         data_buf += int(len(section.topLevel)).to_bytes(2, byteorder='big')
@@ -3858,18 +3867,18 @@ class VCTP(Block):
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         self.parseData(section_num=snum)
 
-        for connobj in section.content:
+        for clientTD in section.content:
             subelem = ET.SubElement(section_elem,"Connector")
 
-            subelem.set("Index", str(connobj.index))
-            subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(TD_FULL_TYPE, connobj.otype)))
+            subelem.set("Index", str(clientTD.nested.index))
+            subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(TD_FULL_TYPE, clientTD.nested.otype)))
 
             if not self.po.raw_connectors:
-                connobj.exportXML(subelem, fname_base)
-                connobj.exportXMLFinish(subelem)
+                clientTD.nested.exportXML(subelem, fname_base)
+                clientTD.nested.exportXMLFinish(subelem)
             else:
-                ConnectorObject.exportXML(connobj, subelem, fname_base)
-                ConnectorObject.exportXMLFinish(connobj, subelem)
+                ConnectorObject.exportXML(clientTD.nested, subelem, fname_base)
+                ConnectorObject.exportXMLFinish(clientTD.nested, subelem)
 
         toplstelem = ET.SubElement(section_elem,"TopLevel")
 
@@ -3888,8 +3897,8 @@ class VCTP(Block):
 
         # Besides the normal parsing, also parse sub-objects
         Block.parseData(self, section_num=section_num)
-        for connobj in section.content:
-            connobj.parseData()
+        for clientTD in section.content:
+            clientTD.nested.parseData()
 
     def checkSanity(self, section_num=None):
         if section_num is None:
@@ -3897,13 +3906,13 @@ class VCTP(Block):
         section = self.sections[section_num]
 
         ret = True
-        for connobj in section.content:
-            if not connobj.checkSanity():
+        for clientTD in section.content:
+            if not clientTD.nested.checkSanity():
                 ret = False
         for i, val in enumerate(section.topLevel):
             if val >= len(section.content):
                 if (self.po.verbose > 1):
-                    eprint("{:s}: Warning: TopLevel index {:d} exceeds connectors count {:d}"\
+                    eprint("{:s}: Warning: TopLevel index {:d} exceeds flat TD count {:d}"\
                       .format(self.vi.src_fname,i,len(section.content)))
                 ret = False
         return ret
@@ -3939,7 +3948,8 @@ class VCTP(Block):
             section_num = self.active_section_num
         self.parseData(section_num=section_num)
         section = self.sections[section_num]
-        return section.content[flatIdx]
+        clientTD = section.content[flatIdx]
+        return clientTD.nested
 
     def getTopType(self, idx, section_num=None):
         """ Retrieves top type of given index
@@ -3956,7 +3966,8 @@ class VCTP(Block):
         flatIdx = section.topLevel[idx]
         if len(section.content) <= flatIdx:
             return None
-        return section.content[flatIdx]
+        clientTD = section.content[flatIdx]
+        return clientTD.nested
 
 
 class VICD(VarCodingBlock):
