@@ -341,9 +341,9 @@ class LVVariant(LVObject):
 
     def prepareRSRCAttribs(self, avoid_recompute=False):
         data_buf = b''
-        data_buf += len(self.attrs).to_bytes(4, byteorder='big')
+        data_buf += len(self.attrs).to_bytes(4, byteorder='big', signed=False)
         for attrib in self.attrs:
-            data_buf += len(attrib.name).to_bytes(4, byteorder='big')
+            data_buf += len(attrib.name).to_bytes(4, byteorder='big', signed=False)
             data_buf += attrib.name
             data_buf += attrib.value.prepareRSRCData(avoid_recompute=avoid_recompute)
         return data_buf
@@ -351,30 +351,35 @@ class LVVariant(LVObject):
     def prepareRSRCVariant(self, avoid_recompute=False):
         varver = encodeVersion(self.version)
         data_buf = b''
-        data_buf += int(varver).to_bytes(4, byteorder='big')
+        data_buf += int(varver).to_bytes(4, byteorder='big', signed=False)
 
         if isSmallerVersion(self.version, 8,0,0,1):
             raise NotImplementedError("Unsupported LVVariant ver=0x{:06X} older than LV8.0".format(varver))
         elif self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):
-            hasvaritem2 = 0
             data_buf += prepareVariableSizeFieldU2p2(self.vartype2)
+            noConsolidatedTD = False
         else:
             varcount = sum(1 for client in self.clients2 if client.index == -1)
-            data_buf += int(varcount).to_bytes(4, byteorder='big')
+            data_buf += int(varcount).to_bytes(4, byteorder='big', signed=False)
             for client in self.clients2:
                 if client.index != -1:
                     continue
                 client.nested.updateData(avoid_recompute=avoid_recompute)
                 data_buf += client.nested.raw_data
             hasvaritem2 = self.hasvaritem2
-            data_buf += prepareVariableSizeFieldU2p2(hasvaritem2)
+            data_buf += prepareVariableSizeFieldU2p2(self.hasvaritem2)
 
-            if hasvaritem2 != 0:
+            if self.hasvaritem2 != 0:
                 data_buf += prepareVariableSizeFieldU2p2(self.vartype2)
+            noConsolidatedTD = True
 
-        if self.allowFillValue and self.hasvaritem2 != 0:
+        # Store fill of vartype2
+        if self.allowFillValue:
+            if not self.hasvaritem2:
+                raise NotImplementedError("Unsupported LVVariant type storage case with no hasvaritem2 but with DataFill")
             for df in self.datafill:
                 data_buf += df.prepareRSRCData(avoid_recompute=avoid_recompute)
+                break # expecting one DataFill entry
 
         data_buf += self.prepareRSRCAttribs(avoid_recompute=avoid_recompute)
         return data_buf
