@@ -3745,7 +3745,7 @@ class VCTP(Block):
         section = self.sections[section_num]
 
         bldata.seek(pos)
-        obj_type, obj_flags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+        obj_type, obj_flags, obj_len = TDObject.parseRSRCDataHeader(bldata)
         if (self.po.verbose > 2):
             print("{:s}: Block {} connector {:d}, at 0x{:04x}, type 0x{:02x} flags 0x{:02x} len {:d}"\
               .format(self.vi.src_fname, self.ident, len(section.content), pos, obj_type, obj_flags, obj_len))
@@ -3753,7 +3753,7 @@ class VCTP(Block):
             eprint("{:s}: Warning: Connector {:d} type 0x{:02x} data size {:d} too small to be valid"\
               .format(self.vi.src_fname, len(section.content), obj_type, obj_len))
             obj_type = TD_FULL_TYPE.Void
-        obj = newConnectorObject(self.vi, len(section.content), obj_flags, obj_type, self.po)
+        obj = newTDObject(self.vi, len(section.content), obj_flags, obj_type, self.po)
 
         clientTD = SimpleNamespace()
         clientTD.index = -1 # Nested clients have index -1
@@ -3804,7 +3804,7 @@ class VCTP(Block):
                     obj_idx = int(subelem.get("Index"), 0)
                     obj_type = valFromEnumOrIntString(TD_FULL_TYPE, subelem.get("Type"))
                     obj_flags = importXMLBitfields(CONNECTOR_FLAGS, subelem)
-                    obj = newConnectorObject(self.vi, obj_idx, obj_flags, obj_type, self.po)
+                    obj = newTDObject(self.vi, obj_idx, obj_flags, obj_type, self.po)
                     # Grow the list if needed (the connectors may be in wrong order)
                     if obj_idx >= len(section.content):
                         section.content.extend([None] * (obj_idx - len(section.content) + 1))
@@ -3877,8 +3877,8 @@ class VCTP(Block):
                 clientTD.nested.exportXML(subelem, fname_base)
                 clientTD.nested.exportXMLFinish(subelem)
             else:
-                ConnectorObject.exportXML(clientTD.nested, subelem, fname_base)
-                ConnectorObject.exportXMLFinish(clientTD.nested, subelem)
+                TDObject.exportXML(clientTD.nested, subelem, fname_base)
+                TDObject.exportXMLFinish(clientTD.nested, subelem)
 
         toplstelem = ET.SubElement(section_elem,"TopLevel")
 

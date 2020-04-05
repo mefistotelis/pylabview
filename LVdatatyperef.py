@@ -1187,7 +1187,7 @@ def refnumNameToEnum(refnName):
     return refnumEn
 
 
-def newConnectorObjectRef(vi, conn_obj, reftype, po):
+def newTDObjectRef(vi, conn_obj, reftype, po):
     """ Calls proper constructor to create refnum connector object.
 
     If tjis function returns NULL for a specific reftype, then refnum connector

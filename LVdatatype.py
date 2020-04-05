@@ -292,7 +292,7 @@ class LV_INTERNAL_MEAS_FLAVOR_NAMES(LVheap.ENUM_TAGS):
     U64Waveform =	MEASURE_DATA_FLAVOR.UInt64Waveform
 
 
-class ConnectorObject:
+class TDObject:
 
     def __init__(self, vi, idx, obj_flags, obj_type, po):
         """ Creates new Connector object, capable of handling generic Connector data.
@@ -398,7 +398,7 @@ class ConnectorObject:
         Can use other connectors and other blocks.
         """
         # Fields oflags,otype are set at constructor, but no harm in setting them again
-        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+        self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
 
         if (self.po.verbose > 2):
             print("{:s}: TD {:d} type 0x{:02x} data format isn't known; leaving raw only"\
@@ -434,7 +434,7 @@ class ConnectorObject:
             whole_data = bldata.read(1024*1024)
             # Find a proper position to read the label; try the current position first (if the data after current is not beyond 255)
             for i in range(max(len(whole_data)-256,0), len(whole_data)):
-                label_len = ConnectorObject.validLabelLength(whole_data, i)
+                label_len = TDObject.validLabelLength(whole_data, i)
                 if label_len > 0:
                     self.label = whole_data[i+1:i+label_len+1]
                     break
@@ -500,7 +500,7 @@ class ConnectorObject:
             whole_data = data_buf
             # Find a proper position to read the label; try the current position first (if the data after current is not beyond 255)
             for i in range(max(len(whole_data)-256,0), len(whole_data)):
-                label_len = ConnectorObject.validLabelLength(whole_data, i)
+                label_len = TDObject.validLabelLength(whole_data, i)
                 if label_len > 0:
                     data_buf = data_buf[:i]
                     break
@@ -708,7 +708,7 @@ class ConnectorObject:
         return type(self).__name__ + pformat(d, indent=0, compact=True, width=512)
 
 
-class ConnectorObjectVoid(ConnectorObject):
+class TDObjectVoid(TDObject):
     """ Connector with Void data
     """
     def __init__(self, *args):
@@ -716,7 +716,7 @@ class ConnectorObjectVoid(ConnectorObject):
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
-        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+        self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
         # And that is it, no other data expected
         self.parseRSRCDataFinish(bldata)
 
@@ -745,7 +745,7 @@ class ConnectorObjectVoid(ConnectorObject):
             self.updateData(avoid_recompute=True)
 
         else:
-            ConnectorObject.initWithXML(self, conn_elem)
+            TDObject.initWithXML(self, conn_elem)
         pass
 
     def exportXML(self, conn_elem, fname_base):
@@ -764,7 +764,7 @@ class ConnectorObjectVoid(ConnectorObject):
         return ret
 
 
-class ConnectorObjectBool(ConnectorObjectVoid):
+class TDObjectBool(TDObjectVoid):
     """ Connector with Boolean data
 
     Stores no additional data, so handling is identical to Void connector.
@@ -772,7 +772,7 @@ class ConnectorObjectBool(ConnectorObjectVoid):
     pass
 
 
-class ConnectorObjectLVVariant(ConnectorObjectVoid):
+class TDObjectLVVariant(TDObjectVoid):
     """ Connector with data supporting multiple types(variant type)
 
     Stores no additional data, so handling is identical to Void connector.
@@ -780,7 +780,7 @@ class ConnectorObjectLVVariant(ConnectorObjectVoid):
     pass
 
 
-class ConnectorObjectNumber(ConnectorObject):
+class TDObjectNumber(TDObject):
     """ Connector with single number as data
 
         The number can be a clear math value, but also can be physical value with
@@ -821,7 +821,7 @@ class ConnectorObjectNumber(ConnectorObject):
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
-        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+        self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
         self.padding1 = b''
         self.values = []
 
@@ -941,7 +941,7 @@ class ConnectorObjectNumber(ConnectorObject):
             self.updateData(avoid_recompute=True)
 
         else:
-            ConnectorObject.initWithXML(self, conn_elem)
+            TDObject.initWithXML(self, conn_elem)
         pass
 
     def exportXMLEnumAttr(self, conn_elem, fname_base):
@@ -1015,7 +1015,7 @@ class ConnectorObjectNumber(ConnectorObject):
         ]
 
 
-class ConnectorObjectCString(ConnectorObjectVoid):
+class TDObjectCString(TDObjectVoid):
     """ Connector with C String data
 
     Stores no additional data, so handling is identical to Void connector.
@@ -1023,7 +1023,7 @@ class ConnectorObjectCString(ConnectorObjectVoid):
     pass
 
 
-class ConnectorObjectPasString(ConnectorObjectVoid):
+class TDObjectPasString(TDObjectVoid):
     """ Connector with Pascal String data
 
     Stores no additional data, so handling is identical to Void connector.
@@ -1031,7 +1031,7 @@ class ConnectorObjectPasString(ConnectorObjectVoid):
     pass
 
 
-class ConnectorObjectTag(ConnectorObject):
+class TDObjectTag(TDObject):
     def __init__(self, *args):
         super().__init__(*args)
         self.prop1 = 0
@@ -1042,7 +1042,7 @@ class ConnectorObjectTag(ConnectorObject):
     def parseRSRCData(self, bldata):
         ver = self.vi.getFileVersion()
         # Fields oflags,otype are set at constructor, but no harm in setting them again
-        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+        self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
 
         self.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         self.tagType = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
@@ -1130,7 +1130,7 @@ class ConnectorObjectTag(ConnectorObject):
             self.updateData(avoid_recompute=True)
 
         else:
-            ConnectorObject.initWithXML(self, conn_elem)
+            TDObject.initWithXML(self, conn_elem)
         pass
 
     def initWithXMLLate(self):
@@ -1178,14 +1178,14 @@ class ConnectorObjectTag(ConnectorObject):
         return ret
 
 
-class ConnectorObjectBlob(ConnectorObject):
+class TDObjectBlob(TDObject):
     def __init__(self, *args):
         super().__init__(*args)
         self.prop1 = None
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
-        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+        self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
 
         self.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False) # size of block/blob
         # No more known data inside
@@ -1219,7 +1219,7 @@ class ConnectorObjectBlob(ConnectorObject):
             self.updateData(avoid_recompute=True)
 
         else:
-            ConnectorObject.initWithXML(self, conn_elem)
+            TDObject.initWithXML(self, conn_elem)
         pass
 
     def exportXML(self, conn_elem, fname_base):
@@ -1244,34 +1244,34 @@ class ConnectorObjectBlob(ConnectorObject):
         return ret
 
 
-class ConnectorObjectNumberPtr(ConnectorObjectVoid):
+class TDObjectNumberPtr(TDObjectVoid):
     """ Connector with Number Pointer as data
 
     Stores no additional data, so handling is identical to Void connector.
     """
     pass
 
-class ConnectorObjectString(ConnectorObjectBlob):
+class TDObjectString(TDObjectBlob):
     pass
 
 
-class ConnectorObjectPath(ConnectorObjectBlob):
+class TDObjectPath(TDObjectBlob):
     pass
 
 
-class ConnectorObjectPicture(ConnectorObjectBlob):
+class TDObjectPicture(TDObjectBlob):
     pass
 
 
-class ConnectorObjectSubString(ConnectorObjectBlob):
+class TDObjectSubString(TDObjectBlob):
     pass
 
 
-class ConnectorObjectPolyVI(ConnectorObjectBlob):
+class TDObjectPolyVI(TDObjectBlob):
     pass
 
 
-class ConnectorObjectFunction(ConnectorObject):
+class TDObjectFunction(TDObject):
     def __init__(self, *args):
         super().__init__(*args)
         self.fflags = 0
@@ -1283,7 +1283,7 @@ class ConnectorObjectFunction(ConnectorObject):
     def parseRSRCData(self, bldata):
         ver = self.vi.getFileVersion()
         # Fields oflags,otype are set at constructor, but no harm in setting them again
-        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+        self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
 
         count = readVariableSizeFieldU2p2(bldata)
         # Create _separate_ empty namespace for each connector
@@ -1461,7 +1461,7 @@ class ConnectorObjectFunction(ConnectorObject):
             self.updateData(avoid_recompute=True)
 
         else:
-            ConnectorObject.initWithXML(self, conn_elem)
+            TDObject.initWithXML(self, conn_elem)
         pass
 
     def exportXML(self, conn_elem, fname_base):
@@ -1531,7 +1531,7 @@ class ConnectorObjectFunction(ConnectorObject):
         return ret
 
 
-class ConnectorObjectTypeDef(ConnectorObject):
+class TDObjectTypeDef(TDObject):
     """ Connector which stores type definition
 
     Connectors of this type have a special support in LabView code, where type data
@@ -1550,9 +1550,9 @@ class ConnectorObjectTypeDef(ConnectorObject):
         """
         bldata.seek(pos)
         # Fields oflags,otype are set at constructor, but no harm in setting them again
-        obj_type, obj_flags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+        obj_type, obj_flags, obj_len = TDObject.parseRSRCDataHeader(bldata)
 
-        obj = newConnectorObject(self.vi, -1, obj_flags, obj_type, self.po)
+        obj = newTDObject(self.vi, -1, obj_flags, obj_type, self.po)
         bldata.seek(pos)
         # The object length of this nested connector is 4 bytes larger than real thing.
         # Not everyone is aiming for consistency.
@@ -1562,7 +1562,7 @@ class ConnectorObjectTypeDef(ConnectorObject):
     def parseRSRCData(self, bldata):
         ver = self.vi.getFileVersion()
         # Fields oflags,otype are set at constructor, but no harm in setting them again
-        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+        self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
 
         self.flag1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
@@ -1634,7 +1634,7 @@ class ConnectorObjectTypeDef(ConnectorObject):
         client.flags = 0
         obj_type = valFromEnumOrIntString(TD_FULL_TYPE, conn_subelem.get("Type"))
         obj_flags = importXMLBitfields(CONNECTOR_FLAGS, conn_subelem)
-        obj = newConnectorObject(self.vi, client.index, obj_flags, obj_type, self.po)
+        obj = newTDObject(self.vi, client.index, obj_flags, obj_type, self.po)
         client.nested = obj
         obj.initWithXML(conn_subelem)
         return client, i
@@ -1670,7 +1670,7 @@ class ConnectorObjectTypeDef(ConnectorObject):
             self.updateData(avoid_recompute=True)
 
         else:
-            ConnectorObject.initWithXML(self, conn_elem)
+            TDObject.initWithXML(self, conn_elem)
         pass
 
     def initWithXMLLate(self):
@@ -1730,7 +1730,7 @@ class ConnectorObjectTypeDef(ConnectorObject):
         return ret
 
 
-class ConnectorObjectArray(ConnectorObject):
+class TDObjectArray(TDObject):
     def __init__(self, *args):
         super().__init__(*args)
         self.dimensions = [ ]
@@ -1738,7 +1738,7 @@ class ConnectorObjectArray(ConnectorObject):
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
-        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+        self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
 
         ndimensions = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         self.dimensions = [SimpleNamespace() for _ in range(ndimensions)]
@@ -1818,7 +1818,7 @@ class ConnectorObjectArray(ConnectorObject):
             self.updateData(avoid_recompute=True)
 
         else:
-            ConnectorObject.initWithXML(self, conn_elem)
+            TDObject.initWithXML(self, conn_elem)
         pass
 
     def exportXML(self, conn_elem, fname_base):
@@ -1860,14 +1860,14 @@ class ConnectorObjectArray(ConnectorObject):
         return ret
 
 
-class ConnectorObjectBlock(ConnectorObject):
+class TDObjectBlock(TDObject):
     def __init__(self, *args):
         super().__init__(*args)
         self.blkSize = None
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
-        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+        self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
 
         self.blkSize = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         # No more known data inside
@@ -1906,7 +1906,7 @@ class ConnectorObjectBlock(ConnectorObject):
             self.updateData(avoid_recompute=True)
 
         else:
-            ConnectorObject.initWithXML(self, conn_elem)
+            TDObject.initWithXML(self, conn_elem)
         pass
 
     def initWithXMLInlineData(self, conn_elem):
@@ -1928,14 +1928,14 @@ class ConnectorObjectBlock(ConnectorObject):
         return ret
 
 
-class ConnectorObjectAlignedBlock(ConnectorObjectBlock):
+class TDObjectAlignedBlock(TDObjectBlock):
     def __init__(self, *args):
         super().__init__(*args)
         self.clients = []
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
-        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+        self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
 
         self.clients = []
         self.blkSize = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
@@ -2015,7 +2015,7 @@ class ConnectorObjectAlignedBlock(ConnectorObjectBlock):
         return ret
 
 
-class ConnectorObjectRepeatedBlock(ConnectorObject):
+class TDObjectRepeatedBlock(TDObject):
     def __init__(self, *args):
         super().__init__(*args)
         self.clients = []
@@ -2023,7 +2023,7 @@ class ConnectorObjectRepeatedBlock(ConnectorObject):
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
-        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+        self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
 
         self.clients = []
         self.numRepeats = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
@@ -2083,7 +2083,7 @@ class ConnectorObjectRepeatedBlock(ConnectorObject):
             self.updateData(avoid_recompute=True)
 
         else:
-            ConnectorObject.initWithXML(self, conn_elem)
+            TDObject.initWithXML(self, conn_elem)
         pass
 
     def exportXML(self, conn_elem, fname_base):
@@ -2129,7 +2129,7 @@ class ConnectorObjectRepeatedBlock(ConnectorObject):
         return ret
 
 
-class ConnectorObjectRef(ConnectorObject):
+class TDObjectRef(TDObject):
     def __init__(self, *args):
         super().__init__(*args)
         self.reftype = int(REFNUM_TYPE.Generic)
@@ -2139,10 +2139,10 @@ class ConnectorObjectRef(ConnectorObject):
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
-        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+        self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
 
         self.reftype = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        self.ref_obj = LVdatatyperef.newConnectorObjectRef(self.vi, self, self.reftype, self.po)
+        self.ref_obj = LVdatatyperef.newTDObjectRef(self.vi, self, self.reftype, self.po)
         if self.ref_obj is not None:
             if (self.po.verbose > 2):
                 print("{:s}: TD {:d} type 0x{:02x}, has ref_type=0x{:02X} class {:s}"\
@@ -2179,7 +2179,7 @@ class ConnectorObjectRef(ConnectorObject):
             self.initWithXMLInlineStart(conn_elem)
             self.reftype = valFromEnumOrIntString(REFNUM_TYPE, conn_elem.get("RefType"))
 
-            self.ref_obj = LVdatatyperef.newConnectorObjectRef(self.vi, self, self.reftype, self.po)
+            self.ref_obj = LVdatatyperef.newTDObjectRef(self.vi, self, self.reftype, self.po)
             if self.ref_obj is not None:
                 if (self.po.verbose > 2):
                     print("{:s}: TD {:d} type 0x{:02x}, has ref_type=0x{:02X} class {:s}"\
@@ -2223,7 +2223,7 @@ class ConnectorObjectRef(ConnectorObject):
             self.updateData(avoid_recompute=True)
 
         else:
-            ConnectorObject.initWithXML(self, conn_elem)
+            TDObject.initWithXML(self, conn_elem)
         pass
 
     def initWithXMLLate(self):
@@ -2299,13 +2299,13 @@ class ConnectorObjectRef(ConnectorObject):
         return REFNUM_TYPE(self.reftype)
 
 
-class ConnectorObjectCluster(ConnectorObject):
+class TDObjectCluster(TDObject):
     def __init__(self, *args):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
-        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+        self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
 
         count = readVariableSizeFieldU2p2(bldata)
         # Create _separate_ empty namespace for each connector
@@ -2361,7 +2361,7 @@ class ConnectorObjectCluster(ConnectorObject):
             self.updateData(avoid_recompute=True)
 
         else:
-            ConnectorObject.initWithXML(self, conn_elem)
+            TDObject.initWithXML(self, conn_elem)
         pass
 
     def initWithXMLLate(self):
@@ -2398,14 +2398,14 @@ class ConnectorObjectCluster(ConnectorObject):
         return ret
 
 
-class ConnectorObjectMeasureData(ConnectorObject):
+class TDObjectMeasureData(TDObject):
     def __init__(self, *args):
         super().__init__(*args)
         self.flavor = None
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
-        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+        self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
 
         self.flavor = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         # No more known data inside
@@ -2439,7 +2439,7 @@ class ConnectorObjectMeasureData(ConnectorObject):
             self.updateData(avoid_recompute=True)
 
         else:
-            ConnectorObject.initWithXML(self, conn_elem)
+            TDObject.initWithXML(self, conn_elem)
         pass
 
     def exportXML(self, conn_elem, fname_base):
@@ -2468,14 +2468,14 @@ class ConnectorObjectMeasureData(ConnectorObject):
         return MEASURE_DATA_FLAVOR(self.flavor)
 
 
-class ConnectorObjectFixedPoint(ConnectorObject):
+class TDObjectFixedPoint(TDObject):
     def __init__(self, *args):
         super().__init__(*args)
         self.ranges = []
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
-        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+        self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
 
         field1C = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         field1E = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
@@ -2611,7 +2611,7 @@ class ConnectorObjectFixedPoint(ConnectorObject):
             self.updateData(avoid_recompute=True)
 
         else:
-            ConnectorObject.initWithXML(self, conn_elem)
+            TDObject.initWithXML(self, conn_elem)
         pass
 
     def exportXML(self, conn_elem, fname_base):
@@ -2661,7 +2661,7 @@ class ConnectorObjectFixedPoint(ConnectorObject):
             ret = False
         return ret
 
-class ConnectorObjectSingleContainer(ConnectorObject):
+class TDObjectSingleContainer(TDObject):
     def __init__(self, *args):
         super().__init__(*args)
         self.prop1 = 0
@@ -2669,7 +2669,7 @@ class ConnectorObjectSingleContainer(ConnectorObject):
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
-        self.otype, self.oflags, obj_len = ConnectorObject.parseRSRCDataHeader(bldata)
+        self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
 
         self.clients = []
         if True:
@@ -2726,7 +2726,7 @@ class ConnectorObjectSingleContainer(ConnectorObject):
             self.updateData(avoid_recompute=True)
 
         else:
-            ConnectorObject.initWithXML(self, conn_elem)
+            TDObject.initWithXML(self, conn_elem)
         pass
 
     def initWithXMLLate(self):
@@ -2877,23 +2877,23 @@ def newErrorCluster(vi, idx, obj_flags, po):
     tdErrEnt = SimpleNamespace() # error status
     tdErrEnt.index = -1
     tdErrEnt.flags = 0
-    tdErrEnt.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.Boolean, po)
+    tdErrEnt.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.Boolean, po)
     tdList.append(tdErrEnt)
 
     tdErrEnt = SimpleNamespace() # error code
     tdErrEnt.index = -1
     tdErrEnt.flags = 0
-    tdErrEnt.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.NumInt32, po)
+    tdErrEnt.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.NumInt32, po)
     tdList.append(tdErrEnt)
 
     tdErrEnt = SimpleNamespace() # error source
     tdErrEnt.index = -1
     tdErrEnt.flags = 0
-    tdErrEnt.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.String, po)
+    tdErrEnt.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.String, po)
     tdList.append(tdErrEnt)
 
     # Prepare a cluster container for that list
-    tdCluster = newConnectorObject(vi, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
+    tdCluster = newTDObject(vi, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
     tdCluster.clients = tdList
     return tdCluster
 
@@ -2906,7 +2906,7 @@ def newDigitalTableCluster(vi, idx, obj_flags, po):
     tdDigTabEnt = SimpleNamespace() # DigitalTable transitions
     tdDigTabEnt.index = -1
     tdDigTabEnt.flags = 0
-    tdDigTabEnt.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.Array, po)
+    tdDigTabEnt.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.Array, po)
     tdDigTabEnt.nested.dimensions = [SimpleNamespace() for _ in range(1)]
     for dim in tdDigTabEnt.nested.dimensions:
         dim.flags = 0
@@ -2916,13 +2916,13 @@ def newDigitalTableCluster(vi, idx, obj_flags, po):
         cli_flags = 0
         client.index = -1
         client.flags = 0
-        client.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.NumUInt32, po)
+        client.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.NumUInt32, po)
     tdList.append(tdDigTabEnt)
 
     tdDigTabEnt = SimpleNamespace() # DigitalTable data
     tdDigTabEnt.index = -1
     tdDigTabEnt.flags = 0
-    tdDigTabEnt.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.Array, po)
+    tdDigTabEnt.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.Array, po)
     tdDigTabEnt.nested.dimensions = [SimpleNamespace() for _ in range(2)]
     for dim in tdDigTabEnt.nested.dimensions:
         dim.flags = 0
@@ -2932,11 +2932,11 @@ def newDigitalTableCluster(vi, idx, obj_flags, po):
         cli_flags = 0
         client.index = -1
         client.flags = 0
-        client.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.NumUInt8, po)
+        client.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.NumUInt8, po)
     tdList.append(tdDigTabEnt)
 
     # Prepare a cluster container for that list
-    tdCluster = newConnectorObject(vi, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
+    tdCluster = newTDObject(vi, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
     tdCluster.clients = tdList
     return tdCluster
 
@@ -2949,13 +2949,13 @@ def newDigitalWaveformCluster(vi, idx, obj_flags, po):
     tdEntry.index = -1
     tdEntry.flags = 0
     # Use block of 16 bytes as Timestamp
-    tdEntry.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.Block, po)
+    tdEntry.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.Block, po)
     tdEntry.nested.blkSize = 16
     tdList.append(tdEntry)
     tdEntry = SimpleNamespace() # dt
     tdEntry.index = -1
     tdEntry.flags = 0
-    tdEntry.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.NumFloat64, po)
+    tdEntry.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.NumFloat64, po)
     tdList.append(tdEntry)
     tdEntry = SimpleNamespace() # Y
     tdEntry.index = -1
@@ -2971,11 +2971,11 @@ def newDigitalWaveformCluster(vi, idx, obj_flags, po):
     tdEntry = SimpleNamespace() # attributes
     tdEntry.index = -1
     tdEntry.flags = 0
-    tdEntry.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.LVVariant, po)
+    tdEntry.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.LVVariant, po)
     tdList.append(tdEntry)
 
     # Prepare a cluster container for that list
-    tdCluster = newConnectorObject(vi, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
+    tdCluster = newTDObject(vi, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
     tdCluster.clients = tdList
     return tdCluster
 
@@ -2988,19 +2988,19 @@ def newAnalogWaveformCluster(vi, idx, obj_flags, tdInner, po):
     tdEntry.index = -1
     tdEntry.flags = 0
     # Use block of 16 bytes as Timestamp
-    tdEntry.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.Block, po)
+    tdEntry.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.Block, po)
     tdEntry.nested.blkSize = 16
     tdList.append(tdEntry)
     tdEntry = SimpleNamespace() # dt
     tdEntry.index = -1
     tdEntry.flags = 0
-    tdEntry.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.NumFloat64, po)
+    tdEntry.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.NumFloat64, po)
     tdList.append(tdEntry)
     tdEntry = SimpleNamespace() # Y
     tdEntry.index = -1
     tdEntry.flags = 0
     # The AnalogTable is a Cluster with specific things inside
-    tdEntry.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.Array, po)
+    tdEntry.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.Array, po)
     tdEntry.nested.dimensions = [SimpleNamespace() for _ in range(1)]
     for dim in tdEntry.nested.dimensions:
         dim.flags = 0
@@ -3020,11 +3020,11 @@ def newAnalogWaveformCluster(vi, idx, obj_flags, tdInner, po):
     tdEntry = SimpleNamespace() # attributes
     tdEntry.index = -1
     tdEntry.flags = 0
-    tdEntry.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.LVVariant, po)
+    tdEntry.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.LVVariant, po)
     tdList.append(tdEntry)
 
     # Prepare a cluster container for that list
-    tdCluster = newConnectorObject(vi, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
+    tdCluster = newTDObject(vi, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
     tdCluster.clients = tdList
     return tdCluster
 
@@ -3038,7 +3038,7 @@ def newDynamicTableCluster(vi, idx, obj_flags, po):
     tdTabEnt = SimpleNamespace()
     tdTabEnt.index = -1
     tdTabEnt.flags = 0
-    tdTabEnt.nested = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.Array, po)
+    tdTabEnt.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.Array, po)
     tdTabEnt.nested.dimensions = [SimpleNamespace() for _ in range(1)]
     for dim in tdTabEnt.nested.dimensions:
         dim.flags = 0
@@ -3048,12 +3048,12 @@ def newDynamicTableCluster(vi, idx, obj_flags, po):
         client.index = -1
         client.flags = 0
         # data inside as for MEASURE_DATA_FLAVOR.Float64Waveform
-        tdInner = newConnectorObject(vi, -1, 0, TD_FULL_TYPE.NumFloat64, po)
+        tdInner = newTDObject(vi, -1, 0, TD_FULL_TYPE.NumFloat64, po)
         client.nested = newAnalogWaveformCluster(vi, -1, 0, tdInner, po)
     tdList.append(tdTabEnt)
 
     # Prepare a cluster container for that list
-    tdCluster = newConnectorObject(vi, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
+    tdCluster = newTDObject(vi, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
     tdCluster.clients = tdList
     return tdCluster
 
@@ -3061,60 +3061,60 @@ def newOldFloat64WaveformCluster(vi, idx, obj_flags, po):
     """ The OldFloat64 Waveform is a Cluster with specific things inside
     """
     #TODO this is not enough, some changes are required in the cluster
-    tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumFloat64, self.po)
+    tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumFloat64, self.po)
     tdCluster = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
     return tdCluster
 
 
-def newConnectorObject(vi, idx, obj_flags, obj_type, po):
+def newTDObject(vi, idx, obj_flags, obj_type, po):
     """ Creates and returns new terminal object with given parameters
     """
     # Try types for which we have specific constructors
     ctor = {
-        TD_FULL_TYPE.Void: ConnectorObjectVoid,
-        #TD_FULL_TYPE.Num*: ConnectorObjectNumber, # Handled by main type
-        #TD_FULL_TYPE.Unit*: ConnectorObjectNumber, # Handled by main type
-        #TD_FULL_TYPE.Boolean*: ConnectorObjectBool, # Handled by main type
-        TD_FULL_TYPE.String: ConnectorObjectString,
-        TD_FULL_TYPE.Path: ConnectorObjectPath,
-        TD_FULL_TYPE.Picture: ConnectorObjectPicture,
-        TD_FULL_TYPE.CString: ConnectorObjectCString,
-        TD_FULL_TYPE.PasString: ConnectorObjectPasString,
-        TD_FULL_TYPE.Tag: ConnectorObjectTag,
-        TD_FULL_TYPE.SubString: ConnectorObjectSubString,
-        #TD_FULL_TYPE.*Array*: ConnectorObjectArray, # Handled by main type
-        TD_FULL_TYPE.Cluster: ConnectorObjectCluster,
-        TD_FULL_TYPE.LVVariant: ConnectorObjectLVVariant,
-        TD_FULL_TYPE.MeasureData: ConnectorObjectMeasureData,
-        TD_FULL_TYPE.ComplexFixedPt: ConnectorObjectFixedPoint,
-        TD_FULL_TYPE.FixedPoint: ConnectorObjectFixedPoint,
-        TD_FULL_TYPE.Block: ConnectorObjectBlock,
-        TD_FULL_TYPE.TypeBlock: ConnectorObjectSingleContainer,
-        TD_FULL_TYPE.VoidBlock: ConnectorObjectSingleContainer,
-        TD_FULL_TYPE.AlignedBlock: ConnectorObjectAlignedBlock,
-        TD_FULL_TYPE.RepeatedBlock: ConnectorObjectRepeatedBlock,
-        TD_FULL_TYPE.AlignmntMarker: ConnectorObjectSingleContainer,
-        TD_FULL_TYPE.Ptr: ConnectorObjectNumberPtr,
-        TD_FULL_TYPE.PtrTo: ConnectorObjectSingleContainer,
-        TD_FULL_TYPE.Function: ConnectorObjectFunction,
-        TD_FULL_TYPE.TypeDef: ConnectorObjectTypeDef,
-        TD_FULL_TYPE.PolyVI: ConnectorObjectPolyVI,
+        TD_FULL_TYPE.Void: TDObjectVoid,
+        #TD_FULL_TYPE.Num*: TDObjectNumber, # Handled by main type
+        #TD_FULL_TYPE.Unit*: TDObjectNumber, # Handled by main type
+        #TD_FULL_TYPE.Boolean*: TDObjectBool, # Handled by main type
+        TD_FULL_TYPE.String: TDObjectString,
+        TD_FULL_TYPE.Path: TDObjectPath,
+        TD_FULL_TYPE.Picture: TDObjectPicture,
+        TD_FULL_TYPE.CString: TDObjectCString,
+        TD_FULL_TYPE.PasString: TDObjectPasString,
+        TD_FULL_TYPE.Tag: TDObjectTag,
+        TD_FULL_TYPE.SubString: TDObjectSubString,
+        #TD_FULL_TYPE.*Array*: TDObjectArray, # Handled by main type
+        TD_FULL_TYPE.Cluster: TDObjectCluster,
+        TD_FULL_TYPE.LVVariant: TDObjectLVVariant,
+        TD_FULL_TYPE.MeasureData: TDObjectMeasureData,
+        TD_FULL_TYPE.ComplexFixedPt: TDObjectFixedPoint,
+        TD_FULL_TYPE.FixedPoint: TDObjectFixedPoint,
+        TD_FULL_TYPE.Block: TDObjectBlock,
+        TD_FULL_TYPE.TypeBlock: TDObjectSingleContainer,
+        TD_FULL_TYPE.VoidBlock: TDObjectSingleContainer,
+        TD_FULL_TYPE.AlignedBlock: TDObjectAlignedBlock,
+        TD_FULL_TYPE.RepeatedBlock: TDObjectRepeatedBlock,
+        TD_FULL_TYPE.AlignmntMarker: TDObjectSingleContainer,
+        TD_FULL_TYPE.Ptr: TDObjectNumberPtr,
+        TD_FULL_TYPE.PtrTo: TDObjectSingleContainer,
+        TD_FULL_TYPE.Function: TDObjectFunction,
+        TD_FULL_TYPE.TypeDef: TDObjectTypeDef,
+        TD_FULL_TYPE.PolyVI: TDObjectPolyVI,
     }.get(obj_type, None)
     if ctor is None:
         # If no specific constructor - go by general type
         obj_main_type = obj_type >> 4
         ctor = {
-            TD_MAIN_TYPE.Number: ConnectorObjectNumber,
-            TD_MAIN_TYPE.Unit: ConnectorObjectNumber,
-            TD_MAIN_TYPE.Bool: ConnectorObjectBool,
-            TD_MAIN_TYPE.Blob: ConnectorObject,
-            TD_MAIN_TYPE.Array: ConnectorObjectArray,
-            TD_MAIN_TYPE.Cluster: ConnectorObject,
-            TD_MAIN_TYPE.Block: ConnectorObject,
-            TD_MAIN_TYPE.Ref: ConnectorObjectRef,
-            TD_MAIN_TYPE.NumberPointer: ConnectorObject,
-            TD_MAIN_TYPE.Terminal: ConnectorObject,
-            TD_MAIN_TYPE.Void: ConnectorObject, # With the way we get main_type, this condition is impossible
-        }.get(obj_main_type, ConnectorObject) # Void is the default type in case of no match
+            TD_MAIN_TYPE.Number: TDObjectNumber,
+            TD_MAIN_TYPE.Unit: TDObjectNumber,
+            TD_MAIN_TYPE.Bool: TDObjectBool,
+            TD_MAIN_TYPE.Blob: TDObject,
+            TD_MAIN_TYPE.Array: TDObjectArray,
+            TD_MAIN_TYPE.Cluster: TDObject,
+            TD_MAIN_TYPE.Block: TDObject,
+            TD_MAIN_TYPE.Ref: TDObjectRef,
+            TD_MAIN_TYPE.NumberPointer: TDObject,
+            TD_MAIN_TYPE.Terminal: TDObject,
+            TD_MAIN_TYPE.Void: TDObject, # With the way we get main_type, this condition is impossible
+        }.get(obj_main_type, TDObject) # Void is the default type in case of no match
     return ctor(vi, idx, obj_flags, obj_type, po)
 

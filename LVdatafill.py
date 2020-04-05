@@ -616,7 +616,7 @@ class DataFillMeasureData(DataFill):
         """ Initialization part which requires access to version
         """
         ver = self.vi.getFileVersion()
-        from LVdatatype import MEASURE_DATA_FLAVOR, TD_FULL_TYPE, newConnectorObject,\
+        from LVdatatype import MEASURE_DATA_FLAVOR, TD_FULL_TYPE, newTDObject,\
           newDigitalTableCluster, newDigitalWaveformCluster, newDynamicTableCluster,\
           newAnalogWaveformCluster, newOldFloat64WaveformCluster
 
@@ -627,17 +627,17 @@ class DataFillMeasureData(DataFill):
         if self.tdSubType in (MEASURE_DATA_FLAVOR.OldFloat64Waveform,):
             self.containedTd = newOldFloat64WaveformCluster(self.vi, -1, 0, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Int16Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumInt16, self.po)
+            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumInt16, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Float64Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumFloat64, self.po)
+            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumFloat64, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Float32Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumFloat32, self.po)
+            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumFloat32, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.TimeStamp,):
             # Use block of 16 bytes as Timestamp
-            self.containedTd = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.Block, self.po)
+            self.containedTd = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.Block, self.po)
             self.containedTd.blkSize = 16
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Digitaldata,):
             self.containedTd = newDigitalTableCluster(self.vi, -1, 0, self.po)
@@ -646,37 +646,37 @@ class DataFillMeasureData(DataFill):
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Dynamicdata,):
             self.containedTd = newDynamicTableCluster(self.vi, -1, 0, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.FloatExtWaveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumFloatExt, self.po)
+            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumFloatExt, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.UInt8Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumUInt8, self.po)
+            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumUInt8, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.UInt16Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumUInt16, self.po)
+            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumUInt16, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.UInt32Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumUInt32, self.po)
+            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumUInt32, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Int8Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumInt8, self.po)
+            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumInt8, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Int32Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumInt32, self.po)
+            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumInt32, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Complex64Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumComplex64, self.po)
+            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumComplex64, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Complex128Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumComplex128, self.po)
+            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumComplex128, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.ComplexExtWaveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumComplexExt, self.po)
+            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumComplexExt, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Int64Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumInt64, self.po)
+            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumInt64, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.UInt64Waveform,):
-            tdInner = newConnectorObject(self.vi, -1, 0, TD_FULL_TYPE.NumUInt64, self.po)
+            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumUInt64, self.po)
             self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
         else:
             raise NotImplementedError("MeasureData {} default value read failed due to unsupported flavor"\
