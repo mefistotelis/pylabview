@@ -1260,6 +1260,15 @@ class STRG(SingleStringBlock):
         return section
 
 
+class HLPT(SingleStringBlock):
+    """ Help Tag
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.size_len = 4
+        return section
+
+
 class STR(Block):
     """ Short String / Input definition?
 
@@ -1989,6 +1998,54 @@ class HIST(Block):
     def createSection(self):
         section = super().createSection()
         return section
+
+
+class HLPP(Block):
+    """ Help Path
+
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+
+class HLPW(Block):
+    """ Help Website URL
+
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+
+class SCSR(Block):
+    """ Syntax Checker Digest
+
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.content = []
+        section.flags = 0
+        return section
+
+    def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+
+        section.flags = int.from_bytes(bldata.read(4), byteorder='little', signed=False)
+        digest = bldata.read(16)
+        section.content.append(digest)
+
+    def exportXMLSection(self, section_elem, snum, section, fname_base):
+        self.parseData(section_num=snum)
+
+        section_elem.set("Flags", "0x{:04X}".format(section.flags))
+        for digest in section.content:
+            subelem = ET.SubElement(section_elem,"Digest")
+            subelem.text = digest.hex()
+
+        section_elem.set("Format", "inline")
+        # TODO remove when this is re-created from XML
+        Block.exportXMLSection(self, section_elem, snum, section, fname_base)
 
 
 class DTHP(Block):
