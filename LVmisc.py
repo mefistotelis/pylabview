@@ -387,10 +387,10 @@ def preparePStr(strval, padto, po):
     data_buf = b''
     strlen = len(strval)
     data_buf += int(strlen).to_bytes(1, byteorder='big', signed=False)
-    data_buf += strval
+    data_buf += bytes(strval)
     padding_len = (strlen+1) % padto
     data_buf += (b'\0' * padding_len)
-    return strval
+    return data_buf
 
 def readLStr(bldata, padto, po):
     strlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
@@ -405,7 +405,7 @@ def prepareLStr(strval, padto, po):
     data_buf = b''
     strlen = len(strval)
     data_buf += int(strlen).to_bytes(4, byteorder='big', signed=False)
-    data_buf += strval
+    data_buf += bytes(strval)
     padding_len = (strlen+4) % padto
     data_buf += (b'\0' * padding_len)
-    return strval
+    return data_buf
