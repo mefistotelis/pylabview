@@ -4033,7 +4033,7 @@ class VITS(Block):
             Block.parseRSRCData(self, section_num, bldata)
         pass
 
-    def XXXupdateSectionData(self, section_num=None):#TODO enable when re-created section works
+    def updateSectionData(self, section_num=None):
         if section_num is None:
             section_num = self.active_section_num
         section = self.sections[section_num]
@@ -4116,5 +4116,3 @@ class VITS(Block):
             val.obj.exportXML(subelem, fname_base)
 
         section_elem.set("Format", "inline")
-        #TODO Export as binary data, because re-creation from properties is unfinished
-        Block.exportXMLSection(self, section_elem, snum, section, fname_base)

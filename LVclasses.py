@@ -244,13 +244,14 @@ class LVVariant(LVObject):
               .format(self.vi.src_fname, type(self).__name__, self.index, len(self.clients2), obj_type, obj_len))
             obj_type = LVdatatype.TD_FULL_TYPE.Void
         obj = LVdatatype.newTDObject(self.vi, -1, obj_flags, obj_type, self.po)
-        client = SimpleNamespace()
-        client.flags = 0
-        client.index = -1
-        client.nested = obj
-        self.clients2.append(client)
+        clientTD = SimpleNamespace()
+        clientTD.index = -1 # Nested clients have index -1
+        clientTD.flags = 0 # Only Type Mapped entries have it non-zero
+        clientTD.nested = obj
+        self.clients2.append(clientTD)
         bldata.seek(pos)
-        obj.initWithRSRC(bldata, obj_len, typeList=self.clients2)
+        obj.setOwningList(self.clients2)
+        obj.initWithRSRC(bldata, obj_len)
         return obj.index, obj_len
 
     def parseRSRCAttribs(self, bldata):
@@ -290,7 +291,7 @@ class LVVariant(LVObject):
         elif self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):
             self.hasvaritem2 = 1
             self.vartype2 = readVariableSizeFieldU2p2(bldata)
-            noConsolidatedTD = False
+            usesConsolidatedTD = True
         else:
             varcount = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             if varcount > self.po.connector_list_limit:
@@ -308,13 +309,13 @@ class LVVariant(LVObject):
             self.hasvaritem2 = readVariableSizeFieldU2p2(bldata)
             if self.hasvaritem2 != 0:
                 self.vartype2 = readVariableSizeFieldU2p2(bldata)
-            noConsolidatedTD = True
+            usesConsolidatedTD = False
         # Read fill of vartype2
         if self.allowFillValue:
             if not self.hasvaritem2:
                 raise NotImplementedError("Unsupported LVVariant type storage case with no hasvaritem2 but with DataFill")
             td = None
-            if noConsolidatedTD:
+            if not usesConsolidatedTD:
                 # TODO the lack of use of ConsolidatedTD should be propagated.. now the types don't know they shouldn't use VCTP
                 for client in self.clients2:
                     client.nested.parseData()
@@ -356,21 +357,21 @@ class LVVariant(LVObject):
             raise NotImplementedError("Unsupported LVVariant ver=0x{:06X} older than LV8.0".format(varver))
         elif self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):
             data_buf += prepareVariableSizeFieldU2p2(self.vartype2)
-            noConsolidatedTD = False
+            usesConsolidatedTD = True
         else:
             varcount = sum(1 for client in self.clients2 if client.index == -1)
             data_buf += int(varcount).to_bytes(4, byteorder='big', signed=False)
-            for client in self.clients2:
-                if client.index != -1:
+            for clientTD in self.clients2:
+                if clientTD.index != -1:
                     continue
-                client.nested.updateData(avoid_recompute=avoid_recompute)
-                data_buf += client.nested.raw_data
+                clientTD.nested.updateData(avoid_recompute=avoid_recompute)
+                data_buf += clientTD.nested.raw_data
             hasvaritem2 = self.hasvaritem2
             data_buf += prepareVariableSizeFieldU2p2(self.hasvaritem2)
 
             if self.hasvaritem2 != 0:
                 data_buf += prepareVariableSizeFieldU2p2(self.vartype2)
-            noConsolidatedTD = True
+            usesConsolidatedTD = False
 
         # Store fill of vartype2
         if self.allowFillValue:
@@ -388,10 +389,10 @@ class LVVariant(LVObject):
 
     def expectedRSRCSize(self):
         exp_whole_len = 4 + 4
-        for client in self.clients2:
-            if client.index != -1:
+        for clientTD in self.clients2:
+            if clientTD.index != -1:
                 continue
-            exp_whole_len += client.nested.expectedRSRCSize()
+            exp_whole_len += clientTD.nested.expectedRSRCSize()
         exp_whole_len += 2
         if self.hasvaritem2 != 0:
             exp_whole_len += 4
@@ -430,13 +431,14 @@ class LVVariant(LVObject):
                 obj_flags = importXMLBitfields(LVdatatype.CONNECTOR_FLAGS, subelem)
                 obj = LVdatatype.newTDObject(self.vi, obj_idx, obj_flags, obj_type, self.po)
                 # Grow the list if needed (the connectors may be in wrong order)
-                client = SimpleNamespace()
-                client.flags = 0
-                client.index = -1
-                client.nested = obj
-                self.clients2.append(client)
+                clientTD = SimpleNamespace()
+                clientTD.flags = 0
+                clientTD.index = -1
+                clientTD.nested = obj
+                self.clients2.append(clientTD)
                 # Set connector data based on XML properties
-                obj.initWithXML(subelem)
+                clientTD.nested.setOwningList(self.clients2)
+                clientTD.nested.initWithXML(subelem)
             elif (subelem.tag == "Attributes"):
                 for attr_elem in subelem:
                     attrib = SimpleNamespace()
@@ -467,13 +469,33 @@ class LVVariant(LVObject):
             self.version = ver.copy()
         for attrib in self.attrs:
             attrib.value.initWithXMLLate()
-        if self.hasvaritem2 != 0:
-            VCTP = self.vi.get_or_raise('VCTP')
-            td = VCTP.getTopType(self.vartype2)
+
+        if isSmallerVersion(self.version, 8,0,0,1):
+            usesConsolidatedTD = False
+        elif self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):
+            usesConsolidatedTD = True
+        else:
+            usesConsolidatedTD = False
+
+        if not usesConsolidatedTD:
+            for clientTD in self.clients2:
+                clientTD.nested.parseData()
+
+        if self.allowFillValue:
+            td = None
+            if not usesConsolidatedTD:
+                td = self.clients2[self.vartype2].nested
+            else:
+                VCTP = self.vi.get_or_raise('VCTP')
+                td = VCTP.getTopType(self.vartype2)
+            if td is None:
+                raise AttributeError("LVVariant cannot find TD object {}; usesConsolidatedTD={}".format(self.vartype2,usesConsolidatedTD))
+
+            if self.hasvaritem2 != 0:
+                for df in self.datafill:
+                    df.setTD(td, self.vartype2, 0)
             for df in self.datafill:
-                df.setTD(td, self.vartype2, 0)
-        for df in self.datafill:
-            df.initWithXMLLate()
+                df.initWithXMLLate()
         pass
 
     def exportXML(self, obj_elem, fname_base):

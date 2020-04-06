@@ -313,12 +313,14 @@ class TDObject:
         # Whether any properties have been updated and preparation of new RAW data is required
         self.parsed_data_updated = False
 
-    def initWithRSRC(self, bldata, obj_len, typeList=None):
+    def setOwningList(self, typeList=None):
+        self.topTypeList = typeList
+
+    def initWithRSRC(self, bldata, obj_len):
         """ Early part of connector loading from RSRC file
 
         At the point it is executed, other sections are inaccessible.
         """
-        self.topTypeList = typeList
         self.size = obj_len
         self.raw_data = bldata.read(obj_len)
         self.raw_data_updated = True
@@ -1552,9 +1554,10 @@ class TDObjectTypeDef(TDObject):
 
         obj = newTDObject(self.vi, -1, obj_flags, obj_type, self.po)
         bldata.seek(pos)
+        obj.setOwningList(self.topTypeList)
         # The object length of this nested connector is 4 bytes larger than real thing.
         # Not everyone is aiming for consistency.
-        obj.initWithRSRC(bldata, obj_len-4, typeList=self.topTypeList)
+        obj.initWithRSRC(bldata, obj_len-4)
         return obj, obj_len
 
     def parseRSRCData(self, bldata):

@@ -591,7 +591,7 @@ class DataFillLVVariant(DataFill):
 
     def initWithXML(self, df_elem):
         if df_elem.tag == LVclasses.LVVariant.__name__:
-            self.value = LVclasses.LVVariant(0, self.vi, self.po, useConsolidatedTypes=True, allowFillValue=True)
+            self.value = LVclasses.LVVariant(0, self.vi, self.po, useConsolidatedTypes=self.useConsolidatedTypes, allowFillValue=True)
         elif df_elem.tag == LVclasses.OleVariant.__name__:
             self.value = LVclasses.OleVariant(0, self.vi, self.po)
         else:
