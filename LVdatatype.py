@@ -315,6 +315,9 @@ class TDObject:
 
     def setOwningList(self, typeList=None):
         self.topTypeList = typeList
+        for clientTD in self.clients:
+            if clientTD.index == -1:
+                clientTD.nested.setOwningList(self.topTypeList)
 
     def initWithRSRC(self, bldata, obj_len):
         """ Early part of connector loading from RSRC file
@@ -472,11 +475,11 @@ class TDObject:
                 self.parseRSRCData(bldata)
             elif self.vi.dataSource == "xml":
                 self.parseXMLData()
-            for i, client in enumerate(self.clients):
-                if client.index != -1: # this is how we mark nested client
+            for i, clientTD in enumerate(self.clients):
+                if clientTD.index != -1: # this is how we mark nested client
                     continue
-                conn_obj = client.nested
-                conn_obj.parseData()
+                td = clientTD.nested
+                td.parseData()
         pass
 
     def needParseData(self):
@@ -650,12 +653,12 @@ class TDObject:
             VCTP = self.vi.get_or_raise('VCTP')
             typeList = VCTP.getContent()
         out_enum = []
-        for i, client in enumerate(self.clients):
-            if client.index == -1: # This is how we mark nested client
-                conn_obj = client.nested
+        for i, clientTD in enumerate(self.clients):
+            if clientTD.index == -1: # This is how we mark nested client
+                td = clientTD.nested
             else:
-                conn_obj = typeList[client.index].nested
-            out_enum.append( (i, client.index, conn_obj, client.flags, ) )
+                td = typeList[clientTD.index].nested
+            out_enum.append( (i, clientTD.index, td, clientTD.flags, ) )
         return out_enum
 
     def getClientConnectorsByType(self):
@@ -704,6 +707,8 @@ class TDObject:
         del d['parsed_data_updated']
         del d['raw_data_updated']
         del d['raw_data']
+        if d['topTypeList'] is not None:
+            d['topTypeList'] = "PRESENT"
         del d['size']
         from pprint import pformat
         return type(self).__name__ + pformat(d, indent=0, compact=True, width=512)
@@ -1327,11 +1332,11 @@ class TDObjectFunction(TDObject):
             self.field7 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         if (self.fflags & 0x8000) != 0:
             # If the flag is set, then the last client is special - comes from here, not the standard list
-            client = SimpleNamespace()
-            client.index = readVariableSizeFieldU2p2(bldata)
-            client.flags = 0
-            client.thrallSources = []
-            self.clients.append(client)
+            clientTD = SimpleNamespace()
+            clientTD.index = readVariableSizeFieldU2p2(bldata)
+            clientTD.flags = 0
+            clientTD.thrallSources = []
+            self.clients.append(clientTD)
 
         self.parseRSRCDataFinish(bldata)
 
@@ -1349,8 +1354,8 @@ class TDObjectFunction(TDObject):
             spec_cli = clients.pop()
 
         data_buf += prepareVariableSizeFieldU2p2(len(clients))
-        for client in clients:
-            data_buf += prepareVariableSizeFieldU2p2(client.index)
+        for clientTD in clients:
+            data_buf += prepareVariableSizeFieldU2p2(clientTD.index)
         # end of MultiContainer part
         data_buf += int(self.fflags).to_bytes(2, byteorder='big')
         data_buf += int(self.pattern).to_bytes(2, byteorder='big')
@@ -1388,8 +1393,8 @@ class TDObjectFunction(TDObject):
         if (self.fflags & 0x8000) != 0:
             spec_cli = clients.pop()
         exp_whole_len += 2 if len(clients) <= 0x7FFF else 4
-        for client in clients:
-            exp_whole_len += 2 if client.index <= 0x7FFF else 4
+        for clientTD in clients:
+            exp_whole_len += 2 if clientTD.index <= 0x7FFF else 4
         exp_whole_len += 2 + 2
 
         if isGreaterOrEqVersion(ver, 10,0,0,stage="alpha"):
@@ -1441,20 +1446,20 @@ class TDObjectFunction(TDObject):
             self.clients = []
             for subelem in conn_elem:
                 if (subelem.tag == "Client"):
-                    client = SimpleNamespace()
+                    clientTD = SimpleNamespace()
                     i = int(subelem.get("Index"), 0)
-                    client.index = int(subelem.get("ConnectorIndex"), 0)
-                    client.flags = int(subelem.get("Flags"), 0)
-                    client.thrallSources = []
+                    clientTD.index = int(subelem.get("ConnectorIndex"), 0)
+                    clientTD.flags = int(subelem.get("Flags"), 0)
+                    clientTD.thrallSources = []
                     for sub_subelem in subelem:
                         if (sub_subelem.tag == "ThrallSources"):
-                            client.thrallSources += [int(itm,0) for itm in sub_subelem.text.split()]
+                            clientTD.thrallSources += [int(itm,0) for itm in sub_subelem.text.split()]
                         else:
                             raise AttributeError("Connector Client contains unexpected tag")
                     # Grow the list if needed (the clients may be in wrong order)
                     if i >= len(self.clients):
                         self.clients.extend([None] * (i - len(self.clients) + 1))
-                    self.clients[i] = client
+                    self.clients[i] = clientTD
                 else:
                     raise AttributeError("Connector contains unexpected tag")
 
@@ -1573,18 +1578,22 @@ class TDObjectTypeDef(TDObject):
             self.labels = [ None ]
             self.labels[0] = readPStr(bldata, 2, self.po)
 
-
         # The underlying object is stored here directly, not as index in VCTP list
         pos = bldata.tell()
-        self.clients = [ SimpleNamespace() ]
+        self.clients = [ ]
         # In "Vi Explorer" code, the length value of this object is treated differently
         # (decreased by 4); not sure if this is correct and an issue here
-        cli, cli_len = self.parseRSRCNestedTD(bldata, pos)
-        cli_flags = 0
-        self.clients[0].index = cli.index # Nested clients have index -1
-        self.clients[0].flags = cli_flags
-        self.clients[0].nested = cli
-        self.parseRSRCDataFinish(bldata)
+        if True:
+            cli, cli_len = self.parseRSRCNestedTD(bldata, pos)
+            cli_flags = 0
+            clientTD = SimpleNamespace()
+            clientTD.index = cli.index # Nested clients have index -1
+            clientTD.flags = cli_flags
+            clientTD.nested = cli
+            self.clients.append(clientTD)
+            clientTD.nested.setOwningList(self.topTypeList)
+            self.parseRSRCDataFinish(bldata)
+        pass
 
     def prepareRSRCData(self, avoid_recompute=False):
         if not avoid_recompute:
@@ -1629,16 +1638,16 @@ class TDObjectTypeDef(TDObject):
         return exp_whole_len
 
     def initWithXMLNestedTD(self, conn_subelem):
-        client = SimpleNamespace()
+        clientTD = SimpleNamespace()
         i = int(conn_subelem.get("Index"), 0)
-        client.index = -1
-        client.flags = 0
+        clientTD.index = -1
+        clientTD.flags = 0
         obj_type = valFromEnumOrIntString(TD_FULL_TYPE, conn_subelem.get("Type"))
         obj_flags = importXMLBitfields(CONNECTOR_FLAGS, conn_subelem)
-        obj = newTDObject(self.vi, client.index, obj_flags, obj_type, self.po)
-        client.nested = obj
+        obj = newTDObject(self.vi, clientTD.index, obj_flags, obj_type, self.po)
+        clientTD.nested = obj
         obj.initWithXML(conn_subelem)
-        return client, i
+        return clientTD, i
 
     def initWithXML(self, conn_elem):
         fmt = conn_elem.get("Format")
@@ -1654,10 +1663,10 @@ class TDObjectTypeDef(TDObject):
             self.clients = []
             for subelem in conn_elem:
                 if (subelem.tag == "Client"):
-                    client, i = self.initWithXMLNestedTD(subelem)
+                    clientTD, i = self.initWithXMLNestedTD(subelem)
                     if i != 0:
                         raise AttributeError("Connector expected to contain exactly one nested sub-connector")
-                    self.clients.append(client)
+                    self.clients.append(clientTD)
                 elif (subelem.tag == "Label"):
                     i = int(subelem.get("Index"), 0)
                     label = subelem.get("Text").encode(self.vi.textEncoding)
@@ -1676,9 +1685,10 @@ class TDObjectTypeDef(TDObject):
 
     def initWithXMLLate(self):
         super().initWithXMLLate()
-        for client in self.clients:
-            if client.index < 0:
-                client.nested.initWithXMLLate()
+        for clientTD in self.clients:
+            if clientTD.index == -1:
+                clientTD.nested.setOwningList(self.topTypeList)
+                clientTD.nested.initWithXMLLate()
         pass
 
     def exportXML(self, conn_elem, fname_base):
@@ -1686,18 +1696,18 @@ class TDObjectTypeDef(TDObject):
 
         conn_elem.set("Flag1", "0x{:X}".format(self.flag1))
 
-        for i, client in enumerate(self.clients):
+        for i, clientTD in enumerate(self.clients):
             subelem = ET.SubElement(conn_elem,"Client")
 
             subelem.set("Index", "{:d}".format(i))
-            subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(TD_FULL_TYPE, client.nested.otype)))
+            subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(TD_FULL_TYPE, clientTD.nested.otype)))
             subelem.set("Nested", "True")
             if self.index >= 0:
                 part_fname = "{:s}_{:04d}_cli{:02d}".format(fname_base,self.index,i)
             else:
                 part_fname = "{:s}_cli{:02d}".format(fname_base,i)
-            client.nested.exportXML(subelem, part_fname)
-            client.nested.exportXMLFinish(subelem)
+            clientTD.nested.exportXML(subelem, part_fname)
+            clientTD.nested.exportXMLFinish(subelem)
 
         for i, label in enumerate(self.labels):
             subelem = ET.SubElement(conn_elem,"Label")
@@ -1715,8 +1725,8 @@ class TDObjectTypeDef(TDObject):
                 eprint("{:s}: Warning: TD {:d} type 0x{:02x} clients count {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.clients),1))
             ret = False
-        for i, client in enumerate(self.clients):
-            if client.index != -1:
+        for i, clientTD in enumerate(self.clients):
+            if clientTD.index != -1:
                 if (self.po.verbose > 1):
                     eprint("{:s}: Warning: TD {:d} expected to have nested client"\
                       .format(self.vi.src_fname,i))
@@ -1749,11 +1759,11 @@ class TDObjectArray(TDObject):
             dim.fixedSize = flags & 0x00FFFFFF
 
         self.clients = [ SimpleNamespace() ]
-        for client in self.clients:
+        for clientTD in self.clients:
             cli_idx = readVariableSizeFieldU2p2(bldata)
             cli_flags = 0
-            client.index = cli_idx
-            client.flags = cli_flags
+            clientTD.index = cli_idx
+            clientTD.flags = cli_flags
 
         self.parseRSRCDataFinish(bldata)
 
@@ -1767,15 +1777,15 @@ class TDObjectArray(TDObject):
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: TD {:d} type 0x{:02x} has unexpacted amount of clients; should have 1"\
                   .format(self.vi.src_fname,self.index,self.otype))
-        for client in self.clients:
-            data_buf += int(client.index).to_bytes(2, byteorder='big')
+        for clientTD in self.clients:
+            data_buf += int(clientTD.index).to_bytes(2, byteorder='big')
         return data_buf
 
     def expectedRSRCSize(self):
         exp_whole_len = 4
         exp_whole_len += 2 + 4 * len(self.dimensions)
-        for client in self.clients:
-            exp_whole_len += ( 2 if (client.index <= 0x7fff) else 4 )
+        for clientTD in self.clients:
+            exp_whole_len += ( 2 if (clientTD.index <= 0x7fff) else 4 )
         if self.label is not None:
             label_len = 1 + len(self.label)
             if label_len % 2 > 0: # Include padding
@@ -1806,13 +1816,13 @@ class TDObjectArray(TDObject):
                     self.dimensions[i] = dim
                 elif (subelem.tag == "Client"):
                     i = int(subelem.get("Index"), 0)
-                    client = SimpleNamespace()
-                    client.index = int(subelem.get("ConnectorIndex"), 0)
-                    client.flags = int(subelem.get("Flags"), 0)
+                    clientTD = SimpleNamespace()
+                    clientTD.index = int(subelem.get("ConnectorIndex"), 0)
+                    clientTD.flags = int(subelem.get("Flags"), 0)
                     # Grow the list if needed (the labels may be in wrong order)
                     if i >= len(self.clients):
                         self.clients.extend([None] * (i - len(self.clients) + 1))
-                    self.clients[i] = client
+                    self.clients[i] = clientTD
                 else:
                     raise AttributeError("Connector contains unexpected tag")
 
@@ -1832,12 +1842,12 @@ class TDObjectArray(TDObject):
             subelem.set("Flags", "0x{:04X}".format(dim.flags))
             subelem.set("FixedSize", "0x{:04X}".format(dim.fixedSize))
 
-        for i, client in enumerate(self.clients):
+        for i, clientTD in enumerate(self.clients):
             subelem = ET.SubElement(conn_elem,"Client")
 
             subelem.set("Index", "{:d}".format(i))
-            subelem.set("ConnectorIndex", str(client.index))
-            subelem.set("Flags", "0x{:04X}".format(client.flags))
+            subelem.set("ConnectorIndex", str(clientTD.index))
+            subelem.set("Flags", "0x{:04X}".format(clientTD.flags))
 
         conn_elem.set("Format", "inline")
 
@@ -1849,13 +1859,13 @@ class TDObjectArray(TDObject):
             ret = False
         if (self.dimensions[0].flags & 0x80) == 0:
             ret = False
-        for client in self.clients:
+        for clientTD in self.clients:
             if self.index == -1: # Are we a nested connector
                 pass
-            elif client.index >= self.index:
+            elif clientTD.index >= self.index:
                 if (self.po.verbose > 1):
                     eprint("{:s}: Warning: TD {:d} type 0x{:02x} client {:d} is reference to higher index"\
-                      .format(self.vi.src_fname,self.index,self.otype,client.index))
+                      .format(self.vi.src_fname,self.index,self.otype,clientTD.index))
                 ret = False
             pass
         return ret
@@ -1941,10 +1951,10 @@ class TDObjectAlignedBlock(TDObjectBlock):
         self.clients = []
         self.blkSize = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         if True:
-            client = SimpleNamespace()
-            client.index = readVariableSizeFieldU2p2(bldata)
-            client.flags = 0
-            self.clients.append(client)
+            clientTD = SimpleNamespace()
+            clientTD.index = readVariableSizeFieldU2p2(bldata)
+            clientTD.flags = 0
+            self.clients.append(clientTD)
 
         # No more known data inside
         self.parseRSRCDataFinish(bldata)
@@ -1952,16 +1962,16 @@ class TDObjectAlignedBlock(TDObjectBlock):
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
         data_buf += int(self.blkSize).to_bytes(4, byteorder='big')
-        for client in self.clients:
-            data_buf += prepareVariableSizeFieldU2p2(client.index)
+        for clientTD in self.clients:
+            data_buf += prepareVariableSizeFieldU2p2(clientTD.index)
             break # only one client is supported
         return data_buf
 
     def expectedRSRCDataSize(self):
         exp_whole_len = 0
         exp_whole_len += 4
-        for client in self.clients:
-            exp_whole_len += ( 2 if (client.index <= 0x7fff) else 4 )
+        for clientTD in self.clients:
+            exp_whole_len += ( 2 if (clientTD.index <= 0x7fff) else 4 )
             break # only one client is valid
         return exp_whole_len
 
@@ -1971,10 +1981,10 @@ class TDObjectAlignedBlock(TDObjectBlock):
 
         for subelem in conn_elem:
             if (subelem.tag == "Client"):
-                client = SimpleNamespace()
-                client.index = int(subelem.get("ConnectorIndex"), 0)
-                client.flags = int(subelem.get("Flags"), 0)
-                self.clients.append(client)
+                clientTD = SimpleNamespace()
+                clientTD.index = int(subelem.get("ConnectorIndex"), 0)
+                clientTD.flags = int(subelem.get("Flags"), 0)
+                self.clients.append(clientTD)
             else:
                 raise AttributeError("Connector contains unexpected tag")
         pass
@@ -1982,11 +1992,11 @@ class TDObjectAlignedBlock(TDObjectBlock):
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
         conn_elem.set("BlockSize", "0x{:X}".format(self.blkSize))
-        for client in self.clients:
+        for clientTD in self.clients:
             subelem = ET.SubElement(conn_elem,"Client")
 
-            subelem.set("ConnectorIndex", str(client.index))
-            subelem.set("Flags", "0x{:04X}".format(client.flags))
+            subelem.set("ConnectorIndex", str(clientTD.index))
+            subelem.set("Flags", "0x{:04X}".format(clientTD.flags))
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
@@ -1999,18 +2009,18 @@ class TDObjectAlignedBlock(TDObjectBlock):
             if VCTP is not None:
                 typeList = VCTP.getContent()
         if typeList is not None:
-            for i, client in enumerate(self.clients):
-                if client.index == -1: # This is how we mark nested client
-                    if client.nested is None:
+            for i, clientTD in enumerate(self.clients):
+                if clientTD.index == -1: # This is how we mark nested client
+                    if clientTD.nested is None:
                         if (self.po.verbose > 1):
                             eprint("{:s}: Warning: TD {:d} nested client {:d} does not exist"\
                               .format(self.vi.src_fname,self.index,i))
                         ret = False
                 else:
-                    if client.index >= len(typeList):
+                    if clientTD.index >= len(typeList):
                         if (self.po.verbose > 1):
                             eprint("{:s}: Warning: TD {:d} client {:d} references outranged TD {:d}"\
-                              .format(self.vi.src_fname,self.index,i,client.index))
+                              .format(self.vi.src_fname,self.index,i,clientTD.index))
                         ret = False
                 pass
         return ret
@@ -2029,26 +2039,26 @@ class TDObjectRepeatedBlock(TDObject):
         self.clients = []
         self.numRepeats = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         if True:
-            client = SimpleNamespace()
-            client.index = readVariableSizeFieldU2p2(bldata)
-            client.flags = 0
-            self.clients.append(client)
+            clientTD = SimpleNamespace()
+            clientTD.index = readVariableSizeFieldU2p2(bldata)
+            clientTD.flags = 0
+            self.clients.append(clientTD)
         # No more known data inside
         self.parseRSRCDataFinish(bldata)
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
         data_buf += int(self.numRepeats).to_bytes(4, byteorder='big')
-        for client in self.clients:
-            data_buf += prepareVariableSizeFieldU2p2(client.index)
+        for clientTD in self.clients:
+            data_buf += prepareVariableSizeFieldU2p2(clientTD.index)
             break # only one client is supported
         return data_buf
 
     def expectedRSRCSize(self):
         exp_whole_len = 4
         exp_whole_len += 4
-        for client in self.clients:
-            exp_whole_len += ( 2 if (client.index <= 0x7fff) else 4 )
+        for clientTD in self.clients:
+            exp_whole_len += ( 2 if (clientTD.index <= 0x7fff) else 4 )
             break # only one client is valid
         if self.label is not None:
             label_len = 1 + len(self.label)
@@ -2063,10 +2073,10 @@ class TDObjectRepeatedBlock(TDObject):
 
         for subelem in conn_elem:
             if (subelem.tag == "Client"):
-                client = SimpleNamespace()
-                client.index = int(subelem.get("ConnectorIndex"), 0)
-                client.flags = int(subelem.get("Flags"), 0)
-                self.clients.append(client)
+                clientTD = SimpleNamespace()
+                clientTD.index = int(subelem.get("ConnectorIndex"), 0)
+                clientTD.flags = int(subelem.get("Flags"), 0)
+                self.clients.append(clientTD)
             else:
                 raise AttributeError("Connector contains unexpected tag")
         pass
@@ -2090,11 +2100,11 @@ class TDObjectRepeatedBlock(TDObject):
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
         conn_elem.set("NumRepeats", "{:d}".format(self.numRepeats))
-        for client in self.clients:
+        for clientTD in self.clients:
             subelem = ET.SubElement(conn_elem,"Client")
 
-            subelem.set("ConnectorIndex", str(client.index))
-            subelem.set("Flags", "0x{:04X}".format(client.flags))
+            subelem.set("ConnectorIndex", str(clientTD.index))
+            subelem.set("Flags", "0x{:04X}".format(clientTD.flags))
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
@@ -2107,18 +2117,18 @@ class TDObjectRepeatedBlock(TDObject):
             if VCTP is not None:
                 typeList = VCTP.getContent()
         if typeList is not None:
-            for i, client in enumerate(self.clients):
-                if client.index == -1: # This is how we mark nested client
-                    if client.nested is None:
+            for i, clientTD in enumerate(self.clients):
+                if clientTD.index == -1: # This is how we mark nested client
+                    if clientTD.nested is None:
                         if (self.po.verbose > 1):
                             eprint("{:s}: Warning: TD {:d} nested client {:d} does not exist"\
                               .format(self.vi.src_fname,self.index,i))
                         ret = False
                 else:
-                    if client.index >= len(typeList):
+                    if clientTD.index >= len(typeList):
                         if (self.po.verbose > 1):
                             eprint("{:s}: Warning: TD {:d} client {:d} references outranged TD {:d}"\
-                              .format(self.vi.src_fname,self.index,i,client.index))
+                              .format(self.vi.src_fname,self.index,i,clientTD.index))
                         ret = False
                 pass
         exp_whole_len = self.expectedRSRCSize()
@@ -2138,6 +2148,11 @@ class TDObjectRef(TDObject):
         self.items = []
         self.objects = []
 
+    def setOwningList(self, typeList=None):
+        super().setOwningList(typeList)
+        #if self.ref_obj is not None:
+        #    self.ref_obj.setOwningList(self.topTypeList)
+
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
         self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
@@ -2148,6 +2163,7 @@ class TDObjectRef(TDObject):
             if (self.po.verbose > 2):
                 print("{:s}: TD {:d} type 0x{:02x}, has ref_type=0x{:02X} class {:s}"\
                   .format(self.vi.src_fname,self.index,self.otype,self.reftype,type(self.ref_obj).__name__))
+            #self.ref_obj.setOwningList(self.topTypeList)
             self.ref_obj.parseRSRCData(bldata)
         self.parseRSRCDataFinish(bldata)
 
@@ -2191,16 +2207,16 @@ class TDObjectRef(TDObject):
             self.items = []
             for subelem in conn_elem:
                 if (subelem.tag == "Client"):
-                    client = SimpleNamespace()
+                    clientTD = SimpleNamespace()
                     i = int(subelem.get("Index"), 0)
-                    client.index = int(subelem.get("ConnectorIndex"), 0)
-                    client.flags = int(subelem.get("Flags"), 0)
+                    clientTD.index = int(subelem.get("ConnectorIndex"), 0)
+                    clientTD.flags = int(subelem.get("Flags"), 0)
                     if self.ref_obj is not None:
-                        self.ref_obj.initWithXMLClient(client, subelem)
+                        self.ref_obj.initWithXMLClient(clientTD, subelem)
                     # Grow the list if needed (the clients may be in wrong order)
                     if i >= len(self.clients):
                         self.clients.extend([None] * (i - len(self.clients) + 1))
-                    self.clients[i] = client
+                    self.clients[i] = clientTD
                 elif (subelem.tag == "Item"):
                     item = SimpleNamespace()
                     i = int(subelem.get("Index"), 0)
@@ -2229,8 +2245,9 @@ class TDObjectRef(TDObject):
 
     def initWithXMLLate(self):
         super().initWithXMLLate()
-        #if self.ref_obj is not None: # currently refnums have no initWithXMLLate
-        #    self.ref_obj.initWithXMLLate()
+        #if self.ref_obj is not None:
+        #        self.ref_obj.setOwningList(self.topTypeList) # currently refnums have no setOwningList
+        #    self.ref_obj.initWithXMLLate() # currently refnums have no initWithXMLLate
         for obj in self.objects:
             obj.initWithXMLLate()
         pass
@@ -2242,15 +2259,15 @@ class TDObjectRef(TDObject):
         if self.ref_obj is not None:
             self.ref_obj.exportXML(conn_elem, fname_base)
 
-        for i, client in enumerate(self.clients):
+        for i, clientTD in enumerate(self.clients):
             subelem = ET.SubElement(conn_elem,"Client")
 
             subelem.set("Index", "{:d}".format(i))
-            subelem.set("ConnectorIndex", str(client.index))
-            subelem.set("Flags", "0x{:04X}".format(client.flags))
+            subelem.set("ConnectorIndex", str(clientTD.index))
+            subelem.set("Flags", "0x{:04X}".format(clientTD.flags))
 
             if self.ref_obj is not None:
-                self.ref_obj.exportXMLClient(client, subelem, fname_base)
+                self.ref_obj.exportXMLClient(clientTD, subelem, fname_base)
 
         for i, item in enumerate(self.items):
             subelem = ET.SubElement(conn_elem,"Item")
@@ -2284,13 +2301,13 @@ class TDObjectRef(TDObject):
         if self.ref_obj is not None:
             if not self.ref_obj.checkSanity():
                 ret = False
-        for client in self.clients:
+        for clientTD in self.clients:
             if self.index == -1: # Are we a nested connector
                 pass
-            elif client.index >= self.index:
+            elif clientTD.index >= self.index:
                 if (self.po.verbose > 1):
                     eprint("{:s}: Warning: TD {:d} type 0x{:02x} reftype {:d} client {:d} is reference to higher index"\
-                      .format(self.vi.src_fname,self.index,self.otype,self.reftype,client.index))
+                      .format(self.vi.src_fname,self.index,self.otype,self.reftype,clientTD.index))
                 ret = False
         return ret
 
@@ -2322,8 +2339,8 @@ class TDObjectCluster(TDObject):
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
         data_buf += int(len(self.clients)).to_bytes(2, byteorder='big')
-        for client in self.clients:
-            data_buf += int(client.index).to_bytes(2, byteorder='big')
+        for clientTD in self.clients:
+            data_buf += int(clientTD.index).to_bytes(2, byteorder='big')
         return data_buf
 
     def expectedRSRCSize(self):
@@ -2367,9 +2384,10 @@ class TDObjectCluster(TDObject):
 
     def initWithXMLLate(self):
         super().initWithXMLLate()
-        for client in self.clients:
-            if client.index < 0:
-                client.nested.initWithXMLLate()
+        for clientTD in self.clients:
+            if clientTD.index == -1:
+                clientTD.nested.setOwningList(self.topTypeList)
+                clientTD.nested.initWithXMLLate()
         pass
 
     def exportXML(self, conn_elem, fname_base):
@@ -2732,9 +2750,10 @@ class TDObjectSingleContainer(TDObject):
 
     def initWithXMLLate(self):
         super().initWithXMLLate()
-        for client in self.clients:
-            if client.index < 0:
-                client.nested.initWithXMLLate()
+        for clientTD in self.clients:
+            if clientTD.index == -1:
+                clientTD.nested.setOwningList(self.topTypeList)
+                clientTD.nested.initWithXMLLate()
         pass
 
     def exportXML(self, conn_elem, fname_base):

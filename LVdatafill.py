@@ -75,6 +75,9 @@ class DataFill:
             raise RuntimeError("Class {} type {} cannot be linked to TD type {}"\
               .format(type(self).__name__, self.getXMLTagName(),\
                enumOrIntToName(td.fullType()) ))
+        if (self.po.verbose > 2):
+            print("{:s}: {:s} {:d}: Setting TD {}"\
+              .format(self.vi.src_fname, type(self).__name__, self.index, td))
         self.index = idx
         self.td = td
         self.tm_flags = tm_flags

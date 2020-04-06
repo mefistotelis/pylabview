@@ -479,7 +479,9 @@ class LVVariant(LVObject):
 
         if not usesConsolidatedTD:
             for clientTD in self.clients2:
-                clientTD.nested.parseData()
+                if clientTD.index == -1:
+                    clientTD.nested.setOwningList(self.clients2)
+                    clientTD.nested.parseData()
 
         if self.allowFillValue:
             td = None
@@ -492,6 +494,9 @@ class LVVariant(LVObject):
                 raise AttributeError("LVVariant cannot find TD object {}; usesConsolidatedTD={}".format(self.vartype2,usesConsolidatedTD))
 
             if self.hasvaritem2 != 0:
+                if (self.po.verbose > 2):
+                    print("{:s}: {:s} {:d}: Setting DataFill type {}"\
+                      .format(self.vi.src_fname, type(self).__name__, self.index, td))
                 for df in self.datafill:
                     df.setTD(td, self.vartype2, 0)
             for df in self.datafill:
