@@ -514,8 +514,7 @@ class TDObject:
             self.oflags |= CONNECTOR_FLAGS.HasLabel.value
             if len(self.label) > 255:
                 self.label = self.label[:255]
-            data_buf += int(len(self.label)).to_bytes(1, byteorder='big')
-            data_buf += self.label
+            data_buf += preparePStr(self.label, 1, self.po)
         else:
             self.oflags &= ~CONNECTOR_FLAGS.HasLabel.value
 
@@ -839,8 +838,7 @@ class TDObjectNumber(TDObject):
         data_buf = b''
         data_buf += int(len(self.values)).to_bytes(2, byteorder='big')
         for value in self.values:
-            data_buf += int(len(value.label)).to_bytes(1, byteorder='big')
-            data_buf += value.label
+            data_buf += preparePStr(value.label, 1, self.po)
         if len(data_buf) % 2 > 0:
             padding_len = 2 - (len(data_buf) % 2)
             data_buf += (b'\0' * padding_len)

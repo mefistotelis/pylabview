@@ -184,8 +184,7 @@ class LVPath0(LVObject):
         data_buf += int(self.tpval).to_bytes(2, byteorder='big')
         data_buf += len(self.content).to_bytes(2, byteorder='big')
         for text_val in self.content:
-            data_buf += len(text_val).to_bytes(1, byteorder='big')
-            data_buf += bytes(text_val)
+            data_buf += preparePStr(text_val, 1, self.po)
         return data_buf
 
     def expectedRSRCSize(self):

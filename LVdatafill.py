@@ -1145,11 +1145,7 @@ class DataFillUDClassInst(DataFill):
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
         data_buf += len(self.value).to_bytes(4, byteorder='big', signed=False)
-        data_buf += len(self.libName).to_bytes(1, byteorder='big', signed=False)
-        data_buf += self.libName
-        if len(data_buf) % 4 > 0:
-            padding_len = 4 - (len(data_buf) % 4)
-            data_buf += (b'\0' * padding_len)
+        data_buf += preparePStr(self.libName, 4, self.po)
         for libVersion in self.value:
             data_buf += len(libVersion).to_bytes(4, byteorder='big', signed=False)
             data_buf += libVersion
