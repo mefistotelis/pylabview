@@ -2057,6 +2057,7 @@ class SCSR(Block):
 
     def parseRSRCData(self, section_num, bldata):
         section = self.sections[section_num]
+        section.content = []
 
         section.flags = int.from_bytes(bldata.read(4), byteorder='little', signed=False)
         digest = bldata.read(16)
@@ -3719,6 +3720,34 @@ class FPHc(HeapVerc):
     structures. They use a kind of "xml-tags" to open and close objects.
     """
     pass
+
+
+class RTSG(Block):
+    """ Runtime Signature Guid
+
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.content = []
+        return section
+
+    def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+        section.content = []
+
+        guid = bldata.read(16)
+        section.content.append(guid)
+
+    def exportXMLSection(self, section_elem, snum, section, fname_base):
+        self.parseData(section_num=snum)
+
+        for guid in section.content:
+            subelem = ET.SubElement(section_elem,"Guid")
+            subelem.text = guid.hex()
+
+        section_elem.set("Format", "inline")
+        # TODO remove when this is re-created from XML
+        Block.exportXMLSection(self, section_elem, snum, section, fname_base)
 
 
 class UCRF(Block):
