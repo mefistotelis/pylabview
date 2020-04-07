@@ -1168,12 +1168,23 @@ class TDObjectTag(TDObject):
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
+        ver = self.vi.getFileVersion()
         ret = True
         if self.prop1 != 0xFFFFFFFF:
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: TD {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}"\
                   .format(self.vi.src_fname,self.index,self.otype,self.prop1,0xFFFFFFFF))
             ret = False
+        if isGreaterOrEqVersion(ver, 8,2,1) and \
+          (isSmallerVersion(ver, 8,2,2) or isGreaterOrEqVersion(ver, 8,5,1)):
+            if not self.variobj.checkSanity():
+                ret = False
+        else:
+            if self.variobj is not None:
+                if (self.po.verbose > 1):
+                    eprint("{:s}: Warning: TD {:d} type 0x{:02x} Variant object present, but LV version with no support"\
+                      .format(self.vi.src_fname,self.index,self.otype))
+                ret = False
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
@@ -1854,10 +1865,14 @@ class TDObjectArray(TDObject):
     def checkSanity(self):
         ret = True
         if len(self.dimensions) > 64:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} has {} dimensions, expected below {}"\
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.dimensions),64))
             ret = False
         if len(self.clients) != 1:
-            ret = False
-        if (self.dimensions[0].flags & 0x80) == 0:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} has {} clients, expected exactly {}"\
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.clients),1))
             ret = False
         for clientTD in self.clients:
             if self.index == -1: # Are we a nested connector

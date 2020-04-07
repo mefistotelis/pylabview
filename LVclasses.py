@@ -77,6 +77,10 @@ class LVObject:
         """
         pass
 
+    def checkSanity(self):
+        ret = True
+        return ret
+
     def __repr__(self):
         d = self.__dict__.copy()
         del d['vi']
@@ -415,12 +419,10 @@ class LVVariant(LVObject):
                 break # expecting one DataFill entry
 
         # Attributes
-        exp_whole_len += 2
-        if self.hasvaritem2 != 0:
-            exp_whole_len += 4
-            for attrib in self.attrs:
-                exp_whole_len += 4 + len(attrib.name)
-                exp_whole_len += attrib.value.expectedRSRCSize()
+        exp_whole_len += 4
+        for attrib in self.attrs:
+            exp_whole_len += 4 + len(attrib.name)
+            exp_whole_len += attrib.value.expectedRSRCSize()
         return exp_whole_len
 
     def initWithXML(self, obj_elem):
@@ -548,18 +550,18 @@ class LVVariant(LVObject):
             subelem.set("Build", "{:d}".format(self.version['build']))
             subelem.set("Flags", "0x{:X}".format(self.version['flags']))
         idx = -1
-        for client in self.clients2:
-            if client.index != -1:
+        for clientTD in self.clients2:
+            if clientTD.index != -1:
                 continue
             idx += 1
             fname_cli = "{:s}_{:04d}".format(fname_base, idx)
             subelem = ET.SubElement(obj_elem,"DataType")
 
             subelem.set("Index", str(idx))
-            subelem.set("Type", stringFromValEnumOrInt(LVdatatype.TD_FULL_TYPE, client.nested.otype))
+            subelem.set("Type", stringFromValEnumOrInt(LVdatatype.TD_FULL_TYPE, clientTD.nested.otype))
 
-            client.nested.exportXML(subelem, fname_cli)
-            client.nested.exportXMLFinish(subelem)
+            clientTD.nested.exportXML(subelem, fname_cli)
+            clientTD.nested.exportXMLFinish(subelem)
 
         if len(self.attrs) > 0:
             attrs_elem = ET.SubElement(obj_elem,"Attributes")
@@ -576,6 +578,16 @@ class LVVariant(LVObject):
 
                 df.exportXML(df_subelem, fname_base)
         pass
+
+    def checkSanity(self):
+        ret = True
+        for clientTD in self.clients2:
+            if clientTD.index != -1:
+                continue
+            if not clientTD.nested.checkSanity():
+                ret = False
+        return ret
+
 
 class OleVariant(LVObject):
     """ OLE object with variant type data
