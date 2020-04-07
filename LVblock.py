@@ -1150,11 +1150,7 @@ class SingleStringBlock(Block):
         # Amount of bytes the size of this string uses
         section.size_len = 1
         section.content = []
-        # Blocks are padded; but this allows padding them just after data generation,
-        # so that padding length is included in block size.
         section.eoln = '\r\n'
-        # Some string blocks store b'\0', and have each of these padded to 4 bytes.. which is stupid
-        section.stupid_zero_padding = 0
         return section
 
     def parseRSRCData(self, section_num, bldata):
@@ -1182,14 +1178,6 @@ class SingleStringBlock(Block):
 
         section.content = [s.encode(self.vi.textEncoding) for s in content_str.split(section.eoln)]
 
-        # Some blocks, instead of being empty, store b'\0' or two.
-        # Additionally, each of these is padded to 4 bytes.
-        if string_len <= 2 and set(content) == set(b'\0'):
-            padding = bldata.read(8)
-            if set(padding) == set(b'\0'):
-                section.stupid_zero_padding = string_len + len(padding)
-        pass
-
     def updateSectionData(self, section_num=None):
         if section_num is None:
             section_num = self.active_section_num
@@ -1197,20 +1185,13 @@ class SingleStringBlock(Block):
 
         # There is no need to decode while joining
         content_bytes = section.eoln.encode(self.vi.textEncoding).join(section.content)
-        data_buf = int(len(content_bytes)).to_bytes(section.size_len, byteorder='big', signed=False)
+        data_buf = len(content_bytes).to_bytes(section.size_len, byteorder='big', signed=False)
         data_buf += content_bytes
 
         exp_whole_len = self.expectedRSRCSize(section_num)
         if (len(data_buf) != exp_whole_len):
             raise RuntimeError("Block {} section {} generated binary data of invalid size"\
               .format(self.ident,section_num))
-
-        if section.stupid_zero_padding > 0:
-            # Some blocks, instead of being empty, store b'\0' or two.
-            # Additionally, each of these is padded to 4 bytes.
-            if len(data_buf) < section.stupid_zero_padding:
-                padding_len = (section.stupid_zero_padding - len(content_bytes))
-                data_buf += (b'\0' * padding_len)
 
         self.setData(data_buf, section_num=section_num)
 
@@ -1240,11 +1221,6 @@ class SingleStringBlock(Block):
                   .format(self.vi.src_fname,self.ident,snum))
             section.eoln = section_elem.get("EOLN").replace("CR",'\r').replace("LF",'\n')
             section.content = []
-            section.stupid_zero_padding = 0
-
-            stupid_zero_padding_str = section_elem.get("StupidZeroPadding")
-            if stupid_zero_padding_str is not None:
-                section.stupid_zero_padding = int(stupid_zero_padding_str, 0)
 
             for i, subelem in enumerate(section_elem):
                 if (subelem.tag == "NameObject"):
@@ -1267,9 +1243,6 @@ class SingleStringBlock(Block):
         # Store the EOLN used as an attribute
         EOLN_type = section.eoln.replace('\r',"CR").replace('\n',"LF")
         section_elem.set("EOLN", "{:s}".format(EOLN_type))
-
-        if section.stupid_zero_padding > 0:
-            section_elem.set("StupidZeroPadding", "{:d}".format(section.stupid_zero_padding))
 
         for line in section.content:
             subelem = ET.SubElement(section_elem,"String")
@@ -1297,13 +1270,129 @@ class STRG(SingleStringBlock):
         return section
 
 
-class HLPT(SingleStringBlock):
+class HLPT(Block):
     """ Help Tag
     """
     def createSection(self):
         section = super().createSection()
-        section.size_len = 4
+        # Amount of bytes the size of this string uses
+        section.content = []
+        section.parse_failed = False
         return section
+
+    def parseRSRCSectionData(self, section_num, bldata):
+        section = self.sections[section_num]
+
+        line = readLStr(bldata, 1, self.po)
+        section.content.append(line)
+
+        line_str = line.decode(self.vi.textEncoding, errors="ignore")
+        if any(chr(ele) in line_str for ele in range(0,32)):
+            raise RuntimeError("Binary format detected; no parsed form available")
+        pass
+
+    def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+        section.parse_failed = False
+        startpos = bldata.tell()
+        bldata.seek(0, io.SEEK_END)
+        totlen = bldata.tell()
+        bldata.seek(startpos)
+        try:
+            self.parseRSRCSectionData(section_num, bldata)
+        except Exception as e:
+            section.parse_failed = True
+            eprint("{:s}: Warning: Block {} section {} parse exception: {}."\
+                .format(self.vi.src_fname,self.ident,section_num,str(e)))
+        if bldata.tell() < totlen:
+            section.parse_failed = True
+            eprint("{:s}: Warning: Block {} section {} size is {} and does not match parsed size {}"\
+              .format(self.vi.src_fname, self.ident, section_num, totlen, bldata.tell()))
+        if section.parse_failed:
+            bldata.seek(startpos)
+            Block.parseRSRCData(self, section_num, bldata)
+        pass
+
+    def updateSectionData(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+
+        # Do not re-create raw data if parsing failed and we still have the original
+        if (section.parse_failed and self.hasRawData(section_num)):
+            eprint("{:s}: Warning: Block {} section {} left in original raw form, without re-building"\
+              .format(self.vi.src_fname,self.ident,section_num))
+            return
+
+        data_buf  = b''
+        for line in section.content:
+            data_buf += prepareLStr(line, 1, self.po)
+
+        exp_whole_len = self.expectedRSRCSize(section_num)
+        if (len(data_buf) != exp_whole_len):
+            raise RuntimeError("Block {} section {} generated binary data of invalid size"\
+              .format(self.ident,section_num))
+
+        self.setData(data_buf, section_num=section_num)
+
+    def expectedRSRCSize(self, section_num):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+
+        exp_whole_len = 4
+        exp_whole_len +=sum(len(line) for line in section.content)
+        return exp_whole_len
+
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
+        return bldata
+
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
+
+    def initWithXMLSection(self, section, section_elem):
+        snum = section.start.section_idx
+        section.parse_failed = False
+        fmt = section_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading inline XML data"\
+                  .format(self.vi.src_fname,self.ident,snum))
+            section.content = []
+
+            for i, subelem in enumerate(section_elem):
+                if (subelem.tag == "NameObject"):
+                    pass # Items parsed somewhere else
+                elif (subelem.tag == "String"):
+                    if subelem.text is not None:
+                        elem_text = ET.unescape_safe_store_element_text(subelem.text)
+                        section.content.append(elem_text.encode(self.vi.textEncoding))
+                    else:
+                        section.content.append(b'')
+                else:
+                    raise AttributeError("Section contains unexpected tag")
+        else:
+            section.parse_failed = True
+            Block.initWithXMLSection(self, section, section_elem)
+        pass
+
+    def exportXMLSection(self, section_elem, snum, section, fname_base):
+        self.parseData(section_num=snum)
+
+        if section.parse_failed:
+            Block.exportXMLSection(self, section_elem, snum, section, fname_base)
+            return
+
+        if (self.po.verbose > 1):
+            print("{}: Writing XML for block {}".format(self.vi.src_fname, self.ident))
+        for line in section.content:
+            subelem = ET.SubElement(section_elem,"String")
+
+            pretty_string = line.decode(self.vi.textEncoding)
+            ET.safe_store_element_text(subelem, pretty_string)
+
+        section_elem.set("Format", "inline")
 
 
 class STR(Block):
