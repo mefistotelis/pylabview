@@ -388,16 +388,39 @@ class LVVariant(LVObject):
         return self.prepareRSRCVariant(avoid_recompute=avoid_recompute)
 
     def expectedRSRCSize(self):
-        exp_whole_len = 4 + 4
-        for clientTD in self.clients2:
-            if clientTD.index != -1:
-                continue
-            exp_whole_len += clientTD.nested.expectedRSRCSize()
+        exp_whole_len = 4
+
+        if isSmallerVersion(self.version, 8,0,0,1):
+            exp_whole_len += 0 # Unsupported
+            usesConsolidatedTD = False
+        elif self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):
+            exp_whole_len += len(prepareVariableSizeFieldU2p2(self.vartype2))
+            usesConsolidatedTD = True
+        else:
+            exp_whole_len += 4
+            for clientTD in self.clients2:
+                if clientTD.index != -1:
+                    continue
+                exp_whole_len += clientTD.nested.expectedRSRCSize()
+            hasvaritem2 = self.hasvaritem2
+            exp_whole_len += len(prepareVariableSizeFieldU2p2(self.hasvaritem2))
+
+            if self.hasvaritem2 != 0:
+                exp_whole_len += len(prepareVariableSizeFieldU2p2(self.vartype2))
+            usesConsolidatedTD = False
+
+        if self.allowFillValue:
+            for df in self.datafill:
+                exp_whole_len += df.expectedRSRCSize()
+                break # expecting one DataFill entry
+
+        # Attributes
         exp_whole_len += 2
         if self.hasvaritem2 != 0:
             exp_whole_len += 4
-            for text_val in self.attrs:
-                data_buf += 4 + len(text_val)
+            for attrib in self.attrs:
+                exp_whole_len += 4 + len(attrib.name)
+                exp_whole_len += attrib.value.expectedRSRCSize()
         return exp_whole_len
 
     def initWithXML(self, obj_elem):
