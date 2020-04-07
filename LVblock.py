@@ -1153,6 +1153,8 @@ class SingleStringBlock(Block):
         # Blocks are padded; but this allows padding them just after data generation,
         # so that padding length is included in block size.
         section.eoln = '\r\n'
+        # Some string blocks store b'\0', and have each of these padded to 4 bytes.. which is stupid
+        section.stupid_zero_padding = 0
         return section
 
     def parseRSRCData(self, section_num, bldata):
@@ -1180,6 +1182,14 @@ class SingleStringBlock(Block):
 
         section.content = [s.encode(self.vi.textEncoding) for s in content_str.split(section.eoln)]
 
+        # Some blocks, instead of being empty, store b'\0' or two.
+        # Additionally, each of these is padded to 4 bytes.
+        if string_len <= 2 and set(content) == set(b'\0'):
+            padding = bldata.read(8)
+            if set(padding) == set(b'\0'):
+                section.stupid_zero_padding = string_len + len(padding)
+        pass
+
     def updateSectionData(self, section_num=None):
         if section_num is None:
             section_num = self.active_section_num
@@ -1190,13 +1200,29 @@ class SingleStringBlock(Block):
         data_buf = int(len(content_bytes)).to_bytes(section.size_len, byteorder='big', signed=False)
         data_buf += content_bytes
 
-        expect_str_len = sum(len(line) for line in section.content)
-        expect_eoln_len = len(section.eoln) * max(len(section.content)-1,0)
-        if (len(data_buf) != section.size_len+expect_str_len+expect_eoln_len):
+        exp_whole_len = self.expectedRSRCSize(section_num)
+        if (len(data_buf) != exp_whole_len):
             raise RuntimeError("Block {} section {} generated binary data of invalid size"\
               .format(self.ident,section_num))
 
+        if section.stupid_zero_padding > 0:
+            # Some blocks, instead of being empty, store b'\0' or two.
+            # Additionally, each of these is padded to 4 bytes.
+            if len(data_buf) < section.stupid_zero_padding:
+                padding_len = (section.stupid_zero_padding - len(content_bytes))
+                data_buf += (b'\0' * padding_len)
+
         self.setData(data_buf, section_num=section_num)
+
+    def expectedRSRCSize(self, section_num):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+
+        exp_whole_len = section.size_len
+        exp_whole_len +=sum(len(line) for line in section.content)
+        exp_whole_len += len(section.eoln) * max(len(section.content)-1,0)
+        return exp_whole_len
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = super().getData(section_num=section_num, use_coding=use_coding)
@@ -1214,6 +1240,11 @@ class SingleStringBlock(Block):
                   .format(self.vi.src_fname,self.ident,snum))
             section.eoln = section_elem.get("EOLN").replace("CR",'\r').replace("LF",'\n')
             section.content = []
+            section.stupid_zero_padding = 0
+
+            stupid_zero_padding_str = section_elem.get("StupidZeroPadding")
+            if stupid_zero_padding_str is not None:
+                section.stupid_zero_padding = int(stupid_zero_padding_str, 0)
 
             for i, subelem in enumerate(section_elem):
                 if (subelem.tag == "NameObject"):
@@ -1236,6 +1267,9 @@ class SingleStringBlock(Block):
         # Store the EOLN used as an attribute
         EOLN_type = section.eoln.replace('\r',"CR").replace('\n',"LF")
         section_elem.set("EOLN", "{:s}".format(EOLN_type))
+
+        if section.stupid_zero_padding > 0:
+            section_elem.set("StupidZeroPadding", "{:d}".format(section.stupid_zero_padding))
 
         for line in section.content:
             subelem = ET.SubElement(section_elem,"String")
@@ -1270,30 +1304,6 @@ class HLPT(SingleStringBlock):
         section = super().createSection()
         section.size_len = 4
         return section
-
-    def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-
-        # There is no need to decode while joining
-        content_bytes = section.eoln.encode(self.vi.textEncoding).join(section.content)
-        data_buf = int(len(content_bytes)).to_bytes(section.size_len, byteorder='big', signed=False)
-        data_buf += content_bytes
-
-        expect_str_len = sum(len(line) for line in section.content)
-        expect_eoln_len = len(section.eoln) * max(len(section.content)-1,0)
-        if (len(data_buf) != section.size_len+expect_str_len+expect_eoln_len):
-            raise RuntimeError("Block {} section {} generated binary data of invalid size"\
-              .format(self.ident,section_num))
-
-        # A very special condition for this specific block - instead of being empty,
-        # it stores b'\0' which is then padded to 4
-        if len(data_buf) <= section.size_len+2 and set(data_buf[section.size_len:]) == set(b'\0'):
-            padding_len = 3 * (len(data_buf) - section.size_len)
-            data_buf += (b'\0' * padding_len)
-
-        self.setData(data_buf, section_num=section_num)
 
 
 class STR(Block):
