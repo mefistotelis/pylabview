@@ -239,7 +239,7 @@ class RefnumBase_SimpleCliSingle(RefnumBase_SimpleCliList):
         ret = True
         if len(self.conn_obj.clients) > 1:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} reftype {:d} should not have more than one client, has {}"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} reftype {:d} should not have more than one client, has {}"\
                   .format(self.vi.src_fname,self.conn_obj.index,self.conn_obj.otype,self.conn_obj.reftype,len(self.conn_obj.clients)))
             ret = False
         return ret
@@ -347,7 +347,7 @@ class RefnumBase_RCIOOMId(RefnumBase_RC):
             if client.index >= 0:
                 ref_clients.append(client.index)
         if firstclient != 0 and len(ref_clients) == 0:
-            eprint("{:s}: Warning: Connector {:d} type 0x{:02x} marked as firstclient but no clients"\
+            eprint("{:s}: Warning: TD {:d} type 0x{:02x} marked as firstclient but no clients"\
               .format(self.vi.src_fname, self.conn_obj.index, self.conn_obj.otype))
             ref_clients.append(0)
         if firstclient != 0:
@@ -358,7 +358,7 @@ class RefnumBase_RCIOOMId(RefnumBase_RC):
     def prepareRSRCTypeOMId(self, avoid_recompute=False):
         data_buf, ref_clients, firstclient = self.prepareRSRCTypeOMIdStart(avoid_recompute=avoid_recompute)
         if len(ref_clients) > 0:
-            eprint("{:s}: Warning: Connector {:d} type 0x{:02x} has more clients than supported"\
+            eprint("{:s}: Warning: TD {:d} type 0x{:02x} has more clients than supported"\
               .format(self.vi.src_fname, self.conn_obj.index, self.conn_obj.otype))
         return data_buf
 
@@ -572,7 +572,7 @@ class RefnumLVObjCtl(RefnumBase):
         if itmident is not None:
             self.conn_obj.itmident = getRsrcTypeFromPrettyStr(itmident)
         elif self.conn_obj.hasitem != 0:
-            eprint("{:s}: Warning: Connector {:d} type 0x{:02x} reftype {:d} marked as HasItem, but no ItmIdent"\
+            eprint("{:s}: Warning: TD {:d} type 0x{:02x} reftype {:d} marked as HasItem, but no ItmIdent"\
               .format(self.vi.src_fname,self.conn_obj.index,self.conn_obj.otype,self.conn_obj.reftype))
         pass
 
@@ -597,7 +597,7 @@ class RefnumLVObjCtl(RefnumBase):
         ret = True
         if len(self.conn_obj.clients) > 1:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Connector {:d} type 0x{:02x} reftype {:d} should not have clients, but it does"\
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} reftype {:d} should not have clients, but it does"\
                   .format(self.vi.src_fname,self.conn_obj.index,self.conn_obj.otype,self.conn_obj.reftype))
             ret = False
         return ret
@@ -730,7 +730,7 @@ class RefnumUsrDefined(RefnumBase_RCIOOMId):
     def prepareRSRCTypeOMId(self, avoid_recompute=False):
         data_buf, ref_clients, firstclient = self.prepareRSRCTypeOMIdStart(avoid_recompute=avoid_recompute)
         if len(ref_clients) > 0:
-            eprint("{:s}: Warning: Connector {:d} type 0x{:02x} has more clients than supported"\
+            eprint("{:s}: Warning: TD {:d} type 0x{:02x} has more clients than supported"\
               .format(self.vi.src_fname, self.conn_obj.index, self.conn_obj.otype))
         strlen = len(self.conn_obj.typeName)
         data_buf += int(strlen).to_bytes(1, byteorder='big')
@@ -827,8 +827,9 @@ class RefnumEventReg(RefnumBase):
     def checkSanity(self):
         ret = True
         if self.conn_obj.field0 != 0:
-            ret = False
-        if len(self.conn_obj.clients) < 1:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: TD {:d} type 0x{:02x} reftype {:d} field0 expected zero, has {}"\
+                  .format(self.vi.src_fname,self.conn_obj.index,self.conn_obj.otype,self.conn_obj.reftype,self.conn_obj.field0))
             ret = False
         return ret
 
