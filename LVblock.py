@@ -2409,7 +2409,7 @@ class LVSR(Block):
         section.field90 = b''
         return section
 
-    def parseRSRCData(self, section_num, bldata):
+    def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
 
         # Size of the data seem to be 120, 136 or 137
@@ -2447,7 +2447,6 @@ class LVSR(Block):
         section.field74 = int(data.field74)
         # Additional data, exists only in newer versions
         # sizeof(LVSR) per version: 8.6b7->120 9.0b25->120 9.0->120 10.0b84->120 10.0->136 11.0.1->136 12.0->136 13.0->136 14.0->137
-
         if isGreaterOrEqVersion(section.version, 10,0, stage='release'):
             section.field78_md5 = bytes(data.field78_md5)
         if isGreaterOrEqVersion(section.version, 14,0):
@@ -2457,12 +2456,15 @@ class LVSR(Block):
         # Any data added in future versions
         section.field90 = bldata.read()
 
-    def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
+    def parseRSRCData(self, section_num, bldata):
         section = self.sections[section_num]
 
-        data_buf = int(encodeVersion(section.version)).to_bytes(4, byteorder='big')
+        self.parseRSRCSectionData(section_num, bldata)
+
+    def prepareRSRCData(self, section_num):
+        section = self.sections[section_num]
+        data_buf = b''
+        data_buf += int(encodeVersion(section.version)).to_bytes(4, byteorder='big')
         data_execFlags = (section.execFlags & (~VI_EXEC_FLAGS.LibProtected.value)) | \
           (VI_EXEC_FLAGS.LibProtected.value if section.protected else 0)
         data_buf += int(data_execFlags).to_bytes(4, byteorder='big')
@@ -2499,6 +2501,14 @@ class LVSR(Block):
             data_buf += b'\0' * 3
             data_buf += int(section.field8C).to_bytes(4, byteorder='big')
         data_buf += section.field90
+        return data_buf
+
+    def updateSectionData(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+
+        data_buf = self.prepareRSRCData(section_num)
 
         if len(data_buf) not in [120, 136, 137, sizeof(LVSRData)+len(section.field90)]:
             raise RuntimeError("Block {} section {} generated binary data of invalid size"
@@ -2513,6 +2523,101 @@ class LVSR(Block):
     def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
         super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
+    def expectedRSRCSize(self, section_num):
+        ver = self.vi.getFileVersion()
+        exp_whole_len = 120
+        if isGreaterOrEqVersion(section.version, 10,0, stage='release'):
+            exp_whole_len += 16 # total 136
+        if isGreaterOrEqVersion(section.version, 14,0):
+            exp_whole_len += 1 # total 137
+        if isGreaterOrEqVersion(section.version, 15,0):
+            exp_whole_len += 3 + 4
+        exp_whole_len += len(section.field90)
+        return exp_whole_len
+
+    def initWithXMLSectionData(self, section, section_elem):
+        section.content = []
+        section.field90 = b''
+
+        # We really expect only one of each sub-elements
+        for i, subelem in enumerate(section_elem):
+            if (subelem.tag == "NameObject"):
+                pass # Items parsed somewhere else
+            elif (subelem.tag == "Version"):
+                ver = {}
+                ver['major'] = int(subelem.get("Major"), 0)
+                ver['minor'] = int(subelem.get("Minor"), 0)
+                ver['bugfix'] = int(subelem.get("Bugfix"), 0)
+                ver['stage_text'] = subelem.get("Stage")
+                ver['build'] = int(subelem.get("Build"), 0)
+                ver['flags'] = int(subelem.get("Flags"), 0)
+                section.version = ver
+                # the call below sets numeric 'stage' from text; we do not care for actual encoding
+                encodeVersion(section.version)
+            elif (subelem.tag == "Library"):
+                section.protected = int(subelem.get("Protected"), 0)
+                password_text = subelem.get("Password")
+                password_hash = subelem.get("PasswordHash")
+                if password_text is not None:
+                    password_bin = password_text.encode(self.vi.textEncoding)
+                    section.libpass_text = password_text
+                    section.libpass_md5 = md5(password_bin).digest()
+                else:
+                    section.libpass_md5 = bytes.fromhex(password_hash)
+                pass
+            elif (subelem.tag == "Execution"):
+                section.execState = int(subelem.get("State"), 0)
+                section.execPrio = int(subelem.get("Priority"), 0)
+                section.execFlags = importXMLBitfields(VI_EXEC_FLAGS, subelem)
+            elif (subelem.tag == "ButtonsHidden"):
+                section.buttonsHidden = importXMLBitfields(VI_BTN_HIDE_FLAGS, subelem)
+            elif (subelem.tag == "Instrument"):
+                section.viType = valFromEnumOrIntString(VI_TYPE, subelem.get("Type"))
+                tmphash = subelem.get("Signature")
+                section.viSignature = bytes.fromhex(tmphash)
+                section.instrState = importXMLBitfields(VI_IN_ST_FLAGS, subelem)
+            elif (subelem.tag == "FrontPanel"):
+                section.frontpFlags = importXMLBitfields(VI_FP_FLAGS, subelem)
+            elif (subelem.tag == "Unknown"):
+                section.field08 = int(subelem.get("Field08"), 0)
+                section.field0C = int(subelem.get("Field0C"), 0)
+                section.flags10 = int(subelem.get("Flags10"), 0)
+                section.field12 = int(subelem.get("Field12"), 0)
+                section.field24 = int(subelem.get("Field24"), 0)
+                section.field28 = int(subelem.get("Field28"), 0)
+                section.field2C = int(subelem.get("Field2C"), 0)
+                section.field30 = int(subelem.get("Field30"), 0)
+                section.field44 = int(subelem.get("Field44"), 0)
+                section.field48 = int(subelem.get("Field48"), 0)
+                section.field4C = int(subelem.get("Field4C"), 0)
+                section.field4E = int(subelem.get("Field4E"), 0)
+                field50_hash = subelem.get("Field50Hash")
+                section.field50_md5 = bytes.fromhex(field50_hash)
+                section.field70 = int(subelem.get("Field70"), 0)
+                section.field74 = int(subelem.get("Field74"), 0)
+                # Additional data, exists only in some versions
+                field78_hash = subelem.get("Field78Hash")
+                if field78_hash is not None:
+                    section.field78_md5 = bytes.fromhex(field78_hash)
+                inlineStg = subelem.get("InlineStg")
+                if inlineStg is not None:
+                    section.inlineStg = int(inlineStg, 0)
+                field8C = subelem.get("Field8C")
+                if field8C is not None:
+                    section.field8C = int(field8C, 0)
+
+            elif (subelem.tag == "Field90"):
+                bin_path = os.path.dirname(self.vi.src_fname)
+                if len(bin_path) > 0:
+                    bin_fname = bin_path + '/' + subelem.get("File")
+                else:
+                    bin_fname = subelem.get("File")
+                with open(bin_fname, "rb") as part_fh:
+                    section.field90 = part_fh.read()
+            else:
+                raise AttributeError("Section contains unexpected tag")
+        pass
+
     def initWithXMLSection(self, section, section_elem):
         snum = section.start.section_idx
         fmt = section_elem.get("Format")
@@ -2520,92 +2625,12 @@ class LVSR(Block):
             if (self.po.verbose > 2):
                 print("{:s}: For Block {} section {:d}, reading inline XML data"\
                   .format(self.vi.src_fname,self.ident,snum))
-            section.field90 = b''
-
-            # We really expect only one of each sub-elements
-            for i, subelem in enumerate(section_elem):
-                if (subelem.tag == "NameObject"):
-                    pass # Items parsed somewhere else
-                elif (subelem.tag == "Version"):
-                    ver = {}
-                    ver['major'] = int(subelem.get("Major"), 0)
-                    ver['minor'] = int(subelem.get("Minor"), 0)
-                    ver['bugfix'] = int(subelem.get("Bugfix"), 0)
-                    ver['stage_text'] = subelem.get("Stage")
-                    ver['build'] = int(subelem.get("Build"), 0)
-                    ver['flags'] = int(subelem.get("Flags"), 0)
-                    section.version = ver
-                    # the call below sets numeric 'stage' from text; we do not care for actual encoding
-                    encodeVersion(section.version)
-                elif (subelem.tag == "Library"):
-                    section.protected = int(subelem.get("Protected"), 0)
-                    password_text = subelem.get("Password")
-                    password_hash = subelem.get("PasswordHash")
-                    if password_text is not None:
-                        password_bin = password_text.encode(self.vi.textEncoding)
-                        section.libpass_text = password_text
-                        section.libpass_md5 = md5(password_bin).digest()
-                    else:
-                        section.libpass_md5 = bytes.fromhex(password_hash)
-                    pass
-                elif (subelem.tag == "Execution"):
-                    section.execState = int(subelem.get("State"), 0)
-                    section.execPrio = int(subelem.get("Priority"), 0)
-                    section.execFlags = importXMLBitfields(VI_EXEC_FLAGS, subelem)
-                elif (subelem.tag == "ButtonsHidden"):
-                    section.buttonsHidden = importXMLBitfields(VI_BTN_HIDE_FLAGS, subelem)
-                elif (subelem.tag == "Instrument"):
-                    section.viType = valFromEnumOrIntString(VI_TYPE, subelem.get("Type"))
-                    tmphash = subelem.get("Signature")
-                    section.viSignature = bytes.fromhex(tmphash)
-                    section.instrState = importXMLBitfields(VI_IN_ST_FLAGS, subelem)
-                elif (subelem.tag == "FrontPanel"):
-                    section.frontpFlags = importXMLBitfields(VI_FP_FLAGS, subelem)
-                elif (subelem.tag == "Unknown"):
-                    section.field08 = int(subelem.get("Field08"), 0)
-                    section.field0C = int(subelem.get("Field0C"), 0)
-                    section.flags10 = int(subelem.get("Flags10"), 0)
-                    section.field12 = int(subelem.get("Field12"), 0)
-                    section.field24 = int(subelem.get("Field24"), 0)
-                    section.field28 = int(subelem.get("Field28"), 0)
-                    section.field2C = int(subelem.get("Field2C"), 0)
-                    section.field30 = int(subelem.get("Field30"), 0)
-                    section.field44 = int(subelem.get("Field44"), 0)
-                    section.field48 = int(subelem.get("Field48"), 0)
-                    section.field4C = int(subelem.get("Field4C"), 0)
-                    section.field4E = int(subelem.get("Field4E"), 0)
-                    field50_hash = subelem.get("Field50Hash")
-                    section.field50_md5 = bytes.fromhex(field50_hash)
-                    section.field70 = int(subelem.get("Field70"), 0)
-                    section.field74 = int(subelem.get("Field74"), 0)
-                    # Additional data, exists only in some versions
-                    field78_hash = subelem.get("Field78Hash")
-                    if field78_hash is not None:
-                        section.field78_md5 = bytes.fromhex(field78_hash)
-                    inlineStg = subelem.get("InlineStg")
-                    if inlineStg is not None:
-                        section.inlineStg = int(inlineStg, 0)
-                    field8C = subelem.get("Field8C")
-                    if field8C is not None:
-                        section.field8C = int(field8C, 0)
-
-                elif (subelem.tag == "Field90"):
-                    bin_path = os.path.dirname(self.vi.src_fname)
-                    if len(bin_path) > 0:
-                        bin_fname = bin_path + '/' + subelem.get("File")
-                    else:
-                        bin_fname = subelem.get("File")
-                    with open(bin_fname, "rb") as part_fh:
-                        section.field90 = part_fh.read()
-                else:
-                    raise AttributeError("Section contains unexpected tag")
+            self.initWithXMLSectionData(section, section_elem)
         else:
             Block.initWithXMLSection(self, section, section_elem)
         pass
 
-    def exportXMLSection(self, section_elem, snum, section, fname_base):
-        self.parseData(section_num=snum)
-
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         subelem = ET.SubElement(section_elem,"Version")
         subelem.set("Major", "{:d}".format(section.version['major']))
         subelem.set("Minor", "{:d}".format(section.version['minor']))
@@ -2669,6 +2694,12 @@ class LVSR(Block):
                 part_fd.write(section.field90)
             subelem.set("Format", "bin")
             subelem.set("File", os.path.basename(part_fname))
+        pass
+
+    def exportXMLSection(self, section_elem, section_num, section, fname_base):
+        self.parseData(section_num=section_num)
+
+        self.exportXMLSectionData(section_elem, section_num, section, fname_base)
 
         section_elem.set("Format", "inline")
 
@@ -3537,6 +3568,10 @@ class HeapVerb(Block):
 
         self.setData(data_buf, section_num=section_num)
 
+    def expectedRSRCSize(self, section_num):
+        exp_whole_len = None
+        return exp_whole_len
+
     def initWithXMLHeap(self, section, elem, parentNode):
         tagEn = LVheap.tagNameToEnum(elem.tag, parentNode)
         if tagEn is None:
@@ -3556,7 +3591,6 @@ class HeapVerb(Block):
             obj = LVheap.createObjectNode(self.vi, self.po, parentNode, tagEn, scopeInfo)
             section.objects.append(obj)
             #obj.initWithXML(elem) # No init needed for closing tag
-
 
     def initWithXMLSection(self, section, section_elem):
         snum = section.start.section_idx
@@ -3842,15 +3876,15 @@ class UCRF(Block):
         block_fpath = os.path.dirname(self.po.xml)
 
 
-class VCTP(Block):
+class VCTP(CompleteBlock):
     """ VI Consolidated Data Types
 
-    All terminals used by the .VI and the terminals of the .VI itself are stored
+    All data types used by the .VI and the data types of the .VI itself are stored
     in this block.
 
     The VCTP contains bottom-up objects. This means that objects can inherit
     from previous defined objects. So to define a cluster they first define
-    every element and than add a cluster-object with a index-table containing
+    every element and then add a cluster-object with a index-table containing
     all previously defined elements used by the cluster.
     """
     def createSection(self):
@@ -3858,6 +3892,9 @@ class VCTP(Block):
         section.content = []
         section.topLevel = []
         return section
+
+    def setDefaultEncoding(self):
+        self.default_block_coding = BLOCK_CODING.ZLIB
 
     def parseRSRCSingleTD(self, section_num, bldata, pos):
         section = self.sections[section_num]
@@ -3882,9 +3919,8 @@ class VCTP(Block):
         obj.initWithRSRC(bldata, obj_len) # No need to set topTypeList within VCTP
         return obj.index, obj_len
 
-    def parseRSRCData(self, section_num, bldata):
+    def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
-
         section.content = []
         # First we have count of connectors, and then the connectors themselves
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
@@ -3898,56 +3934,46 @@ class VCTP(Block):
         for i in range(count):
             val = readVariableSizeFieldU2p2(bldata)
             section.topLevel.append(val)
+        pass
 
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
-        bldata = super().getData(section_num=section_num, use_coding=use_coding)
-        return bldata
+    def expectedRSRCSize(self, section_num):
+        exp_whole_len = None
+        return exp_whole_len
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
-
-    def initWithXMLSection(self, section, section_elem):
-        snum = section.start.section_idx
-        fmt = section_elem.get("Format")
-        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
-            section.content = []
-            section.topLevel = []
-            if (self.po.verbose > 2):
-                print("{:s}: For Block {} section {:d}, reading inline XML data"\
-                  .format(self.vi.src_fname,self.ident,snum))
-            for subelem in section_elem:
-                if (subelem.tag == "NameObject"):
-                    pass # Items parsed somewhere else
-                elif (subelem.tag == "Connector"):
-                    obj_idx = int(subelem.get("Index"), 0)
-                    obj_type = valFromEnumOrIntString(TD_FULL_TYPE, subelem.get("Type"))
-                    obj_flags = importXMLBitfields(CONNECTOR_FLAGS, subelem)
-                    obj = newTDObject(self.vi, obj_idx, obj_flags, obj_type, self.po)
-                    # Grow the list if needed (the connectors may be in wrong order)
-                    if obj_idx >= len(section.content):
-                        section.content.extend([None] * (obj_idx - len(section.content) + 1))
-                    clientTD = SimpleNamespace()
-                    clientTD.index = -1 # Nested clients have index -1
-                    clientTD.flags = 0 # Only Type Mapped entries have it non-zero
-                    clientTD.nested = obj
-                    section.content[obj_idx] = clientTD
-                    # Set connector data based on XML properties
-                    obj.initWithXML(subelem)
-                elif (subelem.tag == "TopLevel"):
-                    for subtlelem in subelem:
-                        if (subtlelem.tag == "Client"):
-                            i = int(subtlelem.get("Index"), 0) - 1
-                            val = int(subtlelem.get("ConnectorIndex"), 0)
-                            # Grow the list if needed (the labels may be in wrong order)
-                            if i >= len(self.topLevel):
-                                self.topLevel.extend([None] * (i - len(self.topLevel) + 1))
-                            self.topLevel[i] = val
-                        else:
-                            raise AttributeError("TopLevel within Section contains unexpected tag")
-                else:
-                    raise AttributeError("Section contains unexpected tag")
-        else:
-            Block.initWithXMLSection(self, section, section_elem)
+    def initWithXMLSectionData(self, section, section_elem):
+        section.content = []
+        section.topLevel = []
+        for subelem in section_elem:
+            if (subelem.tag == "NameObject"):
+                pass # Items parsed somewhere else
+            elif (subelem.tag == "Connector"):
+                obj_idx = int(subelem.get("Index"), 0)
+                obj_type = valFromEnumOrIntString(TD_FULL_TYPE, subelem.get("Type"))
+                obj_flags = importXMLBitfields(CONNECTOR_FLAGS, subelem)
+                obj = newTDObject(self.vi, obj_idx, obj_flags, obj_type, self.po)
+                # Grow the list if needed (the connectors may be in wrong order)
+                if obj_idx >= len(section.content):
+                    section.content.extend([None] * (obj_idx - len(section.content) + 1))
+                clientTD = SimpleNamespace()
+                clientTD.index = -1 # Nested clients have index -1
+                clientTD.flags = 0 # Only Type Mapped entries have it non-zero
+                clientTD.nested = obj
+                section.content[obj_idx] = clientTD
+                # Set connector data based on XML properties
+                obj.initWithXML(subelem)
+            elif (subelem.tag == "TopLevel"):
+                for subtlelem in subelem:
+                    if (subtlelem.tag == "Client"):
+                        i = int(subtlelem.get("Index"), 0) - 1
+                        val = int(subtlelem.get("ConnectorIndex"), 0)
+                        # Grow the list if needed (the labels may be in wrong order)
+                        if i >= len(self.topLevel):
+                            self.topLevel.extend([None] * (i - len(self.topLevel) + 1))
+                        self.topLevel[i] = val
+                    else:
+                        raise AttributeError("TopLevel within Section contains unexpected tag")
+            else:
+                raise AttributeError("Section contains unexpected tag")
         pass
 
     def initWithXMLLate(self):
@@ -3958,16 +3984,15 @@ class VCTP(Block):
                 clientTD.nested.initWithXMLLate()
         pass
 
-    def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
+    def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
 
         for clientTD in section.content:
             if not clientTD.nested.raw_data_updated:
                 clientTD.nested.updateData()
 
-        data_buf = int(len(section.content)).to_bytes(4, byteorder='big')
+        data_buf = b''
+        data_buf += len(section.content).to_bytes(4, byteorder='big')
         for i, clientTD in enumerate(section.content):
             bldata = clientTD.nested.getData()
             data_buf += bldata.read()
@@ -3975,16 +4000,9 @@ class VCTP(Block):
         data_buf += int(len(section.topLevel)).to_bytes(2, byteorder='big')
         for i, val in enumerate(section.topLevel):
             data_buf += int(val).to_bytes(2, byteorder='big')
+        return data_buf
 
-        if (len(data_buf) < 4 + 4*len(section.content)):
-            raise RuntimeError("Block {} section {} generated binary data of invalid size"\
-              .format(self.ident,section_num))
-
-        self.setData(data_buf, section_num=section_num)
-
-    def exportXMLSection(self, section_elem, snum, section, fname_base):
-        self.parseData(section_num=snum)
-
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         for clientTD in section.content:
             subelem = ET.SubElement(section_elem,"Connector")
 
@@ -4005,8 +4023,7 @@ class VCTP(Block):
 
             subelem.set("Index", "{:d}".format(i+1))
             subelem.set("ConnectorIndex", "{:d}".format(val))
-
-        section_elem.set("Format", "inline")
+        pass
 
     def parseData(self, section_num=None):
         if section_num is None:
@@ -4149,6 +4166,10 @@ class VITS(CompleteBlock):
                 data_buf += ( b'\0' * 4 )
             data_buf += val.obj.prepareRSRCData()
         return data_buf
+
+    def expectedRSRCSize(self, section_num):
+        exp_whole_len = None
+        return exp_whole_len
 
     def initWithXMLSectionData(self, section, section_elem):
         section.content = []
