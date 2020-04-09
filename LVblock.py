@@ -1384,7 +1384,7 @@ class STRG(SingleStringBlock):
         return section
 
 
-class HLPT(Block):
+class HLPT(CompleteBlock):
     """ Help Tag
     """
     def createSection(self):
@@ -1405,49 +1405,12 @@ class HLPT(Block):
             raise RuntimeError("Binary format detected; no parsed form available")
         pass
 
-    def parseRSRCData(self, section_num, bldata):
+    def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
-        section.parse_failed = False
-        startpos = bldata.tell()
-        bldata.seek(0, io.SEEK_END)
-        totlen = bldata.tell()
-        bldata.seek(startpos)
-        try:
-            self.parseRSRCSectionData(section_num, bldata)
-        except Exception as e:
-            section.parse_failed = True
-            eprint("{:s}: Warning: Block {} section {} parse exception: {}."\
-                .format(self.vi.src_fname,self.ident,section_num,str(e)))
-        if bldata.tell() < totlen:
-            section.parse_failed = True
-            eprint("{:s}: Warning: Block {} section {} size is {} and does not match parsed size {}"\
-              .format(self.vi.src_fname, self.ident, section_num, totlen, bldata.tell()))
-        if section.parse_failed:
-            bldata.seek(startpos)
-            Block.parseRSRCData(self, section_num, bldata)
-        pass
-
-    def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-
-        # Do not re-create raw data if parsing failed and we still have the original
-        if (section.parse_failed and self.hasRawData(section_num)):
-            eprint("{:s}: Warning: Block {} section {} left in original raw form, without re-building"\
-              .format(self.vi.src_fname,self.ident,section_num))
-            return
-
         data_buf  = b''
         for line in section.content:
             data_buf += prepareLStr(line, 1, self.po)
-
-        exp_whole_len = self.expectedRSRCSize(section_num)
-        if (len(data_buf) != exp_whole_len):
-            raise RuntimeError("Block {} section {} generated binary data of invalid size"\
-              .format(self.ident,section_num))
-
-        self.setData(data_buf, section_num=section_num)
+        return data_buf
 
     def expectedRSRCSize(self, section_num):
         if section_num is None:
@@ -1465,48 +1428,28 @@ class HLPT(Block):
     def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
         super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
-    def initWithXMLSection(self, section, section_elem):
-        snum = section.start.section_idx
-        section.parse_failed = False
-        fmt = section_elem.get("Format")
-        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
-            if (self.po.verbose > 2):
-                print("{:s}: For Block {} section {:d}, reading inline XML data"\
-                  .format(self.vi.src_fname,self.ident,snum))
-            section.content = []
+    def initWithXMLSectionData(self, section, section_elem):
+        section.content = []
 
-            for i, subelem in enumerate(section_elem):
-                if (subelem.tag == "NameObject"):
-                    pass # Items parsed somewhere else
-                elif (subelem.tag == "String"):
-                    if subelem.text is not None:
-                        elem_text = ET.unescape_safe_store_element_text(subelem.text)
-                        section.content.append(elem_text.encode(self.vi.textEncoding))
-                    else:
-                        section.content.append(b'')
+        for i, subelem in enumerate(section_elem):
+            if (subelem.tag == "NameObject"):
+                pass # Items parsed somewhere else
+            elif (subelem.tag == "String"):
+                if subelem.text is not None:
+                    elem_text = ET.unescape_safe_store_element_text(subelem.text)
+                    section.content.append(elem_text.encode(self.vi.textEncoding))
                 else:
-                    raise AttributeError("Section contains unexpected tag")
-        else:
-            section.parse_failed = True
-            Block.initWithXMLSection(self, section, section_elem)
-        pass
+                    section.content.append(b'')
+            else:
+                raise AttributeError("Section contains unexpected tag")
 
-    def exportXMLSection(self, section_elem, snum, section, fname_base):
-        self.parseData(section_num=snum)
-
-        if section.parse_failed:
-            Block.exportXMLSection(self, section_elem, snum, section, fname_base)
-            return
-
-        if (self.po.verbose > 1):
-            print("{}: Writing XML for block {}".format(self.vi.src_fname, self.ident))
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         for line in section.content:
             subelem = ET.SubElement(section_elem,"String")
 
             pretty_string = line.decode(self.vi.textEncoding)
             ET.safe_store_element_text(subelem, pretty_string)
-
-        section_elem.set("Format", "inline")
+        pass
 
 
 class STR(Block):
@@ -1729,6 +1672,9 @@ class LinkObjRefs(CompleteBlock):
         pass
 
     def initWithXMLSectionData(self, section, section_elem):
+        section.content = []
+        section.unk1 = b''
+        section.unk2 = b''
         rootLoaded = False
         for subelem in section_elem:
             if (subelem.tag == "NameObject"):
@@ -1743,9 +1689,9 @@ class LinkObjRefs(CompleteBlock):
 
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         pretty_ident = getPrettyStrFromRsrcType(section.ident)
-        subelem = ET.SubElement(section_elem, pretty_ident)
+        list_elem = ET.SubElement(section_elem, pretty_ident)
         for client in section.content:
-            subelem = ET.SubElement(section_elem,"LinkObject")
+            subelem = ET.SubElement(list_elem,"LinkObject")
             client.exportXML(subelem, fname_base)
         pass
 
