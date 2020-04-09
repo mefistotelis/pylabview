@@ -1442,6 +1442,7 @@ class HLPT(CompleteBlock):
                     section.content.append(b'')
             else:
                 raise AttributeError("Section contains unexpected tag")
+        pass
 
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         for line in section.content:
@@ -1681,6 +1682,7 @@ class LinkObjRefs(CompleteBlock):
         section.content = []
         section.unk1 = b''
         section.unk2 = b''
+
         rootLoaded = False
         for subelem in section_elem:
             if (subelem.tag == "NameObject"):
@@ -1827,6 +1829,13 @@ class DFDS(VarCodingBlock):
             Block.parseRSRCData(self, section_num, bldata)
         pass
 
+    def prepareRSRCData(self, section_num):
+        section = self.sections[section_num]
+        data_buf = b''
+        for df in section.content:
+            data_buf += df.prepareRSRCData()
+        return data_buf
+
     def updateSectionData(self, section_num=None):
         if section_num is None:
             section_num = self.active_section_num
@@ -1838,33 +1847,36 @@ class DFDS(VarCodingBlock):
               .format(self.vi.src_fname,self.ident,section_num))
             return
 
-        data_buf = b''
-        for i, df in enumerate(section.content):
-            data_buf += df.prepareRSRCData()
+        data_buf = self.prepareRSRCData(section_num)
 
         self.setData(data_buf, section_num=section_num)
+
+    def initWithXMLSectionData(self, section, section_elem):
+        section.content = []
+
+        for subelem in section_elem:
+            if (subelem.tag == "NameObject"):
+                continue # Items parsed somewhere else
+            if (subelem.tag == "SpecialDSTMCluster"):
+                # Special condition for special cluster - its type is just Cluster
+                tdType = TD_FULL_TYPE.Cluster
+                df = LVdatafill.SpecialDSTMCluster(self.vi, tdType, None, self.po)
+            else:
+                # Normal processing for everything else
+                df = LVdatafill.newDataFillObjectWithTag(self.vi, subelem.tag, self.po)
+            df.initWithXML(subelem)
+            section.content.append(df)
+        pass
 
     def initWithXMLSection(self, section, section_elem):
         snum = section.start.section_idx
         section.parse_failed = False
         fmt = section_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
-            section.content = []
             if (self.po.verbose > 2):
                 print("{:s}: For Block {} section {:d}, reading inline XML data"\
                   .format(self.vi.src_fname,self.ident,snum))
-            for subelem in section_elem:
-                if (subelem.tag == "NameObject"):
-                    continue # Items parsed somewhere else
-                if (subelem.tag == "SpecialDSTMCluster"):
-                    # Special condition for special cluster - its type is just Cluster
-                    tdType = TD_FULL_TYPE.Cluster
-                    df = LVdatafill.SpecialDSTMCluster(self.vi, tdType, None, self.po)
-                else:
-                    # Normal processing for everything else
-                    df = LVdatafill.newDataFillObjectWithTag(self.vi, subelem.tag, self.po)
-                df.initWithXML(subelem)
-                section.content.append(df)
+            self.initWithXMLSectionData(section, section_elem)
         else:
             section.parse_failed = True
             Block.initWithXMLSection(self, section, section_elem)
@@ -4129,7 +4141,7 @@ class VICD(VarCodingBlock):
             self.defaultBlockCoding = BLOCK_CODING.NONE
 
 
-class VITS(Block):
+class VITS(CompleteBlock):
     """ Virtual Instrument Tag Strings
     """
     def createSection(self):
@@ -4157,44 +4169,11 @@ class VITS(Block):
             val.obj.useConsolidatedTypes = False
             val.obj.initWithRSRC(bldata)
             section.content.append(val)
-        if (self.po.verbose > 2):
-            print("{:s}: Block {} data format is not fully known; leaving raw only".format(self.vi.src_fname,self.ident))
         pass
 
-    def parseRSRCData(self, section_num, bldata):
-        section = self.sections[section_num]
-        section.parse_failed = False
-        startpos = bldata.tell()
-        bldata.seek(0, io.SEEK_END)
-        totlen = bldata.tell()
-        bldata.seek(startpos)
-        try:
-            self.parseRSRCSectionData(section_num, bldata)
-        except Exception as e:
-            section.parse_failed = True
-            eprint("{:s}: Warning: Block {} section {} parse exception: {}."\
-                .format(self.vi.src_fname,self.ident,section_num,str(e)))
-        if bldata.tell() < totlen:
-            section.parse_failed = True
-            eprint("{:s}: Warning: Block {} section {} size is {} and does not match parsed size {}"\
-              .format(self.vi.src_fname, self.ident, section_num, totlen, bldata.tell()))
-        if section.parse_failed:
-            bldata.seek(startpos)
-            Block.parseRSRCData(self, section_num, bldata)
-        pass
-
-    def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
+    def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
         ver = self.vi.getFileVersion()
-
-        # Do not re-create raw data if parsing failed and we still have the original
-        if (section.parse_failed and self.hasRawData(section_num)):
-            eprint("{:s}: Warning: Block {} section {} left in original raw form, without re-building"\
-              .format(self.vi.src_fname,self.ident,section_num))
-            return
-
         data_buf = b''
         # Endianness was wrong in some versions
         if isGreaterOrEqVersion(ver, 6,1,0,4):
@@ -4206,8 +4185,7 @@ class VITS(Block):
             if isSmallerVersion(ver, 6,5,0,2):
                 data_buf += ( b'\0' * 4 )
             data_buf += val.obj.prepareRSRCData()
-
-        self.setData(data_buf, section_num=section_num)
+        return data_buf
 
     def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
         bldata = super().getData(section_num=section_num, use_coding=use_coding)
@@ -4216,29 +4194,20 @@ class VITS(Block):
     def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
         super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
-    def initWithXMLSection(self, section, section_elem):
-        snum = section.start.section_idx
-        section.parse_failed = False
-        fmt = section_elem.get("Format")
-        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
-            section.content = []
-            if (self.po.verbose > 2):
-                print("{:s}: For Block {} section {:d}, reading inline XML data"\
-                  .format(self.vi.src_fname,self.ident,snum))
-            for subelem in section_elem:
-                if (subelem.tag == "NameObject"):
-                    continue # Items parsed somewhere else
+    def initWithXMLSectionData(self, section, section_elem):
+        section.content = []
 
-                val = SimpleNamespace()
-                name_str = subelem.get("Name")
-                val.name = name_str.encode(self.vi.textEncoding)
-                val.obj = LVdatafill.newDataFillObjectWithTag(self.vi, subelem.tag, self.po)
-                val.obj.useConsolidatedTypes = False
-                val.obj.initWithXML(subelem)
-                section.content.append(val)
-        else:
-            section.parse_failed = True
-            Block.initWithXMLSection(self, section, section_elem)
+        for subelem in section_elem:
+            if (subelem.tag == "NameObject"):
+                continue # Items parsed somewhere else
+
+            val = SimpleNamespace()
+            name_str = subelem.get("Name")
+            val.name = name_str.encode(self.vi.textEncoding)
+            val.obj = LVdatafill.newDataFillObjectWithTag(self.vi, subelem.tag, self.po)
+            val.obj.useConsolidatedTypes = False
+            val.obj.initWithXML(subelem)
+            section.content.append(val)
         pass
 
     def initWithXMLLate(self):
@@ -4249,20 +4218,10 @@ class VITS(Block):
                 val.obj.initWithXMLLate()
         pass
 
-    def exportXMLSection(self, section_elem, snum, section, fname_base):
-        self.parseData(section_num=snum)
-
-        if section.parse_failed:
-            Block.exportXMLSection(self, section_elem, snum, section, fname_base)
-            return
-
-        if (self.po.verbose > 1):
-            print("{}: Writing XML for block {}".format(self.vi.src_fname, self.ident))
-
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         for i, val in enumerate(section.content):
             subelem = ET.SubElement(section_elem, "Object")
             subelem.set("Name", val.name.decode(self.vi.textEncoding))
 
             val.obj.exportXML(subelem, fname_base)
-
-        section_elem.set("Format", "inline")
+        pass
