@@ -1063,9 +1063,12 @@ class SingleIntBlock(Block):
 
         section_elem.set("Format", "inline")
 
-    def getValue(self):
-        self.parseData()
-        return self.value
+    def getValue(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+        self.parseData(section_num=section_num)
+        return section.value
 
 
 class MUID(SingleIntBlock):
@@ -1164,9 +1167,12 @@ class FPTD(Block):
 
         section_elem.set("Format", "inline")
 
-    def getValue(self):
-        self.parseData()
-        return self.value
+    def getValue(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+        self.parseData(section_num=section_num)
+        return section.value
 
 
 class BDSE(SingleIntBlock):
@@ -1191,7 +1197,7 @@ class FLAG(SingleIntBlock):
         return section
 
 
-class CONP(Block):
+class CONP(CompleteBlock):
     """ Connector Port type
 
     Contains list of types. For VIs, with exactly one
@@ -1206,68 +1212,50 @@ class CONP(Block):
     def isSingleTDIndex(self):
         return self.vi.ftype != LVrsrcontainer.FILE_FMT_TYPE.LLB
 
-    def parseRSRCData(self, section_num, bldata):
+    def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
+        section.value = None
 
         if self.isSingleTDIndex():
             section.value = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         else:
             #TODO currently we do not know how to parse complex form of CONP block
-            super().parseRSRCData(section_num, bldata)
+            raise NotImplementedError("Parsing complex form of the block is not implemented")
         pass
 
-    def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
+    def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
 
+        data_buf = b''
         if self.isSingleTDIndex():
-            data_buf = int(section.value).to_bytes(2, byteorder='big', signed=False)
-
-            if (len(data_buf) != 2):
-                raise RuntimeError("Block {} section {} generated binary data of invalid size"\
-                  .format(self.ident,section_num))
+            data_buf += int(section.value).to_bytes(2, byteorder='big', signed=False)
         else:
             #TODO currently we do not know how to parse complex form of CONP block
-            super().updateSectionData(section_num)
-            return
+            raise NotImplementedError("Preparing binary data for complex form of the block is not implemented")
+        return data_buf
 
-        self.setData(data_buf, section_num=section_num)
+    def expectedRSRCSize(self, section_num):
+        exp_whole_len = 2
+        return exp_whole_len
 
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = super().getData(section_num=section_num, use_coding=use_coding)
-        return bldata
+    def initWithXMLSectionData(self, section, section_elem):
+        section.content = []
+        section.value = int(section_elem.get("Value"), 0)
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
-
-    def initWithXMLSection(self, section, section_elem):
-        snum = section.start.section_idx
-        fmt = section_elem.get("Format")
-        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
-            if (self.po.verbose > 2):
-                print("{:s}: For Block {} section {:d}, reading inline XML data"\
-                  .format(self.vi.src_fname,self.ident,snum))
-            section.value = int(section_elem.get("Value"), 0)
-        else:
-            Block.initWithXMLSection(self, section, section_elem)
-        pass
-
-    def exportXMLSection(self, section_elem, snum, section, fname_base):
-        self.parseData(section_num=snum)
-
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         if self.isSingleTDIndex():
             section_elem.set("Value", "{:d}".format(section.value))
         else:
             #TODO currently we do not know how to parse complex form of CONP block
-            super().exportXMLSection(section_elem, snum, section, fname_base)
-            return
+            raise NotImplementedError("Exporting XML for complex form of the block is not implemented")
+        pass
 
-        section_elem.set("Format", "inline")
-
-    def getValue(self):
-        self.parseData()
-        return self.value
+    def getValue(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+        self.parseData(section_num=section_num)
+        return section.value
 
 
 class CPC2(CONP):
@@ -2366,7 +2354,7 @@ class LVIN(Block):
         #return self.version
 
 
-class LVSR(Block):
+class LVSR(CompleteBlock):
     """ LabView Save Record
 
     Structure named SAVERECORD is LV6 sources.
@@ -2456,11 +2444,6 @@ class LVSR(Block):
         # Any data added in future versions
         section.field90 = bldata.read()
 
-    def parseRSRCData(self, section_num, bldata):
-        section = self.sections[section_num]
-
-        self.parseRSRCSectionData(section_num, bldata)
-
     def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
         data_buf = b''
@@ -2503,27 +2486,8 @@ class LVSR(Block):
         data_buf += section.field90
         return data_buf
 
-    def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-
-        data_buf = self.prepareRSRCData(section_num)
-
-        if len(data_buf) not in [120, 136, 137, sizeof(LVSRData)+len(section.field90)]:
-            raise RuntimeError("Block {} section {} generated binary data of invalid size"
-              .format(self.ident,section_num))
-
-        self.setData(data_buf, section_num=section_num)
-
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = super().getData(section_num=section_num, use_coding=use_coding)
-        return bldata
-
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
-
     def expectedRSRCSize(self, section_num):
+        section = self.sections[section_num]
         ver = self.vi.getFileVersion()
         exp_whole_len = 120
         if isGreaterOrEqVersion(section.version, 10,0, stage='release'):
@@ -2618,18 +2582,6 @@ class LVSR(Block):
                 raise AttributeError("Section contains unexpected tag")
         pass
 
-    def initWithXMLSection(self, section, section_elem):
-        snum = section.start.section_idx
-        fmt = section_elem.get("Format")
-        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
-            if (self.po.verbose > 2):
-                print("{:s}: For Block {} section {:d}, reading inline XML data"\
-                  .format(self.vi.src_fname,self.ident,snum))
-            self.initWithXMLSectionData(section, section_elem)
-        else:
-            Block.initWithXMLSection(self, section, section_elem)
-        pass
-
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         subelem = ET.SubElement(section_elem,"Version")
         subelem.set("Major", "{:d}".format(section.version['major']))
@@ -2696,16 +2648,12 @@ class LVSR(Block):
             subelem.set("File", os.path.basename(part_fname))
         pass
 
-    def exportXMLSection(self, section_elem, section_num, section, fname_base):
+    def getVersion(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
         self.parseData(section_num=section_num)
-
-        self.exportXMLSectionData(section_elem, section_num, section, fname_base)
-
-        section_elem.set("Format", "inline")
-
-    def getVersion(self):
-        self.parseData()
-        return self.version
+        return section.version
 
 
 class vers(Block):
@@ -2795,8 +2743,8 @@ class vers(Block):
             Block.initWithXMLSection(self, section, section_elem)
         pass
 
-    def exportXMLSection(self, section_elem, snum, section, fname_base):
-        self.parseData(section_num=snum)
+    def exportXMLSection(self, section_elem, section_num, section, fname_base):
+        self.parseData(section_num=section_num)
 
         subelem = ET.SubElement(section_elem,"Version")
 
@@ -2812,17 +2760,26 @@ class vers(Block):
 
         section_elem.set("Format", "inline")
 
-    def getVersion(self):
-        self.parseData()
-        return self.version
+    def getVersion(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+        self.parseData(section_num=section_num)
+        return section.version
 
-    def getVerText(self):
-        self.parseData()
-        return self.version_text
+    def getVerText(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+        self.parseData(section_num=section_num)
+        return section.version_text
 
-    def getVerInfo(self):
-        self.parseData()
-        return self.version_info
+    def getVerInfo(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+        self.parseData(section_num=section_num)
+        return section.version_info
 
 
 class ICON(Block):
@@ -2924,13 +2881,13 @@ class ICON(Block):
         self.parseData()
         return self.icon
 
-    def exportXMLSection(self, section_elem, snum, section, fname_base):
+    def exportXMLSection(self, section_elem, section_num, section, fname_base):
         block_fname = "{:s}.{:s}".format(fname_base,"png")
 
-        self.parseData(section_num=snum)
+        self.parseData(section_num=section_num)
         with open(block_fname, "wb") as block_fd:
             if (self.po.verbose > 1):
-                print("{}: Writing block {} section {} image to '{}'".format(self.vi.src_fname,self.ident,snum,block_fname))
+                print("{}: Writing block {} section {} image to '{}'".format(self.vi.src_fname,self.ident,section_num,block_fname))
             section.icon.save(block_fd, format="PNG")
 
         section_elem.set("Format", "png")
