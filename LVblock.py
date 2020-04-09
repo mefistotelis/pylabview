@@ -1664,6 +1664,12 @@ class LinkObjRefs(CompleteBlock):
 
     def initWithXMLList(self, section, list_elem):
         section.ident = getRsrcTypeFromPrettyStr(list_elem.tag)
+        unk1 = list_elem.get("Unk1")
+        if unk1 is not None:
+            section.unk1 = unk1.encode(self.vi.textEncoding)
+        unk2 = list_elem.get("Unk2")
+        if unk2 is not None:
+            section.unk2 = bytes.fromhex(unk2)
         for subelem in list_elem:
             lnkobj_ident = getRsrcTypeFromPrettyStr(subelem.tag)
             client = LVlinkinfo.newLinkObject(self.vi, section.ident, lnkobj_ident, self.po)
@@ -1690,6 +1696,9 @@ class LinkObjRefs(CompleteBlock):
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         pretty_ident = getPrettyStrFromRsrcType(section.ident)
         list_elem = ET.SubElement(section_elem, pretty_ident)
+        if len(section.unk1) > 0 or len(section.unk2) > 0:
+            list_elem.set("Unk1", section.unk1.decode(self.vi.textEncoding))
+            list_elem.set("Unk2", section.unk2.hex())
         for client in section.content:
             subelem = ET.SubElement(list_elem,"LinkObject")
             client.exportXML(subelem, fname_base)
