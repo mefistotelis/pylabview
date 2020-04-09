@@ -807,12 +807,22 @@ class Block(object):
 
 
 class CompleteBlock(Block):
-    """ Block with support of parse fails
+    """ Block with support of parse fails and variable coding method
+
+    Provides a standard handling of exceptions for blocks.
+    Allows a block to be plain or encoded, depending on LV version.
     """
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.default_block_coding = BLOCK_CODING.NONE
+
     def createSection(self):
         section = super().createSection()
         section.parse_failed = False
         return section
+
+    def setDefaultEncoding(self):
+        self.default_block_coding = BLOCK_CODING.NONE
 
     def parseRSRCSectionData(self, section_num, bldata):
         raise NotImplementedError("Parsing the block is not implemented")
@@ -838,6 +848,10 @@ class CompleteBlock(Block):
             bldata.seek(startpos)
             Block.parseRSRCData(self, section_num, bldata)
         pass
+
+    def initWithRSRCLate(self):
+        self.setDefaultEncoding()
+        super().initWithRSRCLate()
 
     def prepareRSRCData(self, section_num):
         raise NotImplementedError("Re-creating binary is not implemented")
@@ -895,6 +909,19 @@ class CompleteBlock(Block):
             Block.initWithXMLSection(self, section, section_elem)
         pass
 
+    def initWithXMLLate(self):
+        currEncoding = self.default_block_coding
+        self.setDefaultEncoding()
+        if currEncoding != self.default_block_coding:
+            # This block changed its expected encoding; we may need to update raw data
+            for snum in self.sections:
+                if not self.hasRawData(section_num=snum):
+                    continue
+                coded_data = self.getData(section_num=snum, use_coding=currEncoding)
+                if coded_data is not None:
+                    self.setData(coded_data.read(), section_num=snum)
+        super().initWithXMLLate()
+
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         raise NotImplementedError("Export is not implemented")
 
@@ -918,6 +945,17 @@ class CompleteBlock(Block):
 
         section_elem.set("Format", "inline")
 
+    def getData(self, section_num=None, use_coding=None):
+        if use_coding is None:
+            use_coding = self.default_block_coding
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
+        return bldata
+
+    def setData(self, data_buf, section_num=None, use_coding=None):
+        if use_coding is None:
+            use_coding = self.default_block_coding
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
+
 
 class VarCodingBlock(Block):
     """ Block with variable coding method
@@ -926,23 +964,23 @@ class VarCodingBlock(Block):
     """
     def __init__(self, *args):
         super().__init__(*args)
-        self.defaultBlockCoding = BLOCK_CODING.NONE
+        self.default_block_coding = BLOCK_CODING.NONE
 
     def setDefaultEncoding(self):
         ver = self.vi.getFileVersion()
         if isGreaterOrEqVersion(ver, 6,0,0):
-            self.defaultBlockCoding = BLOCK_CODING.ZLIB
+            self.default_block_coding = BLOCK_CODING.ZLIB
         else:
-            self.defaultBlockCoding = BLOCK_CODING.NONE
+            self.default_block_coding = BLOCK_CODING.NONE
 
     def initWithRSRCLate(self):
         self.setDefaultEncoding()
         super().initWithRSRCLate()
 
     def initWithXMLLate(self):
-        currEncoding = self.defaultBlockCoding
+        currEncoding = self.default_block_coding
         self.setDefaultEncoding()
-        if currEncoding != self.defaultBlockCoding:
+        if currEncoding != self.default_block_coding:
             # This block changed its expected encoding; we may need to update raw data
             for snum in self.sections:
                 if not self.hasRawData(section_num=snum):
@@ -954,13 +992,13 @@ class VarCodingBlock(Block):
 
     def getData(self, section_num=None, use_coding=None):
         if use_coding is None:
-            use_coding = self.defaultBlockCoding
+            use_coding = self.default_block_coding
         bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
     def setData(self, data_buf, section_num=None, use_coding=None):
         if use_coding is None:
-            use_coding = self.defaultBlockCoding
+            use_coding = self.default_block_coding
         super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
 
@@ -1421,13 +1459,6 @@ class HLPT(CompleteBlock):
         exp_whole_len +=sum(len(line) for line in section.content)
         return exp_whole_len
 
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = super().getData(section_num=section_num, use_coding=use_coding)
-        return bldata
-
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
-
     def initWithXMLSectionData(self, section, section_elem):
         section.content = []
 
@@ -1652,13 +1683,6 @@ class LinkObjRefs(CompleteBlock):
         data_buf += int(3).to_bytes(2, byteorder='big', signed=False) # nextLinkInfo
         return data_buf
 
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = super().getData(section_num=section_num, use_coding=use_coding)
-        return bldata
-
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
-
     def expectedRSRCSize(self, section_num):
         exp_whole_len = None # TODO make expected size computation for LinkObjRefs
         return exp_whole_len
@@ -1743,7 +1767,7 @@ class LIvi(LinkObjRefs):
         return section
 
 
-class DFDS(VarCodingBlock):
+class DFDS(CompleteBlock):
     """ Default Fill of Data Space
     """
     def createSection(self):
@@ -1756,9 +1780,9 @@ class DFDS(VarCodingBlock):
         ver = self.vi.getFileVersion()
         # verified NONE in 5.1, ZLIB in 8.6
         if isGreaterOrEqVersion(ver, 6,0,0):
-            self.defaultBlockCoding = BLOCK_CODING.ZLIB
+            self.default_block_coding = BLOCK_CODING.ZLIB
         else:
-            self.defaultBlockCoding = BLOCK_CODING.NONE
+            self.default_block_coding = BLOCK_CODING.NONE
 
     def isSpecialDSTMCluster(self, tmItm):
         return (tmItm.flags & (0x0010|0x0020|0x0040|0x0004)) != 0
@@ -1807,49 +1831,12 @@ class DFDS(VarCodingBlock):
             raise NotImplementedError("No support for the LV7.1 default data format")
         pass
 
-    def parseRSRCData(self, section_num, bldata):
-        section = self.sections[section_num]
-        section.parse_failed = False
-        startpos = bldata.tell()
-        bldata.seek(0, io.SEEK_END)
-        totlen = bldata.tell()
-        bldata.seek(startpos)
-        try:
-            self.parseRSRCSectionData(section_num, bldata)
-        except Exception as e:
-            section.parse_failed = True
-            eprint("{:s}: Warning: Block {} section {} parse exception: {}."\
-                .format(self.vi.src_fname,self.ident,section_num,str(e)))
-        if bldata.tell() < totlen:
-            section.parse_failed = True
-            eprint("{:s}: Warning: Block {} section {} size is {} and does not match parsed size {}"\
-              .format(self.vi.src_fname, self.ident, section_num, totlen, bldata.tell()))
-        if section.parse_failed:
-            bldata.seek(startpos)
-            Block.parseRSRCData(self, section_num, bldata)
-        pass
-
     def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
         data_buf = b''
         for df in section.content:
             data_buf += df.prepareRSRCData()
         return data_buf
-
-    def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-
-        # Do not re-create raw data if parsing failed and we still have the original
-        if (section.parse_failed and self.hasRawData(section_num)):
-            eprint("{:s}: Warning: Block {} section {} left in original raw form, without re-building"\
-              .format(self.vi.src_fname,self.ident,section_num))
-            return
-
-        data_buf = self.prepareRSRCData(section_num)
-
-        self.setData(data_buf, section_num=section_num)
 
     def initWithXMLSectionData(self, section, section_elem):
         section.content = []
@@ -1866,20 +1853,6 @@ class DFDS(VarCodingBlock):
                 df = LVdatafill.newDataFillObjectWithTag(self.vi, subelem.tag, self.po)
             df.initWithXML(subelem)
             section.content.append(df)
-        pass
-
-    def initWithXMLSection(self, section, section_elem):
-        snum = section.start.section_idx
-        section.parse_failed = False
-        fmt = section_elem.get("Format")
-        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
-            if (self.po.verbose > 2):
-                print("{:s}: For Block {} section {:d}, reading inline XML data"\
-                  .format(self.vi.src_fname,self.ident,snum))
-            self.initWithXMLSectionData(section, section_elem)
-        else:
-            section.parse_failed = True
-            Block.initWithXMLSection(self, section, section_elem)
         pass
 
     def initWithXMLLate(self):
@@ -1922,17 +1895,8 @@ class DFDS(VarCodingBlock):
                 df.initWithXMLLate()
         pass
 
-    def exportXMLSection(self, section_elem, snum, section, fname_base):
-        self.parseData(section_num=snum)
-
-        if section.parse_failed:
-            Block.exportXMLSection(self, section_elem, snum, section, fname_base)
-            return
-
-        if (self.po.verbose > 1):
-            print("{}: Writing XML for block {}".format(self.vi.src_fname, self.ident))
-        for i, df in enumerate(section.content):
-
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
+        for df in section.content:
             # For some old LV versions type map index may not make sense; but we are not supporting them ATM
             if df.index >= 0:
                 comment_elem = ET.Comment(" Data Type entry {:d} ".format(df.index))
@@ -1941,8 +1905,7 @@ class DFDS(VarCodingBlock):
             subelem = ET.SubElement(section_elem, df.getXMLTagName())
 
             df.exportXML(subelem, fname_base)
-
-        section_elem.set("Format", "inline")
+        pass
 
 
 class GCDI(Block):
@@ -1969,7 +1932,7 @@ class CGRS(VarCodingBlock):
 
     def setDefaultEncoding(self):
         ver = self.vi.getFileVersion()
-        self.defaultBlockCoding = BLOCK_CODING.ZLIB
+        self.default_block_coding = BLOCK_CODING.ZLIB
 
 
 class CPMp(Block):
@@ -2250,9 +2213,9 @@ class TM80(VarCodingBlock):
     def setDefaultEncoding(self):
         ver = self.vi.getFileVersion()
         if isGreaterOrEqVersion(ver, 10,0,0):
-            self.defaultBlockCoding = BLOCK_CODING.ZLIB
+            self.default_block_coding = BLOCK_CODING.ZLIB
         else:
-            self.defaultBlockCoding = BLOCK_CODING.NONE
+            self.default_block_coding = BLOCK_CODING.NONE
 
     def parseRSRCData(self, section_num, bldata):
         section = self.sections[section_num]
@@ -3896,7 +3859,7 @@ class VCTP(Block):
         section.topLevel = []
         return section
 
-    def parseRSRCConnector(self, section_num, bldata, pos):
+    def parseRSRCSingleTD(self, section_num, bldata, pos):
         section = self.sections[section_num]
 
         bldata.seek(pos)
@@ -3927,7 +3890,7 @@ class VCTP(Block):
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         pos = bldata.tell()
         for i in range(count):
-            obj_idx, obj_len = self.parseRSRCConnector(section_num, bldata, pos)
+            obj_idx, obj_len = self.parseRSRCSingleTD(section_num, bldata, pos)
             pos += obj_len
         # After that, there is a list
         section.topLevel = []
@@ -4136,9 +4099,9 @@ class VICD(VarCodingBlock):
         ver = self.vi.getFileVersion()
         # verified NONE in 5.1, ZLIB in 8.6
         if isGreaterOrEqVersion(ver, 8,0,0,3):
-            self.defaultBlockCoding = BLOCK_CODING.ZLIB
+            self.default_block_coding = BLOCK_CODING.ZLIB
         else:
-            self.defaultBlockCoding = BLOCK_CODING.NONE
+            self.default_block_coding = BLOCK_CODING.NONE
 
 
 class VITS(CompleteBlock):
@@ -4186,13 +4149,6 @@ class VITS(CompleteBlock):
                 data_buf += ( b'\0' * 4 )
             data_buf += val.obj.prepareRSRCData()
         return data_buf
-
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = super().getData(section_num=section_num, use_coding=use_coding)
-        return bldata
-
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
     def initWithXMLSectionData(self, section, section_elem):
         section.content = []
