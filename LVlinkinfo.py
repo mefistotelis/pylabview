@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 
-""" LabView RSRC file format ref connectors.
+""" LabView RSRC file format Link Object Refs.
 
-    Virtual Connectors and Terminal Points are stored inside VCTP block.
+    Support of Link Identities storage.
 """
 
-# Copyright (C) 2013 Jessica Creighton <jcreigh@femtobit.org>
-# Copyright (C) 2019 Mefistotelis <mefistotelis@gmail.com>
+# Copyright (C) 2019-2020 Mefistotelis <mefistotelis@gmail.com>
 #
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
@@ -32,12 +31,18 @@ class LinkObjBase:
 
     Provides methods to be overriden in inheriting classes.
     """
-    def __init__(self, vi, ident, po):
+    def __init__(self, vi, list_ident, ident, po):
         """ Creates new link object.
         """
         self.vi = vi
         self.po = po
         self.ident = ident
+        self.list_ident = list_ident
+        self.content = None
+        if self.__doc__:
+            self.full_name = " {:s} ".format(self.__doc__.split('\n')[0].strip())
+        else:
+            self.full_name = ""
 
     def parseRSRCData(self, bldata):
         """ Parses binary data chunk from RSRC file.
@@ -46,7 +51,7 @@ class LinkObjBase:
         The handle gives access to binary data which is associated with the link object.
         Parses the binary data, filling properties.
         """
-        pass
+        self.ident = bldata.read(4)
 
     def prepareRSRCData(self, avoid_recompute=False):
         """ Fills binary data chunk for RSRC file which is associated with the link object.
@@ -54,6 +59,9 @@ class LinkObjBase:
         Creates bytes with binary data, starting with ident.
         """
         data_buf = b''
+        data_buf += self.ident[:4]
+        raise NotImplementedError("LinkObj {} binary creation not implemented"\
+          .format(self.ident))
         return data_buf
 
     def expectedRSRCSize(self):
@@ -62,30 +70,325 @@ class LinkObjBase:
         exp_whole_len = 4
         return exp_whole_len
 
-    def initWithXML(self, conn_elem):
+    def initWithXML(self, lnkobj_elem):
         """ Parses XML branch to fill properties of the link object.
 
         Receives ElementTree branch starting at tag associated with the link object.
         Parses the XML attributes, filling properties.
         """
-        pass
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
 
-    def exportXML(self, conn_elem, fname_base):
+    def exportXML(self, lnkobj_elem, fname_base):
         """ Fills XML branch with properties of the link object.
 
         Receives ElementTree branch starting at tag associated with the link object.
         Sets the XML attributes, using properties from self.
         """
-        pass
+        pretty_ident = getPrettyStrFromRsrcType(self.ident)
+        lnkobj_elem.tag = pretty_ident
+        raise NotImplementedError("LinkObj {} XML export not implemented"\
+          .format(self.ident))
 
     def checkSanity(self):
         ret = True
         return ret
 
 
-class OldImplementationForRework:
-    def parseRSRCLORefFPP(self, section_num, client, bldata):
-        client.ident = bldata.read(4)
+class LinkObjInstanceVIToNamespacerVI(LinkObjBase):
+    """ InstanceVI To NamespacerVI Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjHeapToAssembly(LinkObjBase):
+    """ Heap To Assembly Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToAssembly(LinkObjBase):
+    """ VI To Assembly Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToEIOLink(LinkObjBase):
+    """ VI To EIO Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjHeapToEIOLink(LinkObjBase):
+    """ Heap To EIO Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToCCSymbolLink(LinkObjBase):
+    """ VI To CCSymbol Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToFileLink(LinkObjBase):
+    """ VI To File Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToFileNoWarnLink(LinkObjBase):
+    """ VI To FileNoWarn Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToFilePathLink(LinkObjBase):
+    """ VI To FilePath Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjHeapToFilePathLink(LinkObjBase):
+    """ Heap To FilePath Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjXNodeToFilePathLink(LinkObjBase):
+    """ XNode To FilePath Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToGenVI(LinkObjBase):
+    """ VI To Gen VI Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToInstantiationVI(LinkObjBase):
+    """ VI To InstantiationVI Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjInstantiationVIToGenVI(LinkObjBase):
+    """ InstantiationVI To GenVI Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToVINamedLink(LinkObjBase):
+    """ VI To VINamed Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToLibraryDataLink(LinkObjBase):
+    """ VI To LibraryDataLink Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToMSLink(LinkObjBase):
+    """ VI To MSLink Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjTypeDefToCCLink(LinkObjBase):
+    """ TypeDef To CC Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjHeapToXCtlInterface(LinkObjBase):
+    """ Heap To XCtlInterface Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjXCtlToXInterface(LinkObjBase):
+    """ XCtlToXInterface Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToXCtlInterface(LinkObjBase):
+    """ VI To XCtlInterface Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToXNodeInterface(LinkObjBase):
+    """ VI To XNodeInterface Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToXNodeProjectItemLink(LinkObjBase):
+    """ VI To XNodeProjectItem Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjHeapToXNodeProjectItemLink(LinkObjBase):
+    """ Heap To XNodeProjectItem Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjActiveXVIToTypeLib(LinkObjBase):
+    """ ActiveXVIToTypeLib Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToLib(LinkObjBase):
+    """ VI To Lib Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjUDClassDDOToUDClassAPILink(LinkObjBase):
+    """ UDClassDDO To UDClassAPI Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.content = []
+
+    def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         for i in range(count):
             # TODO this needs figuring out
@@ -97,10 +400,10 @@ class OldImplementationForRework:
             if objident == b'PTH0':
                 obj = LVclasses.LVPath0(self.vi, self.po)
                 obj.parseRSRCData(bldata)
-                client.content.append(obj)
+                self.content.append(obj)
             else:
-                eprint("{:s}: Warning: Block {} section {} container {} references unrecognized class {}."\
-                  .format(self.vi.src_fname,self.ident,section_num,client.ident,objident))
+                raise RuntimeError("LinkObj {} refers to unrecognized class {}"\
+                  .format(self.ident,objident))
             unkval3 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             unkval4 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
             unkval5 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
@@ -109,8 +412,30 @@ class OldImplementationForRework:
             unkval11 = bldata.read(24)
         pass
 
-    def parseRSRCLORefDDP(self, section_num, client, bldata):
-        client.ident = bldata.read(4)
+    def exportXML(self, lnkobj_elem, fname_base):
+        pretty_ident = getPrettyStrFromRsrcType(self.ident)
+        lnkobj_elem.tag = pretty_ident
+        for client in self.content:
+            if isinstance(client, LVclasses.LVObject):#TODO is this condition needed?
+                subelem = ET.SubElement(lnkobj_elem,"RefObject")
+                client.exportXML(subelem, fname_base)
+            else:
+                subelem = ET.SubElement(lnkobj_elem,"LOObject")
+                client.exportXML(subelem, fname_base)
+        raise NotImplementedError("LinkObj {} export not fully implemented"\
+          .format(self.ident))
+        pass
+
+
+class LinkObjDDODefaultDataToUDClassAPILink(LinkObjBase):
+    """ DDODefaultData To UDClassAPI Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.content = []
+
+    def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         unkbase1 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
@@ -130,10 +455,10 @@ class OldImplementationForRework:
             if objident == b'PTH0':
                 obj = LVclasses.LVPath0(self.vi, self.po)
                 obj.parseRSRCData(bldata)
-                client.content.append(obj)
+                self.content.append(obj)
             else:
-                eprint("{:s}: Warning: Block {} section {} container {} references unrecognized class {}."\
-                  .format(self.vi.src_fname,self.ident,section_num,client.ident,objident))
+                raise RuntimeError("LinkObj {} refers to unrecognized class {}"\
+                  .format(self.ident,objident))
             unkval3 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             unkval4 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
             unkval5 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
@@ -142,8 +467,273 @@ class OldImplementationForRework:
             unkval11 = bldata.read(24)
         pass
 
-    def parseRSRCLORefIUV(self, section_num, client, bldata):
-        client.ident = bldata.read(4)
+    def exportXML(self, lnkobj_elem, fname_base):
+        pretty_ident = getPrettyStrFromRsrcType(self.ident)
+        lnkobj_elem.tag = pretty_ident
+        for client in self.content:
+            if isinstance(client, LVclasses.LVObject):#TODO is this condition needed?
+                subelem = ET.SubElement(lnkobj_elem,"RefObject")
+                client.exportXML(subelem, fname_base)
+            else:
+                subelem = ET.SubElement(lnkobj_elem,"LOObject")
+                client.exportXML(subelem, fname_base)
+        raise NotImplementedError("LinkObj {} export not fully implemented"\
+          .format(self.ident))
+        pass
+
+
+class LinkObjHeapObjToUDClassAPILink(LinkObjBase):
+    """ HeapObj To UDClassAPI Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToUDClassAPILink(LinkObjBase):
+    """ VI To UDClassAPI Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjDataValueRefVIToUDClassAPILink(LinkObjBase):
+    """ DataValueRefVI To UDClassAPI Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToVariableAbsoluteLink(LinkObjBase):
+    """ VI To VariableAbsolute Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToVariableRelativeLink(LinkObjBase):
+    """ VI To VariableRelative Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjHeapToVariableAbsoluteLink(LinkObjBase):
+    """ Heap To VariableAbsolute Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjHeapToVariableRelativeLink(LinkObjBase):
+    """ Heap To VariableRelative Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjDSToVariableAbsoluteLink(LinkObjBase):
+    """ DS To VariableAbsolute Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjDSToVariableRelativeLink(LinkObjBase):
+    """ DS To VariableRelative Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjDSToDSLink(LinkObjBase):
+    """ DS To DS Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjDSToExtFuncLink(LinkObjBase):
+    """ DS To ExtFunc Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjDSToCINLink(LinkObjBase):
+    """ DS To CIN Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjDSToScriptLink(LinkObjBase):
+    """ DS To Script Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjDSToCallByRefLink(LinkObjBase):
+    """ DS To CallByRef Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjDSToStaticVILink(LinkObjBase):
+    """ DS To StaticVI Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToStdVILink(LinkObjBase):
+    """ VI To StdVI Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToProgRetLink(LinkObjBase):
+    """ VI To ProgRet Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToPolyLink(LinkObjBase):
+    """ VI To Poly Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToCCLink(LinkObjBase):
+    """ VI To CC Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToStaticVILink(LinkObjBase):
+    """ VI To StaticVI Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjVIToAdaptiveVILink(LinkObjBase):
+    """ VI To AdaptiveVI Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjHeapToCCSymbolLink(LinkObjBase):
+    """ Heap To CCSymbol Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjIUseToVILink(LinkObjBase):
+    """ IUse To VI Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.content = []
+
+    def parseRSRCData(self, bldata):
+        self.content = []
+        self.ident = bldata.read(4)
         if (bldata.tell() % 4) > 0:
             bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
@@ -164,10 +754,10 @@ class OldImplementationForRework:
             if objident == b'PTH0':
                 obj = LVclasses.LVPath0(self.vi, self.po)
                 obj.parseRSRCData(bldata)
-                client.content.append(obj)
+                self.content.append(obj)
             else:
-                eprint("{:s}: Warning: Block {} section {} container {} references unrecognized class {}."\
-                  .format(self.vi.src_fname,self.ident,section_num,client.ident,objident))
+                raise RuntimeError("LinkObj {} refers to unrecognized class {}"\
+                  .format(self.ident,objident))
             if i == 0:
                 unkval3 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
                 unkval4 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
@@ -179,72 +769,136 @@ class OldImplementationForRework:
                 unkval3 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         pass
 
-    def initWithXMLLORef(self, client, section_elem):
-        client.ident = getRsrcTypeFromPrettyStr(section_elem.tag)
-        for subelem in section_elem:
-            subclient = SimpleNamespace()
-            self.initNewClient(subclient)
-            client.content.append(subclient)
-            self.initWithXMLLORef(client, subelem)
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        for subelem in lnkobj_elem:
+            cli_ident = getRsrcTypeFromPrettyStr(subelem.tag)
+            client = newLinkObject(self.vi, self.ident, cli_ident, self.po)
+            self.content.append(client)
+            client.initWithXML(subelem)
         pass
 
-    def exportXMLLORef(self, section_elem, client, fname_base):
-        pretty_ident = getPrettyStrFromRsrcType(client.ident)
-        subelem = ET.SubElement(section_elem, pretty_ident)
-        for subclient in client.content:
-            if isinstance(subclient, LVclasses.LVObject):
-                subelem = ET.SubElement(section_elem,"RefObject")
-                subclient.exportXML(subelem, fname_base)
+    def exportXML(self, lnkobj_elem, fname_base):
+        pretty_ident = getPrettyStrFromRsrcType(self.ident)
+        lnkobj_elem.tag = pretty_ident
+        for client in self.content:
+            if isinstance(client, LVclasses.LVObject):#TODO is this condition needed?
+                subelem = ET.SubElement(lnkobj_elem,"RefObject")
+                client.exportXML(subelem, fname_base)
             else:
-                self.exportXMLLORef(subelem, subclient, fname_base)
+                subelem = ET.SubElement(lnkobj_elem,"LOObject")
+                client.exportXML(subelem, fname_base)
+        raise NotImplementedError("LinkObj {} XML export not fully implemented"\
+          .format(self.ident))
         pass
 
 
 def newLinkObject(vi, list_ident, ident, po):
     """ Calls proper constructor to create link object.
     """
-    if   ident in (b'DSDS',) or list_ident in (b'VIDS',) and ident in (b'VIDS',):
-        ctor = None
-    elif ident in (b'DSEF',) or list_ident in (b'VIDS',) and ident in (b'XFun',):
-        ctor = None
-    elif ident in (b'DSCN',) or list_ident in (b'VIDS',) and ident in (b'LVSB',):
-        ctor = None
-    elif ident in (b'DSSC',) or list_ident in (b'VIDS',) and ident in (b'SFTB',):
-        ctor = None
-    elif ident in (b'DSCB',):
-        ctor = None
-    elif ident in (b'DSSV',):
-        ctor = None
-    elif ident in (b'VIVI',) or list_ident in (b'LVIN',) and ident in (b'LVIN',):
-        ctor = None
-    elif ident in (b'VIPR',) or list_ident in (b'LVIN',) and ident in (b'LVPR',):
-        ctor = None
-    elif ident in (b'VIPV',) or list_ident in (b'LVIN',) and ident in (b'POLY',):
-        ctor = None
-    elif ident in (b'VICC',) or list_ident in (b'LVCC',) and ident in (b'LVCC',b'CCCC',):
-        ctor = None
-    elif ident in (b'BSVR',):
-        ctor = None
-    elif ident in (b'VIAV',):
-        ctor = None
+    if ident in (b'IVOV',):
+        ctor = LinkObjInstanceVIToNamespacerVI
+    elif ident in (b'DNDA',):
+        ctor = LinkObjHeapToAssembly
+    elif ident in (b'DNVA',):
+        ctor = LinkObjVIToAssembly
+    elif ident in (b'EiVr',):
+        ctor = LinkObjVIToEIOLink
+    elif ident in (b'HpEr',):
+        ctor = LinkObjHeapToEIOLink
+    elif ident in (b'V2CC',):
+        ctor = LinkObjVIToCCSymbolLink
+    elif ident in (b'VIFl',):
+        ctor = LinkObjVIToFileLink
+    elif ident in (b'VIFN',):
+        ctor = LinkObjVIToFileNoWarnLink
+    elif ident in (b'VIXF',):
+        ctor = LinkObjVIToFilePathLink
+    elif ident in (b'HOXF',):
+        ctor = LinkObjHeapToFilePathLink
+    elif ident in (b'XNFP',):
+        ctor = LinkObjXNodeToFilePathLink
+    elif ident in (b'VIGV',):
+        ctor = LinkObjVIToGenVI
+    elif ident in (b'VIIV',):
+        ctor = LinkObjVIToInstantiationVI
+    elif ident in (b'IVGV',):
+        ctor = LinkObjInstantiationVIToGenVI
+    elif ident in (b'VTVN',):
+        ctor = LinkObjVIToVINamedLink
+    elif ident in (b'V2LD',):
+        ctor = LinkObjVIToLibraryDataLink
+    elif ident in (b'VIMS',):
+        ctor = LinkObjVIToMSLink
     elif ident in (b'TDCC',) or list_ident in (b'FPHP',) and ident in (b'LVCC',):
-        ctor = None
-    elif ident in (b'VIPV',b'POLY',):
-        ctor = None
+        ctor = LinkObjTypeDefToCCLink
+    elif ident in (b'HXCI',):
+        ctor = LinkObjHeapToXCtlInterface
+    elif ident in (b'XCXI',):
+        ctor = LinkObjXCtlToXInterface
+    elif ident in (b'VIXC',):
+        ctor = LinkObjVIToXCtlInterface
+    elif ident in (b'VIXN',):
+        ctor = LinkObjVIToXNodeInterface
+    elif ident in (b'XVPR',):
+        ctor = LinkObjVIToXNodeProjectItemLink
+    elif ident in (b'XHPR',):
+        ctor = LinkObjHeapToXNodeProjectItemLink
+    elif ident in (b'AXVT',):
+        ctor = LinkObjActiveXVIToTypeLib
+    elif ident in (b'VILB',):
+        ctor = LinkObjVIToLib
     elif ident in (b'FPPI',):
-        ctor = None#self.parseRSRCLORefFPP(section_num, client, bldata)
+        ctor = LinkObjUDClassDDOToUDClassAPILink
     elif ident in (b'DDPI',):
-        ctor = None#self.parseRSRCLORefDDP(section_num, client, bldata)
+        ctor = LinkObjDDODefaultDataToUDClassAPILink
     elif ident in (b'VRPI',):
-        ctor = None
+        ctor = LinkObjHeapObjToUDClassAPILink
     elif ident in (b'VIPI',):
-        ctor = None
+        ctor = LinkObjVIToUDClassAPILink
     elif ident in (b'RVPI',):
-        ctor = None
-    #elif ident in (b'IUVI',):
-        ctor = None#self.parseRSRCLORefIUV(section_num, client, bldata)
+        ctor = LinkObjDataValueRefVIToUDClassAPILink
+    elif ident in (b'VIVr',):
+        ctor = LinkObjVIToVariableAbsoluteLink
+    elif ident in (b'VIVl',):
+        ctor = LinkObjVIToVariableRelativeLink
+    elif ident in (b'HpVr',):
+        ctor = LinkObjHeapToVariableAbsoluteLink
+    elif ident in (b'HpVL',):
+        ctor = LinkObjHeapToVariableRelativeLink
+    elif ident in (b'DSVr',):
+        ctor = LinkObjDSToVariableAbsoluteLink
+    elif ident in (b'DSVl',):
+        ctor = LinkObjDSToVariableRelativeLink
+    elif ident in (b'DSDS',) or list_ident in (b'VIDS',) and ident in (b'VIDS',):
+        ctor = LinkObjDSToDSLink
+    elif ident in (b'DSEF',) or list_ident in (b'VIDS',) and ident in (b'XFun',):
+        ctor = LinkObjDSToExtFuncLink
+    elif ident in (b'DSCN',) or list_ident in (b'VIDS',) and ident in (b'LVSB',):
+        ctor = LinkObjDSToCINLink
+    elif ident in (b'DSSC',) or list_ident in (b'VIDS',) and ident in (b'SFTB',):
+        ctor = LinkObjDSToScriptLink
+    elif ident in (b'DSCB',):
+        ctor = LinkObjDSToCallByRefLink
+    elif ident in (b'DSSV',):
+        ctor = LinkObjDSToStaticVILink
+    elif ident in (b'VIVI',) or list_ident in (b'LVIN',) and ident in (b'LVIN',):
+        ctor = LinkObjVIToStdVILink
+    elif ident in (b'VIPR',) or list_ident in (b'LVIN',) and ident in (b'LVPR',):
+        ctor = LinkObjVIToProgRetLink
+    elif ident in (b'VIPV',) or list_ident in (b'LVIN',) and ident in (b'POLY',):
+        ctor = LinkObjVIToPolyLink
+    elif ident in (b'VICC',) or list_ident in (b'LVCC',) and ident in (b'LVCC',b'CCCC',):
+        ctor = LinkObjVIToCCLink
+    elif ident in (b'BSVR',):
+        ctor = LinkObjVIToStaticVILink
+    elif ident in (b'VIAV',):
+        ctor = LinkObjVIToAdaptiveVILink
+    elif ident in (b'H2CC',):
+        ctor = LinkObjHeapToCCSymbolLink
+    elif ident in (b'IUVI',):
+        ctor = LinkObjIUseToVILink
     else:
         raise AttributeError("List {} contains unrecognized class {}".format(list_ident,ident))
-    if ctor is None:
-        raise NotImplementedError("List {} contains unimplemented class {}".format(list_ident,ident))
-    return ctor(vi, conn_obj, reftype, po)
+
+    return ctor(vi, list_ident, ident, po)

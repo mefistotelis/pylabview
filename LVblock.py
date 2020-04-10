@@ -877,9 +877,13 @@ class CompleteBlock(Block):
             #raise # useful for debug
 
         # Do not re-create raw data if parsing failed and we still have the original
-        if (section.parse_failed and not self.hasRawData(section_num)):
-            raise RuntimeError("Block {} section {} could not prepare binary data"\
-                .format(self.ident,section_num))
+        if section.parse_failed:
+            if not self.hasRawData(section_num):
+                raise RuntimeError("Block {} section {} could not prepare binary data"\
+                    .format(self.ident,section_num))
+            else:
+                eprint("{:s}: Warning: Block {} section {} left in original raw form, without re-building"\
+                  .format(self.vi.src_fname,self.ident,section_num))
             return
 
         exp_whole_len = self.expectedRSRCSize(section_num)
@@ -1714,6 +1718,9 @@ class LinkObjRefs(CompleteBlock):
             list_elem.set("Unk1", section.unk1.decode(self.vi.textEncoding))
             list_elem.set("Unk2", section.unk2.hex())
         for client in section.content:
+            if len(client.full_name) > 0:
+                comment_elem = ET.Comment(client.full_name)
+                list_elem.append(comment_elem)
             subelem = ET.SubElement(list_elem,"LinkObject")
             client.exportXML(subelem, fname_base)
         pass
