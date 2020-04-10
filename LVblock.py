@@ -2952,7 +2952,8 @@ class BDPW(Block):
         section.password_md5 = b''
         section.hash_1 = b''
         section.hash_2 = b''
-        section.salt_iface_idx = None
+        section.salt_source = None
+        section.salt_td_flat_idx = None
         section.salt = None
         return section
 
@@ -3013,9 +3014,11 @@ class BDPW(Block):
         else:
             subelem.set("Hash", section.password_md5.hex())
             subelem.set("HashType", "MD5")
+        if section.salt_source is not None:
+            subelem.set("SaltSource", section.salt_source)
         # TODO If CPC2 stores the proper connector, we should mark this somehow and not store this connector index here
-        if section.salt_iface_idx is not None:
-            subelem.set("SaltSource", str(section.salt_iface_idx))
+        if section.salt_td_flat_idx is not None:
+            subelem.set("SaltSourceTD", str(section.salt_td_flat_idx))
         elif section.salt is not None:
             subelem.set("SaltData", section.salt.hex())
         else:
@@ -3043,10 +3046,11 @@ class BDPW(Block):
                     else:
                         self.setPassword(section_num=snum, password_md5=bytes.fromhex(pass_hash))
 
-                    salt_iface_idx = subelem.get("SaltSource")
+                    section.salt_source = subelem.get("SaltSource")
+                    salt_td_flat_idx = subelem.get("SaltSourceTD")
                     salt_data = subelem.get("SaltData")
-                    if salt_iface_idx is not None:
-                        section.salt_iface_idx = int(salt_iface_idx, 0)
+                    if salt_td_flat_idx is not None:
+                        section.salt_td_flat_idx = int(salt_td_flat_idx, 0)
                     elif salt_data is not None:
                         section.salt = bytes.fromhex(salt_data)
                     else:
@@ -3083,6 +3087,7 @@ class BDPW(Block):
 
         # TODO We should read the connector from CPC2 and try this one first
         salt = b''
+        salt_source = "None"
         ver = self.vi.getFileVersion()
         if not isGreaterOrEqVersion(ver, 1,0):
             if (po.verbose > 0):
@@ -3091,24 +3096,38 @@ class BDPW(Block):
             return salt
         if isGreaterOrEqVersion(ver, 12,0):
             # Figure out the salt
-            salt_iface_idx = None
+            salt_td_flat_idx = None
             VCTP = self.vi.get_or_raise('VCTP')
-            interfaceEnumerate = self.vi.consolidatedTDEnumerate(fullType=TD_FULL_TYPE.Function)
-            # Connectors count if one of the interfaces is the source of salt; usually it's the last interface, so check in reverse
-            for i, iface_idx, iface_obj in reversed(interfaceEnumerate):
-                term_connectors = VCTP.getClientConnectorsByType(iface_obj)
-                salt = BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
-                md5_hash_1 = md5(presalt_data + salt + postsalt_data).digest()
-                if md5_hash_1 == section.hash_1:
-                    if (self.po.verbose > 1):
-                        print("{:s}: Found matching salt {}, interface {:d}/{:d}".format(self.vi.src_fname,salt.hex(),i+1,len(interfaceEnumerate)))
-                    salt_iface_idx = iface_idx
-                    break
+            CPC2 = self.vi.get('CPC2')
+            if CPC2 is not None:
+                iface_obj = VCTP.getTopType(CPC2.getValue())
+                if True:
+                    term_connectors = VCTP.getClientConnectorsByType(iface_obj)
+                    salt = BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
+                    md5_hash_1 = md5(presalt_data + salt + postsalt_data).digest()
+                    if md5_hash_1 == section.hash_1:
+                        if (self.po.verbose > 1):
+                            print("{:s}: Found matching salt {}, interface from {}".format(self.vi.src_fname,salt.hex(),CPC2.ident))
+                        salt_td_flat_idx = iface_obj.index
+                        salt_source = "CPC2"
+            if salt_td_flat_idx is None:
+                interfaceEnumerate = self.vi.consolidatedTDEnumerate(fullType=TD_FULL_TYPE.Function)
+                # Connectors count if one of the interfaces is the source of salt; usually it's the last interface, so check in reverse
+                for i, iface_idx, iface_obj in reversed(interfaceEnumerate):
+                    term_connectors = VCTP.getClientConnectorsByType(iface_obj)
+                    salt = BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
+                    md5_hash_1 = md5(presalt_data + salt + postsalt_data).digest()
+                    if md5_hash_1 == section.hash_1:
+                        if (self.po.verbose > 1):
+                            print("{:s}: Found matching salt {}, interface {:d}/{:d}".format(self.vi.src_fname,salt.hex(),i+1,len(interfaceEnumerate)))
+                        salt_td_flat_idx = iface_idx
+                        salt_source = "TD"
+                        break
 
-            section.salt_iface_idx = salt_iface_idx
+            section.salt_td_flat_idx = salt_td_flat_idx
 
-            if salt_iface_idx is not None:
-                salt_iface = VCTP.getFlatType(salt_iface_idx)
+            if salt_td_flat_idx is not None:
+                salt_iface = VCTP.getFlatType(salt_td_flat_idx)
                 term_connectors = VCTP.getClientConnectorsByType(salt_iface)
                 salt = BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
             else:
@@ -3128,20 +3147,22 @@ class BDPW(Block):
                     if md5_hash_1 == section.hash_1:
                         if (self.po.verbose > 1):
                             print("{:s}: Found matching salt {} via brute-force".format(self.vi.src_fname,salt.hex()))
+                        salt_source = "Brute"
                         break
         section.salt = salt
+        section.salt_source = salt_source
         return salt
 
     def findHashSalt(self, section_num, password_md5, LIBN_content, LVSR_content, force_scan=False):
         section = self.sections[section_num]
 
         if force_scan:
-            section.salt_iface_idx = None
+            section.salt_td_flat_idx = None
             section.salt = None
-        if section.salt_iface_idx is not None:
+        if section.salt_td_flat_idx is not None:
             # If we've previously found an interface on which the salt is based, use that interface
             VCTP = self.vi.get_or_raise('VCTP')
-            salt_iface = VCTP.getFlatType(section.salt_iface_idx)
+            salt_iface = VCTP.getFlatType(section.salt_td_flat_idx)
             term_connectors = VCTP.getClientConnectorsByType(salt_iface)
             salt = BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
         elif section.salt is not None:
