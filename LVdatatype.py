@@ -1635,9 +1635,16 @@ class TDObjectTypeDef(TDObject):
         return data_buf
 
     def expectedRSRCSize(self):
+        ver = self.vi.getFileVersion()
         exp_whole_len = 4
         exp_whole_len += 4
-        exp_whole_len += 4 + sum((1+len(s)) for s in self.labels)
+        if isGreaterOrEqVersion(ver, 8,0,0,4):
+            # QualifiedName
+            exp_whole_len += 4 + sum((1+len(s)) for s in self.labels)
+        else:
+            exp_whole_len += sum((1+len(s)) for s in self.labels)
+            if exp_whole_len % 2 > 0: # Include padding
+                exp_whole_len += 2 - (exp_whole_len % 2)
         for client in self.clients:
             # nested expected size already includes header size
             exp_whole_len += client.nested.expectedRSRCSize()

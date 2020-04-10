@@ -1064,6 +1064,23 @@ class RefnumUDClassInst(RefnumBase):
             data_buf += b'\0' # Padding byte
         return data_buf
 
+    def expectedRSRCSize(self):
+        ver = self.vi.getFileVersion()
+        exp_whole_len = 0
+        exp_whole_len += 2
+        if isSmallerVersion(ver, 8,6,1):
+            exp_whole_len += 4
+        items = self.conn_obj.items
+        if self.conn_obj.multiItem != 0 or len(items) > 1:
+            exp_whole_len += 1
+            totlen = sum( (len(item.text)+1) for item in items ) + 1
+        else:
+            totlen = 1+len(item.text)
+        if ((totlen+1) % 2) > 0:
+            totlen += 1
+        exp_whole_len += totlen
+        return exp_whole_len
+
     def initWithXML(self, conn_elem):
         self.conn_obj.field0 = int(conn_elem.get("Field0"), 0)
         field2 = conn_elem.get("Field0")
