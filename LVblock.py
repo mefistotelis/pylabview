@@ -840,6 +840,7 @@ class CompleteBlock(Block):
             section.parse_failed = True
             eprint("{:s}: Warning: Block {} section {} parse exception: {}."\
                 .format(self.vi.src_fname,self.ident,section_num,str(e)))
+            #raise # useful for debug
         if bldata.tell() < totlen:
             section.parse_failed = True
             eprint("{:s}: Warning: Block {} section {} size is {} and does not match parsed size {}"\
@@ -1652,10 +1653,14 @@ class LinkObjRefs(CompleteBlock):
             section.content.append(client)
             bldata.seek(ctnrstart)
             client.parseRSRCData(bldata)
+        if nextLinkInfo != 3:
+            if len(section.content) > 0:
+                client = section.content[-1]
+                raise AttributeError("List of LinkObjects incorrectly ended with {} after {}".format(nextLinkInfo,client.ident))
+            else:
+                raise AttributeError("List of LinkObjects incorrectly ended with {} and is empty".format(nextLinkInfo))
         if len(section.content) != count:
             raise AttributeError("List announced {} refs, but had {} instead".format(count,len(section.content)))
-        if nextLinkInfo != 3:
-            raise AttributeError("List of LinkObjects incorrectly ended with {}".format(nextLinkInfo))
         pass
 
     def prepareRSRCData(self, section_num):

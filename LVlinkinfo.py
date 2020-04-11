@@ -43,6 +43,168 @@ class LinkObjBase:
             self.full_name = " {:s} ".format(self.__doc__.split('\n')[0].strip())
         else:
             self.full_name = ""
+        self.qualName = None
+        self.pathRef = None
+        self.linkSaveFlag = None
+
+    def parsePathRef(self, bldata):
+        startPos = bldata.tell()
+        clsident = bldata.read(4)
+        if clsident == b'PTH0':
+            pathRef = LVclasses.LVPath0(self.vi, self.po)
+        elif clsident in (b'PTH1', b'PTH2',):
+            pathRef = LVclasses.LVPath1(self.vi, self.po)
+        else:
+            raise RuntimeError("{:s} {} contains path data of unrecognized class {}"\
+          .format(type(self).__name__,self.ident,clsident))
+        bldata.seek(startPos)
+        pathRef.parseRSRCData(bldata)
+        return pathRef
+
+    def parseBasicLinkSaveInfo(self, bldata):
+        ver = self.vi.getFileVersion()
+
+        if (bldata.tell() % 4) > 0:
+            bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
+
+        self.qualName = readQualifiedName(bldata, self.po)
+
+        if (bldata.tell() % 2) > 0:
+            bldata.read(2 - (bldata.tell() % 2)) # Padding bytes
+
+        self.pathRef = self.parsePathRef(bldata)
+
+        if isGreaterOrEqVersion(ver, 8,5,0,1):
+            if isGreaterOrEqVersion(ver, 8,6,0,1):
+                self.linkSaveFlag = bldata.read(4)
+            else:
+                self.linkSaveFlag = bldata.read(1)
+        pass
+
+    def parseVILinkRefInfo(self, bldata):
+        ver = self.vi.getFileVersion()
+        self.viLinkFieldA = 0
+        self.viLinkLibVersion = 0
+        self.viLinkField4 = 0
+        self.viLinkFieldB = b''
+        self.viLinkFieldC = b''
+        self.viLinkFieldD = 0
+
+        flagBt = 0xff
+        if isGreaterOrEqVersion(ver, 14,0,0,3):
+            flagBt = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        if flagBt != 0xff:
+            self.viLinkFieldA = flagBt & 1
+            self.viLinkLibVersion = (flagBt >> 1) & 0x1F
+            self.viLinkField4 = flagBt >> 6
+        else:
+            if isGreaterOrEqVersion(ver, 8,0,0,3):
+                self.viLinkField4 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                self.viLinkLibVersion = int.from_bytes(bldata.read(8), byteorder='big', signed=False)
+            else:
+                self.viLinkField4 = 1
+                self.viLinkLibVersion = 0
+            self.viLinkFieldB = bldata.read(4)
+            self.viLinkFieldC = bldata.read(4)
+            self.viLinkFieldD = int.from_bytes(bldata.read(4), byteorder='big', signed=True)
+        pass
+
+    def parseTypedLinkSaveInfo(self, bldata):
+        ver = self.vi.getFileVersion()
+        self.typedLinkFlags = None
+        self.typedLinkTD = None
+
+        if isGreaterOrEqVersion(ver, 8,0,0,1):
+            self.parseBasicLinkSaveInfo(bldata)
+
+            clientTD = SimpleNamespace()
+            clientTD.index = readVariableSizeFieldU2p2(bldata)
+            clientTD.flags = 0 # Only Type Mapped entries have it non-zero
+            self.typedLinkTD = clientTD
+
+            self.parseVILinkRefInfo(bldata)
+
+            if isGreaterOrEqVersion(ver, 12,0,0,3):
+                self.typedLinkFlags = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        else:
+            raise NotImplementedError("LinkObj {} TypedLinkSaveInfo parse for LV7 not implemented"\
+              .format(self.ident))
+        pass
+
+    def parseLinkOffsetList(self, bldata):
+        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        if count > self.po.connector_list_limit:
+            raise RuntimeError("{:s} {} Offset List length {} exceeds limit"\
+              .format(type(self).__name__, self.ident, count))
+        offsetList = []
+        for i in range(count):
+            offs = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            offsetList.append(offs)
+        return offsetList
+
+    def parseOffsetLinkSaveInfo(self, bldata):
+        ver = self.vi.getFileVersion()
+        self.offsetList = []
+
+        self.parseTypedLinkSaveInfo(bldata)
+
+        if isGreaterOrEqVersion(ver, 8,2,0,3):
+            self.offsetList = self.parseLinkOffsetList(bldata)
+        pass
+
+    def parseHeapToVILinkSaveInfo(self, bldata):
+        ver = self.vi.getFileVersion()
+        self.pathRef2 = None
+
+        self.parseOffsetLinkSaveInfo(bldata)
+
+        if isGreaterOrEqVersion(ver, 8,2,0,3):
+            self.pathRef2 = self.parsePathRef(bldata)
+        print("{:s} {} content: {} {} {}"\
+              .format(type(self).__name__, self.ident, self.pathRef, self.offsetList, self.pathRef2))
+        pass
+
+    def parseUDClassAPILinkCache(self, bldata):
+        ver = self.vi.getFileVersion()
+        self.apiLinkLibVersion = 0
+        self.apiLinkIsInternal = 0
+        self.apiLinkBool2 = 1
+
+        if (bldata.tell() % 4) > 0:
+            bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
+
+        if isGreaterOrEqVersion(ver, 8,0,0,1):
+            self.apiLinkLibVersion = int.from_bytes(bldata.read(8), byteorder='big', signed=False)
+        else:
+            self.apiLinkLibVersion = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+        if isSmallerVersion(ver, 8,0,0,4):
+            bldata.read(4)
+
+        self.apiLinkIsInternal = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        if isGreaterOrEqVersion(ver, 8,1,0,2):
+            self.apiLinkBool2 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+
+        if isGreaterOrEqVersion(ver, 9,0,0,2):
+            self.apiLinkCallParentNodes = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        else:
+            self.apiLinkCallParentNodes = 0
+
+        self.apiLinkContent = readLStr(bldata, 1, self.po)
+
+    def parseUDClassHeapAPISaveInfo(self, bldata):
+        ver = self.vi.getFileVersion()
+        if isGreaterOrEqVersion(ver, 8,0,0,3):
+            self.parseBasicLinkSaveInfo(bldata)
+            self.parseUDClassAPILinkCache(bldata)
+        else:
+            self.parseBasicLinkSaveInfo(bldata)
+
+        if (bldata.tell() % 4) > 0:
+            bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
+
+        # Not sure if that list is OffsetList, but has the same structure
+        self.apiLinkCacheList = self.parseLinkOffsetList(bldata)
 
     def parseRSRCData(self, bldata):
         """ Parses binary data chunk from RSRC file.
@@ -101,6 +263,7 @@ class LinkObjInstanceVIToNamespacerVI(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -112,6 +275,7 @@ class LinkObjHeapToAssembly(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -123,6 +287,7 @@ class LinkObjVIToAssembly(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -134,6 +299,7 @@ class LinkObjVIToEIOLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -145,6 +311,7 @@ class LinkObjHeapToEIOLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -156,6 +323,7 @@ class LinkObjVIToCCSymbolLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -167,6 +335,7 @@ class LinkObjVIToFileLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -178,6 +347,7 @@ class LinkObjVIToFileNoWarnLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -189,6 +359,7 @@ class LinkObjVIToFilePathLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -200,6 +371,7 @@ class LinkObjHeapToFilePathLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -211,6 +383,7 @@ class LinkObjXNodeToFilePathLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -222,6 +395,7 @@ class LinkObjVIToGenVI(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -233,6 +407,7 @@ class LinkObjVIToInstantiationVI(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -244,6 +419,7 @@ class LinkObjInstantiationVIToGenVI(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -255,6 +431,7 @@ class LinkObjVIToVINamedLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -266,6 +443,7 @@ class LinkObjVIToLibraryDataLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -277,6 +455,7 @@ class LinkObjVIToMSLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -288,8 +467,8 @@ class LinkObjTypeDefToCCLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.ident = bldata.read(4)
+        self.parseHeapToVILinkSaveInfo(bldata)
 
 
 class LinkObjHeapToXCtlInterface(LinkObjBase):
@@ -299,6 +478,7 @@ class LinkObjHeapToXCtlInterface(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -310,6 +490,7 @@ class LinkObjXCtlToXInterface(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -321,6 +502,7 @@ class LinkObjVIToXCtlInterface(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -332,6 +514,7 @@ class LinkObjVIToXNodeInterface(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -343,6 +526,7 @@ class LinkObjVIToXNodeProjectItemLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -354,6 +538,7 @@ class LinkObjHeapToXNodeProjectItemLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -365,6 +550,7 @@ class LinkObjActiveXVIToTypeLib(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -376,6 +562,7 @@ class LinkObjVIToLib(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -389,27 +576,7 @@ class LinkObjUDClassDDOToUDClassAPILink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        for i in range(count):
-            # TODO this needs figuring out
-            unkval1 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            unkval2 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            objstart = bldata.tell()
-            objident = bldata.read(4)
-            bldata.seek(objstart)
-            if objident == b'PTH0':
-                obj = LVclasses.LVPath0(self.vi, self.po)
-                obj.parseRSRCData(bldata)
-                self.content.append(obj)
-            else:
-                raise RuntimeError("LinkObj {} refers to unrecognized class {}"\
-                  .format(self.ident,objident))
-            unkval3 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            unkval4 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-            unkval5 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            unkval6 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            unkval7 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            unkval11 = bldata.read(24)
+        self.parseUDClassHeapAPISaveInfo(bldata)
         pass
 
     def exportXML(self, lnkobj_elem, fname_base):
@@ -489,6 +656,7 @@ class LinkObjHeapObjToUDClassAPILink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -500,6 +668,7 @@ class LinkObjVIToUDClassAPILink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -511,6 +680,7 @@ class LinkObjDataValueRefVIToUDClassAPILink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -522,6 +692,7 @@ class LinkObjVIToVariableAbsoluteLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -533,6 +704,7 @@ class LinkObjVIToVariableRelativeLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -544,6 +716,7 @@ class LinkObjHeapToVariableAbsoluteLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -555,6 +728,7 @@ class LinkObjHeapToVariableRelativeLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -566,6 +740,7 @@ class LinkObjDSToVariableAbsoluteLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -577,6 +752,7 @@ class LinkObjDSToVariableRelativeLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -588,6 +764,7 @@ class LinkObjDSToDSLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -599,6 +776,7 @@ class LinkObjDSToExtFuncLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -610,6 +788,7 @@ class LinkObjDSToCINLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -621,6 +800,7 @@ class LinkObjDSToScriptLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -632,6 +812,7 @@ class LinkObjDSToCallByRefLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -643,6 +824,7 @@ class LinkObjDSToStaticVILink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -654,6 +836,7 @@ class LinkObjVIToStdVILink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -665,6 +848,7 @@ class LinkObjVIToProgRetLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -676,6 +860,7 @@ class LinkObjVIToPolyLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -687,6 +872,7 @@ class LinkObjVIToCCLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -698,6 +884,7 @@ class LinkObjVIToStaticVILink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -709,6 +896,7 @@ class LinkObjVIToAdaptiveVILink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -720,6 +908,7 @@ class LinkObjHeapToCCSymbolLink(LinkObjBase):
         super().__init__(*args)
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         raise NotImplementedError("LinkObj {} parsing not implemented"\
           .format(self.ident))
 
@@ -732,21 +921,22 @@ class LinkObjIUseToVILink(LinkObjBase):
         self.content = []
 
     def parseRSRCData(self, bldata):
+        ver = self.vi.getFileVersion()
         self.content = []
+
         self.ident = bldata.read(4)
+
+        #self.parseBasicLinkSaveInfo(bldata)
+
         if (bldata.tell() % 4) > 0:
             bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
-        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
-        names = []
-        for i in range(count):
-            strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-            namestr = bldata.read(strlen)
-            names.append(namestr)
+        self.qualName = readQualifiedName(bldata, self.po)
+
         if (bldata.tell() % 2) > 0:
-            bldata.read(1) # Padding byte
+            bldata.read(2 - (bldata.tell() % 2)) # Padding bytes
 
-        for i in range(count):
+        for i in range(len(self.qualName)):
             # TODO this needs figuring out
             objstart = bldata.tell()
             objident = bldata.read(4)

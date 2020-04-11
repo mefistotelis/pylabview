@@ -361,7 +361,8 @@ def prepareQuadFloat(val):
 def readQualifiedName(bldata, po):
     count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
     if count > po.connector_list_limit:
-        raise RuntimeError("Qualified name consists of too many string elements")
+        raise RuntimeError("Qualified name consists of {:d} string elements, limit is {:d}"\
+          .format(count,po.connector_list_limit))
     items = [None for _ in range(count)]
     for i in range(count):
         strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
