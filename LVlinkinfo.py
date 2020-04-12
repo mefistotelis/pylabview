@@ -76,10 +76,32 @@ class LinkObjBase:
 
         if isGreaterOrEqVersion(ver, 8,5,0,1):
             if isGreaterOrEqVersion(ver, 8,6,0,1):
-                self.linkSaveFlag = bldata.read(4)
+                self.linkSaveFlag = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             else:
-                self.linkSaveFlag = bldata.read(1)
+                self.linkSaveFlag = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         pass
+
+    def prepareBasicLinkSaveInfo(self, start_offs):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+        if (start_offs+len(data_buf)) % 4 > 0:
+            padding_len = 4 - ((start_offs+len(data_buf)) % 4)
+            data_buf += (b'\0' * padding_len)
+
+        data_buf += prepareQualifiedName(self.qualName, self.po)
+
+        if (start_offs+len(data_buf)) % 2 > 0:
+            padding_len = 2 - ((start_offs+len(data_buf)) % 2)
+            data_buf += (b'\0' * padding_len)
+
+        data_buf += self.pathRef.prepareRSRCData()
+
+        if isGreaterOrEqVersion(ver, 8,5,0,1):
+            if isGreaterOrEqVersion(ver, 8,6,0,1):
+                data_buf += int(self.linkSaveFlag).to_bytes(4, byteorder='big', signed=False)
+            else:
+                data_buf += int(self.linkSaveFlag).to_bytes(1, byteorder='big', signed=False)
+        return data_buf
 
     def parseVILinkRefInfo(self, bldata):
         ver = self.vi.getFileVersion()
@@ -109,6 +131,29 @@ class LinkObjBase:
             self.viLinkFieldD = int.from_bytes(bldata.read(4), byteorder='big', signed=True)
         pass
 
+    def prepareVILinkRefInfo(self, start_offs):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+
+        flagBt = 0xff
+        if isGreaterOrEqVersion(ver, 14,0,0,3):
+            if (self.viLinkFieldA <= 1) and (self.viLinkLibVersion <= 0x1F) and (self.viLinkField4 <= 0x3):
+                flagBt = self.viLinkFieldA = (self.viLinkFieldA & 1)
+                flagBt |= (self.viLinkLibVersion & 0x1F) << 1
+                flagBt |= (self.viLinkField4 & 0x3) << 6
+            data_buf += int(flagBt).to_bytes(1, byteorder='big', signed=False)
+
+        if flagBt != 0xff:
+            pass
+        else:
+            if isGreaterOrEqVersion(ver, 8,0,0,3):
+                data_buf += int(self.viLinkField4).to_bytes(4, byteorder='big', signed=False)
+                data_buf += int(self.viLinkLibVersion).to_bytes(8, byteorder='big', signed=False)
+            data_buf += self.viLinkFieldB[:4]
+            data_buf += self.viLinkFieldC[:4]
+            data_buf += int(self.viLinkFieldD).to_bytes(4, byteorder='big', signed=True)
+        return data_buf
+
     def parseTypedLinkSaveInfo(self, bldata):
         ver = self.vi.getFileVersion()
         self.typedLinkFlags = None
@@ -131,6 +176,25 @@ class LinkObjBase:
               .format(self.ident))
         pass
 
+    def prepareTypedLinkSaveInfo(self, start_offs):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+
+        if isGreaterOrEqVersion(ver, 8,0,0,1):
+            data_buf += self.prepareBasicLinkSaveInfo(start_offs+len(data_buf))
+
+            clientTD = self.typedLinkTD
+            data_buf += prepareVariableSizeFieldU2p2(clientTD.index)
+
+            data_buf += self.prepareVILinkRefInfo(start_offs+len(data_buf))
+
+            if isGreaterOrEqVersion(ver, 12,0,0,3):
+                data_buf +=  int(self.typedLinkFlags).to_bytes(4, byteorder='big', signed=False)
+        else:
+            raise NotImplementedError("LinkObj {} TypedLinkSaveInfo binary preparation for LV7 not implemented"\
+              .format(self.ident))
+        return data_buf
+
     def parseLinkOffsetList(self, bldata):
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         if count > self.po.connector_list_limit:
@@ -142,6 +206,13 @@ class LinkObjBase:
             offsetList.append(offs)
         return offsetList
 
+    def prepareLinkOffsetList(self, offsetList, start_offs):
+        data_buf = b''
+        data_buf += len(offsetList).to_bytes(4, byteorder='big', signed=False)
+        for offs in offsetList:
+            data_buf += int(offs).to_bytes(4, byteorder='big', signed=False)
+        return data_buf
+
     def parseOffsetLinkSaveInfo(self, bldata):
         ver = self.vi.getFileVersion()
         self.offsetList = []
@@ -151,6 +222,16 @@ class LinkObjBase:
         if isGreaterOrEqVersion(ver, 8,2,0,3):
             self.offsetList = self.parseLinkOffsetList(bldata)
         pass
+
+    def prepareOffsetLinkSaveInfo(self, start_offs):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+
+        data_buf += self.prepareTypedLinkSaveInfo(start_offs+len(data_buf))
+
+        if isGreaterOrEqVersion(ver, 8,2,0,3):
+            data_buf += self.prepareLinkOffsetList(self.offsetList, start_offs+len(data_buf))
+        return data_buf
 
     def parseHeapToVILinkSaveInfo(self, bldata):
         ver = self.vi.getFileVersion()
@@ -165,6 +246,16 @@ class LinkObjBase:
             print("{:s} {} content: {} {} {}"\
               .format(type(self).__name__, self.ident, self.pathRef, self.offsetList, self.pathRef2))
         pass
+
+    def prepareHeapToVILinkSaveInfo(self, start_offs):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+
+        data_buf += self.prepareOffsetLinkSaveInfo(start_offs+len(data_buf))
+
+        if isGreaterOrEqVersion(ver, 8,2,0,3):
+            data_buf += self.pathRef2.prepareRSRCData()
+        return data_buf
 
     def parseUDClassAPILinkCache(self, bldata):
         ver = self.vi.getFileVersion()
@@ -194,8 +285,35 @@ class LinkObjBase:
 
         self.apiLinkContent = readLStr(bldata, 1, self.po)
 
+    def prepareUDClassAPILinkCache(self, start_offs):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+
+        if (start_offs+len(data_buf)) % 4 > 0:
+            padding_len = 4 - ((start_offs+len(data_buf)) % 4)
+            data_buf += (b'\0' * padding_len) # Padding bytes
+
+        if isGreaterOrEqVersion(ver, 8,0,0,1):
+            data_buf += int(self.apiLinkLibVersion).to_bytes(8, byteorder='big', signed=False)
+        else:
+            data_buf += int(self.apiLinkLibVersion).to_bytes(4, byteorder='big', signed=False)
+
+        if isSmallerVersion(ver, 8,0,0,4):
+            data_buf += (b'\0' * 4)
+
+        data_buf += int(self.apiLinkIsInternal).to_bytes(1, byteorder='big', signed=False)
+        if isGreaterOrEqVersion(ver, 8,1,0,2):
+            data_buf += int(self.apiLinkBool2).to_bytes(1, byteorder='big', signed=False)
+
+        if isGreaterOrEqVersion(ver, 9,0,0,2):
+            data_buf += int(self.apiLinkCallParentNodes).to_bytes(1, byteorder='big', signed=False)
+
+        data_buf += prepareLStr(self.apiLinkContent, 1, self.po)
+        return data_buf
+
     def parseUDClassHeapAPISaveInfo(self, bldata):
         ver = self.vi.getFileVersion()
+
         if isGreaterOrEqVersion(ver, 8,0,0,3):
             self.parseBasicLinkSaveInfo(bldata)
             self.parseUDClassAPILinkCache(bldata)
@@ -215,6 +333,28 @@ class LinkObjBase:
             print("{:s} {} content: {} {} {}"\
               .format(type(self).__name__, self.ident, self.pathRef, self.apiLinkLibVersion, self.apiLinkCacheList))
         pass
+
+    def prepareUDClassHeapAPISaveInfo(self, start_offs):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+
+        if (self.po.verbose > 2):
+            print("{:s} {} content: {} {} {}"\
+              .format(type(self).__name__, self.ident, self.pathRef, self.apiLinkLibVersion, self.apiLinkCacheList))
+
+        if isGreaterOrEqVersion(ver, 8,0,0,3):
+            data_buf += self.prepareBasicLinkSaveInfo(start_offs+len(data_buf))
+            data_buf += self.prepareUDClassAPILinkCache(start_offs+len(data_buf))
+        else:
+            data_buf += self.prepareBasicLinkSaveInfo(start_offs+len(data_buf))
+
+        if (start_offs+len(data_buf)) % 4 > 0:
+            padding_len = 4 - ((start_offs+len(data_buf)) % 4)
+            data_buf += (b'\0' * padding_len) # Padding bytes
+
+        # Not sure if that list is OffsetList, but has the same structure
+        data_buf += self.prepareLinkOffsetList(self.apiLinkCacheList, start_offs+len(data_buf))
+        return data_buf
 
     def parseRSRCData(self, bldata):
         """ Parses binary data chunk from RSRC file.
@@ -589,6 +729,12 @@ class LinkObjUDClassDDOToUDClassAPILink(LinkObjBase):
         self.parseUDClassHeapAPISaveInfo(bldata)
         pass
 
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareUDClassHeapAPISaveInfo(start_offs+len(data_buf))
+        return data_buf
+
     def exportXML(self, lnkobj_elem, fname_base):
         pretty_ident = getPrettyStrFromRsrcType(self.ident)
         lnkobj_elem.tag = pretty_ident
@@ -615,6 +761,12 @@ class LinkObjDDODefaultDataToUDClassAPILink(LinkObjBase):
         self.ident = bldata.read(4)
         self.parseUDClassHeapAPISaveInfo(bldata)
         pass
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareUDClassHeapAPISaveInfo(start_offs+len(data_buf))
+        return data_buf
 
     def exportXML(self, lnkobj_elem, fname_base):
         pretty_ident = getPrettyStrFromRsrcType(self.ident)
@@ -917,6 +1069,21 @@ class LinkObjIUseToVILink(LinkObjBase):
         if isGreaterOrEqVersion(ver, 8,0,0,1):
             self.iuseStr = readPStr(bldata, 2, self.po)
         pass
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+
+        data_buf += self.ident[:4]
+
+        if isGreaterOrEqVersion(ver, 8,2,0,3):
+            data_buf += self.prepareHeapToVILinkSaveInfo(start_offs+len(data_buf))
+        else:
+            data_buf += self.prepareOffsetLinkSaveInfo(start_offs+len(data_buf))
+
+        if isGreaterOrEqVersion(ver, 8,0,0,1):
+            data_buf += preparePStr(self.iuseStr, 2, self.po)
+        return data_buf
 
     def initWithXML(self, lnkobj_elem):
         self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)

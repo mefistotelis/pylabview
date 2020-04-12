@@ -175,16 +175,22 @@ class LVPath0(LVObject):
             text_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
             text_val = bldata.read(text_len)
             self.content.append(text_val)
-        ctlen = 4 + sum(1+len(text_val) for text_val in self.content)
+        if len(self.content) > 0:
+            ctlen = 4 + sum(1+len(text_val) for text_val in self.content)
+        else:
+            ctlen = 0
         if ctlen != totlen:
             eprint("{:s}: Warning: {:s} has unexpected size, {} != {}"\
               .format(self.vi.src_fname, type(self).__name__, ctlen, totlen))
         pass
 
     def prepareRSRCData(self, avoid_recompute=False):
-        data_buf = bytes(self.ident)
-        totlen = 4 + sum(1+len(text_val) for text_val in self.content)
-        data_buf += int(totlen).to_bytes(4, byteorder='big')
+        data_buf = bytes(self.ident[:4])
+        if len(self.content) > 0:
+            ctlen = 4 + sum(1+len(text_val) for text_val in self.content)
+        else:
+            ctlen = 0
+        data_buf += int(ctlen).to_bytes(4, byteorder='big')
         data_buf += int(self.tpval).to_bytes(2, byteorder='big')
         data_buf += len(self.content).to_bytes(2, byteorder='big')
         for text_val in self.content:

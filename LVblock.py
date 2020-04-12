@@ -1676,7 +1676,7 @@ class LinkObjRefs(CompleteBlock):
         data_buf += len(section.content).to_bytes(4, byteorder='big', signed=False)
         for client in section.content:
             data_buf += int(2).to_bytes(2, byteorder='big', signed=False) # nextLinkInfo
-            data_buf += client.prepareRSRCData()
+            data_buf += client.prepareRSRCData(start_offs=len(data_buf))
         data_buf += int(3).to_bytes(2, byteorder='big', signed=False) # nextLinkInfo
         return data_buf
 
