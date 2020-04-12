@@ -1523,6 +1523,222 @@ class LinkObjActiveXTLibLinkObj(LinkObjBase):
           .format(self.ident))
 
 
+class LinkObjXNodeToXInterface(LinkObjBase):
+    """ XNode To XInterface Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjUDClassLibInheritsLink(LinkObjBase):
+    """ UDClassLibInherits Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjUDClassLibToVILink(LinkObjBase):
+    """ UDClassLib To VI Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjUDClassLibToMemberVILink(LinkObjBase):
+    """ UDClassLib To MemberVI Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjUDClassLibToPrivDataCtlLink(LinkObjBase):
+    """ UDClassLib To PrivDataCtl Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjHeapToUDClassAPILink(LinkObjBase):
+    """ Heap To UDClassAPI Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjDynInfoToUDClassAPILink(LinkObjBase):
+    """ DynInfo To UDClassAPI Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjPropNodeItemToUDClassAPILink(LinkObjBase):
+    """ PropNodeItem To UDClassAPI Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjCreOrDesRefToUDClassAPILink(LinkObjBase):
+    """ CreateOrDestroyRef To UDClassAPI Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjDDOToUDClassAPILink(LinkObjBase):
+    """ DDO To UDClassAPI Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjAPIToAPILink(LinkObjBase):
+    """ API To API Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjAPIToNearestImplVILink(LinkObjBase):
+    """ API To NearestImplVI Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjAPIToChildAPILink(LinkObjBase):
+    """ API To ChildAPI Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjHeapToUDClassAPILink(LinkObjBase):
+    """ Heap To UDClassAPI Link Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjMemberVIItem(LinkObjBase):
+    """ MemberVIItem Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjUDClassLibrary(LinkObjBase):
+    """ UDClassLibrary Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjHeapToXNodeInterface(LinkObjBase):
+    """ Heap To XNodeInterface Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
+class LinkObjHeapToGInterface(LinkObjBase):
+    """ Heap To GInterface Object Ref
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
+        raise NotImplementedError("LinkObj {} parsing not implemented"\
+          .format(self.ident))
+
+
 def newLinkObject(vi, list_ident, ident, po):
     """ Calls proper constructor to create link object.
     """
@@ -1718,6 +1934,42 @@ def newLinkObject(vi, list_ident, ident, po):
         ctor = LinkObjActiveXBDToTypeLib
     elif ident in (b'AXTL',):
         ctor = LinkObjActiveXTLibLinkObj
+    elif ident in (b'XNXI',):
+        ctor = LinkObjXNodeToXInterface
+    elif ident in (b'HEIR',):
+        ctor = LinkObjUDClassLibInheritsLink
+    elif ident in (b'C2vi',):
+        ctor = LinkObjUDClassLibToVILink
+    elif ident in (b'C2VI',):
+        ctor = LinkObjUDClassLibToMemberVILink
+    elif ident in (b'C2Pr',):
+        ctor = LinkObjUDClassLibToPrivDataCtlLink
+    elif ident in (b'HOPI',):
+        ctor = LinkObjHeapToUDClassAPILink
+    elif ident in (b'DyOM',):
+        ctor = LinkObjDynInfoToUDClassAPILink
+    elif ident in (b'PNOM',):
+        ctor = LinkObjPropNodeItemToUDClassAPILink
+    elif ident in (b'DRPI',):
+        ctor = LinkObjCreOrDesRefToUDClassAPILink
+    elif ident in (b'DOPI',):
+        ctor = LinkObjDDOToUDClassAPILink
+    elif ident in (b'AP2A',):
+        ctor = LinkObjAPIToAPILink
+    elif ident in (b'AP2I',):
+        ctor = LinkObjAPIToNearestImplVILink
+    elif ident in (b'AP2C',):
+        ctor = LinkObjAPIToChildAPILink
+    elif ident in (b'UDPI',):
+        ctor = LinkObjHeapToUDClassAPILink
+    elif ident in (b'CMem',):
+        ctor = LinkObjMemberVIItem
+    elif ident in (b'CLIB',):
+        ctor = LinkObjUDClassLibrary
+    elif ident in (b'HXNI',):
+        ctor = LinkObjHeapToXNodeInterface
+    elif ident in (b'GINT',):
+        ctor = LinkObjHeapToGInterface
     else:
         raise AttributeError("List {} contains unrecognized class {}".format(list_ident,ident))
 
