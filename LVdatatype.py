@@ -1686,12 +1686,8 @@ class TDObjectTypeDef(TDObject):
                         raise AttributeError("Connector expected to contain exactly one nested sub-connector")
                     self.clients.append(clientTD)
                 elif (subelem.tag == "Label"):
-                    i = int(subelem.get("Index"), 0)
                     label = subelem.get("Text").encode(self.vi.textEncoding)
-                    # Grow the list if needed (the labels may be in wrong order)
-                    if i >= len(self.labels):
-                        self.labels.extend([None] * (i - len(self.labels) + 1))
-                    self.labels[i] = label
+                    self.labels.append(label)
                 else:
                     raise AttributeError("Connector contains unexpected tag")
 
@@ -1730,7 +1726,6 @@ class TDObjectTypeDef(TDObject):
         for i, label in enumerate(self.labels):
             subelem = ET.SubElement(conn_elem,"Label")
 
-            subelem.set("Index", "{:d}".format(i))
             label_text = label.decode(self.vi.textEncoding)
             subelem.set("Text", "{:s}".format(label_text))
 

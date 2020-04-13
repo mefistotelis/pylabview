@@ -43,8 +43,8 @@ class LinkObjBase:
             self.full_name = " {:s} ".format(self.__doc__.split('\n')[0].strip())
         else:
             self.full_name = ""
-        self.qualName = None
-        self.pathRef = None
+        self.linkSaveQualName = None
+        self.linkSavePathRef = None
         self.linkSaveFlag = None
 
     def parsePathRef(self, bldata):
@@ -61,18 +61,57 @@ class LinkObjBase:
         pathRef.parseRSRCData(bldata)
         return pathRef
 
+    def initWithXMLPathRef(self, pr_elem):
+        clsident = getRsrcTypeFromPrettyStr(pr_elem.tag)
+        if clsident == b'PTH0':
+            pathRef = LVclasses.LVPath0(self.vi, self.po)
+        elif clsident in (b'PTH1', b'PTH2',):
+            pathRef = LVclasses.LVPath1(self.vi, self.po)
+        else:
+            raise RuntimeError("{:s} {} contains path data of unrecognized class {}"\
+          .format(type(self).__name__,self.ident,clsident))
+
+        pathRef.initWithXML(pr_elem)
+        return pathRef
+
+    def initWithXMLQualifiedName(self, items, qn_elem):
+        for i, subelem in enumerate(qn_elem):
+            if (subelem.tag == "String"):
+                if subelem.text is not None:
+                    elem_text = ET.unescape_safe_store_element_text(subelem.text)
+                    items.append(elem_text.encode(self.vi.textEncoding))
+                else:
+                    items.append(b'')
+            else:
+                raise AttributeError("QualifiedName contains unexpected tag")
+        pass
+
+    def exportXMLQualifiedName(self, items, qn_elem):
+        for i, name in enumerate(items):
+            subelem = ET.SubElement(qn_elem,"String")
+
+            name_text = name.decode(self.vi.textEncoding)
+            ET.safe_store_element_text(subelem, name_text)
+        pass
+
+    def clearBasicLinkSaveInfo(self):
+        self.linkSaveQualName = []
+        self.linkSavePathRef = None
+        self.linkSaveFlag = 0
+
     def parseBasicLinkSaveInfo(self, bldata):
         ver = self.vi.getFileVersion()
+        self.clearBasicLinkSaveInfo()
 
         if (bldata.tell() % 4) > 0:
             bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
 
-        self.qualName = readQualifiedName(bldata, self.po)
+        self.linkSaveQualName = readQualifiedName(bldata, self.po)
 
         if (bldata.tell() % 2) > 0:
             bldata.read(2 - (bldata.tell() % 2)) # Padding bytes
 
-        self.pathRef = self.parsePathRef(bldata)
+        self.linkSavePathRef = self.parsePathRef(bldata)
 
         if isGreaterOrEqVersion(ver, 8,5,0,1):
             if isGreaterOrEqVersion(ver, 8,6,0,1):
@@ -88,13 +127,13 @@ class LinkObjBase:
             padding_len = 4 - ((start_offs+len(data_buf)) % 4)
             data_buf += (b'\0' * padding_len)
 
-        data_buf += prepareQualifiedName(self.qualName, self.po)
+        data_buf += prepareQualifiedName(self.linkSaveQualName, self.po)
 
         if (start_offs+len(data_buf)) % 2 > 0:
             padding_len = 2 - ((start_offs+len(data_buf)) % 2)
             data_buf += (b'\0' * padding_len)
 
-        data_buf += self.pathRef.prepareRSRCData()
+        data_buf += self.linkSavePathRef.prepareRSRCData()
 
         if isGreaterOrEqVersion(ver, 8,5,0,1):
             if isGreaterOrEqVersion(ver, 8,6,0,1):
@@ -103,14 +142,43 @@ class LinkObjBase:
                 data_buf += int(self.linkSaveFlag).to_bytes(1, byteorder='big', signed=False)
         return data_buf
 
-    def parseVILinkRefInfo(self, bldata):
-        ver = self.vi.getFileVersion()
+    def initWithXMLBasicLinkSaveInfo(self, lnkobj_elem):
+        self.clearBasicLinkSaveInfo()
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.linkSaveFlag = int(lnkobj_elem.get("LinkSaveFlag"), 0)
+
+        for i, subelem in enumerate(qn_elem):
+            if (subelem.tag == "LinkSaveQualName"):
+                self.initWithXMLQualifiedName(self.linkSaveQualName, subelem)
+            elif (subelem.tag == "LinkSavePathRef"):
+                self.initWithXMLPathRef(self.linkSavePathRef, subelem[0])
+            else:
+                pass # No exception here - parent may define more tags
+        pass
+
+    def exportXMLBasicLinkSaveInfo(self, lnkobj_elem, fname_base):
+        pretty_ident = getPrettyStrFromRsrcType(self.ident)
+        lnkobj_elem.tag = pretty_ident
+
+        lnkobj_elem.set("LinkSaveFlag", "{:d}".format(self.linkSaveFlag))
+
+        subelem = ET.SubElement(lnkobj_elem,"LinkSaveQualName")
+        self.exportXMLQualifiedName(self.linkSaveQualName, subelem)
+
+        subelem = ET.SubElement(lnkobj_elem,"LinkSavePathRef")
+        self.linkSavePathRef.exportXML(subelem, fname_base)
+
+    def clearVILinkRefInfo(self):
         self.viLinkFieldA = 0
         self.viLinkLibVersion = 0
         self.viLinkField4 = 0
         self.viLinkFieldB = b''
         self.viLinkFieldC = b''
         self.viLinkFieldD = 0
+
+    def parseVILinkRefInfo(self, bldata):
+        ver = self.vi.getFileVersion()
+        self.clearVILinkRefInfo()
 
         flagBt = 0xff
         if isGreaterOrEqVersion(ver, 14,0,0,3):
@@ -153,6 +221,35 @@ class LinkObjBase:
             data_buf += self.viLinkFieldC[:4]
             data_buf += int(self.viLinkFieldD).to_bytes(4, byteorder='big', signed=True)
         return data_buf
+
+    def initWithXMLVILinkRefInfo(self, lnkobj_elem):
+        self.clearBasicLinkSaveInfo()
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+
+        self.viLinkLibVersion = int(lnkobj_elem.get("VILinkLibVersion"), 0)
+        self.viLinkFieldA = int(lnkobj_elem.get("VILinkFieldA"), 0)
+        self.viLinkField4 = int(lnkobj_elem.get("VILinkField4"), 0)
+
+        viLinkFieldB = lnkobj_elem.get("VILinkFieldB")
+        if viLinkFieldB is not None:
+            self.viLinkFieldB = bytes.fromhex(viLinkFieldB)
+        viLinkFieldC = lnkobj_elem.get("VILinkFieldC")
+        if viLinkFieldC is not None:
+            self.viLinkFieldC = bytes.fromhex(viLinkFieldC)
+        self.viLinkFieldD = int(lnkobj_elem.get("VILinkFieldD"), 0)
+        pass
+
+    def exportXMLVILinkRefInfo(self, lnkobj_elem, fname_base):
+        pretty_ident = getPrettyStrFromRsrcType(self.ident)
+        lnkobj_elem.tag = pretty_ident
+
+        lnkobj_elem.set("VILinkLibVersion", "{:d}".format(self.viLinkLibVersion))
+        lnkobj_elem.set("VILinkFieldA", "{:d}".format(self.viLinkFieldA))
+        lnkobj_elem.set("VILinkField4", "{:d}".format(self.viLinkField4))
+
+        lnkobj_elem.set("VILinkFieldB", "{:s}".format(self.viLinkFieldB.hex()))
+        lnkobj_elem.set("VILinkFieldC", "{:s}".format(self.viLinkFieldC.hex()))
+        lnkobj_elem.set("VILinkFieldD", "{:d}".format(self.viLinkFieldD))
 
     def parseTypedLinkSaveInfo(self, bldata):
         ver = self.vi.getFileVersion()
@@ -244,7 +341,7 @@ class LinkObjBase:
 
         if (self.po.verbose > 2):
             print("{:s} {} content: {} {} {}"\
-              .format(type(self).__name__, self.ident, self.pathRef, self.offsetList, self.pathRef2))
+              .format(type(self).__name__, self.ident, self.linkSavePathRef, self.offsetList, self.pathRef2))
         pass
 
     def prepareHeapToVILinkSaveInfo(self, start_offs):
@@ -331,7 +428,7 @@ class LinkObjBase:
 
         if (self.po.verbose > 2):
             print("{:s} {} content: {} {} {}"\
-              .format(type(self).__name__, self.ident, self.pathRef, self.apiLinkLibVersion, self.apiLinkCacheList))
+              .format(type(self).__name__, self.ident, self.linkSavePathRef, self.apiLinkLibVersion, self.apiLinkCacheList))
         pass
 
     def prepareUDClassHeapAPISaveInfo(self, start_offs):
@@ -340,7 +437,7 @@ class LinkObjBase:
 
         if (self.po.verbose > 2):
             print("{:s} {} content: {} {} {}"\
-              .format(type(self).__name__, self.ident, self.pathRef, self.apiLinkLibVersion, self.apiLinkCacheList))
+              .format(type(self).__name__, self.ident, self.linkSavePathRef, self.apiLinkLibVersion, self.apiLinkCacheList))
 
         if isGreaterOrEqVersion(ver, 8,0,0,3):
             data_buf += self.prepareBasicLinkSaveInfo(start_offs+len(data_buf))

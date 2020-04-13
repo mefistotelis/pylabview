@@ -163,11 +163,17 @@ class LVPath0(LVObject):
         self.tpval = 0
         self.content = []
         self.ident = b''
+        # Keeps the path serialized data to be all zeros if it stores nothing
+        # Sometimes LV creates a phony PTH0 by preparing a content of 8 zeros
+        # Normally, this is invalid object - length of path cannot be zero; but LV
+        # accepts that. So to support that incorrectly written object, we have
+        # additional property.
+        self.canZeroFill = False
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
         totlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        # seen only 0, though can be 0..3; for non-zero, list of strings is missing (?)
+        # seen only 0 and 1, though can be 0..3; for above 3, list of strings is missing (?)
         self.tpval = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         self.content = []
@@ -175,10 +181,11 @@ class LVPath0(LVObject):
             text_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
             text_val = bldata.read(text_len)
             self.content.append(text_val)
-        if len(self.content) > 0:
-            ctlen = 4 + sum(1+len(text_val) for text_val in self.content)
-        else:
-            ctlen = 0
+        ctlen = 4 + sum(1+len(text_val) for text_val in self.content)
+        self.canZeroFill = (totlen == 0)
+        if self.canZeroFill:
+             if (self.tpval == 0) and (len(self.content) == 0):
+                ctlen = 0
         if ctlen != totlen:
             eprint("{:s}: Warning: {:s} has unexpected size, {} != {}"\
               .format(self.vi.src_fname, type(self).__name__, ctlen, totlen))
@@ -186,10 +193,10 @@ class LVPath0(LVObject):
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = bytes(self.ident[:4])
-        if len(self.content) > 0:
-            ctlen = 4 + sum(1+len(text_val) for text_val in self.content)
-        else:
-            ctlen = 0
+        ctlen = 4 + sum(1+len(text_val) for text_val in self.content)
+        if self.canZeroFill:
+             if (self.tpval == 0) and (len(self.content) == 0):
+                ctlen = 0
         data_buf += int(ctlen).to_bytes(4, byteorder='big')
         data_buf += int(self.tpval).to_bytes(2, byteorder='big')
         data_buf += len(self.content).to_bytes(2, byteorder='big')
@@ -206,6 +213,7 @@ class LVPath0(LVObject):
         self.content = []
         self.ident = getRsrcTypeFromPrettyStr(obj_elem.get("Ident"))
         self.tpval = int(obj_elem.get("TpVal"), 0)
+        self.canZeroFill = True if obj_elem.get("ZeroFill") == "True" else False
         for i, subelem in enumerate(obj_elem):
             if (subelem.tag == "String"):
                 if subelem.text is not None:
@@ -219,6 +227,8 @@ class LVPath0(LVObject):
     def exportXML(self, obj_elem, fname_base):
         obj_elem.set("Ident",  getPrettyStrFromRsrcType(self.ident))
         obj_elem.set("TpVal",  "{:d}".format(self.tpval))
+        if self.canZeroFill:
+            obj_elem.set("ZeroFill", "True")
         for text_val in self.content:
             subelem = ET.SubElement(obj_elem,"String")
 
