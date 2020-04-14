@@ -1055,8 +1055,21 @@ class LinkObjHeapObjToUDClassAPILink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseUDClassHeapAPISaveInfo(bldata)
+        pass
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareUDClassHeapAPISaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLUDClassHeapAPISaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLUDClassHeapAPISaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjVIToUDClassAPILink(LinkObjBase):
@@ -2075,8 +2088,21 @@ class LinkObjDynInfoToUDClassAPILink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseUDClassHeapAPISaveInfo(bldata)
+        pass
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareUDClassHeapAPISaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLUDClassHeapAPISaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLUDClassHeapAPISaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjPropNodeItemToUDClassAPILink(LinkObjBase):
@@ -2087,8 +2113,21 @@ class LinkObjPropNodeItemToUDClassAPILink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseUDClassHeapAPISaveInfo(bldata)
+        pass
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareUDClassHeapAPISaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLUDClassHeapAPISaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLUDClassHeapAPISaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjCreOrDesRefToUDClassAPILink(LinkObjBase):
@@ -2099,8 +2138,21 @@ class LinkObjCreOrDesRefToUDClassAPILink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseUDClassHeapAPISaveInfo(bldata)
+        pass
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareUDClassHeapAPISaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLUDClassHeapAPISaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLUDClassHeapAPISaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjDDOToUDClassAPILink(LinkObjBase):
@@ -2111,8 +2163,21 @@ class LinkObjDDOToUDClassAPILink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseUDClassHeapAPISaveInfo(bldata)
+        pass
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareUDClassHeapAPISaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLUDClassHeapAPISaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLUDClassHeapAPISaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjAPIToAPILink(LinkObjBase):
