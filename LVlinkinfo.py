@@ -600,11 +600,8 @@ class LinkObjBase:
         self.clearBasicLinkSaveInfo()
         self.clearUDClassAPILinkCache()
 
-        if isGreaterOrEqVersion(ver, 8,0,0,3):
-            self.initWithXMLBasicLinkSaveInfo(lnkobj_elem)
-            self.initWithXMLUDClassAPILinkCache(lnkobj_elem)
-        else:
-            self.initWithXMLBasicLinkSaveInfo(lnkobj_elem)
+        self.initWithXMLBasicLinkSaveInfo(lnkobj_elem)
+        self.initWithXMLUDClassAPILinkCache(lnkobj_elem)
 
         for subelem in lnkobj_elem:
             if subelem.tag in ("LinkSaveQualName","LinkSavePathRef",):
@@ -884,10 +881,23 @@ class LinkObjTypeDefToCCLink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearHeapToVILinkSaveInfo()
 
     def parseRSRCData(self, bldata):
-        self.ident = bldata.read(4)
         self.parseHeapToVILinkSaveInfo(bldata)
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+
+        data_buf += self.ident[:4]
+        data_buf += self.prepareHeapToVILinkSaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.initWithXMLHeapToVILinkSaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLHeapToVILinkSaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjHeapToXCtlInterface(LinkObjBase):
