@@ -544,7 +544,7 @@ class LinkObjBase:
         lnkobj_elem.set("APILinkCallParentNodes", "{:d}".format(self.apiLinkCallParentNodes))
 
         subelem = ET.SubElement(lnkobj_elem,"APILinkContent")
-        name_text = self.viLSPathRef.decode(self.vi.textEncoding)
+        name_text = self.apiLinkContent.decode(self.vi.textEncoding)
         ET.safe_store_element_text(subelem, name_text)
 
     def parseUDClassHeapAPISaveInfo(self, bldata):
@@ -602,7 +602,7 @@ class LinkObjBase:
         self.initWithXMLUDClassAPILinkCache(lnkobj_elem)
 
         for subelem in lnkobj_elem:
-            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef",):
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","APILinkContent",):
                 pass # These tags are parsed elswhere
             elif (subelem.tag == "APILinkCacheList"):
                 self.apiLinkCacheList = self.initWithXMLLinkOffsetList(subelem)
@@ -611,6 +611,8 @@ class LinkObjBase:
         pass
 
     def exportXMLUDClassHeapAPISaveInfo(self, lnkobj_elem, fname_base):
+        ver = self.vi.getFileVersion()
+
         if isGreaterOrEqVersion(ver, 8,0,0,3):
             self.exportXMLBasicLinkSaveInfo(lnkobj_elem, fname_base)
             self.exportXMLUDClassAPILinkCache(lnkobj_elem, fname_base)
@@ -887,7 +889,6 @@ class LinkObjTypeDefToCCLink(LinkObjBase):
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         data_buf = b''
-
         data_buf += self.ident[:4]
         data_buf += self.prepareHeapToVILinkSaveInfo(start_offs+len(data_buf))
         return data_buf
@@ -1733,11 +1734,24 @@ class LinkObjFBoxLineToInstantnVILink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearHeapToVILinkSaveInfo()
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseHeapToVILinkSaveInfo(bldata)
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareHeapToVILinkSaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLHeapToVILinkSaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLHeapToVILinkSaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjOMHeapToResource(LinkObjBase):
@@ -1937,11 +1951,24 @@ class LinkObjXNodeToVILink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearHeapToVILinkSaveInfo()
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseHeapToVILinkSaveInfo(bldata)
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareHeapToVILinkSaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLHeapToVILinkSaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLHeapToVILinkSaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjActiveXBDToTypeLib(LinkObjBase):

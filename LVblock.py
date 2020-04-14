@@ -945,6 +945,7 @@ class CompleteBlock(Block):
         except Exception as e:
             eprint("{:s}: Warning: Block {} section {} XML export exception: {}."\
                 .format(self.vi.src_fname,self.ident,section_num,str(e)))
+            #raise # useful for debug
             Block.exportXMLSection(self, section_elem, section_num, section, fname_base)
             return
 
