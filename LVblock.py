@@ -1696,7 +1696,7 @@ class LinkObjRefs(CompleteBlock):
             lnkobj_ident = getRsrcTypeFromPrettyStr(subelem.tag)
             client = LVlinkinfo.newLinkObject(self.vi, section.ident, lnkobj_ident, self.po)
             section.content.append(client)
-            client.initWithXML(list_elem)
+            client.initWithXML(subelem)
         pass
 
     def initWithXMLSectionData(self, section, section_elem):

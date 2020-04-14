@@ -43,9 +43,6 @@ class LinkObjBase:
             self.full_name = " {:s} ".format(self.__doc__.split('\n')[0].strip())
         else:
             self.full_name = ""
-        self.linkSaveQualName = None
-        self.linkSavePathRef = None
-        self.linkSaveFlag = None
 
     def parsePathRef(self, bldata):
         startPos = bldata.tell()
@@ -62,7 +59,10 @@ class LinkObjBase:
         return pathRef
 
     def initWithXMLPathRef(self, pr_elem):
-        clsident = getRsrcTypeFromPrettyStr(pr_elem.tag)
+        clsident = b''
+        clsident_str = pr_elem.get("Ident")
+        if clsident_str is not None:
+            clsident = getRsrcTypeFromPrettyStr(clsident_str)
         if clsident == b'PTH0':
             pathRef = LVclasses.LVPath0(self.vi, self.po)
         elif clsident in (b'PTH1', b'PTH2',):
@@ -83,7 +83,7 @@ class LinkObjBase:
                 else:
                     items.append(b'')
             else:
-                raise AttributeError("QualifiedName contains unexpected tag")
+                raise AttributeError("QualifiedName contains unexpected tag '{}'".format(subelem.tag))
         pass
 
     def exportXMLQualifiedName(self, items, qn_elem):
@@ -144,16 +144,21 @@ class LinkObjBase:
 
     def initWithXMLBasicLinkSaveInfo(self, lnkobj_elem):
         self.clearBasicLinkSaveInfo()
-        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
-        self.linkSaveFlag = int(lnkobj_elem.get("LinkSaveFlag"), 0)
 
-        for i, subelem in enumerate(qn_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        linkSaveFlag = lnkobj_elem.get("LinkSaveFlag")
+        if linkSaveFlag is not None:
+            self.linkSaveFlag = int(linkSaveFlag, 0)
+
+        for i, subelem in enumerate(lnkobj_elem):
             if (subelem.tag == "LinkSaveQualName"):
                 self.initWithXMLQualifiedName(self.linkSaveQualName, subelem)
             elif (subelem.tag == "LinkSavePathRef"):
-                self.initWithXMLPathRef(self.linkSavePathRef, subelem[0])
+                self.linkSavePathRef = self.initWithXMLPathRef(subelem)
             else:
                 pass # No exception here - parent may define more tags
+        if self.linkSavePathRef is None:
+            raise AttributeError("BasicLinkSaveInfo has no LinkSavePathRef in {}".format(self.ident))
         pass
 
     def exportXMLBasicLinkSaveInfo(self, lnkobj_elem, fname_base):
@@ -223,12 +228,18 @@ class LinkObjBase:
         return data_buf
 
     def initWithXMLVILinkRefInfo(self, lnkobj_elem):
-        self.clearBasicLinkSaveInfo()
+        self.clearVILinkRefInfo()
         self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
 
-        self.viLinkLibVersion = int(lnkobj_elem.get("VILinkLibVersion"), 0)
-        self.viLinkFieldA = int(lnkobj_elem.get("VILinkFieldA"), 0)
-        self.viLinkField4 = int(lnkobj_elem.get("VILinkField4"), 0)
+        viLinkLibVersion = lnkobj_elem.get("VILinkLibVersion")
+        if viLinkLibVersion is not None:
+            self.viLinkLibVersion = int(viLinkLibVersion, 0)
+        viLinkFieldA = lnkobj_elem.get("VILinkFieldA")
+        if viLinkFieldA is not None:
+            self.viLinkFieldA = int(viLinkFieldA, 0)
+        viLinkField4 = lnkobj_elem.get("VILinkField4")
+        if viLinkField4 is not None:
+            self.viLinkField4 = int(viLinkField4, 0)
 
         viLinkFieldB = lnkobj_elem.get("VILinkFieldB")
         if viLinkFieldB is not None:
@@ -236,7 +247,9 @@ class LinkObjBase:
         viLinkFieldC = lnkobj_elem.get("VILinkFieldC")
         if viLinkFieldC is not None:
             self.viLinkFieldC = bytes.fromhex(viLinkFieldC)
-        self.viLinkFieldD = int(lnkobj_elem.get("VILinkFieldD"), 0)
+        viLinkFieldD = lnkobj_elem.get("VILinkFieldD")
+        if viLinkFieldD is not None:
+            self.viLinkFieldD = int(viLinkFieldD, 0)
         pass
 
     def exportXMLVILinkRefInfo(self, lnkobj_elem, fname_base):
@@ -251,10 +264,15 @@ class LinkObjBase:
         lnkobj_elem.set("VILinkFieldC", "{:s}".format(self.viLinkFieldC.hex()))
         lnkobj_elem.set("VILinkFieldD", "{:d}".format(self.viLinkFieldD))
 
+    def clearTypedLinkSaveInfo(self):
+        self.clearBasicLinkSaveInfo()
+        self.clearVILinkRefInfo()
+        self.typedLinkFlags = 0
+        self.typedLinkTD = None
+
     def parseTypedLinkSaveInfo(self, bldata):
         ver = self.vi.getFileVersion()
-        self.typedLinkFlags = None
-        self.typedLinkTD = None
+        self.clearTypedLinkSaveInfo()
 
         if isGreaterOrEqVersion(ver, 8,0,0,1):
             self.parseBasicLinkSaveInfo(bldata)
@@ -292,6 +310,39 @@ class LinkObjBase:
               .format(self.ident))
         return data_buf
 
+    def initWithXMLTypedLinkSaveInfo(self, lnkobj_elem):
+        self.clearTypedLinkSaveInfo()
+
+        self.initWithXMLBasicLinkSaveInfo(lnkobj_elem)
+        self.initWithXMLVILinkRefInfo(lnkobj_elem)
+
+        for subelem in lnkobj_elem:
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef",):
+                pass # These tags are parsed elswhere
+            elif (subelem.tag == "TD"):
+                clientTD = SimpleNamespace()
+                clientTD.index = int(subelem.get("TypeId"), 0)
+                clientTD.flags = 0 # Only Type Mapped entries have it non-zero
+                self.typedLinkTD = clientTD
+            else:
+                pass # No exception here - parent may define more tags
+
+        typedLinkFlags = lnkobj_elem.get("TypedLinkFlags")
+        if typedLinkFlags is not None:
+            self.typedLinkFlags = int(typedLinkFlags, 0)
+
+    def exportXMLTypedLinkSaveInfo(self, lnkobj_elem, fname_base):
+
+        self.exportXMLBasicLinkSaveInfo(lnkobj_elem, fname_base)
+        self.exportXMLVILinkRefInfo(lnkobj_elem, fname_base)
+
+        if True:
+            clientTD = self.typedLinkTD
+            subelem = ET.SubElement(lnkobj_elem, "TD")
+            subelem.set("TypeId", "{:d}".format(clientTD.index))
+
+        lnkobj_elem.set("TypedLinkFlags", "{:d}".format(self.typedLinkFlags))
+
     def parseLinkOffsetList(self, bldata):
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         if count > self.po.connector_list_limit:
@@ -310,9 +361,28 @@ class LinkObjBase:
             data_buf += int(offs).to_bytes(4, byteorder='big', signed=False)
         return data_buf
 
+    def initWithXMLLinkOffsetList(self, ol_elem):
+        offsetList = []
+        for subelem in ol_elem:
+            if (subelem.tag == "Offset"):
+                offs = int(subelem.text,0)
+                offsetList.append(offs)
+            else:
+                raise AttributeError("LinkOffsetList contains unexpected tag '{}'".format(subelem.tag))
+        return offsetList
+
+    def exportXMLLinkOffsetList(self, items, ol_elem):
+        for offs in items:
+            subelem = ET.SubElement(ol_elem,"Offset")
+            subelem.text = "0x{:04X}".format(offs)
+        pass
+
+    def clearOffsetLinkSaveInfo(self):
+        self.offsetList = []
+
     def parseOffsetLinkSaveInfo(self, bldata):
         ver = self.vi.getFileVersion()
-        self.offsetList = []
+        self.clearOffsetLinkSaveInfo()
 
         self.parseTypedLinkSaveInfo(bldata)
 
@@ -330,18 +400,38 @@ class LinkObjBase:
             data_buf += self.prepareLinkOffsetList(self.offsetList, start_offs+len(data_buf))
         return data_buf
 
+    def initWithXMLOffsetLinkSaveInfo(self, lnkobj_elem):
+        self.clearOffsetLinkSaveInfo()
+
+        self.initWithXMLTypedLinkSaveInfo(lnkobj_elem)
+        for subelem in lnkobj_elem:
+            if (subelem.tag == "LinkOffsetList"):
+                self.offsetList = self.initWithXMLLinkOffsetList(subelem)
+            else:
+                pass # No exception here - parent may define more tags
+        pass
+
+    def exportXMLOffsetLinkSaveInfo(self, lnkobj_elem, fname_base):
+        self.exportXMLTypedLinkSaveInfo(lnkobj_elem, fname_base)
+
+        subelem = ET.SubElement(lnkobj_elem, "LinkOffsetList")
+        self.exportXMLLinkOffsetList(self.offsetList, subelem)
+
+    def clearHeapToVILinkSaveInfo(self):
+        self.viLSPathRef = None
+
     def parseHeapToVILinkSaveInfo(self, bldata):
         ver = self.vi.getFileVersion()
-        self.pathRef2 = None
+        self.clearHeapToVILinkSaveInfo()
 
         self.parseOffsetLinkSaveInfo(bldata)
 
         if isGreaterOrEqVersion(ver, 8,2,0,3):
-            self.pathRef2 = self.parsePathRef(bldata)
+            self.viLSPathRef = self.parsePathRef(bldata)
 
         if (self.po.verbose > 2):
             print("{:s} {} content: {} {} {}"\
-              .format(type(self).__name__, self.ident, self.linkSavePathRef, self.offsetList, self.pathRef2))
+              .format(type(self).__name__, self.ident, self.linkSavePathRef, self.offsetList, self.viLSPathRef))
         pass
 
     def prepareHeapToVILinkSaveInfo(self, start_offs):
@@ -351,14 +441,36 @@ class LinkObjBase:
         data_buf += self.prepareOffsetLinkSaveInfo(start_offs+len(data_buf))
 
         if isGreaterOrEqVersion(ver, 8,2,0,3):
-            data_buf += self.pathRef2.prepareRSRCData()
+            data_buf += self.viLSPathRef.prepareRSRCData()
         return data_buf
 
-    def parseUDClassAPILinkCache(self, bldata):
-        ver = self.vi.getFileVersion()
+    def initWithXMLHeapToVILinkSaveInfo(self, lnkobj_elem):
+        self.clearHeapToVILinkSaveInfo()
+
+        self.initWithXMLOffsetLinkSaveInfo(lnkobj_elem)
+        for subelem in lnkobj_elem:
+            if (subelem.tag == "VILSPathRef"):
+                self.viLSPathRef = self.initWithXMLPathRef(subelem)
+            else:
+                pass # No exception here - parent may define more tags
+        pass
+
+    def exportXMLHeapToVILinkSaveInfo(self, lnkobj_elem, fname_base):
+        self.exportXMLOffsetLinkSaveInfo(lnkobj_elem, fname_base)
+
+        subelem = ET.SubElement(lnkobj_elem,"VILSPathRef")
+        self.viLSPathRef.exportXML(subelem, fname_base)
+
+    def clearUDClassAPILinkCache(self):
         self.apiLinkLibVersion = 0
         self.apiLinkIsInternal = 0
         self.apiLinkBool2 = 1
+        self.apiLinkCallParentNodes = 0
+        self.apiLinkContent = b''
+
+    def parseUDClassAPILinkCache(self, bldata):
+        ver = self.vi.getFileVersion()
+        self.clearUDClassAPILinkCache()
 
         if (bldata.tell() % 4) > 0:
             bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
@@ -408,7 +520,38 @@ class LinkObjBase:
         data_buf += prepareLStr(self.apiLinkContent, 1, self.po)
         return data_buf
 
+    def initWithXMLUDClassAPILinkCache(self, lnkobj_elem):
+        self.clearUDClassAPILinkCache()
+
+        self.apiLinkLibVersion = int(lnkobj_elem.get("APILinkLibVersion"), 0)
+        self.apiLinkIsInternal = int(lnkobj_elem.get("APILinkIsInternal"), 0)
+        self.apiLinkBool2 = int(lnkobj_elem.get("APILinkBool2"), 0)
+        self.apiLinkCallParentNodes = int(lnkobj_elem.get("APILinkCallParentNodes"), 0)
+
+        for subelem in lnkobj_elem:
+            if (subelem.tag == "APILinkContent"):
+                if subelem.text is not None:
+                    elem_text = ET.unescape_safe_store_element_text(subelem.text)
+                    self.apiLinkContent = elem_text.encode(self.vi.textEncoding)
+                else:
+                    self.apiLinkContent = b''
+            else:
+                pass # No exception here - parent may define more tags
+        pass
+
+    def exportXMLUDClassAPILinkCache(self, lnkobj_elem, fname_base):
+        lnkobj_elem.set("APILinkLibVersion", "{:d}".format(self.apiLinkLibVersion))
+        lnkobj_elem.set("APILinkIsInternal", "{:d}".format(self.apiLinkIsInternal))
+        lnkobj_elem.set("APILinkBool2", "{:d}".format(self.apiLinkBool2))
+        lnkobj_elem.set("APILinkCallParentNodes", "{:d}".format(self.apiLinkCallParentNodes))
+
+        subelem = ET.SubElement(lnkobj_elem,"APILinkContent")
+        name_text = self.viLSPathRef.decode(self.vi.textEncoding)
+        ET.safe_store_element_text(subelem, name_text)
+
     def parseUDClassHeapAPISaveInfo(self, bldata):
+        self.clearBasicLinkSaveInfo()
+        self.clearUDClassAPILinkCache()
         ver = self.vi.getFileVersion()
 
         if isGreaterOrEqVersion(ver, 8,0,0,3):
@@ -452,6 +595,35 @@ class LinkObjBase:
         # Not sure if that list is OffsetList, but has the same structure
         data_buf += self.prepareLinkOffsetList(self.apiLinkCacheList, start_offs+len(data_buf))
         return data_buf
+
+    def initWithXMLUDClassHeapAPISaveInfo(self, lnkobj_elem):
+        self.clearBasicLinkSaveInfo()
+        self.clearUDClassAPILinkCache()
+
+        if isGreaterOrEqVersion(ver, 8,0,0,3):
+            self.initWithXMLBasicLinkSaveInfo(lnkobj_elem)
+            self.initWithXMLUDClassAPILinkCache(lnkobj_elem)
+        else:
+            self.initWithXMLBasicLinkSaveInfo(lnkobj_elem)
+
+        for subelem in lnkobj_elem:
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef",):
+                pass # These tags are parsed elswhere
+            elif (subelem.tag == "APILinkCacheList"):
+                self.apiLinkCacheList = self.initWithXMLLinkOffsetList(subelem)
+            else:
+                raise AttributeError("UDClassHeapAPISaveInfo contains unexpected tag '{}'".format(subelem.tag))
+        pass
+
+    def exportXMLUDClassHeapAPISaveInfo(self, lnkobj_elem, fname_base):
+        if isGreaterOrEqVersion(ver, 8,0,0,3):
+            self.exportXMLBasicLinkSaveInfo(lnkobj_elem, fname_base)
+            self.exportXMLUDClassAPILinkCache(lnkobj_elem, fname_base)
+        else:
+            self.exportXMLBasicLinkSaveInfo(lnkobj_elem, fname_base)
+
+        subelem = ET.SubElement(lnkobj_elem, "APILinkCacheList")
+        self.exportXMLLinkOffsetList(self.apiLinkCacheList, subelem)
 
     def parseRSRCData(self, bldata):
         """ Parses binary data chunk from RSRC file.
@@ -819,7 +991,6 @@ class LinkObjUDClassDDOToUDClassAPILink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
-        self.content = []
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
@@ -832,19 +1003,11 @@ class LinkObjUDClassDDOToUDClassAPILink(LinkObjBase):
         data_buf += self.prepareUDClassHeapAPISaveInfo(start_offs+len(data_buf))
         return data_buf
 
+    def initWithXML(self, lnkobj_elem):
+        self.initWithXMLUDClassHeapAPISaveInfo(lnkobj_elem)
+
     def exportXML(self, lnkobj_elem, fname_base):
-        pretty_ident = getPrettyStrFromRsrcType(self.ident)
-        lnkobj_elem.tag = pretty_ident
-        for client in self.content:
-            if isinstance(client, LVclasses.LVObject):#TODO is this condition needed?
-                subelem = ET.SubElement(lnkobj_elem,"RefObject")
-                client.exportXML(subelem, fname_base)
-            else:
-                subelem = ET.SubElement(lnkobj_elem,"LOObject")
-                client.exportXML(subelem, fname_base)
-        raise NotImplementedError("LinkObj {} export not fully implemented"\
-          .format(self.ident))
-        pass
+        self.exportXMLUDClassHeapAPISaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjDDODefaultDataToUDClassAPILink(LinkObjBase):
@@ -852,7 +1015,6 @@ class LinkObjDDODefaultDataToUDClassAPILink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
-        self.content = []
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
@@ -865,19 +1027,11 @@ class LinkObjDDODefaultDataToUDClassAPILink(LinkObjBase):
         data_buf += self.prepareUDClassHeapAPISaveInfo(start_offs+len(data_buf))
         return data_buf
 
+    def initWithXML(self, lnkobj_elem):
+        self.initWithXMLUDClassHeapAPISaveInfo(lnkobj_elem)
+
     def exportXML(self, lnkobj_elem, fname_base):
-        pretty_ident = getPrettyStrFromRsrcType(self.ident)
-        lnkobj_elem.tag = pretty_ident
-        for client in self.content:
-            if isinstance(client, LVclasses.LVObject):#TODO is this condition needed?
-                subelem = ET.SubElement(lnkobj_elem,"RefObject")
-                client.exportXML(subelem, fname_base)
-            else:
-                subelem = ET.SubElement(lnkobj_elem,"LOObject")
-                client.exportXML(subelem, fname_base)
-        raise NotImplementedError("LinkObj {} export not fully implemented"\
-          .format(self.ident))
-        pass
+        self.exportXMLUDClassHeapAPISaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjHeapObjToUDClassAPILink(LinkObjBase):
@@ -1149,12 +1303,13 @@ class LinkObjIUseToVILink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
-        self.pathRef2 = None
+        self.clearHeapToVILinkSaveInfo()
         self.iuseStr = b''
 
     def parseRSRCData(self, bldata):
         ver = self.vi.getFileVersion()
-        self.pathRef2 = None
+        self.clearHeapToVILinkSaveInfo()
+        self.iuseStr = b''
 
         self.ident = bldata.read(4)
 
@@ -1183,23 +1338,36 @@ class LinkObjIUseToVILink(LinkObjBase):
         return data_buf
 
     def initWithXML(self, lnkobj_elem):
-        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
-        raise NotImplementedError("LinkObj {} XML import not fully implemented"\
-          .format(self.ident))
+        self.clearHeapToVILinkSaveInfo()
+        self.iuseStr = b''
+
+        self.initWithXMLHeapToVILinkSaveInfo(lnkobj_elem)
+
+        for subelem in lnkobj_elem:
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","LinkOffsetList","TD","VILSPathRef",):
+                pass # These tags are parsed elswhere
+            elif (subelem.tag == "IUseStr"):
+                if subelem.text is not None:
+                    elem_text = ET.unescape_safe_store_element_text(subelem.text)
+                    self.iuseStr = elem_text.encode(self.vi.textEncoding)
+                else:
+                    self.iuseStr = b''
+            else:
+                raise AttributeError("LinkObjIUseToVILink contains unexpected tag '{}'".format(subelem.tag))
         pass
 
     def exportXML(self, lnkobj_elem, fname_base):
-        pretty_ident = getPrettyStrFromRsrcType(self.ident)
-        lnkobj_elem.tag = pretty_ident
-        for client in self.content:
-            if isinstance(client, LVclasses.LVObject):#TODO is this condition needed?
-                subelem = ET.SubElement(lnkobj_elem,"RefObject")
-                client.exportXML(subelem, fname_base)
-            else:
-                subelem = ET.SubElement(lnkobj_elem,"LOObject")
-                client.exportXML(subelem, fname_base)
-        raise NotImplementedError("LinkObj {} XML export not fully implemented"\
-          .format(self.ident))
+        ver = self.vi.getFileVersion()
+
+        if isGreaterOrEqVersion(ver, 8,2,0,3):
+            self.exportXMLHeapToVILinkSaveInfo(lnkobj_elem, fname_base)
+        else:
+            self.exportXMLOffsetLinkSaveInfo(lnkobj_elem, fname_base)
+
+        if True:
+            subelem = ET.SubElement(lnkobj_elem,"IUseStr")
+            name_text = self.iuseStr.decode(self.vi.textEncoding)
+            ET.safe_store_element_text(subelem, name_text)
         pass
 
 
@@ -1208,12 +1376,12 @@ class LinkObjPIUseToPolyLink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
-        self.pathRef2 = None
+        self.viLSPathRef = None
         self.iuseStr = b''
 
     def parseRSRCData(self, bldata):
         ver = self.vi.getFileVersion()
-        self.pathRef2 = None
+        self.viLSPathRef = None
 
         self.ident = bldata.read(4)
 
