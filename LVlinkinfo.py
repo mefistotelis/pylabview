@@ -145,7 +145,6 @@ class LinkObjBase:
     def initWithXMLBasicLinkSaveInfo(self, lnkobj_elem):
         self.clearBasicLinkSaveInfo()
 
-        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
         linkSaveFlag = lnkobj_elem.get("LinkSaveFlag")
         if linkSaveFlag is not None:
             self.linkSaveFlag = int(linkSaveFlag, 0)
@@ -229,7 +228,6 @@ class LinkObjBase:
 
     def initWithXMLVILinkRefInfo(self, lnkobj_elem):
         self.clearVILinkRefInfo()
-        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
 
         viLinkLibVersion = lnkobj_elem.get("VILinkLibVersion")
         if viLinkLibVersion is not None:
@@ -884,6 +882,7 @@ class LinkObjTypeDefToCCLink(LinkObjBase):
         self.clearHeapToVILinkSaveInfo()
 
     def parseRSRCData(self, bldata):
+        self.ident = bldata.read(4)
         self.parseHeapToVILinkSaveInfo(bldata)
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -894,6 +893,7 @@ class LinkObjTypeDefToCCLink(LinkObjBase):
         return data_buf
 
     def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
         self.initWithXMLHeapToVILinkSaveInfo(lnkobj_elem)
 
     def exportXML(self, lnkobj_elem, fname_base):
@@ -1014,6 +1014,7 @@ class LinkObjUDClassDDOToUDClassAPILink(LinkObjBase):
         return data_buf
 
     def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
         self.initWithXMLUDClassHeapAPISaveInfo(lnkobj_elem)
 
     def exportXML(self, lnkobj_elem, fname_base):
@@ -1038,6 +1039,7 @@ class LinkObjDDODefaultDataToUDClassAPILink(LinkObjBase):
         return data_buf
 
     def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
         self.initWithXMLUDClassHeapAPISaveInfo(lnkobj_elem)
 
     def exportXML(self, lnkobj_elem, fname_base):
@@ -1351,6 +1353,7 @@ class LinkObjIUseToVILink(LinkObjBase):
         self.clearHeapToVILinkSaveInfo()
         self.iuseStr = b''
 
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
         self.initWithXMLHeapToVILinkSaveInfo(lnkobj_elem)
 
         for subelem in lnkobj_elem:
