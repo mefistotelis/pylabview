@@ -672,16 +672,29 @@ class LinkObjBase:
         return ret
 
 
-class LinkObjInstncVIToNamspcrVI(LinkObjBase):
-    """ InstanceVI To NamespacerVI Object Ref
+class LinkObjInstanceVIToOwnerVI(LinkObjBase):
+    """ InstanceVI To OwnerVI Object Ref
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearBasicLinkSaveInfo()
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseBasicLinkSaveInfo(bldata)
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareBasicLinkSaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLBasicLinkSaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLBasicLinkSaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjHeapToAssembly(LinkObjBase):
@@ -1447,11 +1460,53 @@ class LinkObjNonVINonHeapToTypedefLink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearBasicLinkSaveInfo()
+        self.typedLinkTD = None
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.typedLinkTD = None
+        self.parseBasicLinkSaveInfo(bldata)
+
+        if True:
+            clientTD = SimpleNamespace()
+            clientTD.index = readVariableSizeFieldU2p2(bldata)
+            clientTD.flags = 0 # Only Type Mapped entries have it non-zero
+            self.typedLinkTD = clientTD
+        pass
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareBasicLinkSaveInfo(start_offs+len(data_buf))
+        if True:
+            clientTD = self.typedLinkTD
+            data_buf += prepareVariableSizeFieldU2p2(clientTD.index)
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.typedLinkTD = None
+        self.initWithXMLBasicLinkSaveInfo(lnkobj_elem)
+
+        for subelem in lnkobj_elem:
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef",):
+                pass # These tags are parsed elswhere
+            elif (subelem.tag == "TD"):
+                clientTD = SimpleNamespace()
+                clientTD.index = int(subelem.get("TypeId"), 0)
+                clientTD.flags = 0 # Only Type Mapped entries have it non-zero
+                self.typedLinkTD = clientTD
+            else:
+                pass # No exception here - parent may define more tags
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLBasicLinkSaveInfo(lnkobj_elem, fname_base)
+        if True:
+            clientTD = self.typedLinkTD
+            subelem = ET.SubElement(lnkobj_elem, "TD")
+            subelem.set("TypeId", "{:d}".format(clientTD.index))
+        pass
 
 
 class LinkObjCCSymbolLink(LinkObjBase):
@@ -1459,11 +1514,49 @@ class LinkObjCCSymbolLink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearBasicLinkSaveInfo()
+        self.symbolLinkContent = b''
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
+        self.symbolLinkContent = b''
+        self.parseBasicLinkSaveInfo(bldata)
+        self.symbolLinkContent = readLStr(bldata, 1, self.po)
+        #TODO read StringTD, then bool
+        raise NotImplementedError("LinkObj {} parsing not fully implemented"\
           .format(self.ident))
+        pass
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareBasicLinkSaveInfo(start_offs+len(data_buf))
+        data_buf += prepareLStr(self.symbolLinkContent, 1, self.po)
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.symbolLinkContent = b''
+        self.initWithXMLBasicLinkSaveInfo(lnkobj_elem)
+
+        for subelem in lnkobj_elem:
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef",):
+                pass # These tags are parsed elswhere
+            elif (subelem.tag == "SymbolLinkContent"):
+                if subelem.text is not None:
+                    elem_text = ET.unescape_safe_store_element_text(subelem.text)
+                    self.symbolLinkContent = elem_text.encode(self.vi.textEncoding)
+                else:
+                    self.symbolLinkContent = b''
+            else:
+                pass # No exception here - parent may define more tags
+        pass
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLBasicLinkSaveInfo(lnkobj_elem, fname_base)
+        subelem = ET.SubElement(lnkobj_elem,"SymbolLinkContent")
+        name_text = self.symbolLinkContent.decode(self.vi.textEncoding)
+        ET.safe_store_element_text(subelem, name_text)
 
 
 class LinkObjHeapNamedLink(LinkObjBase):
@@ -2280,7 +2373,7 @@ def newLinkObject(vi, list_ident, ident, po):
     """ Calls proper constructor to create link object.
     """
     if ident in (b'IVOV',):
-        ctor = LinkObjInstncVIToNamspcrVI
+        ctor = LinkObjInstanceVIToOwnerVI
     elif ident in (b'DNDA',):
         ctor = LinkObjHeapToAssembly
     elif ident in (b'DNVA',):
