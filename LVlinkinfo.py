@@ -640,6 +640,94 @@ class LinkObjBase:
         subelem = ET.SubElement(lnkobj_elem, "APILinkCacheList")
         self.exportXMLLinkOffsetList(self.apiLinkCacheList, subelem)
 
+    def clearGILinkSaveInfo(self):
+        self.clearBasicLinkSaveInfo()
+        self.clearOffsetLinkSaveInfo()
+        self.giLinkProp1 = 0
+        self.giLinkProp2 = 0
+        self.giLinkProp3 = 0
+        self.giLinkProp4 = 0
+        self.giLinkProp5 = 0
+
+    def parseGILinkSaveInfo(self, bldata):
+        self.clearGILinkSaveInfo()
+        ver = self.vi.getFileVersion()
+
+        if isGreaterOrEqVersion(ver, 8,0,0,2):
+            self.parseBasicLinkSaveInfo(bldata)
+        else:
+            self.parseOffsetLinkSaveInfo(bldata)
+
+        self.giLinkProp1 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        self.giLinkProp2 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        self.giLinkProp3 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        self.giLinkProp4 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        self.giLinkProp5 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+        if (self.po.verbose > 2):
+            print("{:s} {} content: {} {} {}"\
+              .format(type(self).__name__, self.ident, self.linkSavePathRef, self.offsetList, self.giLinkProp5))
+        pass
+
+    def prepareGILinkSaveInfo(self, start_offs):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+
+        if (self.po.verbose > 2):
+            print("{:s} {} content: {} {} {}"\
+              .format(type(self).__name__, self.ident, self.linkSavePathRef, self.offsetList, self.giLinkProp5))
+
+        if isGreaterOrEqVersion(ver, 8,0,0,2):
+            data_buf += self.prepareBasicLinkSaveInfo(start_offs+len(data_buf))
+        else:
+            data_buf += self.prepareOffsetLinkSaveInfo(start_offs+len(data_buf))
+
+        data_buf += int(self.giLinkProp1).to_bytes(2, byteorder='big', signed=False)
+        data_buf += int(self.giLinkProp2).to_bytes(2, byteorder='big', signed=False)
+        data_buf += int(self.giLinkProp3).to_bytes(2, byteorder='big', signed=False)
+        data_buf += int(self.giLinkProp4).to_bytes(2, byteorder='big', signed=False)
+        data_buf += int(self.giLinkProp5).to_bytes(4, byteorder='big', signed=False)
+        return data_buf
+
+    def initWithXMLGILinkSaveInfo(self, lnkobj_elem):
+        self.clearGILinkSaveInfo()
+
+        hasLinkSave = False
+        hasLinkOffset = False
+        for subelem in lnkobj_elem:
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef",):
+                hasLinkSave = True
+            elif (subelem.tag == "LinkOffsetList"):
+                hasLinkOffset = True
+            else:
+                raise AttributeError("GILinkSaveInfo contains unexpected tag '{}'".format(subelem.tag))
+        pass
+        if hasLinkSave:
+            self.initWithXMLBasicLinkSaveInfo(lnkobj_elem)
+        if hasLinkOffset:
+            self.initWithXMLOffsetLinkSaveInfo(lnkobj_elem)
+
+        self.giLinkProp1 = int(lnkobj_elem.get("GILinkProp1"), 0)
+        self.giLinkProp2 = int(lnkobj_elem.get("GILinkProp2"), 0)
+        self.giLinkProp3 = int(lnkobj_elem.get("GILinkProp3"), 0)
+        self.giLinkProp4 = int(lnkobj_elem.get("GILinkProp4"), 0)
+        self.giLinkProp5 = int(lnkobj_elem.get("GILinkProp5"), 0)
+        pass
+
+    def exportXMLGILinkSaveInfo(self, lnkobj_elem, fname_base):
+        ver = self.vi.getFileVersion()
+
+        if isGreaterOrEqVersion(ver, 8,0,0,2):
+            self.exportXMLBasicLinkSaveInfo(lnkobj_elem, fname_base)
+        else:
+            self.exportXMLOffsetLinkSaveInfo(lnkobj_elem, fname_base)
+
+        lnkobj_elem.set("GILinkProp1", "{:d}".format(self.giLinkProp1))
+        lnkobj_elem.set("GILinkProp2", "{:d}".format(self.giLinkProp2))
+        lnkobj_elem.set("GILinkProp3", "{:d}".format(self.giLinkProp3))
+        lnkobj_elem.set("GILinkProp4", "{:d}".format(self.giLinkProp4))
+        lnkobj_elem.set("GILinkProp5", "{:d}".format(self.giLinkProp5))
+
     def parseRSRCData(self, bldata):
         """ Parses binary data chunk from RSRC file.
 
@@ -1026,12 +1114,14 @@ class LinkObjVIToMSLink(LinkObjBase):
         super().__init__(*args)
         self.clearBasicLinkSaveInfo()
         self.msLinkProp1 = 0
+        self.msLinkQualName = []
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
         self.parseBasicLinkSaveInfo(bldata)
         self.msLinkProp1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        #TODO QualifiedName, Path and the rest after - parse
+        self.msLinkQualName = readQualifiedName(bldata, self.po)
+        #TODO Path and the rest after - parse
         raise NotImplementedError("LinkObj {} parsing not fully implemented"\
           .format(self.ident))
         pass
@@ -1041,17 +1131,27 @@ class LinkObjVIToMSLink(LinkObjBase):
         data_buf += self.ident[:4]
         data_buf += self.prepareBasicLinkSaveInfo(start_offs+len(data_buf))
         data_buf += int(self.msLinkProp1).to_bytes(4, byteorder='big', signed=False)
+        data_buf += prepareQualifiedName(self.msLinkQualName, self.po)
         return data_buf
 
     def initWithXML(self, lnkobj_elem):
         self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
         self.initWithXMLBasicLinkSaveInfo(lnkobj_elem)
         self.msLinkProp1 = int(lnkobj_elem.get("MSLinkProp1"), 0)
+        for subelem in lnkobj_elem:
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef",):
+                pass # These tags are parsed elswhere
+            elif (subelem.tag == "MSLinkQualName"):
+                self.initWithXMLQualifiedName(self.msLinkQualName, subelem)
+            else:
+                pass # No exception here - parent may define more tags
         pass
 
     def exportXML(self, lnkobj_elem, fname_base):
         self.exportXMLBasicLinkSaveInfo(lnkobj_elem, fname_base)
         lnkobj_elem.set("MSLinkProp1", "{:d}".format(self.msLinkProp1))
+        subelem = ET.SubElement(lnkobj_elem,"MSLinkQualName")
+        self.exportXMLQualifiedName(self.msLinkQualName, subelem)
 
 
 class LinkObjTypeDefToCCLink(LinkObjBase):
@@ -1108,11 +1208,24 @@ class LinkObjVIToXCtlInterface(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearGILinkSaveInfo()
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseGILinkSaveInfo(bldata)
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareGILinkSaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLGILinkSaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLGILinkSaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjVIToXNodeInterface(LinkObjBase):
@@ -1120,11 +1233,24 @@ class LinkObjVIToXNodeInterface(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearGILinkSaveInfo()
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseGILinkSaveInfo(bldata)
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareGILinkSaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLGILinkSaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLGILinkSaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjVIToXNodeProjectItemLink(LinkObjBase):
