@@ -1585,11 +1585,56 @@ class LinkObjDSToDSLink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearOffsetLinkSaveInfo()
+        self.dsOffsetList = []
 
     def parseRSRCData(self, bldata):
+        ver = self.vi.getFileVersion()
+        self.clearOffsetLinkSaveInfo()
+        self.dsOffsetList = []
+
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseOffsetLinkSaveInfo(bldata)
+
+        if isGreaterOrEqVersion(ver, 8,6,0,2):
+            self.dsOffsetList = self.parseLinkOffsetList(bldata)
+        pass
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+
+        data_buf += self.ident[:4]
+        data_buf += self.prepareOffsetLinkSaveInfo(start_offs+len(data_buf))
+
+        if isGreaterOrEqVersion(ver, 8,6,0,2):
+            data_buf += self.prepareLinkOffsetList(self.dsOffsetList, start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.clearOffsetLinkSaveInfo()
+        self.dsOffsetList = []
+
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLOffsetLinkSaveInfo(lnkobj_elem)
+
+        for subelem in lnkobj_elem:
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","LinkOffsetList","TD",):
+                pass # These tags are parsed elswhere
+            elif (subelem.tag == "DSOffsetList"):
+                self.dsOffsetList = self.initWithXMLLinkOffsetList(subelem)
+            else:
+                raise AttributeError("LinkObjDSToDSLink contains unexpected tag '{}'".format(subelem.tag))
+        pass
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        ver = self.vi.getFileVersion()
+
+        self.exportXMLOffsetLinkSaveInfo(lnkobj_elem, fname_base)
+
+        subelem = ET.SubElement(lnkobj_elem, "DSOffsetList")
+        self.exportXMLLinkOffsetList(self.dsOffsetList, subelem)
+        pass
 
 
 class LinkObjDSToExtFuncLink(LinkObjBase):
