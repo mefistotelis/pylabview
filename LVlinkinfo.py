@@ -876,6 +876,7 @@ class LinkObjBase:
         Receives ElementTree branch starting at tag associated with the link object.
         Sets the XML attributes, using properties from self.
         """
+        # Setting the tag is actually redundant - the caller should do that
         pretty_ident = getPrettyStrFromRsrcType(self.ident)
         lnkobj_elem.tag = pretty_ident
         raise NotImplementedError("LinkObj {} XML export not implemented"\
@@ -1270,6 +1271,7 @@ class LinkObjTypeDefToCCLink(LinkObjBase):
         self.clearHeapToVILinkSaveInfo()
 
     def parseRSRCData(self, bldata):
+        self.clearHeapToVILinkSaveInfo()
         self.ident = bldata.read(4)
         self.parseHeapToVILinkSaveInfo(bldata)
 
@@ -1280,6 +1282,7 @@ class LinkObjTypeDefToCCLink(LinkObjBase):
         return data_buf
 
     def initWithXML(self, lnkobj_elem):
+        self.clearHeapToVILinkSaveInfo()
         self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
         self.initWithXMLHeapToVILinkSaveInfo(lnkobj_elem)
 
@@ -1873,43 +1876,27 @@ class LinkObjPIUseToPolyLink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
-        self.viLSPathRef = None
-        self.iuseStr = b''
+        self.clearHeapToVILinkSaveInfo()
 
     def parseRSRCData(self, bldata):
-        ver = self.vi.getFileVersion()
-        self.viLSPathRef = None
+        self.clearHeapToVILinkSaveInfo()
 
         self.ident = bldata.read(4)
+        self.parseHeapToVILinkSaveInfo(bldata)
 
-        if isGreaterOrEqVersion(ver, 8,2,0,3):
-            self.parseHeapToVILinkSaveInfo(bldata)
-        else:
-            self.parseOffsetLinkSaveInfo(bldata)
-
-        if isGreaterOrEqVersion(ver, 8,0,0,1):
-            self.iuseStr = readPStr(bldata, 2, self.po)
-        pass
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareHeapToVILinkSaveInfo(start_offs+len(data_buf))
+        return data_buf
 
     def initWithXML(self, lnkobj_elem):
+        self.clearHeapToVILinkSaveInfo()
         self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
-        raise NotImplementedError("LinkObj {} XML import not fully implemented"\
-          .format(self.ident))
-        pass
+        self.initWithXMLHeapToVILinkSaveInfo(lnkobj_elem)
 
     def exportXML(self, lnkobj_elem, fname_base):
-        pretty_ident = getPrettyStrFromRsrcType(self.ident)
-        lnkobj_elem.tag = pretty_ident
-        for client in self.content:
-            if isinstance(client, LVclasses.LVObject):#TODO is this condition needed?
-                subelem = ET.SubElement(lnkobj_elem,"RefObject")
-                client.exportXML(subelem, fname_base)
-            else:
-                subelem = ET.SubElement(lnkobj_elem,"LOObject")
-                client.exportXML(subelem, fname_base)
-        raise NotImplementedError("LinkObj {} XML export not fully implemented"\
-          .format(self.ident))
-        pass
+        self.exportXMLHeapToVILinkSaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjNonVINonHeapToTypedefLink(LinkObjBase):
@@ -2146,18 +2133,6 @@ class LinkObjNodeToEFLink(LinkObjBase):
 
 class LinkObjHeapToVILink(LinkObjBase):
     """ Heap To VI Link Object Ref
-    """
-    def __init__(self, *args):
-        super().__init__(*args)
-
-    def parseRSRCData(self, bldata):
-        self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
-
-
-class LinkObjPIUseToPolyLink(LinkObjBase):
-    """ PIUse To Poly Link Object Ref
     """
     def __init__(self, *args):
         super().__init__(*args)
