@@ -4096,11 +4096,32 @@ class VCTP(CompleteBlock):
         return clientTD.nested
 
 
-class VICD(VarCodingBlock):
+class VICD(CompleteBlock):
     """ Virtual Instrument Compiled Data / VI Code
     """
     def createSection(self):
         section = super().createSection()
+        # Properties at beginning
+        section.initProcOffset = 0
+        section.codeID = b''
+        section.pTabOffset = 0
+        section.codeFlags = 0
+        section.version = 0
+        section.verifier = b''
+        section.lastNumberOfBasicBlocks = 0
+        section.lastCompilerOptimizationLevel = 0
+        section.hostCodeEntryVI = 0
+        section.codeEndOffset = 0
+        section.signatureName = 0
+        # The actual code
+        section.content = b''
+        # Properties at end
+        section.endVerifier = b''
+        section.endProp1 = 0
+        section.endSignatureName = 0
+        section.endLocalLVRTCodeBlocks = 0
+        section.endCodeEndOffset = 0
+        section.endProp5 = 0
         return section
 
     def setDefaultEncoding(self):
@@ -4110,6 +4131,83 @@ class VICD(VarCodingBlock):
             self.default_block_coding = BLOCK_CODING.ZLIB
         else:
             self.default_block_coding = BLOCK_CODING.NONE
+
+    def parseRSRCSectionData(self, section_num, bldata):
+        section = self.sections[section_num]
+
+        headStartPos = bldata.tell()
+        initProcOffset = bldata.read(4)
+        section.codeID = bldata.read(4)
+        archDependLen = 8 if self.isX64(section_num) else 4
+        archEndianness = 'little' if self.isLE(section_num) else 'big'
+        section.initProcOffset = int.from_bytes(initProcOffset, byteorder=archEndianness, signed=False)
+        section.pTabOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+        section.codeFlags = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+        section.version = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        section.verifier = bldata.read(4)
+        section.lastNumberOfBasicBlocks = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+        section.lastCompilerOptimizationLevel = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+        section.hostCodeEntryVI = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+        section.codeEndOffset = int.from_bytes(bldata.read(archDependLen), byteorder=archEndianness, signed=False)
+        section.signatureName = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+        headLen = bldata.tell() - headStartPos
+        section.content = bldata.read(section.codeEndOffset - headLen)
+
+        section.endVerifier = bldata.read(4)
+        section.endProp1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        section.endSignatureName = int.from_bytes(bldata.read(archDependLen), byteorder='big', signed=False)
+        section.endLocalLVRTCodeBlocks = int.from_bytes(bldata.read(archDependLen), byteorder='big', signed=False)
+        section.endCodeEndOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+        section.endProp5 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+        raise NotImplementedError("Parsing the block is not included in this branch")
+
+    def checkSanity(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+
+        ret = True
+        if section.initProcOffset >= section.pTabOffset:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: InitProcOffset 0x{:X} exceeds PTabOffset 0x{:X}"\
+                  .format(self.vi.src_fname, section.initProcOffset, section.pTabOffset))
+            ret = False
+        if section.pTabOffset >= section.codeEndOffset:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: PTabOffset 0x{:X} exceeds CodeEndOffset 0x{:X}"\
+                  .format(self.vi.src_fname, section.pTabOffset, section.codeEndOffset))
+            ret = False
+        if section.codeEndOffset != section.endCodeEndOffset:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Copies of CodeEndOffset are different (0x{:X} and 0x{:X})"\
+                  .format(self.vi.src_fname, section.codeEndOffset, section.endCodeEndOffset))
+            ret = False
+        if section.verifier not in (b'code',):
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: Verifier property {} is not known"\
+                  .format(self.vi.src_fname, section.verifier))
+            ret = False
+        if section.endVerifier not in (b'CODE',):
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: EndVerifier property {} is not known"\
+                  .format(self.vi.src_fname, section.endVerifier))
+            ret = False
+        return ret
+
+    def isX64(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+        return ( section.codeID in (b'wx64', b'ux64', b'mx64',) )
+
+    def isLE(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+        return ( section.codeID in (b'i386', b'wx64', b'ux86', b'ux64',\
+          b'm386', b'mx64', b'PWNT', b'axwn', b'axlx', b'axdu', b'ARM ',) )
 
 
 class VITS(CompleteBlock):
