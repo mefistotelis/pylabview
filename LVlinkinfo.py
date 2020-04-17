@@ -394,6 +394,7 @@ class LinkObjBase:
         pass
 
     def clearOffsetLinkSaveInfo(self):
+        self.clearTypedLinkSaveInfo()
         self.offsetList = []
 
     def parseOffsetLinkSaveInfo(self, bldata):
@@ -701,7 +702,6 @@ class LinkObjBase:
                 hasLinkOffset = True
             else:
                 raise AttributeError("GILinkSaveInfo contains unexpected tag '{}'".format(subelem.tag))
-        pass
         if hasLinkSave:
             self.initWithXMLBasicLinkSaveInfo(lnkobj_elem)
         if hasLinkOffset:
@@ -727,6 +727,114 @@ class LinkObjBase:
         lnkobj_elem.set("GILinkProp3", "{:d}".format(self.giLinkProp3))
         lnkobj_elem.set("GILinkProp4", "{:d}".format(self.giLinkProp4))
         lnkobj_elem.set("GILinkProp5", "{:d}".format(self.giLinkProp5))
+
+    def clearExtFuncLinkSaveInfo(self):
+        self.clearOffsetLinkSaveInfo()
+        self.extFuncStr = b''
+        self.extFuncProp3 = 0
+        self.extFuncProp4 = 0
+        self.extFuncProp6 = 0
+
+    def parseExtFuncLinkSaveInfo(self, bldata):
+        ver = self.vi.getFileVersion()
+        self.clearExtFuncLinkSaveInfo()
+
+        if isGreaterOrEqVersion(ver, 8,0,0,3):
+            self.parseBasicLinkSaveInfo(bldata)
+            self.offsetList = self.parseLinkOffsetList(bldata) # reuse property from OffsetLinkSaveInfo
+            self.extFuncStr = readPStr(bldata, 2, self.po)
+            self.extFuncProp3 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            self.extFuncProp4 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            if isGreaterOrEqVersion(ver, 11,0,0,3):
+                self.extFuncProp6 = self.parseBool(bldata)
+        else:
+            self.parseOffsetLinkSaveInfo(bldata)
+
+        if (self.po.verbose > 2):
+            print("{:s} {} content: {} {} {}"\
+              .format(type(self).__name__, self.ident, self.linkSavePathRef, self.offsetList, self.extFuncStr))
+        pass
+
+    def prepareExtFuncLinkSaveInfo(self, start_offs):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+
+        if isGreaterOrEqVersion(ver, 8,0,0,3):
+            data_buf += self.prepareBasicLinkSaveInfo(start_offs+len(data_buf))
+            data_buf += self.prepareLinkOffsetList(self.offsetList, start_offs+len(data_buf))
+            data_buf += preparePStr(self.extFuncStr, 2, self.po)
+            data_buf += int(self.extFuncProp3).to_bytes(1, byteorder='big', signed=False)
+            data_buf += int(self.extFuncProp4).to_bytes(1, byteorder='big', signed=False)
+            if isGreaterOrEqVersion(ver, 11,0,0,3):
+                data_buf += self.prepareBool(self.extFuncProp6)
+        else:
+            data_buf += self.prepareOffsetLinkSaveInfo(start_offs+len(data_buf))
+
+        return data_buf
+
+    def initWithXMLExtFuncLinkSaveInfo(self, lnkobj_elem):
+        self.clearExtFuncLinkSaveInfo()
+
+        propTmpStr = lnkobj_elem.get("ExtFuncProp3")
+        if propTmpStr is not None:
+            self.extFuncProp3 = int(propTmpStr, 0)
+        propTmpStr = lnkobj_elem.get("ExtFuncProp4")
+        if propTmpStr is not None:
+            self.extFuncProp4 = int(propTmpStr, 0)
+        propTmpStr = lnkobj_elem.get("ExtFuncProp6")
+        if propTmpStr is not None:
+            self.extFuncProp6 = int(propTmpStr, 0)
+
+        hasLinkSave = False
+        hasTypedLink = False
+        linkOffset_elem = None
+        hasExtFuncLink = False
+        for subelem in lnkobj_elem:
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef",):
+                hasLinkSave = True
+            elif (subelem.tag == "LinkOffsetList"):
+                linkOffset_elem = subelem
+            elif subelem.tag in ("TD",):
+                hasTypedLink = True
+            elif (subelem.tag == "ExtFuncLinkStr"):
+                hasExtFuncLink = True
+                if subelem.text is not None:
+                    elem_text = ET.unescape_safe_store_element_text(subelem.text)
+                    self.extFuncStr = elem_text.encode(self.vi.textEncoding)
+                else:
+                    self.extFuncStr = b''
+            else:
+                pass # No exception here - parent may define more tags
+        hasLinkOffset = (linkOffset_elem is not None)
+        if hasLinkSave and hasLinkOffset and hasTypedLink:
+            self.initWithXMLOffsetLinkSaveInfo(lnkobj_elem)
+        elif hasLinkSave and hasLinkOffset and hasExtFuncLink:
+            self.initWithXMLBasicLinkSaveInfo(lnkobj_elem)
+            self.offsetList = self.initWithXMLLinkOffsetList(linkOffset_elem)
+        else:
+            raise AttributeError("Some tags required for ExtFuncLinkSaveInfo are missing in '{}'".format(self.ident))
+        pass
+
+    def exportXMLExtFuncLinkSaveInfo(self, lnkobj_elem, fname_base):
+        ver = self.vi.getFileVersion()
+
+        if isGreaterOrEqVersion(ver, 8,0,0,3):
+            self.exportXMLBasicLinkSaveInfo(lnkobj_elem, fname_base)
+
+            subelem = ET.SubElement(lnkobj_elem, "LinkOffsetList")
+            self.exportXMLLinkOffsetList(self.offsetList, subelem)
+
+            subelem = ET.SubElement(lnkobj_elem,"ExtFuncLinkStr")
+            name_text = self.extFuncStr.decode(self.vi.textEncoding)
+            ET.safe_store_element_text(subelem, name_text)
+
+            lnkobj_elem.set("ExtFuncProp3", "{:d}".format(self.extFuncProp3))
+            lnkobj_elem.set("ExtFuncProp4", "{:d}".format(self.extFuncProp4))
+            if isGreaterOrEqVersion(ver, 11,0,0,3):
+                lnkobj_elem.set("ExtFuncProp6", "{:d}".format(self.extFuncProp6))
+        else:
+            self.exportXMLOffsetLinkSaveInfo(lnkobj_elem, fname_base)
+        pass
 
     def parseRSRCData(self, bldata):
         """ Parses binary data chunk from RSRC file.
@@ -1489,11 +1597,24 @@ class LinkObjDSToExtFuncLink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearExtFuncLinkSaveInfo()
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseExtFuncLinkSaveInfo(bldata)
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareExtFuncLinkSaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLExtFuncLinkSaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLExtFuncLinkSaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjDSToCINLink(LinkObjBase):
@@ -1954,15 +2075,28 @@ class LinkObjGenIUseToGenVILink(LinkObjBase):
 
 
 class LinkObjNodeToEFLink(LinkObjBase):
-    """ Node To EF Link Object Ref
+    """ Node To ExtFunc Link Object Ref
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearExtFuncLinkSaveInfo()
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseExtFuncLinkSaveInfo(bldata)
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareExtFuncLinkSaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLExtFuncLinkSaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLExtFuncLinkSaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjHeapToVILink(LinkObjBase):
@@ -2343,11 +2477,25 @@ class LinkObjXNodeToExtFuncLink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearExtFuncLinkSaveInfo()
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseExtFuncLinkSaveInfo(bldata)
+        # TODO I'm pretty sure some kind of string read is missing here..
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareExtFuncLinkSaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLExtFuncLinkSaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLExtFuncLinkSaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjXNodeToVILink(LinkObjBase):
