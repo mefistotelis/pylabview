@@ -836,6 +836,58 @@ class LinkObjBase:
             self.exportXMLOffsetLinkSaveInfo(lnkobj_elem, fname_base)
         pass
 
+    def clearAXLinkSaveInfo(self):
+        self.clearOffsetLinkSaveInfo()
+        self.axLinkStr = b''
+
+    def parseAXLinkSaveInfo(self, bldata):
+        self.clearAXLinkSaveInfo()
+
+        self.parseOffsetLinkSaveInfo(bldata)
+        self.axLinkStr = bldata.read(40)
+
+        if (self.po.verbose > 2):
+            print("{:s} {} content: {} {} {}"\
+              .format(type(self).__name__, self.ident, self.linkSavePathRef, self.offsetList, self.axLinkStr))
+        pass
+
+    def prepareAXLinkSaveInfo(self, start_offs):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+
+        data_buf += self.prepareOffsetLinkSaveInfo(start_offs+len(data_buf))
+        data_buf += self.axLinkStr[:40]
+
+        return data_buf
+
+    def initWithXMLAXLinkSaveInfo(self, lnkobj_elem):
+        self.clearAXLinkSaveInfo()
+
+        self.initWithXMLOffsetLinkSaveInfo(lnkobj_elem)
+
+        for subelem in lnkobj_elem:
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","LinkOffsetList","TD",):
+                pass # These tags are parsed elswhere
+            elif (subelem.tag == "AXLinkStr"):
+                if subelem.text is not None:
+                    elem_text = ET.unescape_safe_store_element_text(subelem.text)
+                    self.axLinkStr = elem_text.encode(self.vi.textEncoding)
+                else:
+                    self.axLinkStr = b''
+            else:
+                pass # No exception here - parent may define more tags
+
+    def exportXMLAXLinkSaveInfo(self, lnkobj_elem, fname_base):
+        ver = self.vi.getFileVersion()
+
+        self.exportXMLOffsetLinkSaveInfo(lnkobj_elem, fname_base)
+
+        if True:
+            subelem = ET.SubElement(lnkobj_elem,"AXLinkStr")
+            name_text = self.axLinkStr.decode(self.vi.textEncoding)
+            ET.safe_store_element_text(subelem, name_text)
+        pass
+
     def parseRSRCData(self, bldata):
         """ Parses binary data chunk from RSRC file.
 
@@ -1393,11 +1445,24 @@ class LinkObjActiveXVIToTypeLib(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearAXLinkSaveInfo()
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseAXLinkSaveInfo(bldata)
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareAXLinkSaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLAXLinkSaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLAXLinkSaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjVIToLib(LinkObjBase):
@@ -2548,11 +2613,24 @@ class LinkObjActiveXBDToTypeLib(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearAXLinkSaveInfo()
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseAXLinkSaveInfo(bldata)
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareAXLinkSaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLAXLinkSaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLAXLinkSaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjActiveXTLibLinkObj(LinkObjBase):
