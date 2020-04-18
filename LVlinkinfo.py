@@ -641,14 +641,49 @@ class LinkObjBase:
         subelem = ET.SubElement(lnkobj_elem, "APILinkCacheList")
         self.exportXMLLinkOffsetList(self.apiLinkCacheList, subelem)
 
-    def clearGILinkSaveInfo(self):
-        self.clearBasicLinkSaveInfo()
-        self.clearOffsetLinkSaveInfo()
+    def clearGILinkInfo(self):
         self.giLinkProp1 = 0
         self.giLinkProp2 = 0
         self.giLinkProp3 = 0
         self.giLinkProp4 = 0
         self.giLinkProp5 = 0
+
+    def parseGILinkInfo(self, bldata):
+        self.clearGILinkInfo()
+        self.giLinkProp1 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        self.giLinkProp2 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        self.giLinkProp3 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        self.giLinkProp4 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        self.giLinkProp5 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+    def prepareGILinkInfo(self, start_offs):
+        data_buf = b''
+        data_buf += int(self.giLinkProp1).to_bytes(2, byteorder='big', signed=False)
+        data_buf += int(self.giLinkProp2).to_bytes(2, byteorder='big', signed=False)
+        data_buf += int(self.giLinkProp3).to_bytes(2, byteorder='big', signed=False)
+        data_buf += int(self.giLinkProp4).to_bytes(2, byteorder='big', signed=False)
+        data_buf += int(self.giLinkProp5).to_bytes(4, byteorder='big', signed=False)
+        return data_buf
+
+    def initWithXMLGILinkInfo(self, lnkobj_elem):
+        self.clearGILinkInfo()
+        self.giLinkProp1 = int(lnkobj_elem.get("GILinkProp1"), 0)
+        self.giLinkProp2 = int(lnkobj_elem.get("GILinkProp2"), 0)
+        self.giLinkProp3 = int(lnkobj_elem.get("GILinkProp3"), 0)
+        self.giLinkProp4 = int(lnkobj_elem.get("GILinkProp4"), 0)
+        self.giLinkProp5 = int(lnkobj_elem.get("GILinkProp5"), 0)
+
+    def exportXMLGILinkInfo(self, lnkobj_elem, fname_base):
+        lnkobj_elem.set("GILinkProp1", "{:d}".format(self.giLinkProp1))
+        lnkobj_elem.set("GILinkProp2", "{:d}".format(self.giLinkProp2))
+        lnkobj_elem.set("GILinkProp3", "{:d}".format(self.giLinkProp3))
+        lnkobj_elem.set("GILinkProp4", "{:d}".format(self.giLinkProp4))
+        lnkobj_elem.set("GILinkProp5", "{:d}".format(self.giLinkProp5))
+
+    def clearGILinkSaveInfo(self):
+        self.clearBasicLinkSaveInfo()
+        self.clearOffsetLinkSaveInfo()
+        self.clearGILinkInfo()
 
     def parseGILinkSaveInfo(self, bldata):
         self.clearGILinkSaveInfo()
@@ -659,11 +694,7 @@ class LinkObjBase:
         else:
             self.parseOffsetLinkSaveInfo(bldata)
 
-        self.giLinkProp1 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        self.giLinkProp2 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        self.giLinkProp3 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        self.giLinkProp4 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        self.giLinkProp5 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.parseGILinkInfo(bldata)
 
         if (self.po.verbose > 2):
             print("{:s} {} content: {} {} {}"\
@@ -683,11 +714,7 @@ class LinkObjBase:
         else:
             data_buf += self.prepareOffsetLinkSaveInfo(start_offs+len(data_buf))
 
-        data_buf += int(self.giLinkProp1).to_bytes(2, byteorder='big', signed=False)
-        data_buf += int(self.giLinkProp2).to_bytes(2, byteorder='big', signed=False)
-        data_buf += int(self.giLinkProp3).to_bytes(2, byteorder='big', signed=False)
-        data_buf += int(self.giLinkProp4).to_bytes(2, byteorder='big', signed=False)
-        data_buf += int(self.giLinkProp5).to_bytes(4, byteorder='big', signed=False)
+        data_buf += self.prepareGILinkInfo(start_offs+len(data_buf))
         return data_buf
 
     def initWithXMLGILinkSaveInfo(self, lnkobj_elem):
@@ -707,12 +734,7 @@ class LinkObjBase:
         if hasLinkOffset:
             self.initWithXMLOffsetLinkSaveInfo(lnkobj_elem)
 
-        self.giLinkProp1 = int(lnkobj_elem.get("GILinkProp1"), 0)
-        self.giLinkProp2 = int(lnkobj_elem.get("GILinkProp2"), 0)
-        self.giLinkProp3 = int(lnkobj_elem.get("GILinkProp3"), 0)
-        self.giLinkProp4 = int(lnkobj_elem.get("GILinkProp4"), 0)
-        self.giLinkProp5 = int(lnkobj_elem.get("GILinkProp5"), 0)
-        pass
+        self.initWithXMLGILinkInfo(lnkobj_elem)
 
     def exportXMLGILinkSaveInfo(self, lnkobj_elem, fname_base):
         ver = self.vi.getFileVersion()
@@ -722,11 +744,7 @@ class LinkObjBase:
         else:
             self.exportXMLOffsetLinkSaveInfo(lnkobj_elem, fname_base)
 
-        lnkobj_elem.set("GILinkProp1", "{:d}".format(self.giLinkProp1))
-        lnkobj_elem.set("GILinkProp2", "{:d}".format(self.giLinkProp2))
-        lnkobj_elem.set("GILinkProp3", "{:d}".format(self.giLinkProp3))
-        lnkobj_elem.set("GILinkProp4", "{:d}".format(self.giLinkProp4))
-        lnkobj_elem.set("GILinkProp5", "{:d}".format(self.giLinkProp5))
+        self.exportXMLGILinkInfo(lnkobj_elem, fname_base)
 
     def clearExtFuncLinkSaveInfo(self):
         self.clearOffsetLinkSaveInfo()
@@ -1464,11 +1482,43 @@ class LinkObjHeapToXCtlInterface(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearOffsetLinkSaveInfo()
+        self.clearGILinkInfo()
 
     def parseRSRCData(self, bldata):
+        ver = self.vi.getFileVersion()
+        self.clearOffsetLinkSaveInfo()
+        self.clearGILinkInfo()
+
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseOffsetLinkSaveInfo(bldata)
+
+        if isGreaterOrEqVersion(ver, 8,6,0,2):
+            self.parseGILinkInfo(bldata)
+        pass
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+
+        data_buf += self.ident[:4]
+        data_buf += self.prepareOffsetLinkSaveInfo(start_offs+len(data_buf))
+
+        if isGreaterOrEqVersion(ver, 8,6,0,2):
+            data_buf += self.prepareGILinkInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.clearOffsetLinkSaveInfo()
+        self.clearGILinkInfo()
+
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLOffsetLinkSaveInfo(lnkobj_elem)
+        self.initWithXMLGILinkInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLOffsetLinkSaveInfo(lnkobj_elem, fname_base)
+        self.exportXMLGILinkInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjXCtlToXInterface(LinkObjBase):
@@ -1476,11 +1526,43 @@ class LinkObjXCtlToXInterface(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearOffsetLinkSaveInfo()
+        self.clearGILinkInfo()
 
     def parseRSRCData(self, bldata):
+        ver = self.vi.getFileVersion()
+        self.clearOffsetLinkSaveInfo()
+        self.clearGILinkInfo()
+
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseOffsetLinkSaveInfo(bldata)
+
+        if isGreaterOrEqVersion(ver, 8,6,0,2):
+            self.parseGILinkInfo(bldata)
+        pass
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+
+        data_buf += self.ident[:4]
+        data_buf += self.prepareOffsetLinkSaveInfo(start_offs+len(data_buf))
+
+        if isGreaterOrEqVersion(ver, 8,6,0,2):
+            data_buf += self.prepareGILinkInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.clearOffsetLinkSaveInfo()
+        self.clearGILinkInfo()
+
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLOffsetLinkSaveInfo(lnkobj_elem)
+        self.initWithXMLGILinkInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLOffsetLinkSaveInfo(lnkobj_elem, fname_base)
+        self.exportXMLGILinkInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjVIToXCtlInterface(LinkObjBase):
@@ -2417,11 +2499,26 @@ class LinkObjStaticVIRefToVILink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearHeapToVILinkSaveInfo()
 
     def parseRSRCData(self, bldata):
+        self.clearHeapToVILinkSaveInfo()
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseHeapToVILinkSaveInfo(bldata)
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareHeapToVILinkSaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.clearHeapToVILinkSaveInfo()
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLHeapToVILinkSaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLHeapToVILinkSaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjNodeToCINLink(LinkObjBase):
@@ -2873,11 +2970,43 @@ class LinkObjXNodeToXInterface(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearOffsetLinkSaveInfo()
+        self.clearGILinkInfo()
 
     def parseRSRCData(self, bldata):
+        ver = self.vi.getFileVersion()
+        self.clearOffsetLinkSaveInfo()
+        self.clearGILinkInfo()
+
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseOffsetLinkSaveInfo(bldata)
+
+        if isGreaterOrEqVersion(ver, 8,6,0,2):
+            self.parseGILinkInfo(bldata)
+        pass
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+
+        data_buf += self.ident[:4]
+        data_buf += self.prepareOffsetLinkSaveInfo(start_offs+len(data_buf))
+
+        if isGreaterOrEqVersion(ver, 8,6,0,2):
+            data_buf += self.prepareGILinkInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.clearOffsetLinkSaveInfo()
+        self.clearGILinkInfo()
+
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLOffsetLinkSaveInfo(lnkobj_elem)
+        self.initWithXMLGILinkInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLOffsetLinkSaveInfo(lnkobj_elem, fname_base)
+        self.exportXMLGILinkInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjUDClassLibInheritsLink(LinkObjBase):
@@ -3117,11 +3246,43 @@ class LinkObjHeapToXNodeInterface(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearOffsetLinkSaveInfo()
+        self.clearGILinkInfo()
 
     def parseRSRCData(self, bldata):
+        ver = self.vi.getFileVersion()
+        self.clearOffsetLinkSaveInfo()
+        self.clearGILinkInfo()
+
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseOffsetLinkSaveInfo(bldata)
+
+        if isGreaterOrEqVersion(ver, 8,6,0,2):
+            self.parseGILinkInfo(bldata)
+        pass
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+
+        data_buf += self.ident[:4]
+        data_buf += self.prepareOffsetLinkSaveInfo(start_offs+len(data_buf))
+
+        if isGreaterOrEqVersion(ver, 8,6,0,2):
+            data_buf += self.prepareGILinkInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.clearOffsetLinkSaveInfo()
+        self.clearGILinkInfo()
+
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLOffsetLinkSaveInfo(lnkobj_elem)
+        self.initWithXMLGILinkInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLOffsetLinkSaveInfo(lnkobj_elem, fname_base)
+        self.exportXMLGILinkInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjHeapToGInterface(LinkObjBase):
