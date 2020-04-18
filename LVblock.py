@@ -4133,6 +4133,7 @@ class VICD(CompleteBlock):
             self.default_block_coding = BLOCK_CODING.NONE
 
     def parseRSRCSectionData(self, section_num, bldata):
+        ver = self.vi.getFileVersion()
         section = self.sections[section_num]
 
         headStartPos = bldata.tell()
@@ -4140,16 +4141,27 @@ class VICD(CompleteBlock):
         section.codeID = bldata.read(4)
         archDependLen = 8 if self.isX64(section_num) else 4
         archEndianness = 'little' if self.isLE(section_num) else 'big'
-        section.initProcOffset = int.from_bytes(initProcOffset, byteorder=archEndianness, signed=False)
-        section.pTabOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-        section.codeFlags = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-        section.version = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        section.verifier = bldata.read(4)
-        section.lastNumberOfBasicBlocks = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-        section.lastCompilerOptimizationLevel = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-        section.hostCodeEntryVI = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-        section.codeEndOffset = int.from_bytes(bldata.read(archDependLen), byteorder=archEndianness, signed=False)
-        section.signatureName = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        if isGreaterOrEqVersion(ver, 8,6,0,4):
+            section.initProcOffset = int.from_bytes(initProcOffset, byteorder=archEndianness, signed=False)
+            section.pTabOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            section.codeFlags = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            section.version = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            section.verifier = bldata.read(4)
+            section.lastNumberOfBasicBlocks = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            section.lastCompilerOptimizationLevel = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            section.hostCodeEntryVI = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            section.codeEndOffset = int.from_bytes(bldata.read(archDependLen), byteorder=archEndianness, signed=False)
+            section.signatureName = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        else:
+            section.initProcOffset = int.from_bytes(initProcOffset, byteorder=archEndianness, signed=False)
+            section.pTabOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            section.codeFlags = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            section.version = int.from_bytes(bldata.read(4), byteorder='big', signed=False) # for LV8.6 and below this doesn't seem to be version
+            section.verifier = bldata.read(4)
+            section.lastNumberOfBasicBlocks = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            section.codeEndOffset = int.from_bytes(bldata.read(archDependLen), byteorder=archEndianness, signed=False)
+            section.hostCodeEntryVI = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            section.signatureName = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
         headLen = bldata.tell() - headStartPos
         section.content = bldata.read(section.codeEndOffset - headLen)
@@ -4159,7 +4171,8 @@ class VICD(CompleteBlock):
         section.endSignatureName = int.from_bytes(bldata.read(archDependLen), byteorder='big', signed=False)
         section.endLocalLVRTCodeBlocks = int.from_bytes(bldata.read(archDependLen), byteorder='big', signed=False)
         section.endCodeEndOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-        section.endProp5 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        if isGreaterOrEqVersion(ver, 8,6,0,4):
+            section.endProp5 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
         raise NotImplementedError("Parsing the block is not included in this branch")
 
