@@ -939,6 +939,72 @@ class LinkObjBase:
 
         lnkobj_elem.set("CCSymbolLinkBool", "{:d}".format(self.ccSymbolLinkBool))
 
+    def clearHeapToFileSaveInfo(self):
+        self.clearOffsetLinkSaveInfo()
+        self.fileSaveStr = b''
+        self.fileSaveProp3 = 0
+
+    def parseHeapToFileSaveInfo(self, bldata):
+        self.clearHeapToFileSaveInfo()
+
+        self.parseBasicLinkSaveInfo(bldata)
+        self.fileSaveStr = readLStr(bldata, 1, self.po)
+        if (bldata.tell() % 4) > 0:
+            bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
+        self.fileSaveProp3 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.offsetList = self.parseLinkOffsetList(bldata)
+
+        if (self.po.verbose > 2):
+            print("{:s} {} content: {} {} {}"\
+              .format(type(self).__name__, self.ident, self.linkSavePathRef, self.fileSaveStr, self.offsetList))
+        pass
+
+    def prepareHeapToFileSaveInfo(self, start_offs):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+        data_buf += self.prepareBasicLinkSaveInfo(start_offs+len(data_buf))
+        data_buf += prepareLStr(self.fileSaveStr, 1, self.po)
+        if (start_offs+len(data_buf)) % 4 > 0:
+            padding_len = 4 - ((start_offs+len(data_buf)) % 4)
+            data_buf += (b'\0' * padding_len)
+        data_buf += int(self.fileSaveProp3).to_bytes(4, byteorder='big', signed=False)
+        data_buf += self.prepareLinkOffsetList(self.offsetList, start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXMLHeapToFileSaveInfo(self, lnkobj_elem):
+        self.clearHeapToFileSaveInfo()
+
+        self.initWithXMLBasicLinkSaveInfo(lnkobj_elem)
+
+        propTmpStr = lnkobj_elem.get("FileSaveProp3")
+        if propTmpStr is not None:
+            self.fileSaveProp3 = int(propTmpStr, 0)
+
+        for subelem in lnkobj_elem:
+            if (subelem.tag == "LinkOffsetList"):
+                self.offsetList = self.initWithXMLLinkOffsetList(subelem)
+            elif (subelem.tag == "FileSaveStr"):
+                if subelem.text is not None:
+                    elem_text = ET.unescape_safe_store_element_text(subelem.text)
+                    self.fileSaveStr = elem_text.encode(self.vi.textEncoding)
+                else:
+                    self.fileSaveStr = b''
+            else:
+                pass # No exception here - parent may define more tags
+        pass
+
+    def exportXMLHeapToFileSaveInfo(self, lnkobj_elem, fname_base):
+        self.exportXMLBasicLinkSaveInfo(lnkobj_elem, fname_base)
+
+        subelem = ET.SubElement(lnkobj_elem,"FileSaveStr")
+        name_text = self.fileSaveStr.decode(self.vi.textEncoding)
+        ET.safe_store_element_text(subelem, name_text)
+
+        lnkobj_elem.set("FileSaveProp3", "{:d}".format(self.fileSaveProp3))
+
+        subelem = ET.SubElement(lnkobj_elem, "LinkOffsetList")
+        self.exportXMLLinkOffsetList(self.offsetList, subelem)
+
     def parseRSRCData(self, bldata):
         """ Parses binary data chunk from RSRC file.
 
@@ -2107,7 +2173,7 @@ class LinkObjNonVINonHeapToTypedefLink(LinkObjBase):
                 clientTD.flags = 0 # Only Type Mapped entries have it non-zero
                 self.typedLinkTD = clientTD
             else:
-                pass # No exception here - parent may define more tags
+                raise AttributeError("LinkObjNonVINonHeapToTypedefLink contains unexpected tag '{}'".format(subelem.tag))
 
     def exportXML(self, lnkobj_elem, fname_base):
         self.exportXMLBasicLinkSaveInfo(lnkobj_elem, fname_base)
@@ -2164,7 +2230,7 @@ class LinkObjCCSymbolLink(LinkObjBase):
                 else:
                     self.symbolLinkContent = b''
             else:
-                pass # No exception here - parent may define more tags
+                raise AttributeError("LinkObjCCSymbolLink contains unexpected tag '{}'".format(subelem.tag))
         pass
 
     def exportXML(self, lnkobj_elem, fname_base):
@@ -2373,11 +2439,42 @@ class LinkObjHeapToRCFileLink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearHeapToFileSaveInfo()
+        self.content = []
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseHeapToFileSaveInfo(bldata)
+        self.content = []
+
+        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        if count > 0:
+            raise NotImplementedError("LinkObj {} parsing not implemented for count={}"\
+              .format(self.ident,count))
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareHeapToFileSaveInfo(start_offs+len(data_buf))
+        data_buf += len(self.content).to_bytes(4, byteorder='big', signed=False)
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLHeapToFileSaveInfo(lnkobj_elem)
+        #TODO implement td import
+        for subelem in lnkobj_elem:
+            if subelem.tag in ("LinkOffsetList", "FileSaveStr"):
+                pass # These tags are parsed elswhere
+            else:
+                raise AttributeError("LinkObjHeapToRCFileLink contains unexpected tag '{}'".format(subelem.tag))
+        pass
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLHeapToFileSaveInfo(lnkobj_elem, fname_base)
+
+        for td in self.content:
+            pass#TODO implement td export
 
 
 class LinkObjHeapToVINamedLink(LinkObjBase):
