@@ -2282,11 +2282,24 @@ class LinkObjHeapToFileLink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearHeapToFileSaveInfo()
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseHeapToFileSaveInfo(bldata)
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareHeapToFileSaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLHeapToFileSaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLHeapToFileSaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjHeapToFileNoWarnLink(LinkObjBase):
@@ -2294,11 +2307,24 @@ class LinkObjHeapToFileNoWarnLink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearHeapToFileSaveInfo()
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseHeapToFileSaveInfo(bldata)
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareHeapToFileSaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLHeapToFileSaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLHeapToFileSaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjVIToRCFileLink(LinkObjBase):
