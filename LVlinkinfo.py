@@ -23,7 +23,7 @@ from LVblock import *
 import LVclasses
 import LVheap
 import LVdatatype
-
+import LVdatafill
 
 
 class LinkObjBase:
@@ -887,6 +887,57 @@ class LinkObjBase:
             name_text = self.axLinkStr.decode(self.vi.textEncoding)
             ET.safe_store_element_text(subelem, name_text)
         pass
+
+    def clearCCSymbolLinkRefInfo(self):
+        stringTd = LVdatatype.newTDObject(self.vi, -1, 0, TD_FULL_TYPE.String, self.po)
+        self.ccSymbolStrDf = LVdatafill.newDataFillObjectWithTD(self.vi, -1, 0, stringTd, self.po)
+        self.ccSymbolLinkBool = 0
+
+    def parseCCSymbolLinkRefInfo(self, bldata):
+        self.clearCCSymbolLinkRefInfo()
+
+        self.ccSymbolStrDf.initWithRSRC(bldata)
+        self.ccSymbolLinkBool = self.parseBool(bldata)
+
+        #raise NotImplementedError("LinkObj {} parsing not fully implemented"\
+        #  .format(self.ident))
+        pass
+
+    def prepareCCSymbolLinkRefInfo(self, start_offs):
+        data_buf = b''
+
+        data_buf += self.ccSymbolStrDf.prepareRSRCData()
+        data_buf += self.prepareBool(self.ccSymbolLinkBool)
+        return data_buf
+
+    def initWithXMLCCSymbolLinkRefInfo(self, lnkobj_elem):
+        self.clearCCSymbolLinkRefInfo()
+
+        propTmpStr = lnkobj_elem.get("CCSymbolLinkBool")
+        if propTmpStr is not None:
+            self.ccSymbolLinkBool = int(propTmpStr, 0)
+
+        stringDf_tag = self.ccSymbolStrDf.getXMLTagName()
+        for subelem in lnkobj_elem:
+            if (subelem.tag == "CCSymbolLinkStr"):
+                if subelem.text is not None:
+                    elem_text = ET.unescape_safe_store_element_text(subelem.text)
+                    self.ccSymbolLinkStr = elem_text.encode(self.vi.textEncoding)
+                else:
+                    self.ccSymbolLinkStr = b''
+            elif (subelem.tag == stringDf_tag):
+                df = self.ccSymbolStrDf
+                df.initWithXML(subelem)
+            else:
+                pass # No exception here - parent may define more tags
+        pass
+
+    def exportXMLCCSymbolLinkRefInfo(self, lnkobj_elem, fname_base):
+        df = self.ccSymbolStrDf
+        subelem = ET.SubElement(lnkobj_elem, df.getXMLTagName())
+        df.exportXML(subelem, fname_base)
+
+        lnkobj_elem.set("CCSymbolLinkBool", "{:d}".format(self.ccSymbolLinkBool))
 
     def parseRSRCData(self, bldata):
         """ Parses binary data chunk from RSRC file.
@@ -1856,52 +1907,46 @@ class LinkObjHeapToCCSymbolLink(LinkObjBase):
     def __init__(self, *args):
         super().__init__(*args)
         self.clearOffsetLinkSaveInfo()
-        #self.clearCCSymbolLinkRefInfo()
+        self.clearCCSymbolLinkRefInfo()
         self.ccSymbolStr = b''
 
     def parseRSRCData(self, bldata):
-        ver = self.vi.getFileVersion()
         self.clearOffsetLinkSaveInfo()
+        self.clearCCSymbolLinkRefInfo()
         self.ccSymbolStr = b''
 
         self.ident = bldata.read(4)
         self.parseOffsetLinkSaveInfo(bldata)
         self.ccSymbolStr = readLStr(bldata, 1, self.po)
-
-        # TODO finish
-        #self.parseCCSymbolLinkRefInfo(bldata)
-        raise NotImplementedError("LinkObj {} parsing not fully implemented"\
-          .format(self.ident))
-        pass
+        self.parseCCSymbolLinkRefInfo(bldata)
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
-        ver = self.vi.getFileVersion()
         data_buf = b''
 
         data_buf += self.ident[:4]
         data_buf += self.prepareOffsetLinkSaveInfo(start_offs+len(data_buf))
         data_buf += prepareLStr(self.ccSymbolStr, 1, self.po)
-        #data_buf += self.prepareCCSymbolLinkRefInfo(start_offs+len(data_buf))
+        data_buf += self.prepareCCSymbolLinkRefInfo(start_offs+len(data_buf))
         return data_buf
 
     def initWithXML(self, lnkobj_elem):
         self.clearOffsetLinkSaveInfo()
+        self.clearCCSymbolLinkRefInfo()
         self.ccSymbolStr = b''
 
         self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
         self.initWithXMLOffsetLinkSaveInfo(lnkobj_elem)
+        self.initWithXMLCCSymbolLinkRefInfo(lnkobj_elem)
 
         for subelem in lnkobj_elem:
-            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","LinkOffsetList","TD",):
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","LinkOffsetList","TD","String",):
                 pass # These tags are parsed elswhere
-            if (subelem.tag == "CCSymbolStr"):
+            elif (subelem.tag == "CCSymbolStr"):
                 if subelem.text is not None:
                     elem_text = ET.unescape_safe_store_element_text(subelem.text)
                     self.ccSymbolStr = elem_text.encode(self.vi.textEncoding)
                 else:
                     self.ccSymbolStr = b''
-            #elif (subelem.tag == "CCSymbolLinkRefInfo?"):
-            #    self.dsOffsetList = self.initWithXMLCCSymbolLinkRefInfo(subelem)
             else:
                 raise AttributeError("LinkObjHeapToCCSymbolLink contains unexpected tag '{}'".format(subelem.tag))
         pass
@@ -1910,14 +1955,11 @@ class LinkObjHeapToCCSymbolLink(LinkObjBase):
         ver = self.vi.getFileVersion()
 
         self.exportXMLOffsetLinkSaveInfo(lnkobj_elem, fname_base)
+        self.exportXMLCCSymbolLinkRefInfo(lnkobj_elem, fname_base)
 
         subelem = ET.SubElement(lnkobj_elem,"CCSymbolStr")
         name_text = self.ccSymbolStr.decode(self.vi.textEncoding)
         ET.safe_store_element_text(subelem, name_text)
-
-        #subelem = ET.SubElement(lnkobj_elem, "CCSymbolLinkRefInfo?")
-        #self.exportXMLCCSymbolLinkRefInfo(self.dsOffsetList, subelem)
-        pass
 
 
 class LinkObjIUseToVILink(LinkObjBase):

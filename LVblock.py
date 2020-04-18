@@ -1398,6 +1398,7 @@ class SingleStringBlock(Block):
 
         section_elem.set("Format", "inline")
 
+
 class TITL(SingleStringBlock):
     """ Title
     """
