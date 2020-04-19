@@ -566,9 +566,13 @@ class LinkObjBase:
         name_text = self.apiLinkContent.decode(self.vi.textEncoding)
         ET.safe_store_element_text(subelem, name_text)
 
-    def parseUDClassHeapAPISaveInfo(self, bldata):
+    def clearUDClassHeapAPISaveInfo(self):
         self.clearBasicLinkSaveInfo()
         self.clearUDClassAPILinkCache()
+        self.apiLinkCacheList = []
+
+    def parseUDClassHeapAPISaveInfo(self, bldata):
+        self.clearUDClassHeapAPISaveInfo()
         ver = self.vi.getFileVersion()
 
         if isGreaterOrEqVersion(ver, 8,0,0,3):
@@ -614,8 +618,7 @@ class LinkObjBase:
         return data_buf
 
     def initWithXMLUDClassHeapAPISaveInfo(self, lnkobj_elem):
-        self.clearBasicLinkSaveInfo()
-        self.clearUDClassAPILinkCache()
+        self.clearUDClassHeapAPISaveInfo()
 
         self.initWithXMLBasicLinkSaveInfo(lnkobj_elem)
         self.initWithXMLUDClassAPILinkCache(lnkobj_elem)
@@ -640,6 +643,37 @@ class LinkObjBase:
 
         subelem = ET.SubElement(lnkobj_elem, "APILinkCacheList")
         self.exportXMLLinkOffsetList(self.apiLinkCacheList, subelem)
+
+    def clearUDClassVIAPISaveInfo(self):
+        self.clearBasicLinkSaveInfo()
+        self.clearUDClassAPILinkCache()
+
+    def parseUDClassVIAPISaveInfo(self, bldata):
+        self.clearUDClassVIAPISaveInfo()
+        self.parseBasicLinkSaveInfo(bldata)
+        self.parseUDClassAPILinkCache(bldata)
+
+    def prepareUDClassVIAPISaveInfo(self, start_offs):
+        data_buf = b''
+        data_buf += self.prepareBasicLinkSaveInfo(start_offs+len(data_buf))
+        data_buf += self.prepareUDClassAPILinkCache(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXMLUDClassVIAPISaveInfo(self, lnkobj_elem):
+        self.clearUDClassVIAPISaveInfo()
+        self.initWithXMLBasicLinkSaveInfo(lnkobj_elem)
+        self.initWithXMLUDClassAPILinkCache(lnkobj_elem)
+
+        for subelem in lnkobj_elem:
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","APILinkContent",):
+                pass # These tags are parsed elswhere
+            else:
+                raise AttributeError("UDClassVIAPISaveInfo contains unexpected tag '{}'".format(subelem.tag))
+        pass
+
+    def exportXMLUDClassVIAPISaveInfo(self, lnkobj_elem, fname_base):
+        self.exportXMLBasicLinkSaveInfo(lnkobj_elem, fname_base)
+        self.exportXMLUDClassAPILinkCache(lnkobj_elem, fname_base)
 
     def clearGILinkInfo(self):
         self.giLinkProp1 = 0
@@ -1748,11 +1782,24 @@ class LinkObjVIToLib(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearBasicLinkSaveInfo()
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseBasicLinkSaveInfo(bldata)
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareBasicLinkSaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLBasicLinkSaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLBasicLinkSaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjUDClassDDOToUDClassAPILink(LinkObjBase):
@@ -1838,8 +1885,21 @@ class LinkObjVIToUDClassAPILink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseUDClassVIAPISaveInfo(bldata)
+        pass
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareUDClassVIAPISaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLUDClassVIAPISaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLUDClassVIAPISaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjDataValueRefVIToUDClassAPILink(LinkObjBase):
@@ -2078,11 +2138,60 @@ class LinkObjVIToStdVILink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearTypedLinkSaveInfo()
+        self.stdViGUID = b''
 
     def parseRSRCData(self, bldata):
+        ver = self.vi.getFileVersion()
+        self.clearTypedLinkSaveInfo()
+        self.stdViGUID = b''
+
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseTypedLinkSaveInfo(bldata)
+        if isGreaterOrEqVersion(ver, 10,0,0,2):
+            hasGUID = self.parseBool(bldata)
+            if hasGUID != 0:
+                self.stdViGUID = bldata.read(36)
+        pass
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareTypedLinkSaveInfo(start_offs+len(data_buf))
+        if isGreaterOrEqVersion(ver, 10,0,0,2):
+            hasGUID = 1 if len(self.stdViGUID) > 0 else 0
+            data_buf += self.prepareBool(hasGUID)
+            if hasGUID != 0:
+                data_buf += self.stdViGUID[:36]
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.stdViGUID = b''
+        self.initWithXMLTypedLinkSaveInfo(lnkobj_elem)
+
+        for subelem in lnkobj_elem:
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","TD",):
+                pass # These tags are parsed elswhere
+            elif (subelem.tag == "StdViGUID"):
+                if subelem.text is not None:
+                    elem_text = ET.unescape_safe_store_element_text(subelem.text)
+                    self.stdViGUID = bytes.fromhex(elem_text)
+                else:
+                    self.stdViGUID = b''
+            else:
+                raise AttributeError("LinkObjVIToStdVILink contains unexpected tag '{}'".format(subelem.tag))
+        pass
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLTypedLinkSaveInfo(lnkobj_elem, fname_base)
+        hasGUID = 1 if len(self.stdViGUID) > 0 else 0
+        if hasGUID != 0:
+            subelem = ET.SubElement(lnkobj_elem,"StdViGUID")
+            name_text = self.stdViGUID.hex()
+            ET.safe_store_element_text(subelem, name_text)
+        pass
 
 
 class LinkObjVIToProgRetLink(LinkObjBase):
@@ -2114,11 +2223,33 @@ class LinkObjVIToCCLink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearTypedLinkSaveInfo()
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.genViGUID = b''
+        self.parseTypedLinkSaveInfo(bldata)
+        pass
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareTypedLinkSaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLTypedLinkSaveInfo(lnkobj_elem)
+
+        for subelem in lnkobj_elem:
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","TD",):
+                pass # These tags are parsed elswhere
+            else:
+                raise AttributeError("LinkObjVIToCCLink contains unexpected tag '{}'".format(subelem.tag))
+        pass
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLTypedLinkSaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjVIToStaticVILink(LinkObjBase):
@@ -2126,11 +2257,39 @@ class LinkObjVIToStaticVILink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearTypedLinkSaveInfo()
+        self.viLinkProp2 = 0
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseTypedLinkSaveInfo(bldata)
+        self.viLinkProp2 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareTypedLinkSaveInfo(start_offs+len(data_buf))
+        data_buf += int(self.viLinkProp2).to_bytes(4, byteorder='big', signed=False)
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLTypedLinkSaveInfo(lnkobj_elem)
+
+        tmpProp = lnkobj_elem.get("VILinkProp2")
+        if tmpProp is not None:
+            self.viLinkProp2 = int(tmpProp, 0)
+
+        for subelem in lnkobj_elem:
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","TD",):
+                pass # These tags are parsed elswhere
+            else:
+                raise AttributeError("LinkObjVIToStaticVILink contains unexpected tag '{}'".format(subelem.tag))
+        pass
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLTypedLinkSaveInfo(lnkobj_elem, fname_base)
+        lnkobj_elem.set("VILinkProp2", "{:d}".format(self.viLinkProp2))
 
 
 class LinkObjVIToAdaptiveVILink(LinkObjBase):
