@@ -1265,11 +1265,60 @@ class LinkObjVIToCCSymbolLink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearBasicLinkSaveInfo()
+        self.clearCCSymbolLinkRefInfo()
+        self.ccSymbolStr = b''
 
     def parseRSRCData(self, bldata):
+        self.clearBasicLinkSaveInfo()
+        self.clearCCSymbolLinkRefInfo()
+        self.ccSymbolStr = b''
+
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseBasicLinkSaveInfo(bldata)
+        self.ccSymbolStr = readLStr(bldata, 1, self.po)
+        self.parseCCSymbolLinkRefInfo(bldata)
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+
+        data_buf += self.ident[:4]
+        data_buf += self.prepareBasicLinkSaveInfo(start_offs+len(data_buf))
+        data_buf += prepareLStr(self.ccSymbolStr, 1, self.po)
+        data_buf += self.prepareCCSymbolLinkRefInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.clearBasicLinkSaveInfo()
+        self.clearCCSymbolLinkRefInfo()
+        self.ccSymbolStr = b''
+
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLBasicLinkSaveInfo(lnkobj_elem)
+        self.initWithXMLCCSymbolLinkRefInfo(lnkobj_elem)
+
+        for subelem in lnkobj_elem:
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","LinkOffsetList","TD","String",):
+                pass # These tags are parsed elswhere
+            elif (subelem.tag == "CCSymbolStr"):
+                if subelem.text is not None:
+                    elem_text = ET.unescape_safe_store_element_text(subelem.text)
+                    self.ccSymbolStr = elem_text.encode(self.vi.textEncoding)
+                else:
+                    self.ccSymbolStr = b''
+            else:
+                raise AttributeError("LinkObjHeapToCCSymbolLink contains unexpected tag '{}'".format(subelem.tag))
+        pass
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        ver = self.vi.getFileVersion()
+
+        self.exportXMLBasicLinkSaveInfo(lnkobj_elem, fname_base)
+        self.exportXMLCCSymbolLinkRefInfo(lnkobj_elem, fname_base)
+
+        subelem = ET.SubElement(lnkobj_elem,"CCSymbolStr")
+        name_text = self.ccSymbolStr.decode(self.vi.textEncoding)
+        ET.safe_store_element_text(subelem, name_text)
 
 
 class LinkObjVIToFileLink(LinkObjBase):
@@ -2199,11 +2248,32 @@ class LinkObjVIToProgRetLink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearTypedLinkSaveInfo()
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseTypedLinkSaveInfo(bldata)
+        pass
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareTypedLinkSaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLTypedLinkSaveInfo(lnkobj_elem)
+
+        for subelem in lnkobj_elem:
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","TD",):
+                pass # These tags are parsed elswhere
+            else:
+                raise AttributeError("LinkObjVIToProgRetLink contains unexpected tag '{}'".format(subelem.tag))
+        pass
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLTypedLinkSaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjVIToPolyLink(LinkObjBase):
@@ -2211,11 +2281,32 @@ class LinkObjVIToPolyLink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearTypedLinkSaveInfo()
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseTypedLinkSaveInfo(bldata)
+        pass
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareTypedLinkSaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLTypedLinkSaveInfo(lnkobj_elem)
+
+        for subelem in lnkobj_elem:
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","TD",):
+                pass # These tags are parsed elswhere
+            else:
+                raise AttributeError("LinkObjVIToPolyLink contains unexpected tag '{}'".format(subelem.tag))
+        pass
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLTypedLinkSaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjVIToCCLink(LinkObjBase):
@@ -2227,7 +2318,6 @@ class LinkObjVIToCCLink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        self.genViGUID = b''
         self.parseTypedLinkSaveInfo(bldata)
         pass
 
@@ -2297,11 +2387,32 @@ class LinkObjVIToAdaptiveVILink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearTypedLinkSaveInfo()
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseTypedLinkSaveInfo(bldata)
+        pass
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareTypedLinkSaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLTypedLinkSaveInfo(lnkobj_elem)
+
+        for subelem in lnkobj_elem:
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","TD",):
+                pass # These tags are parsed elswhere
+            else:
+                raise AttributeError("LinkObjVIToAdaptiveVILink contains unexpected tag '{}'".format(subelem.tag))
+        pass
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLTypedLinkSaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjHeapToCCSymbolLink(LinkObjBase):
