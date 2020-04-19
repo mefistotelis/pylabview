@@ -306,6 +306,7 @@ class LVVariant(LVObject):
         self.attrs = []
         self.hasvaritem2 = 0
         self.vartype2 = 0
+        #TODO use LVdatatype.parseTDObject(self.vi, bldata, self.version, self.po) instead of doubling the implementation here
         if isSmallerVersion(self.version, 8,0,0,1):
             raise NotImplementedError("Unsupported LVVariant ver=0x{:06X} older than LV8.0".format(varver))
         elif self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):

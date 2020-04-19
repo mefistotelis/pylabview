@@ -3103,6 +3103,128 @@ def newOldFloat64WaveformCluster(vi, idx, obj_flags, po):
     return tdCluster
 
 
+def parseTDSingleObject(vi, bldata, pos, clients, po):
+    bldata.seek(pos)
+    obj_type, obj_flags, obj_len = TDObject.parseRSRCDataHeader(bldata)
+    obj_idx = -1
+    if (po.verbose > 2):
+        print("{:s}: TD sub-object at 0x{:04x}, type 0x{:02x} flags 0x{:02x} len {:d}"\
+          .format(vi.src_fname, pos, obj_type, obj_flags, obj_len))
+    if obj_len < 4:
+        raise AttributeError("TD sub-object at 0x{:04x}, type 0x{:02x} flags 0x{:02x}, has length={:d} below minimum"\
+          .format(pos, obj_type, obj_flags, obj_len))
+        obj_type = TD_FULL_TYPE.Void
+    obj = newTDObject(vi, obj_idx, obj_flags, obj_type, po)
+    clientTD = SimpleNamespace()
+    clientTD.index = -1 # Nested clients have index -1
+    clientTD.flags = 0 # Only Type Mapped entries have it non-zero
+    clientTD.nested = obj
+    clients.append(clientTD)
+    bldata.seek(pos)
+    obj.setOwningList(clients)
+    obj.initWithRSRC(bldata, obj_len)
+    return obj.index, obj_len
+
+def parseTDObject(vi, bldata, ver, po, useConsolidatedTypes=False):
+    """ Reads TD object from RSRC file
+    """
+    clients = []
+    hasTopType = 0
+    topType = None
+    if isSmallerVersion(ver, 8,0,0,1):
+        raise NotImplementedError("Unsupported TD read in ver=0x{:06X} older than LV8.0".format(encodeVersion(ver)))
+    elif useConsolidatedTypes and isGreaterOrEqVersion(ver, 8,6,0,1):
+        # The TD is given by index instead of directly provided data
+        topType = readVariableSizeFieldU2p2(bldata)
+        hasTopType = 1
+    else:
+        # A list of TDs, with definitions directly in place; then index of top item is provided
+        varcount = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        if varcount > po.connector_list_limit:
+            raise AttributeError("TD sub-types count {:d} exceeds limit"\
+              .format(varcount))
+        pos = bldata.tell()
+        for i in range(varcount):
+            obj_idx, obj_len = parseTDSingleObject(vi, bldata, pos, clients, po)
+            pos += obj_len
+        bldata.seek(pos)
+        hasTopType = readVariableSizeFieldU2p2(bldata)
+        if hasTopType != 0:
+            topType = readVariableSizeFieldU2p2(bldata)
+    if hasTopType not in (0,1,):
+        raise AttributeError("TD contains HasTopType with unsupported value 0x{:X}"\
+          .format(hasTopType))
+    return clients, topType
+
+def prepareTDObject(vi, clients, topType, ver, po, useConsolidatedTypes=False, avoid_recompute=False):
+    data_buf = b''
+    if isSmallerVersion(ver, 8,0,0,1):
+        raise NotImplementedError("Unsupported TD read in ver=0x{:06X} older than LV8.0".format(encodeVersion(ver)))
+    elif useConsolidatedTypes and isGreaterOrEqVersion(ver, 8,6,0,1):
+        data_buf += prepareVariableSizeFieldU2p2(topType)
+    else:
+        varcount = sum(1 for client in clients if client.index == -1)
+        data_buf += int(varcount).to_bytes(4, byteorder='big', signed=False)
+        for clientTD in clients:
+            if clientTD.index != -1:
+                continue
+            clientTD.nested.updateData(avoid_recompute=avoid_recompute)
+            data_buf += clientTD.nested.raw_data
+        hasTopType = 0 if topType is None else 1
+        data_buf += prepareVariableSizeFieldU2p2(hasTopType)
+        if hasTopType != 0:
+            data_buf += prepareVariableSizeFieldU2p2(topType)
+    return data_buf
+
+def initWithXMLTDObject(vi, obj_elem, po):
+    clients = []
+    topType = None
+    topType_str = obj_elem.get("TopTypeId")
+    if topType_str is not None and topType_str != "None":
+        topType = int(topType_str, 0)
+    for subelem in obj_elem:
+        if (subelem.tag == "DataType"):
+            obj_idx = -1
+            obj_type = valFromEnumOrIntString(TD_FULL_TYPE, subelem.get("Type"))
+            obj_flags = importXMLBitfields(CONNECTOR_FLAGS, subelem)
+            obj = newTDObject(vi, obj_idx, obj_flags, obj_type, po)
+            # Grow the list if needed (the connectors may be in wrong order)
+            clientTD = SimpleNamespace()
+            clientTD.flags = 0
+            clientTD.index = -1
+            clientTD.nested = obj
+            clients.append(clientTD)
+            # Set connector data based on XML properties
+            clientTD.nested.setOwningList(clients)
+            clientTD.nested.initWithXML(subelem)
+        else:
+            pass
+    return clients, topType
+
+def initWithXMLTDObjectLate(vi, clients, topType, ver, po):
+    for clientTD in clients:
+        if clientTD.index == -1:
+            clientTD.nested.initWithXMLLate()
+    return
+
+def exportXMLTDObject(vi, clients, topType, obj_elem, fname_base, po):
+    hasTopType = 0 if topType is None else 1
+    if hasTopType != 0:
+        obj_elem.set("TopTypeId", "{:d}".format(topType))
+    idx = -1
+    for clientTD in clients:
+        if clientTD.index != -1:
+            continue
+        idx += 1
+        fname_cli = "{:s}_{:04d}".format(fname_base, idx)
+        subelem = ET.SubElement(obj_elem,"DataType")
+        subelem.set("Type", stringFromValEnumOrInt(TD_FULL_TYPE, clientTD.nested.otype))
+
+        clientTD.nested.exportXML(subelem, fname_cli)
+        clientTD.nested.exportXMLFinish(subelem)
+    return
+
+
 def newTDObject(vi, idx, obj_flags, obj_type, po):
     """ Creates and returns new terminal object with given parameters
     """

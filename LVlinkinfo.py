@@ -1057,6 +1057,14 @@ class LinkObjBase:
         """
         self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
 
+    def initWithXMLLate(self):
+        """ Late part of link object loading from XML file
+
+        Can access some basic data from other blocks and sections.
+        Useful only if properties needs an update after other blocks are accessible.
+        """
+        pass
+
     def exportXML(self, lnkobj_elem, fname_base):
         """ Fills XML branch with properties of the link object.
 
@@ -2566,38 +2574,69 @@ class LinkObjHeapToRCFileLink(LinkObjBase):
         self.content = []
 
     def parseRSRCData(self, bldata):
-        self.ident = bldata.read(4)
-        self.parseHeapToFileSaveInfo(bldata)
+        ver = self.vi.getFileVersion()
+        self.clearHeapToFileSaveInfo()
         self.content = []
 
+        self.ident = bldata.read(4)
+        self.parseHeapToFileSaveInfo(bldata)
+
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        if count > 0:
-            raise NotImplementedError("LinkObj {} parsing not implemented for count={}"\
-              .format(self.ident,count))
+        for i in range(count):
+            tditem = SimpleNamespace()
+            tditem.clients, tditem.topType = LVdatatype.parseTDObject(self.vi, bldata, ver, self.po)
+            tditem.prop2 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            self.content.append(tditem)
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        ver = self.vi.getFileVersion()
         data_buf = b''
         data_buf += self.ident[:4]
         data_buf += self.prepareHeapToFileSaveInfo(start_offs+len(data_buf))
         data_buf += len(self.content).to_bytes(4, byteorder='big', signed=False)
+        for tditem in self.content:
+            data_buf += LVdatatype.prepareTDObject(self.vi, tditem.clients, tditem.topType, ver, self.po, avoid_recompute=avoid_recompute)
+            data_buf += int(tditem.prop2).to_bytes(4, byteorder='big', signed=False)
         return data_buf
 
     def initWithXML(self, lnkobj_elem):
+        self.clearHeapToFileSaveInfo()
+        self.content = []
+
         self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
         self.initWithXMLHeapToFileSaveInfo(lnkobj_elem)
-        #TODO implement td import
         for subelem in lnkobj_elem:
-            if subelem.tag in ("LinkOffsetList", "FileSaveStr"):
+            if subelem.tag in ("LinkOffsetList", "FileSaveStr","LinkSaveQualName","LinkSavePathRef",):
                 pass # These tags are parsed elswhere
+            elif subelem.tag in ("FileLinkTDList",):
+                tditem = SimpleNamespace()
+                tditem.clients, tditem.topType = LVdatatype.initWithXMLTDObject(self.vi, subelem, self.po)
+                tditem.prop2 = int(subelem.get("FileLinkProp2"), 0)
+                self.content.append(tditem)
+                pass
             else:
                 raise AttributeError("LinkObjHeapToRCFileLink contains unexpected tag '{}'".format(subelem.tag))
+        pass
+
+    def initWithXMLLate(self):
+        ver = self.vi.getFileVersion()
+        super().initWithXMLLate()
+
+        for tditem in self.content:
+            LVdatatype.initWithXMLTDObjectLate(self.vi, tditem.clients, tditem.topType, ver, self.po)
         pass
 
     def exportXML(self, lnkobj_elem, fname_base):
         self.exportXMLHeapToFileSaveInfo(lnkobj_elem, fname_base)
 
-        for td in self.content:
-            pass#TODO implement td export
+        fname_obj = fname_base
+        for i, tditem in enumerate(self.content):
+            if len(self.content) > 1:
+                fname_obj = "{:s}_{:04d}".format(fname_base, i)
+            subelem = ET.SubElement(lnkobj_elem,"FileLinkTDList")
+            LVdatatype.exportXMLTDObject(self.vi, tditem.clients, tditem.topType, subelem, fname_obj, self.po)
+            subelem.set("FileLinkProp2", "{:d}".format(tditem.prop2))
+        pass
 
 
 class LinkObjHeapToVINamedLink(LinkObjBase):

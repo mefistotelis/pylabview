@@ -1718,6 +1718,14 @@ class LinkObjRefs(CompleteBlock):
                 raise AttributeError("Section contains unexpected tag")
         pass
 
+    def initWithXMLLate(self):
+        super().initWithXMLLate()
+        for snum in self.sections:
+            section = self.sections[snum]
+            for client in section.content:
+                client.initWithXMLLate()
+        pass
+
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         pretty_ident = getPrettyStrFromRsrcType(section.ident)
         list_elem = ET.SubElement(section_elem, pretty_ident)
