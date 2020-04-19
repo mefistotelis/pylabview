@@ -2049,11 +2049,28 @@ class LinkObjDSToStaticVILink(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearOffsetLinkSaveInfo()
 
     def parseRSRCData(self, bldata):
+        ver = self.vi.getFileVersion()
+        self.clearOffsetLinkSaveInfo()
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseOffsetLinkSaveInfo(bldata)
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareOffsetLinkSaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.clearOffsetLinkSaveInfo()
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLOffsetLinkSaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLOffsetLinkSaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjVIToStdVILink(LinkObjBase):
