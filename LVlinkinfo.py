@@ -1023,6 +1023,64 @@ class LinkObjBase:
         subelem = ET.SubElement(lnkobj_elem, "LinkOffsetList")
         self.exportXMLLinkOffsetList(self.offsetList, subelem)
 
+    def clearDNHeapLinkSaveInfo(self):
+        self.viLSPathRef = None
+
+    def parseDNHeapLinkSaveInfo(self, bldata):
+        ver = self.vi.getFileVersion()
+        self.clearDNHeapLinkSaveInfo()
+
+        if isGreaterOrEqVersion(ver, 8,5,0,1):
+            self.parseOffsetLinkSaveInfo(bldata)
+
+            if isGreaterOrEqVersion(ver, 10,0,0,1):
+                if (bldata.tell() % 2) > 0:
+                    bldata.read(2 - (bldata.tell() % 2)) # Padding bytes
+                self.viLSPathRef = self.parsePathRef(bldata)
+
+        else:
+            raise NotImplementedError("Unsupported DNHeapLinkSaveInfo read in ver=0x{:06X} older than LV8.5"\
+              .format(encodeVersion(ver)))
+
+        if (self.po.verbose > 2):
+            print("{:s} {} content: {} {} {}"\
+              .format(type(self).__name__, self.ident, self.linkSavePathRef, self.offsetList, self.viLSPathRef))
+        pass
+
+    def prepareDNHeapLinkSaveInfo(self, start_offs):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+
+        if isGreaterOrEqVersion(ver, 8,5,0,1):
+            data_buf += self.prepareOffsetLinkSaveInfo(start_offs+len(data_buf))
+
+            if isGreaterOrEqVersion(ver, 10,0,0,1):
+                if (start_offs+len(data_buf)) % 2 > 0:
+                    padding_len = 2 - ((start_offs+len(data_buf)) % 2)
+                    data_buf += (b'\0' * padding_len)
+                data_buf += self.viLSPathRef.prepareRSRCData()
+
+        return data_buf
+
+    def initWithXMLDNHeapLinkSaveInfo(self, lnkobj_elem):
+        self.clearDNHeapLinkSaveInfo()
+
+        self.initWithXMLOffsetLinkSaveInfo(lnkobj_elem)
+        for subelem in lnkobj_elem:
+            if (subelem.tag == "VILSPathRef"):
+                self.viLSPathRef = self.initWithXMLPathRef(subelem)
+            else:
+                pass # No exception here - parent may define more tags
+        pass
+
+    def exportXMLDNHeapLinkSaveInfo(self, lnkobj_elem, fname_base):
+        self.exportXMLOffsetLinkSaveInfo(lnkobj_elem, fname_base)
+
+        if self.viLSPathRef is not None:
+            subelem = ET.SubElement(lnkobj_elem,"VILSPathRef")
+            self.viLSPathRef.exportXML(subelem, fname_base)
+        pass
+
     def parseRSRCData(self, bldata):
         """ Parses binary data chunk from RSRC file.
 
@@ -1112,11 +1170,24 @@ class LinkObjHeapToAssembly(LinkObjBase):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.clearDNHeapLinkSaveInfo()
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
-        raise NotImplementedError("LinkObj {} parsing not implemented"\
-          .format(self.ident))
+        self.parseDNHeapLinkSaveInfo(bldata)
+
+    def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
+        data_buf = b''
+        data_buf += self.ident[:4]
+        data_buf += self.prepareDNHeapLinkSaveInfo(start_offs+len(data_buf))
+        return data_buf
+
+    def initWithXML(self, lnkobj_elem):
+        self.ident = getRsrcTypeFromPrettyStr(lnkobj_elem.tag)
+        self.initWithXMLDNHeapLinkSaveInfo(lnkobj_elem)
+
+    def exportXML(self, lnkobj_elem, fname_base):
+        self.exportXMLDNHeapLinkSaveInfo(lnkobj_elem, fname_base)
 
 
 class LinkObjVIToAssembly(LinkObjBase):

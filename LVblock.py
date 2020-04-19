@@ -1770,6 +1770,8 @@ class LIds(LinkObjRefs):
 
 class LIvi(LinkObjRefs):
     """ LinkObj Refs for VI
+
+    Stored dependencies between this VI and other VIs, classes and libraries.
     """
     def createSection(self):
         section = super().createSection()
@@ -2349,14 +2351,6 @@ class TM80(VarCodingBlock):
                 typeMap.append(tmEntry)
 
         return typeMap
-
-
-class LIvi(Block):
-    """ Link Information of vi
-
-    Stored dependencies between this VI and other VIs, classes and libraries.
-    """
-    pass
 
 
 class LVIN(Block):
