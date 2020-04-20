@@ -335,9 +335,9 @@ class LinkObjBase:
         for subelem in lnkobj_elem:
             if subelem.tag in ("LinkSaveQualName","LinkSavePathRef",):
                 pass # These tags are parsed elswhere
-            elif (subelem.tag == "TD"):
+            elif (subelem.tag == "TypeDesc"):
                 clientTD = SimpleNamespace()
-                clientTD.index = int(subelem.get("TypeId"), 0)
+                clientTD.index = int(subelem.get("TypeID"), 0)
                 clientTD.flags = 0 # Only Type Mapped entries have it non-zero
                 self.typedLinkTD = clientTD
             else:
@@ -354,8 +354,8 @@ class LinkObjBase:
 
         if True:
             clientTD = self.typedLinkTD
-            subelem = ET.SubElement(lnkobj_elem, "TD")
-            subelem.set("TypeId", "{:d}".format(clientTD.index))
+            subelem = ET.SubElement(lnkobj_elem, "TypeDesc")
+            subelem.set("TypeID", "{:d}".format(clientTD.index))
 
         lnkobj_elem.set("TypedLinkFlags", "{:d}".format(self.typedLinkFlags))
 
@@ -846,7 +846,7 @@ class LinkObjBase:
                 hasLinkSave = True
             elif (subelem.tag == "LinkOffsetList"):
                 linkOffset_elem = subelem
-            elif subelem.tag in ("TD",):
+            elif subelem.tag in ("TypeDesc",):
                 hasTypedLink = True
             elif (subelem.tag == "ExtFuncLinkStr"):
                 hasExtFuncLink = True
@@ -918,7 +918,7 @@ class LinkObjBase:
         self.initWithXMLOffsetLinkSaveInfo(lnkobj_elem)
 
         for subelem in lnkobj_elem:
-            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","LinkOffsetList","TD",):
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","LinkOffsetList","TypeDesc",):
                 pass # These tags are parsed elswhere
             elif (subelem.tag == "AXLinkStr"):
                 if subelem.text is not None:
@@ -1369,7 +1369,7 @@ class LinkObjVIToCCSymbolLink(LinkObjBase):
         self.initWithXMLCCSymbolLinkRefInfo(lnkobj_elem)
 
         for subelem in lnkobj_elem:
-            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","LinkOffsetList","TD","String",):
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","LinkOffsetList","TypeDesc","String",):
                 pass # These tags are parsed elswhere
             elif (subelem.tag == "CCSymbolStr"):
                 if subelem.text is not None:
@@ -2145,7 +2145,7 @@ class LinkObjDSToDSLink(LinkObjBase):
         self.initWithXMLOffsetLinkSaveInfo(lnkobj_elem)
 
         for subelem in lnkobj_elem:
-            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","LinkOffsetList","TD",):
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","LinkOffsetList","TypeDesc",):
                 pass # These tags are parsed elswhere
             elif (subelem.tag == "DSOffsetList"):
                 self.dsOffsetList = self.initWithXMLLinkOffsetList(subelem)
@@ -2292,7 +2292,7 @@ class LinkObjVIToStdVILink(LinkObjBase):
         self.initWithXMLTypedLinkSaveInfo(lnkobj_elem)
 
         for subelem in lnkobj_elem:
-            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","TD",):
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","TypeDesc",):
                 pass # These tags are parsed elswhere
             elif (subelem.tag == "StdViGUID"):
                 if subelem.text is not None:
@@ -2337,7 +2337,7 @@ class LinkObjVIToProgRetLink(LinkObjBase):
         self.initWithXMLTypedLinkSaveInfo(lnkobj_elem)
 
         for subelem in lnkobj_elem:
-            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","TD",):
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","TypeDesc",):
                 pass # These tags are parsed elswhere
             else:
                 raise AttributeError("LinkObjVIToProgRetLink contains unexpected tag '{}'".format(subelem.tag))
@@ -2370,7 +2370,7 @@ class LinkObjVIToPolyLink(LinkObjBase):
         self.initWithXMLTypedLinkSaveInfo(lnkobj_elem)
 
         for subelem in lnkobj_elem:
-            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","TD",):
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","TypeDesc",):
                 pass # These tags are parsed elswhere
             else:
                 raise AttributeError("LinkObjVIToPolyLink contains unexpected tag '{}'".format(subelem.tag))
@@ -2403,7 +2403,7 @@ class LinkObjVIToCCLink(LinkObjBase):
         self.initWithXMLTypedLinkSaveInfo(lnkobj_elem)
 
         for subelem in lnkobj_elem:
-            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","TD",):
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","TypeDesc",):
                 pass # These tags are parsed elswhere
             else:
                 raise AttributeError("LinkObjVIToCCLink contains unexpected tag '{}'".format(subelem.tag))
@@ -2442,7 +2442,7 @@ class LinkObjVIToStaticVILink(LinkObjBase):
             self.viLinkProp2 = int(tmpProp, 0)
 
         for subelem in lnkobj_elem:
-            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","TD",):
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","TypeDesc",):
                 pass # These tags are parsed elswhere
             else:
                 raise AttributeError("LinkObjVIToStaticVILink contains unexpected tag '{}'".format(subelem.tag))
@@ -2476,7 +2476,7 @@ class LinkObjVIToAdaptiveVILink(LinkObjBase):
         self.initWithXMLTypedLinkSaveInfo(lnkobj_elem)
 
         for subelem in lnkobj_elem:
-            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","TD",):
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","TypeDesc",):
                 pass # These tags are parsed elswhere
             else:
                 raise AttributeError("LinkObjVIToAdaptiveVILink contains unexpected tag '{}'".format(subelem.tag))
@@ -2524,7 +2524,7 @@ class LinkObjHeapToCCSymbolLink(LinkObjBase):
         self.initWithXMLCCSymbolLinkRefInfo(lnkobj_elem)
 
         for subelem in lnkobj_elem:
-            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","LinkOffsetList","TD","String",):
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","LinkOffsetList","TypeDesc","String",):
                 pass # These tags are parsed elswhere
             elif (subelem.tag == "CCSymbolStr"):
                 if subelem.text is not None:
@@ -2594,7 +2594,7 @@ class LinkObjIUseToVILink(LinkObjBase):
         self.initWithXMLHeapToVILinkSaveInfo(lnkobj_elem)
 
         for subelem in lnkobj_elem:
-            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","LinkOffsetList","TD","VILSPathRef",):
+            if subelem.tag in ("LinkSaveQualName","LinkSavePathRef","LinkOffsetList","TypeDesc","VILSPathRef",):
                 pass # These tags are parsed elswhere
             elif (subelem.tag == "IUseStr"):
                 if subelem.text is not None:
@@ -2686,9 +2686,9 @@ class LinkObjNonVINonHeapToTypedefLink(LinkObjBase):
         for subelem in lnkobj_elem:
             if subelem.tag in ("LinkSaveQualName","LinkSavePathRef",):
                 pass # These tags are parsed elswhere
-            elif (subelem.tag == "TD"):
+            elif (subelem.tag == "TypeDesc"):
                 clientTD = SimpleNamespace()
-                clientTD.index = int(subelem.get("TypeId"), 0)
+                clientTD.index = int(subelem.get("TypeID"), 0)
                 clientTD.flags = 0 # Only Type Mapped entries have it non-zero
                 self.typedLinkTD = clientTD
             else:
@@ -2698,8 +2698,8 @@ class LinkObjNonVINonHeapToTypedefLink(LinkObjBase):
         self.exportXMLBasicLinkSaveInfo(lnkobj_elem, fname_base)
         if True:
             clientTD = self.typedLinkTD
-            subelem = ET.SubElement(lnkobj_elem, "TD")
-            subelem.set("TypeId", "{:d}".format(clientTD.index))
+            subelem = ET.SubElement(lnkobj_elem, "TypeDesc")
+            subelem.set("TypeID", "{:d}".format(clientTD.index))
         pass
 
 

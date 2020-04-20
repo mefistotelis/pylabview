@@ -470,7 +470,7 @@ class LVVariant(LVObject):
             elif (subelem.tag == "DataType"):
                 obj_idx = int(subelem.get("Index"), 0)
                 obj_type = valFromEnumOrIntString(LVdatatype.TD_FULL_TYPE, subelem.get("Type"))
-                obj_flags = importXMLBitfields(LVdatatype.CONNECTOR_FLAGS, subelem)
+                obj_flags = importXMLBitfields(LVdatatype.TYPEDESC_FLAGS, subelem)
                 obj = LVdatatype.newTDObject(self.vi, obj_idx, obj_flags, obj_type, self.po)
                 # Grow the list if needed (the connectors may be in wrong order)
                 clientTD = SimpleNamespace()

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
-""" LabView RSRC file format connectors.
+""" LabView RSRC file format Data Type Descriptors.
 
-    Virtual Connectors and Terminal Points are stored inside VCTP block.
+    Virtual Consolidated Data Types are stored inside VCTP block.
 """
 
 # Copyright (C) 2013 Jessica Creighton <jcreigh@femtobit.org>
@@ -46,7 +46,7 @@ class TD_MAIN_TYPE(enum.IntEnum):
 
 
 class TD_FULL_TYPE(enum.IntEnum):
-    """ known types of connectors
+    """ known types of Type Descriptors
 
     All types from LabVIEW 2014 are there.
     """
@@ -151,8 +151,8 @@ class MEASURE_DATA_FLAVOR(enum.IntEnum):
     UInt64Waveform =	20
 
 
-class CONNECTOR_FLAGS(enum.Enum):
-    """ Connector flags
+class TYPEDESC_FLAGS(enum.Enum):
+    """ Type Descriptor flags
     """
     Bit0 = 1 << 0	# unknown
     Bit1 = 1 << 1	# unknown
@@ -160,7 +160,7 @@ class CONNECTOR_FLAGS(enum.Enum):
     Bit3 = 1 << 3	# unknown
     Bit4 = 1 << 4	# unknown
     Bit5 = 1 << 5	# unknown
-    HasLabel = 1 << 6	# After connector data, there is a string label stored
+    HasLabel = 1 << 6	# After TD data, there is a string label stored
     Bit7 = 1 << 7	# unknown
 
 
@@ -295,7 +295,7 @@ class LV_INTERNAL_MEAS_FLAVOR_NAMES(LVheap.ENUM_TAGS):
 class TDObject:
 
     def __init__(self, vi, idx, obj_flags, obj_type, po):
-        """ Creates new Connector object, capable of handling generic Connector data.
+        """ Creates new Type Descriptor object, capable of handling generic TD data.
         """
         self.vi = vi
         self.po = po
@@ -320,7 +320,7 @@ class TDObject:
                 clientTD.nested.setOwningList(self.topTypeList)
 
     def initWithRSRC(self, bldata, obj_len):
-        """ Early part of connector loading from RSRC file
+        """ Early part of Type Descriptor loading from RSRC file
 
         At the point it is executed, other sections are inaccessible.
         """
@@ -329,7 +329,7 @@ class TDObject:
         self.raw_data_updated = True
 
     def initWithXMLInlineStart(self, conn_elem):
-        """ Early part of connector loading from XML file using Inline formats
+        """ Early part of Type Descriptor loading from XML file using Inline formats
 
         That is simply a common part used in all overloaded initWithXML(),
         separated only to avoid code duplication.
@@ -341,7 +341,7 @@ class TDObject:
         self.parsed_data_updated = True
 
     def initWithXML(self, conn_elem):
-        """ Early part of connector loading from XML file
+        """ Early part of Type Descriptor loading from XML file
 
         At the point it is executed, other sections are inaccessible.
         To be overriden by child classes which want to load more properties from XML.
@@ -350,7 +350,7 @@ class TDObject:
         # TODO the inline block belongs to inheriting classes, not here - move
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TypeDesc {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -359,11 +359,11 @@ class TDObject:
 
         elif fmt == "bin":# Format="bin" - the content is stored separately as raw binary data
             if (self.po.verbose > 2):
-                print("{:s}: For Connector {}, reading BIN file '{}'"\
+                print("{:s}: For TypeDesc {}, reading BIN file '{}'"\
                   .format(self.vi.src_fname,self.index,conn_elem.get("File")))
             # If there is label in binary data, set our label property to non-None value
             self.label = None
-            if (self.oflags & CONNECTOR_FLAGS.HasLabel.value) != 0:
+            if (self.oflags & TYPEDESC_FLAGS.HasLabel.value) != 0:
                 self.label = b""
 
             bin_path = os.path.dirname(self.vi.src_fname)
@@ -379,7 +379,7 @@ class TDObject:
             self.setData(data_head+data_buf)
             self.parsed_data_updated = False
         else:
-            raise NotImplementedError("Unsupported Connector {} Format '{}'.".format(self.index,fmt))
+            raise NotImplementedError("Unsupported TypeDesc {} Format '{}'.".format(self.index,fmt))
         pass
 
     def initWithXMLLate(self):
@@ -398,9 +398,9 @@ class TDObject:
         return obj_type, obj_flags, obj_len
 
     def parseRSRCData(self, bldata):
-        """ Implements final stage of setting connector properties from RSRC file
+        """ Implements final stage of setting Type Descriptor properties from RSRC file
 
-        Can use other connectors and other blocks.
+        Can use other TDs and other blocks.
         """
         # Fields oflags,otype are set at constructor, but no harm in setting them again
         self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
@@ -427,13 +427,13 @@ class TDObject:
         return 0
 
     def parseRSRCDataFinish(self, bldata):
-        """ Does generic part of RSRC connector parsing and marks the parse as finished
+        """ Does generic part of RSRC Type Descriptor parsing and marks the parse as finished
 
-        Really, it mostly implements setting connector label from RSRC file.
-        The label behaves in the same way for every connector type, so this function
+        Really, it mostly implements setting TypeDesc label from RSRC file.
+        The label behaves in the same way for every TypeDesc type, so this function
         is really a type-independent part of parseRSRCData().
         """
-        if (self.oflags & CONNECTOR_FLAGS.HasLabel.value) != 0:
+        if (self.oflags & TYPEDESC_FLAGS.HasLabel.value) != 0:
             min_pos = bldata.tell() # We receive the file with pos set at minimal - the label can't start before it
             # The data should be smaller than 256 bytes; but it is still wise to make some restriction on it
             whole_data = bldata.read(1024*1024)
@@ -445,24 +445,24 @@ class TDObject:
                     break
             if self.label is None:
                 if (self.po.verbose > 0):
-                    eprint("{:s}: Warning: TD {:d} type 0x{:02x} label text not found"\
+                    eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} label text not found"\
                       .format(self.vi.src_fname, self.index, self.otype))
                 self.label = b""
             elif i > 0:
                 if (self.po.verbose > 0):
-                    eprint("{:s}: Warning: TD {:d} type 0x{:02x} has label not immediatelly following data"\
+                    eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} has label not immediatelly following data"\
                       .format(self.vi.src_fname, self.index, self.otype))
         self.raw_data_updated = False
 
     def parseXMLData(self):
-        """ Implements final stage of setting connector properties from XML
+        """ Implements final stage of setting Type Descriptor properties from XML
 
-        Can use other connectors and other blocks.
+        Can use other TDs and other blocks.
         """
         self.parsed_data_updated = False
 
     def parseData(self):
-        """ Parse data of specific section and place it as Connector properties
+        """ Parse data of specific section and place it as Type Descriptor properties
         """
         if self.needParseData():
             if self.raw_data_updated:
@@ -483,7 +483,7 @@ class TDObject:
         pass
 
     def needParseData(self):
-        """ Returns if the connector did not had its data parsed yet
+        """ Returns if the Type Descriptor did not had its data parsed yet
 
             After a call to parseData(), or after filling the data manually, this should
             return True. Otherwise, False.
@@ -491,9 +491,9 @@ class TDObject:
         return self.raw_data_updated or self.parsed_data_updated
 
     def prepareRSRCData(self, avoid_recompute=False):
-        """ Returns part of the connector data re-created from properties.
+        """ Returns part of the Type Descriptor data re-created from properties.
 
-        To be overloaded in classes for specific connector types.
+        To be overloaded in classes for specific TypeDesc types.
         """
         if self.raw_data:
             data_buf = self.raw_data[4:]
@@ -501,7 +501,7 @@ class TDObject:
             data_buf = b''
 
         # Remove label from the end - use the algorithm from parseRSRCDataFinish() for consistency
-        if (self.oflags & CONNECTOR_FLAGS.HasLabel.value) != 0:
+        if (self.oflags & TYPEDESC_FLAGS.HasLabel.value) != 0:
             whole_data = data_buf
             # Find a proper position to read the label; try the current position first (if the data after current is not beyond 255)
             for i in range(max(len(whole_data)-256,0), len(whole_data)):
@@ -516,12 +516,12 @@ class TDObject:
         data_buf = b''
 
         if self.label is not None:
-            self.oflags |= CONNECTOR_FLAGS.HasLabel.value
+            self.oflags |= TYPEDESC_FLAGS.HasLabel.value
             if len(self.label) > 255:
                 self.label = self.label[:255]
             data_buf += preparePStr(self.label, 1, self.po)
         else:
-            self.oflags &= ~CONNECTOR_FLAGS.HasLabel.value
+            self.oflags &= ~TYPEDESC_FLAGS.HasLabel.value
 
         if len(data_buf) % 2 > 0:
             padding_len = 2 - (len(data_buf) % 2)
@@ -530,7 +530,7 @@ class TDObject:
         return data_buf
 
     def expectedRSRCSize(self):
-        """ Returns expected RAW data size of this connector.
+        """ Returns expected RAW data size of this Type Descriptor.
 
         The expected size includes header and label size - it is the size of whole data.
         """
@@ -559,7 +559,7 @@ class TDObject:
 
         # TODO the inline block belongs to inheriting classes, not here - move
         if self.size <= 4:
-            # Connector stores no additional data
+            # Type Descriptor stores no additional data
             conn_elem.set("Format", "inline")
         else:
             if self.index >= 0:
@@ -567,7 +567,7 @@ class TDObject:
             else:
                 part_fname = "{:s}.{:s}".format(fname_base,"bin")
             if (self.po.verbose > 2):
-                print("{:s}: For Connector {}, writing BIN file '{}'"\
+                print("{:s}: For Type Descriptor {}, writing BIN file '{}'"\
                   .format(self.vi.src_fname,self.index,os.path.basename(part_fname)))
             bldata = self.getData()
             bldata.read(4) # The data includes 4-byte header
@@ -578,19 +578,19 @@ class TDObject:
             conn_elem.set("File", os.path.basename(part_fname))
 
     def exportXMLFinish(self, conn_elem):
-        # Now fat chunk of code for handling connector label
+        # Now fat chunk of code for handling Type Descriptor label
         if self.label is not None:
-            self.oflags |= CONNECTOR_FLAGS.HasLabel.value
+            self.oflags |= TYPEDESC_FLAGS.HasLabel.value
         else:
-            self.oflags &= ~CONNECTOR_FLAGS.HasLabel.value
+            self.oflags &= ~TYPEDESC_FLAGS.HasLabel.value
         # While exporting flags and label, mind the export format set by exportXML()
         if conn_elem.get("Format") == "bin":
             # For binary format, export only HasLabel flag instead of the actual label; label is in binary data
-            exportXMLBitfields(CONNECTOR_FLAGS, conn_elem, self.oflags)
+            exportXMLBitfields(TYPEDESC_FLAGS, conn_elem, self.oflags)
         else:
             # For parsed formats, export "Label" property, and get rid of the flag; existence of the "Label" acts as flag
-            exportXMLBitfields(CONNECTOR_FLAGS, conn_elem, self.oflags, \
-              skip_mask=CONNECTOR_FLAGS.HasLabel.value)
+            exportXMLBitfields(TYPEDESC_FLAGS, conn_elem, self.oflags, \
+              skip_mask=TYPEDESC_FLAGS.HasLabel.value)
             if self.label is not None:
                 label_text = self.label.decode(self.vi.textEncoding)
                 conn_elem.set("Label", "{:s}".format(label_text))
@@ -661,17 +661,17 @@ class TDObject:
             out_enum.append( (i, clientTD.index, td, clientTD.flags, ) )
         return out_enum
 
-    def getClientConnectorsByType(self):
+    def getClientTypeDescsByType(self):
         self.parseData() # Make sure the block is parsed
         out_lists = { 'number': [], 'path': [], 'string': [], 'compound': [], 'other': [] }
         for cli_idx, conn_idx, conn_obj, conn_flags in self.clientsEnumerate():
-            # We will need a list of clients, so might as well parse the connector now
+            # We will need a list of clients, so might as well parse the Type Descriptor now
             conn_obj.parseData()
             if not conn_obj.checkSanity():
                 if (self.po.verbose > 0):
-                    eprint("{:s}: Warning: TD {:d} type 0x{:02x} sanity check failed!"\
+                    eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} sanity check failed!"\
                       .format(self.vi.src_fname,conn_obj.index,conn_obj.otype))
-            # Add connectors of this Terminal to list
+            # Add Type Descriptor of this Terminal to list
             if conn_obj.isNumber():
                 out_lists['number'].append(conn_obj)
             elif conn_obj.isPath():
@@ -684,7 +684,7 @@ class TDObject:
                 out_lists['other'].append(conn_obj)
             if (self.po.verbose > 2):
                 keys = list(out_lists)
-                print("enumerating: {}.{} idx={} flags={:09x} type={} connectors: {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d}"\
+                print("enumerating: {}.{} idx={} flags={:09x} type={} TypeDescs: {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d}"\
                       .format(self.index, cli_idx, conn_idx,  conn_flags,\
                         conn_obj.fullType().name if isinstance(conn_obj.fullType(), enum.IntEnum) else conn_obj.fullType(),\
                         keys[0],len(out_lists[keys[0]]),\
@@ -693,9 +693,9 @@ class TDObject:
                         keys[3],len(out_lists[keys[3]]),\
                         keys[4],len(out_lists[keys[4]]),\
                       ))
-            # Add sub-connectors the terminals within this connector
+            # Add sub-TD terminals within this TD
             if conn_obj.hasClients():
-                sub_lists = conn_obj.getClientConnectorsByType()
+                sub_lists = conn_obj.getClientTypeDescsByType()
                 for k in out_lists:
                     out_lists[k].extend(sub_lists[k])
         return out_lists
@@ -715,7 +715,7 @@ class TDObject:
 
 
 class TDObjectVoid(TDObject):
-    """ Connector with Void data
+    """ Type Descriptor with Void data
     """
     def __init__(self, *args):
         super().__init__(*args)
@@ -743,7 +743,7 @@ class TDObjectVoid(TDObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TypeDesc {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -756,7 +756,7 @@ class TDObjectVoid(TDObject):
 
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
-        # Connector stores no additional data
+        # Type Descriptor stores no additional data
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
@@ -764,30 +764,30 @@ class TDObjectVoid(TDObject):
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
 
 
 class TDObjectBool(TDObjectVoid):
-    """ Connector with Boolean data
+    """ Type Descriptor with Boolean data
 
-    Stores no additional data, so handling is identical to Void connector.
+    Stores no additional data, so handling is identical to Void DypeDesc.
     """
     pass
 
 
 class TDObjectLVVariant(TDObjectVoid):
-    """ Connector with data supporting multiple types(variant type)
+    """ Type Descriptor with data supporting multiple types(variant type)
 
-    Stores no additional data, so handling is identical to Void connector.
+    Stores no additional data, so handling is identical to Void TypeDesc.
     """
     pass
 
 
 class TDObjectNumber(TDObject):
-    """ Connector with single number as data
+    """ Type Descriptor with single number as data
 
         The number can be a clear math value, but also can be physical value with
         a specific unit, or may come from an enum with each value having a label.
@@ -800,7 +800,7 @@ class TDObjectNumber(TDObject):
 
     def parseRSRCEnumAttr(self, bldata):
         count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        # Create _separate_ empty namespace for each connector
+        # Create _separate_ empty namespace for each TypeDesc
         self.values = [SimpleNamespace() for _ in range(count)]
         whole_len = 0
         for i in range(count):
@@ -815,7 +815,7 @@ class TDObjectNumber(TDObject):
 
     def parseRSRCUnitsAttr(self, bldata):
         count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        # Create _separate_ empty namespace for each connector
+        # Create _separate_ empty namespace for each TypeDesc
         self.values = [SimpleNamespace() for _ in range(count)]
         for i in range(count):
             intval1 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
@@ -893,24 +893,20 @@ class TDObjectNumber(TDObject):
     def initWithXMLEnumAttr(self, conn_elem):
         for subelem in conn_elem:
             if (subelem.tag == "Value"):
-                i = int(subelem.get("Index"), 0)
                 value = SimpleNamespace()
                 label_str = subelem.get("EnumLabel")
                 value.label = label_str.encode(self.vi.textEncoding)
                 value.intval1 = None
                 value.intval2 = None
-                # Grow the list if needed (the values may be in wrong order)
-                if i >= len(self.values):
-                    self.values.extend([None] * (i - len(self.values) + 1))
-                self.values[i] = value
+                self.values.append(value)
             else:
-                raise AttributeError("Connector contains unexpected tag")
+                raise AttributeError("Type Descriptor contains unexpected tag '{}'"\
+                  .format(subelem.tag))
         pass
 
     def initWithXMLUnitsAttr(self, conn_elem):
         for subelem in conn_elem:
             if (subelem.tag == "Value"):
-                i = int(subelem.get("Index"), 0)
                 value = SimpleNamespace()
                 value.intval1 = int(subelem.get("UnitVal1"), 0)
                 value.intval2 = int(subelem.get("UnitVal2"), 0)
@@ -918,19 +914,17 @@ class TDObjectNumber(TDObject):
                 if (self.po.verbose > 2):
                     print("{:s}: TD {:d} type 0x{:02x} Units Attr {} are 0x{:02X} 0x{:02X}"\
                       .format(self.vi.src_fname,self.index,self.otype,i,value.intval1,value.intval2))
-                # Grow the list if needed (the values may be in wrong order)
-                if i >= len(self.values):
-                    self.values.extend([None] * (i - len(self.values) + 1))
-                self.values[i] = value
+                self.values.append(value)
             else:
-                raise AttributeError("Connector contains unexpected tag")
+                raise AttributeError("Type Descriptor contains unexpected tag '{}'"\
+                  .format(subelem.tag))
         pass
 
     def initWithXML(self, conn_elem):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TypeDesc {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -953,7 +947,6 @@ class TDObjectNumber(TDObject):
         for i, value in enumerate(self.values):
             subelem = ET.SubElement(conn_elem,"Value")
 
-            subelem.set("Index", "{:d}".format(i))
             label_str = value.label.decode(self.vi.textEncoding)
             subelem.set("EnumLabel", label_str)
         pass
@@ -962,7 +955,6 @@ class TDObjectNumber(TDObject):
         for i, value in enumerate(self.values):
             subelem = ET.SubElement(conn_elem,"Value")
 
-            subelem.set("Index", "{:d}".format(i))
             subelem.set("UnitVal1", "{:d}".format(value.intval1))
             subelem.set("UnitVal2", "{:d}".format(value.intval2))
         pass
@@ -980,24 +972,24 @@ class TDObjectNumber(TDObject):
         ret = True
         if (self.prop1 & ~1) != 0: # 0 or 1
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02X} property1 {:d}, expected 1 bit value"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02X} property1 {:d}, expected 1 bit value"\
                   .format(self.vi.src_fname,self.index,self.otype,self.prop1))
             ret = False
         if (self.isEnum() or self.isPhys()):
             if len(self.values) < 1:
                 if (self.po.verbose > 1):
-                    eprint("{:s}: Warning: TD {:d} type 0x{:02X} has empty values list"\
+                    eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02X} has empty values list"\
                       .format(self.vi.src_fname,self.index,self.otype))
                 ret = False
         if len(self.padding1) > 0 and (self.padding1 != b'\0'):
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02X} padding1 {}, expected zeros"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02X} padding1 {}, expected zeros"\
                   .format(self.vi.src_fname,self.index,self.otype,self.padding1))
             ret = False
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02X} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02X} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
@@ -1021,22 +1013,24 @@ class TDObjectNumber(TDObject):
 
 
 class TDObjectCString(TDObjectVoid):
-    """ Connector with C String data
+    """ Type Descriptor with C String data
 
-    Stores no additional data, so handling is identical to Void connector.
+    Stores no additional data, so handling is identical to Void TypeDesc.
     """
     pass
 
 
 class TDObjectPasString(TDObjectVoid):
-    """ Connector with Pascal String data
+    """ Type Descriptor with Pascal String data
 
-    Stores no additional data, so handling is identical to Void connector.
+    Stores no additional data, so handling is identical to Void TypeDesc.
     """
     pass
 
 
 class TDObjectTag(TDObject):
+    """ Type Descriptor with Tag data
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.prop1 = 0
@@ -1111,7 +1105,7 @@ class TDObjectTag(TDObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TypeDesc {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -1130,7 +1124,8 @@ class TDObjectTag(TDObject):
                     obj.initWithXML(subelem)
                     self.variobj = obj
                 else:
-                    raise AttributeError("Connector contains unexpected tag")
+                    raise AttributeError("Type Descriptor contains unexpected tag '{}'"\
+                      .format(subelem.tag))
 
             self.updateData(avoid_recompute=True)
 
@@ -1172,7 +1167,7 @@ class TDObjectTag(TDObject):
         ret = True
         if self.prop1 != 0xFFFFFFFF:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}"\
                   .format(self.vi.src_fname,self.index,self.otype,self.prop1,0xFFFFFFFF))
             ret = False
         if isGreaterOrEqVersion(ver, 8,2,1) and \
@@ -1182,19 +1177,21 @@ class TDObjectTag(TDObject):
         else:
             if self.variobj is not None:
                 if (self.po.verbose > 1):
-                    eprint("{:s}: Warning: TD {:d} type 0x{:02x} Variant object present, but LV version with no support"\
+                    eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} Variant object present, but LV version with no support"\
                       .format(self.vi.src_fname,self.index,self.otype))
                 ret = False
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
 
 
 class TDObjectBlob(TDObject):
+    """ Type Descriptor with generic blob of data
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.prop1 = None
@@ -1226,7 +1223,7 @@ class TDObjectBlob(TDObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TypeDesc {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -1248,46 +1245,58 @@ class TDObjectBlob(TDObject):
         if self.otype not in (TD_FULL_TYPE.PolyVI, TD_FULL_TYPE.Block,):
             if self.prop1 != 0xFFFFFFFF:
                 if (self.po.verbose > 1):
-                    eprint("{:s}: Warning: TD {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}"\
+                    eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}"\
                       .format(self.vi.src_fname,self.index,self.otype,self.prop1,0xFFFFFFFF))
                 ret = False
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
 
 
 class TDObjectNumberPtr(TDObjectVoid):
-    """ Connector with Number Pointer as data
+    """ Type Descriptor with Number Pointer as data
 
-    Stores no additional data, so handling is identical to Void connector.
+    Stores no additional data, so handling is identical to Void TypeDesc.
     """
     pass
 
 class TDObjectString(TDObjectBlob):
+    """ Type Descriptor with String data
+    """
     pass
 
 
 class TDObjectPath(TDObjectBlob):
+    """ Type Descriptor with Path Object as data
+    """
     pass
 
 
 class TDObjectPicture(TDObjectBlob):
+    """ Type Descriptor with Picture data
+    """
     pass
 
 
 class TDObjectSubString(TDObjectBlob):
+    """ Type Descriptor with sub-string data
+    """
     pass
 
 
 class TDObjectPolyVI(TDObjectBlob):
+    """ Type Descriptor with PolymorphicVI data
+    """
     pass
 
 
 class TDObjectFunction(TDObject):
+    """ Type Descriptor with Function data
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.fflags = 0
@@ -1302,7 +1311,7 @@ class TDObjectFunction(TDObject):
         self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
 
         count = readVariableSizeFieldU2p2(bldata)
-        # Create _separate_ empty namespace for each connector
+        # Create _separate_ empty namespace for each TypeDesc
         self.clients = [SimpleNamespace() for _ in range(count)]
         for i in range(count):
             cli_idx = readVariableSizeFieldU2p2(bldata)
@@ -1342,7 +1351,7 @@ class TDObjectFunction(TDObject):
             self.field6 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             self.field7 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         if (self.fflags & 0x8000) != 0:
-            # If the flag is set, then the last client is special - comes from here, not the standard list
+            # If the flag is set, then the last sub-type is special - comes from here, not the standard list
             clientTD = SimpleNamespace()
             clientTD.index = readVariableSizeFieldU2p2(bldata)
             clientTD.flags = 0
@@ -1361,7 +1370,7 @@ class TDObjectFunction(TDObject):
         clients = self.clients.copy()
         spec_cli = None
         if (self.fflags & 0x8000) != 0:
-            # Store last client separately, remove it from normal list
+            # Store last sub-type separately, remove it from normal list
             spec_cli = clients.pop()
 
         data_buf += prepareVariableSizeFieldU2p2(len(clients))
@@ -1436,7 +1445,7 @@ class TDObjectFunction(TDObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TypeDesc {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -1456,23 +1465,21 @@ class TDObjectFunction(TDObject):
 
             self.clients = []
             for subelem in conn_elem:
-                if (subelem.tag == "Client"):
+                if (subelem.tag == "TypeDesc"):
                     clientTD = SimpleNamespace()
-                    i = int(subelem.get("Index"), 0)
-                    clientTD.index = int(subelem.get("ConnectorIndex"), 0)
+                    clientTD.index = int(subelem.get("TypeID"), 0)
                     clientTD.flags = int(subelem.get("Flags"), 0)
                     clientTD.thrallSources = []
                     for sub_subelem in subelem:
                         if (sub_subelem.tag == "ThrallSources"):
                             clientTD.thrallSources += [int(itm,0) for itm in sub_subelem.text.split()]
                         else:
-                            raise AttributeError("Connector Client contains unexpected tag")
-                    # Grow the list if needed (the clients may be in wrong order)
-                    if i >= len(self.clients):
-                        self.clients.extend([None] * (i - len(self.clients) + 1))
-                    self.clients[i] = clientTD
+                            raise AttributeError("TypeDesc sub-type contains unexpected tag '{}'"\
+                              .format(subelem.tag))
+                    self.clients.append(clientTD)
                 else:
-                    raise AttributeError("Connector contains unexpected tag")
+                    raise AttributeError("Type Descriptor contains unexpected tag '{}'"\
+                      .format(subelem.tag))
 
             self.updateData(avoid_recompute=True)
 
@@ -1493,10 +1500,9 @@ class TDObjectFunction(TDObject):
             conn_elem.set("Field7", "0x{:X}".format(self.field7))
 
         for i, client in enumerate(self.clients):
-            subelem = ET.SubElement(conn_elem,"Client")
+            subelem = ET.SubElement(conn_elem,"TypeDesc")
 
-            subelem.set("Index", "{:d}".format(i))
-            subelem.set("ConnectorIndex", str(client.index))
+            subelem.set("TypeID", str(client.index))
             subelem.set("Flags", "0x{:04X}".format(client.flags))
 
             if len(client.thrallSources) > 0:
@@ -1513,7 +1519,7 @@ class TDObjectFunction(TDObject):
         ret = True
         if (len(self.clients) > 125):
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02x} clients count {:d}, expected below {:d}"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} clients count {:d}, expected below {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.clients),125+1))
             ret = False
         typeList = None
@@ -1528,30 +1534,30 @@ class TDObjectFunction(TDObject):
                 if client.index == -1: # Special case this is how we mark nested client
                     if client.nested is None:
                         if (self.po.verbose > 1):
-                            eprint("{:s}: Warning: TD {:d} nested client {:d} does not exist"\
+                            eprint("{:s}: Warning: TypeDesc {:d} nested sub-type {:d} does not exist"\
                               .format(self.vi.src_fname,self.index,i))
                         ret = False
                 else:
                     if client.index >= len(typeList):
                         if (self.po.verbose > 1):
-                            eprint("{:s}: Warning: TD {:d} client {:d} references outranged TD {:d}"\
+                            eprint("{:s}: Warning: TypeDesc {:d} sub-type {:d} references outranged TD {:d}"\
                               .format(self.vi.src_fname,self.index,i,client.index))
                         ret = False
                 pass
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
 
 
 class TDObjectTypeDef(TDObject):
-    """ Connector which stores type definition
+    """ Type Descriptor which stores type definition
 
-    Connectors of this type have a special support in LabView code, where type data
-    is replaced by the data from nested connector. But we shouldn't need it here.
+    TypeDescs of this type have a special support in LabView code, where type data
+    is replaced by the data from nested TD. But we shouldn't need it here.
     """
     def __init__(self, *args):
         super().__init__(*args)
@@ -1559,9 +1565,9 @@ class TDObjectTypeDef(TDObject):
         self.labels = []
 
     def parseRSRCNestedTD(self, bldata, pos):
-        """ Parse RSRC data of a connector which is not in main list of connectors
+        """ Parse RSRC data of a Type Descriptor which is not in main list of TypeDesc
 
-        This is a variant of VCTP.parseRSRCConnector() which assigns index -1 and
+        This is a variant of VCTP.parseRSRCTypeDesc() which assigns index -1 and
         does not store the connector in any list.
         """
         bldata.seek(pos)
@@ -1571,7 +1577,7 @@ class TDObjectTypeDef(TDObject):
         obj = newTDObject(self.vi, -1, obj_flags, obj_type, self.po)
         bldata.seek(pos)
         obj.setOwningList(self.topTypeList)
-        # The object length of this nested connector is 4 bytes larger than real thing.
+        # The object length of this nested TypeDesc is 4 bytes larger than real thing.
         # Not everyone is aiming for consistency.
         obj.initWithRSRC(bldata, obj_len-4)
         return obj, obj_len
@@ -1619,13 +1625,13 @@ class TDObjectTypeDef(TDObject):
             data_buf += preparePStr(b'/'.join(self.labels), 2, self.po)
         if len(self.clients) != 1:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02x} has unexpacted amount of clients; should have 1"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} has unexpacted amount of clients; should have 1"\
                   .format(self.vi.src_fname,self.index,self.otype))
         for client in self.clients:
             cli_data_buf = client.nested.prepareRSRCData(avoid_recompute=avoid_recompute)
             cli_data_buf += client.nested.prepareRSRCDataFinish()
 
-            # size of nested connector is computed differently than in main connector
+            # size of nested TypeDesc is computed differently than in main TypeDesc
             cli_data_head = int(len(cli_data_buf)+8).to_bytes(2, byteorder='big')
             cli_data_head += int(client.nested.oflags).to_bytes(1, byteorder='big')
             cli_data_head += int(client.nested.otype).to_bytes(1, byteorder='big')
@@ -1657,21 +1663,20 @@ class TDObjectTypeDef(TDObject):
 
     def initWithXMLNestedTD(self, conn_subelem):
         clientTD = SimpleNamespace()
-        i = int(conn_subelem.get("Index"), 0)
         clientTD.index = -1
         clientTD.flags = 0
         obj_type = valFromEnumOrIntString(TD_FULL_TYPE, conn_subelem.get("Type"))
-        obj_flags = importXMLBitfields(CONNECTOR_FLAGS, conn_subelem)
+        obj_flags = importXMLBitfields(TYPEDESC_FLAGS, conn_subelem)
         obj = newTDObject(self.vi, clientTD.index, obj_flags, obj_type, self.po)
         clientTD.nested = obj
         obj.initWithXML(conn_subelem)
-        return clientTD, i
+        return clientTD
 
     def initWithXML(self, conn_elem):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TypeDesc {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -1680,16 +1685,15 @@ class TDObjectTypeDef(TDObject):
             self.labels = []
             self.clients = []
             for subelem in conn_elem:
-                if (subelem.tag == "Client"):
-                    clientTD, i = self.initWithXMLNestedTD(subelem)
-                    if i != 0:
-                        raise AttributeError("Connector expected to contain exactly one nested sub-connector")
+                if (subelem.tag == "TypeDesc"):
+                    clientTD = self.initWithXMLNestedTD(subelem)
                     self.clients.append(clientTD)
                 elif (subelem.tag == "Label"):
                     label = subelem.get("Text").encode(self.vi.textEncoding)
                     self.labels.append(label)
                 else:
-                    raise AttributeError("Connector contains unexpected tag")
+                    raise AttributeError("Type Descriptor contains unexpected tag '{}'"\
+                      .format(subelem.tag))
 
             self.updateData(avoid_recompute=True)
 
@@ -1711,9 +1715,8 @@ class TDObjectTypeDef(TDObject):
         conn_elem.set("Flag1", "0x{:X}".format(self.flag1))
 
         for i, clientTD in enumerate(self.clients):
-            subelem = ET.SubElement(conn_elem,"Client")
+            subelem = ET.SubElement(conn_elem,"TypeDesc")
 
-            subelem.set("Index", "{:d}".format(i))
             subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(TD_FULL_TYPE, clientTD.nested.otype)))
             subelem.set("Nested", "True")
             if self.index >= 0:
@@ -1735,26 +1738,28 @@ class TDObjectTypeDef(TDObject):
         ret = True
         if (len(self.clients) != 1):
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02x} clients count {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} clients count {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.clients),1))
             ret = False
         for i, clientTD in enumerate(self.clients):
             if clientTD.index != -1:
                 if (self.po.verbose > 1):
-                    eprint("{:s}: Warning: TD {:d} expected to have nested client"\
+                    eprint("{:s}: Warning: TypeDesc {:d} expected to have nested client"\
                       .format(self.vi.src_fname,i))
                 ret = False
             pass
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
 
 
 class TDObjectArray(TDObject):
+    """ Type Descriptor with Multidimentional Array data
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.dimensions = [ ]
@@ -1788,7 +1793,7 @@ class TDObjectArray(TDObject):
             data_buf += int(flags).to_bytes(4, byteorder='big')
         if len(self.clients) != 1:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02x} has unexpacted amount of clients; should have 1"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} has unexpacted amount of clients; should have 1"\
                   .format(self.vi.src_fname,self.index,self.otype))
         for clientTD in self.clients:
             data_buf += int(clientTD.index).to_bytes(2, byteorder='big')
@@ -1810,7 +1815,7 @@ class TDObjectArray(TDObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TypeDesc {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -1819,25 +1824,18 @@ class TDObjectArray(TDObject):
             self.clients = []
             for subelem in conn_elem:
                 if (subelem.tag == "Dimension"):
-                    i = int(subelem.get("Index"), 0)
                     dim = SimpleNamespace()
                     dim.flags = int(subelem.get("Flags"), 0)
                     dim.fixedSize = int(subelem.get("FixedSize"), 0)
-                    # Grow the list if needed (the labels may be in wrong order)
-                    if i >= len(self.dimensions):
-                        self.dimensions.extend([None] * (i - len(self.dimensions) + 1))
-                    self.dimensions[i] = dim
-                elif (subelem.tag == "Client"):
-                    i = int(subelem.get("Index"), 0)
+                    self.dimensions.append(dim)
+                elif (subelem.tag == "TypeDesc"):
                     clientTD = SimpleNamespace()
-                    clientTD.index = int(subelem.get("ConnectorIndex"), 0)
+                    clientTD.index = int(subelem.get("TypeID"), 0)
                     clientTD.flags = int(subelem.get("Flags"), 0)
-                    # Grow the list if needed (the labels may be in wrong order)
-                    if i >= len(self.clients):
-                        self.clients.extend([None] * (i - len(self.clients) + 1))
-                    self.clients[i] = clientTD
+                    self.clients.append(clientTD)
                 else:
-                    raise AttributeError("Connector contains unexpected tag")
+                    raise AttributeError("Type Descriptor contains unexpected tag '{}'"\
+                      .format(subelem.tag))
 
             self.updateData(avoid_recompute=True)
 
@@ -1851,15 +1849,13 @@ class TDObjectArray(TDObject):
         for i, dim in enumerate(self.dimensions):
             subelem = ET.SubElement(conn_elem,"Dimension")
 
-            subelem.set("Index", "{:d}".format(i))
             subelem.set("Flags", "0x{:04X}".format(dim.flags))
             subelem.set("FixedSize", "0x{:04X}".format(dim.fixedSize))
 
         for i, clientTD in enumerate(self.clients):
-            subelem = ET.SubElement(conn_elem,"Client")
+            subelem = ET.SubElement(conn_elem,"TypeDesc")
 
-            subelem.set("Index", "{:d}".format(i))
-            subelem.set("ConnectorIndex", str(clientTD.index))
+            subelem.set("TypeID", str(clientTD.index))
             subelem.set("Flags", "0x{:04X}".format(clientTD.flags))
 
         conn_elem.set("Format", "inline")
@@ -1868,20 +1864,20 @@ class TDObjectArray(TDObject):
         ret = True
         if len(self.dimensions) > 64:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02x} has {} dimensions, expected below {}"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} has {} dimensions, expected below {}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.dimensions),64))
             ret = False
         if len(self.clients) != 1:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02x} has {} clients, expected exactly {}"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} has {} clients, expected exactly {}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.clients),1))
             ret = False
         for clientTD in self.clients:
-            if self.index == -1: # Are we a nested connector
+            if self.index == -1: # Are we a nested TypeDesc
                 pass
             elif clientTD.index >= self.index:
                 if (self.po.verbose > 1):
-                    eprint("{:s}: Warning: TD {:d} type 0x{:02x} client {:d} is reference to higher index"\
+                    eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} sub-type {:d} is reference to higher index"\
                       .format(self.vi.src_fname,self.index,self.otype,clientTD.index))
                 ret = False
             pass
@@ -1889,6 +1885,8 @@ class TDObjectArray(TDObject):
 
 
 class TDObjectBlock(TDObject):
+    """ Type Descriptor with Block based data
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.blkSize = None
@@ -1925,7 +1923,7 @@ class TDObjectBlock(TDObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TypeDesc {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -1950,13 +1948,15 @@ class TDObjectBlock(TDObject):
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
 
 
 class TDObjectAlignedBlock(TDObjectBlock):
+    """ Type Descriptor with Aligned Block data
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.clients = []
@@ -1989,7 +1989,7 @@ class TDObjectAlignedBlock(TDObjectBlock):
         exp_whole_len += 4
         for clientTD in self.clients:
             exp_whole_len += ( 2 if (clientTD.index <= 0x7fff) else 4 )
-            break # only one client is valid
+            break # only one sub-type is valid
         return exp_whole_len
 
     def initWithXMLInlineData(self, conn_elem):
@@ -1997,22 +1997,23 @@ class TDObjectAlignedBlock(TDObjectBlock):
         self.blkSize = int(conn_elem.get("BlockSize"), 0)
 
         for subelem in conn_elem:
-            if (subelem.tag == "Client"):
+            if (subelem.tag == "TypeDesc"):
                 clientTD = SimpleNamespace()
-                clientTD.index = int(subelem.get("ConnectorIndex"), 0)
+                clientTD.index = int(subelem.get("TypeID"), 0)
                 clientTD.flags = int(subelem.get("Flags"), 0)
                 self.clients.append(clientTD)
             else:
-                raise AttributeError("Connector contains unexpected tag")
+                raise AttributeError("Type Descriptor contains unexpected tag '{}'"\
+                  .format(subelem.tag))
         pass
 
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
         conn_elem.set("BlockSize", "0x{:X}".format(self.blkSize))
         for clientTD in self.clients:
-            subelem = ET.SubElement(conn_elem,"Client")
+            subelem = ET.SubElement(conn_elem,"TypeDesc")
 
-            subelem.set("ConnectorIndex", str(clientTD.index))
+            subelem.set("TypeID", str(clientTD.index))
             subelem.set("Flags", "0x{:04X}".format(clientTD.flags))
         conn_elem.set("Format", "inline")
 
@@ -2030,13 +2031,13 @@ class TDObjectAlignedBlock(TDObjectBlock):
                 if clientTD.index == -1: # This is how we mark nested client
                     if clientTD.nested is None:
                         if (self.po.verbose > 1):
-                            eprint("{:s}: Warning: TD {:d} nested client {:d} does not exist"\
+                            eprint("{:s}: Warning: TypeDesc {:d} nested sub-type {:d} does not exist"\
                               .format(self.vi.src_fname,self.index,i))
                         ret = False
                 else:
                     if clientTD.index >= len(typeList):
                         if (self.po.verbose > 1):
-                            eprint("{:s}: Warning: TD {:d} client {:d} references outranged TD {:d}"\
+                            eprint("{:s}: Warning: TypeDesc {:d} sub-type {:d} references outranged TD {:d}"\
                               .format(self.vi.src_fname,self.index,i,clientTD.index))
                         ret = False
                 pass
@@ -2044,6 +2045,8 @@ class TDObjectAlignedBlock(TDObjectBlock):
 
 
 class TDObjectRepeatedBlock(TDObject):
+    """ Type Descriptor with data consisting of repeated Block
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.clients = []
@@ -2068,7 +2071,7 @@ class TDObjectRepeatedBlock(TDObject):
         data_buf += int(self.numRepeats).to_bytes(4, byteorder='big')
         for clientTD in self.clients:
             data_buf += prepareVariableSizeFieldU2p2(clientTD.index)
-            break # only one client is supported
+            break # only one sub-type is supported
         return data_buf
 
     def expectedRSRCSize(self):
@@ -2076,7 +2079,7 @@ class TDObjectRepeatedBlock(TDObject):
         exp_whole_len += 4
         for clientTD in self.clients:
             exp_whole_len += ( 2 if (clientTD.index <= 0x7fff) else 4 )
-            break # only one client is valid
+            break # only one sub-type is valid
         if self.label is not None:
             label_len = 1 + len(self.label)
             if label_len % 2 > 0: # Include padding
@@ -2089,20 +2092,21 @@ class TDObjectRepeatedBlock(TDObject):
         self.numRepeats = int(conn_elem.get("NumRepeats"), 0)
 
         for subelem in conn_elem:
-            if (subelem.tag == "Client"):
+            if (subelem.tag == "TypeDesc"):
                 clientTD = SimpleNamespace()
-                clientTD.index = int(subelem.get("ConnectorIndex"), 0)
+                clientTD.index = int(subelem.get("TypeID"), 0)
                 clientTD.flags = int(subelem.get("Flags"), 0)
                 self.clients.append(clientTD)
             else:
-                raise AttributeError("Connector contains unexpected tag")
+                raise AttributeError("Type Descriptor contains unexpected tag '{}'"\
+                  .format(subelem.tag))
         pass
 
     def initWithXML(self, conn_elem):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TypeDesc {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -2118,9 +2122,9 @@ class TDObjectRepeatedBlock(TDObject):
         self.parseData()
         conn_elem.set("NumRepeats", "{:d}".format(self.numRepeats))
         for clientTD in self.clients:
-            subelem = ET.SubElement(conn_elem,"Client")
+            subelem = ET.SubElement(conn_elem,"TypeDesc")
 
-            subelem.set("ConnectorIndex", str(clientTD.index))
+            subelem.set("TypeID", str(clientTD.index))
             subelem.set("Flags", "0x{:04X}".format(clientTD.flags))
         conn_elem.set("Format", "inline")
 
@@ -2138,26 +2142,28 @@ class TDObjectRepeatedBlock(TDObject):
                 if clientTD.index == -1: # This is how we mark nested client
                     if clientTD.nested is None:
                         if (self.po.verbose > 1):
-                            eprint("{:s}: Warning: TD {:d} nested client {:d} does not exist"\
+                            eprint("{:s}: Warning: TypeDesc {:d} nested sub-type {:d} does not exist"\
                               .format(self.vi.src_fname,self.index,i))
                         ret = False
                 else:
                     if clientTD.index >= len(typeList):
                         if (self.po.verbose > 1):
-                            eprint("{:s}: Warning: TD {:d} client {:d} references outranged TD {:d}"\
+                            eprint("{:s}: Warning: TypeDesc {:d} sub-type {:d} references outranged TD {:d}"\
                               .format(self.vi.src_fname,self.index,i,clientTD.index))
                         ret = False
                 pass
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
 
 
 class TDObjectRef(TDObject):
+    """ Type Descriptor with Reference data
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.reftype = int(REFNUM_TYPE.Generic)
@@ -2207,7 +2213,7 @@ class TDObjectRef(TDObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TypeDesc {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -2223,26 +2229,18 @@ class TDObjectRef(TDObject):
             self.clients = []
             self.items = []
             for subelem in conn_elem:
-                if (subelem.tag == "Client"):
+                if (subelem.tag == "TypeDesc"):
                     clientTD = SimpleNamespace()
-                    i = int(subelem.get("Index"), 0)
-                    clientTD.index = int(subelem.get("ConnectorIndex"), 0)
+                    clientTD.index = int(subelem.get("TypeID"), 0)
                     clientTD.flags = int(subelem.get("Flags"), 0)
                     if self.ref_obj is not None:
                         self.ref_obj.initWithXMLClient(clientTD, subelem)
-                    # Grow the list if needed (the clients may be in wrong order)
-                    if i >= len(self.clients):
-                        self.clients.extend([None] * (i - len(self.clients) + 1))
-                    self.clients[i] = clientTD
+                    self.clients.append(clientTD)
                 elif (subelem.tag == "Item"):
                     item = SimpleNamespace()
-                    i = int(subelem.get("Index"), 0)
                     if self.ref_obj is not None:
                         self.ref_obj.initWithXMLItem(item, subelem)
-                    # Grow the list if needed (the items may be in wrong order)
-                    if i >= len(self.items):
-                        self.items.extend([None] * (i - len(self.items) + 1))
-                    self.items[i] = item
+                    self.items.append(item)
                 elif (subelem.tag == "LVVariant"):
                     i = int(subelem.get("Index"), 0)
                     obj = LVclasses.LVVariant(i, self.vi, self.po)
@@ -2252,7 +2250,8 @@ class TDObjectRef(TDObject):
                     obj.initWithXML(subelem)
                     self.objects[i] = obj
                 else:
-                    raise AttributeError("Connector contains unexpected tag")
+                    raise AttributeError("Type Descriptor contains unexpected tag '{}'"\
+                      .format(subelem.tag))
 
             self.updateData(avoid_recompute=True)
 
@@ -2277,10 +2276,9 @@ class TDObjectRef(TDObject):
             self.ref_obj.exportXML(conn_elem, fname_base)
 
         for i, clientTD in enumerate(self.clients):
-            subelem = ET.SubElement(conn_elem,"Client")
+            subelem = ET.SubElement(conn_elem,"TypeDesc")
 
-            subelem.set("Index", "{:d}".format(i))
-            subelem.set("ConnectorIndex", str(clientTD.index))
+            subelem.set("TypeID", str(clientTD.index))
             subelem.set("Flags", "0x{:04X}".format(clientTD.flags))
 
             if self.ref_obj is not None:
@@ -2288,8 +2286,6 @@ class TDObjectRef(TDObject):
 
         for i, item in enumerate(self.items):
             subelem = ET.SubElement(conn_elem,"Item")
-
-            subelem.set("Index", "{:d}".format(i))
 
             if self.index >= 0:
                 part_fname = "{:s}_{:04d}_itm{:02d}".format(fname_base,self.index,i)
@@ -2319,11 +2315,11 @@ class TDObjectRef(TDObject):
             if not self.ref_obj.checkSanity():
                 ret = False
         for clientTD in self.clients:
-            if self.index == -1: # Are we a nested connector
+            if self.index == -1: # Are we a nested TypeDesc
                 pass
             elif clientTD.index >= self.index:
                 if (self.po.verbose > 1):
-                    eprint("{:s}: Warning: TD {:d} type 0x{:02x} reftype {:d} client {:d} is reference to higher index"\
+                    eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} reftype {:d} sub-type {:d} is reference to higher index"\
                       .format(self.vi.src_fname,self.index,self.otype,self.reftype,clientTD.index))
                 ret = False
         return ret
@@ -2335,6 +2331,8 @@ class TDObjectRef(TDObject):
 
 
 class TDObjectCluster(TDObject):
+    """ Type Descriptor which Clusters together other TDs into a struct
+    """
     def __init__(self, *args):
         super().__init__(*args)
 
@@ -2343,7 +2341,7 @@ class TDObjectCluster(TDObject):
         self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
 
         count = readVariableSizeFieldU2p2(bldata)
-        # Create _separate_ empty namespace for each connector
+        # Create _separate_ empty namespace for each TypeDesc
         self.clients = [SimpleNamespace() for _ in range(count)]
         for i in range(count):
             cli_idx = readVariableSizeFieldU2p2(bldata)
@@ -2374,24 +2372,21 @@ class TDObjectCluster(TDObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TypeDesc {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
 
             self.clients = []
             for subelem in conn_elem:
-                if (subelem.tag == "Client"):
+                if (subelem.tag == "TypeDesc"):
                     client = SimpleNamespace()
-                    i = int(subelem.get("Index"), 0)
-                    client.index = int(subelem.get("ConnectorIndex"), 0)
+                    client.index = int(subelem.get("TypeID"), 0)
                     client.flags = 0
-                    # Grow the list if needed (the clients may be in wrong order)
-                    if i >= len(self.clients):
-                        self.clients.extend([None] * (i - len(self.clients) + 1))
-                    self.clients[i] = client
+                    self.clients.append(client)
                 else:
-                    raise AttributeError("Connector contains unexpected tag")
+                    raise AttributeError("Type Descriptor contains unexpected tag '{}'"\
+                      .format(subelem.tag))
 
             self.updateData(avoid_recompute=True)
 
@@ -2411,10 +2406,9 @@ class TDObjectCluster(TDObject):
         self.parseData()
 
         for i, client in enumerate(self.clients):
-            subelem = ET.SubElement(conn_elem,"Client")
+            subelem = ET.SubElement(conn_elem,"TypeDesc")
 
-            subelem.set("Index", str(i))
-            subelem.set("ConnectorIndex", str(client.index))
+            subelem.set("TypeID", str(client.index))
 
         conn_elem.set("Format", "inline")
 
@@ -2422,19 +2416,21 @@ class TDObjectCluster(TDObject):
         ret = True
         if len(self.clients) > 500:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02x} has {:d} clients, expected below {:d}"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} has {:d} clients, expected below {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.clients),500+1))
             ret = False
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
 
 
 class TDObjectMeasureData(TDObject):
+    """ Type Descriptor with Measurement data
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.flavor = None
@@ -2466,7 +2462,7 @@ class TDObjectMeasureData(TDObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TypeDesc {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -2487,13 +2483,13 @@ class TDObjectMeasureData(TDObject):
         ret = True
         if self.flavor > 127: # Not sure how many cluster formats are there
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02x} flavor {:d}, expected below {:d}"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} flavor {:d}, expected below {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,self.flavor,127+1))
             ret = False
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
@@ -2505,6 +2501,8 @@ class TDObjectMeasureData(TDObject):
 
 
 class TDObjectFixedPoint(TDObject):
+    """ Type Descriptor with Filex Point Number data
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.ranges = []
@@ -2599,7 +2597,7 @@ class TDObjectFixedPoint(TDObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TypeDesc {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
@@ -2618,7 +2616,6 @@ class TDObjectFixedPoint(TDObject):
             self.ranges = []
             for subelem in conn_elem:
                 if (subelem.tag == "Range"):
-                    i = int(subelem.get("Index"), 0)
                     rang = SimpleNamespace()
                     rang.prop1 = None
                     rang.prop2 = None
@@ -2637,12 +2634,10 @@ class TDObjectFixedPoint(TDObject):
                     if valstr is not None:
                         rang.value = float(valstr)
 
-                    # Grow the list if needed (the rangs may be in wrong order)
-                    if i >= len(self.ranges):
-                        self.ranges.extend([None] * (i - len(self.ranges) + 1))
-                    self.ranges[i] = rang
+                    self.ranges.append(rang)
                 else:
-                    raise AttributeError("Connector contains unexpected tag")
+                    raise AttributeError("Type Descriptor contains unexpected tag '{}'"\
+                      .format(subelem.tag))
 
             self.updateData(avoid_recompute=True)
 
@@ -2666,7 +2661,6 @@ class TDObjectFixedPoint(TDObject):
         for i, rang in enumerate(self.ranges):
             subelem = ET.SubElement(conn_elem,"Range")
 
-            subelem.set("Index", "{:d}".format(i))
             if self.rangeFormat == 0:
                 # 64-bit float has 17 digit precision
                 subelem.set("Value", "{:.17g}".format(rang.value))
@@ -2686,18 +2680,20 @@ class TDObjectFixedPoint(TDObject):
         ret = True
         if len(self.clients) > 500:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02x} has {:d} clients, expected below {:d}"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} has {:d} clients, expected below {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.clients),500+1))
             ret = False
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
 
 class TDObjectSingleContainer(TDObject):
+    """ Type Descriptor which is container for one child TD
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.prop1 = 0
@@ -2721,7 +2717,7 @@ class TDObjectSingleContainer(TDObject):
         data_buf = b''
         for client in self.clients:
             data_buf += prepareVariableSizeFieldU2p2(client.index)
-            break # only one client is supported
+            break # only one sub-type is supported
 
         return data_buf
 
@@ -2729,7 +2725,7 @@ class TDObjectSingleContainer(TDObject):
         exp_whole_len = 4
         for client in self.clients:
             exp_whole_len += ( 2 if (client.index <= 0x7fff) else 4 )
-            break # only one client is valid
+            break # only one sub-type is valid
         if self.label is not None:
             label_len = 1 + len(self.label)
             if label_len % 2 > 0: # Include padding
@@ -2741,23 +2737,20 @@ class TDObjectSingleContainer(TDObject):
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
-                print("{:s}: For TD {:d} type 0x{:02x}, reading inline XML data"\
+                print("{:s}: For TypeDesc {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(conn_elem)
             self.clients = []
             for subelem in conn_elem:
-                if (subelem.tag == "Client"):
+                if (subelem.tag == "TypeDesc"):
                     client = SimpleNamespace()
-                    i = int(subelem.get("Index"), 0)
-                    client.index = int(subelem.get("ConnectorIndex"), 0)
+                    client.index = int(subelem.get("TypeID"), 0)
                     client.flags = int(subelem.get("Flags"), 0)
-                    # Grow the list if needed (the clients may be in wrong order)
-                    if i >= len(self.clients):
-                        self.clients.extend([None] * (i - len(self.clients) + 1))
-                    self.clients[i] = client
+                    self.clients.append(client)
                 else:
-                    raise AttributeError("Connector contains unexpected tag")
+                    raise AttributeError("Type Descriptor contains unexpected tag '{}'"\
+                      .format(subelem.tag))
 
             self.updateData(avoid_recompute=True)
 
@@ -2777,10 +2770,9 @@ class TDObjectSingleContainer(TDObject):
         self.parseData()
 
         for i, client in enumerate(self.clients):
-            subelem = ET.SubElement(conn_elem,"Client")
+            subelem = ET.SubElement(conn_elem,"TypeDesc")
 
-            subelem.set("Index", "{:d}".format(i))
-            subelem.set("ConnectorIndex", str(client.index))
+            subelem.set("TypeID", str(client.index))
             subelem.set("Flags", "0x{:04X}".format(client.flags))
 
         conn_elem.set("Format", "inline")
@@ -2789,7 +2781,7 @@ class TDObjectSingleContainer(TDObject):
         ret = True
         if (len(self.clients) != 1):
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02x} clients count {:d}, expected exactly {:d}"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} clients count {:d}, expected exactly {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.clients),1))
             ret = False
         typeList = None
@@ -2804,20 +2796,20 @@ class TDObjectSingleContainer(TDObject):
                 if client.index == -1: # This is how we mark nested client
                     if client.nested is None:
                         if (self.po.verbose > 1):
-                            eprint("{:s}: Warning: TD {:d} nested client {:d} does not exist"\
+                            eprint("{:s}: Warning: TypeDesc {:d} nested sub-type {:d} does not exist"\
                               .format(self.vi.src_fname,self.index,i))
                         ret = False
                 else:
                     if client.index >= len(typeList):
                         if (self.po.verbose > 1):
-                            eprint("{:s}: Warning: TD {:d} client {:d} references outranged TD {:d}"\
+                            eprint("{:s}: Warning: TypeDesc {:d} sub-type {:d} references outranged TD {:d}"\
                               .format(self.vi.src_fname,self.index,i,client.index))
                         ret = False
                 pass
         exp_whole_len = self.expectedRSRCSize()
         if len(self.raw_data) != exp_whole_len:
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TD {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
@@ -3152,18 +3144,18 @@ def parseTDObject(vi, bldata, ver, po, useConsolidatedTypes=False):
         if hasTopType != 0:
             topType = readVariableSizeFieldU2p2(bldata)
     if hasTopType not in (0,1,):
-        raise AttributeError("TD contains HasTopType with unsupported value 0x{:X}"\
+        raise AttributeError("TypeDesc contains HasTopType with unsupported value 0x{:X}"\
           .format(hasTopType))
     return clients, topType
 
 def prepareTDObject(vi, clients, topType, ver, po, useConsolidatedTypes=False, avoid_recompute=False):
     data_buf = b''
     if isSmallerVersion(ver, 8,0,0,1):
-        raise NotImplementedError("Unsupported TD read in ver=0x{:06X} older than LV8.0".format(encodeVersion(ver)))
+        raise NotImplementedError("Unsupported TypeDesc read in ver=0x{:06X} older than LV8.0".format(encodeVersion(ver)))
     elif useConsolidatedTypes and isGreaterOrEqVersion(ver, 8,6,0,1):
         data_buf += prepareVariableSizeFieldU2p2(topType)
     else:
-        varcount = sum(1 for client in clients if client.index == -1)
+        varcount = sum(1 for clientTD in clients if clientTD.index == -1)
         data_buf += int(varcount).to_bytes(4, byteorder='big', signed=False)
         for clientTD in clients:
             if clientTD.index != -1:
@@ -3179,22 +3171,21 @@ def prepareTDObject(vi, clients, topType, ver, po, useConsolidatedTypes=False, a
 def initWithXMLTDObject(vi, obj_elem, po):
     clients = []
     topType = None
-    topType_str = obj_elem.get("TopTypeId")
+    topType_str = obj_elem.get("TopTypeID")
     if topType_str is not None and topType_str != "None":
         topType = int(topType_str, 0)
     for subelem in obj_elem:
-        if (subelem.tag == "DataType"):
+        if (subelem.tag == "TypeDesc"):
             obj_idx = -1
             obj_type = valFromEnumOrIntString(TD_FULL_TYPE, subelem.get("Type"))
-            obj_flags = importXMLBitfields(CONNECTOR_FLAGS, subelem)
+            obj_flags = importXMLBitfields(TYPEDESC_FLAGS, subelem)
             obj = newTDObject(vi, obj_idx, obj_flags, obj_type, po)
-            # Grow the list if needed (the connectors may be in wrong order)
             clientTD = SimpleNamespace()
             clientTD.flags = 0
             clientTD.index = -1
             clientTD.nested = obj
             clients.append(clientTD)
-            # Set connector data based on XML properties
+            # Set TypeDesc data based on XML properties
             clientTD.nested.setOwningList(clients)
             clientTD.nested.initWithXML(subelem)
         else:
@@ -3210,14 +3201,14 @@ def initWithXMLTDObjectLate(vi, clients, topType, ver, po):
 def exportXMLTDObject(vi, clients, topType, obj_elem, fname_base, po):
     hasTopType = 0 if topType is None else 1
     if hasTopType != 0:
-        obj_elem.set("TopTypeId", "{:d}".format(topType))
+        obj_elem.set("TopTypeID", "{:d}".format(topType))
     idx = -1
     for clientTD in clients:
         if clientTD.index != -1:
             continue
         idx += 1
         fname_cli = "{:s}_{:04d}".format(fname_base, idx)
-        subelem = ET.SubElement(obj_elem,"DataType")
+        subelem = ET.SubElement(obj_elem,"TypeDesc")
         subelem.set("Type", stringFromValEnumOrInt(TD_FULL_TYPE, clientTD.nested.otype))
 
         clientTD.nested.exportXML(subelem, fname_cli)
@@ -3226,7 +3217,7 @@ def exportXMLTDObject(vi, clients, topType, obj_elem, fname_base, po):
 
 
 def newTDObject(vi, idx, obj_flags, obj_type, po):
-    """ Creates and returns new terminal object with given parameters
+    """ Creates and returns new Type Descriptor object with given parameters
     """
     # Try types for which we have specific constructors
     ctor = {

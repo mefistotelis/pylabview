@@ -1978,8 +1978,8 @@ class CPMp(Block):
             for subelem in section_elem:
                 if (subelem.tag == "NameObject"):
                     pass # Items parsed somewhere else
-                elif (subelem.tag == "Client"):
-                    val = int(subelem.get("ConnectorIndex"), 0)
+                elif (subelem.tag == "TypeDesc"):
+                    val = int(subelem.get("TypeID"), 0)
                     if val == -1: val = 65535
                     section.content.append(val)
                 else:
@@ -2019,10 +2019,10 @@ class CPMp(Block):
             section_elem.set("Field1", "{:d}".format(section.field1))
 
             for i, val in enumerate(section.content):
-                subelem = ET.SubElement(section_elem,"Client")
+                subelem = ET.SubElement(section_elem,"TypeDesc")
 
                 if val == 65535: val = -1
-                subelem.set("ConnectorIndex", "{:d}".format(val))
+                subelem.set("TypeID", "{:d}".format(val))
 
             if len(section.content) == 0:
                 comment_elem = ET.Comment("List of connectors is empty")
@@ -3111,7 +3111,7 @@ class BDPW(Block):
             if CPC2 is not None:
                 iface_obj = VCTP.getTopType(CPC2.getValue())
                 if True:
-                    term_connectors = VCTP.getClientConnectorsByType(iface_obj)
+                    term_connectors = VCTP.getClientTypeDescsByType(iface_obj)
                     salt = BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
                     md5_hash_1 = md5(presalt_data + salt + postsalt_data).digest()
                     if md5_hash_1 == section.hash_1:
@@ -3123,7 +3123,7 @@ class BDPW(Block):
                 interfaceEnumerate = self.vi.consolidatedTDEnumerate(fullType=TD_FULL_TYPE.Function)
                 # Connectors count if one of the interfaces is the source of salt; usually it's the last interface, so check in reverse
                 for i, iface_idx, iface_obj in reversed(interfaceEnumerate):
-                    term_connectors = VCTP.getClientConnectorsByType(iface_obj)
+                    term_connectors = VCTP.getClientTypeDescsByType(iface_obj)
                     salt = BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
                     md5_hash_1 = md5(presalt_data + salt + postsalt_data).digest()
                     if md5_hash_1 == section.hash_1:
@@ -3137,7 +3137,7 @@ class BDPW(Block):
 
             if salt_td_flat_idx is not None:
                 salt_iface = VCTP.getFlatType(salt_td_flat_idx)
-                term_connectors = VCTP.getClientConnectorsByType(salt_iface)
+                term_connectors = VCTP.getClientTypeDescsByType(salt_iface)
                 salt = BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
             else:
                 # For LV14, this should only be used for a low percentage of VIs which have the salt zeroed out
@@ -3172,7 +3172,7 @@ class BDPW(Block):
             # If we've previously found an interface on which the salt is based, use that interface
             VCTP = self.vi.get_or_raise('VCTP')
             salt_iface = VCTP.getFlatType(section.salt_td_flat_idx)
-            term_connectors = VCTP.getClientConnectorsByType(salt_iface)
+            term_connectors = VCTP.getClientTypeDescsByType(salt_iface)
             salt = BDPW.getPasswordSaltFromTerminalCounts(len(term_connectors['number']), len(term_connectors['string']), len(term_connectors['path']))
         elif section.salt is not None:
             # If we've previously brute-forced the salt, use that same salt
@@ -3890,7 +3890,7 @@ class VCTP(CompleteBlock):
     def setDefaultEncoding(self):
         self.default_block_coding = BLOCK_CODING.ZLIB
 
-    def parseRSRCSingleTD(self, section_num, bldata, pos):
+    def parseRSRCTypeDesc(self, section_num, bldata, pos):
         section = self.sections[section_num]
 
         bldata.seek(pos)
@@ -3920,7 +3920,7 @@ class VCTP(CompleteBlock):
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         pos = bldata.tell()
         for i in range(count):
-            obj_idx, obj_len = self.parseRSRCSingleTD(section_num, bldata, pos)
+            obj_idx, obj_len = self.parseRSRCTypeDesc(section_num, bldata, pos)
             pos += obj_len
         # After that, there is a list
         section.topLevel = []
@@ -3940,10 +3940,10 @@ class VCTP(CompleteBlock):
         for subelem in section_elem:
             if (subelem.tag == "NameObject"):
                 pass # Items parsed somewhere else
-            elif (subelem.tag == "Connector"):
+            elif (subelem.tag == "TypeDesc"):
                 obj_idx = int(subelem.get("Index"), 0)
                 obj_type = valFromEnumOrIntString(TD_FULL_TYPE, subelem.get("Type"))
-                obj_flags = importXMLBitfields(CONNECTOR_FLAGS, subelem)
+                obj_flags = importXMLBitfields(TYPEDESC_FLAGS, subelem)
                 obj = newTDObject(self.vi, obj_idx, obj_flags, obj_type, self.po)
                 # Grow the list if needed (the connectors may be in wrong order)
                 if obj_idx >= len(section.content):
@@ -3957,9 +3957,9 @@ class VCTP(CompleteBlock):
                 obj.initWithXML(subelem)
             elif (subelem.tag == "TopLevel"):
                 for subtlelem in subelem:
-                    if (subtlelem.tag == "Client"):
+                    if (subtlelem.tag == "TypeDesc"):
                         i = int(subtlelem.get("Index"), 0) - 1
-                        val = int(subtlelem.get("ConnectorIndex"), 0)
+                        val = int(subtlelem.get("TypeID"), 0)
                         # Grow the list if needed (the labels may be in wrong order)
                         if i >= len(self.topLevel):
                             self.topLevel.extend([None] * (i - len(self.topLevel) + 1))
@@ -3998,7 +3998,7 @@ class VCTP(CompleteBlock):
 
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         for clientTD in section.content:
-            subelem = ET.SubElement(section_elem,"Connector")
+            subelem = ET.SubElement(section_elem,"TypeDesc")
 
             subelem.set("Index", str(clientTD.nested.index))
             subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(TD_FULL_TYPE, clientTD.nested.otype)))
@@ -4013,10 +4013,10 @@ class VCTP(CompleteBlock):
         toplstelem = ET.SubElement(section_elem,"TopLevel")
 
         for i, val in enumerate(self.topLevel):
-            subelem = ET.SubElement(toplstelem,"Client")
+            subelem = ET.SubElement(toplstelem,"TypeDesc")
 
             subelem.set("Index", "{:d}".format(i+1))
-            subelem.set("ConnectorIndex", "{:d}".format(val))
+            subelem.set("TypeID", "{:d}".format(val))
         pass
 
     def parseData(self, section_num=None):
@@ -4053,9 +4053,9 @@ class VCTP(CompleteBlock):
         section = self.sections[section_num]
         return section.content
 
-    def getClientConnectorsByType(self, conn_obj):
+    def getClientTypeDescsByType(self, conn_obj):
         self.parseData() # Make sure the block is parsed
-        type_list = conn_obj.getClientConnectorsByType()
+        type_list = conn_obj.getClientTypeDescsByType()
         if (self.po.verbose > 1):
             print("{:s}: Terminal {:d} connectors: {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d}"\
               .format(self.vi.src_fname,conn_obj.index,\
