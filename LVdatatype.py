@@ -307,6 +307,12 @@ class TDObject:
         self.topTypeList = None
         self.label = None
         self.size = None
+
+        if self.__doc__:
+            self.full_name = self.__doc__.split('\n')[0].strip()
+        else:
+            self.full_name = ""
+
         self.raw_data = None
         # Whether RAW data has been updated and RSRC parsing is required to update properties
         self.raw_data_updated = False
@@ -773,7 +779,7 @@ class TDObjectVoid(TDObject):
 class TDObjectBool(TDObjectVoid):
     """ Type Descriptor with Boolean data
 
-    Stores no additional data, so handling is identical to Void DypeDesc.
+    Stores no additional data, so handling is identical to Void TypeDesc.
     """
     pass
 
