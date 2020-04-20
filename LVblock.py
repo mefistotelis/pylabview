@@ -1080,7 +1080,9 @@ class SingleIntBlock(Block):
 class MUID(SingleIntBlock):
     """ Map Unique Identifier
 
-        Stores UID of LoadRefMap object.
+    Stores UID of LoadRefMap object.
+    Equal to the maximum uid property value used in the vi file.
+    Every time any object within the VI changes, it receives a new uid value.
     """
     def createSection(self):
         section = super().createSection()
@@ -2221,7 +2223,7 @@ class DTHP(Block):
 class TM80(VarCodingBlock):
     """ Data Space Type Map 8.0+
 
-        Used for LV 8.0 and newer.
+    Used for LV 8.0 and newer.
     """
     def createSection(self):
         section = super().createSection()
