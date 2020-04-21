@@ -1801,8 +1801,8 @@ class DFDS(CompleteBlock):
 
     def setDefaultEncoding(self):
         ver = self.vi.getFileVersion()
-        # verified NONE in 5.1, ZLIB in 8.6
-        if isGreaterOrEqVersion(ver, 6,0,0):
+        # verified NONE in 6.0.0, ZLIB in 8.6
+        if isGreaterOrEqVersion(ver, 7,0,0):
             self.default_block_coding = BLOCK_CODING.ZLIB
         else:
             self.default_block_coding = BLOCK_CODING.NONE
@@ -1812,7 +1812,7 @@ class DFDS(CompleteBlock):
 
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
-        TM = self.vi.get_one_of('TM80')
+        TM = self.vi.get_one_of('TM80', 'DSTM')
         ver = self.vi.getFileVersion()
 
         section.content = []
@@ -1881,7 +1881,7 @@ class DFDS(CompleteBlock):
     def initWithXMLLate(self):
         super().initWithXMLLate()
         ver = self.vi.getFileVersion()
-        TM = self.vi.get_one_of('TM80')
+        TM = self.vi.get_one_of('TM80', 'DSTM')
         if TM is None:
             TypeMap = None
         elif isGreaterOrEqVersion(ver, 8,0,0,1):
@@ -2220,8 +2220,23 @@ class DTHP(Block):
             Block.exportXMLSection(self, section_elem, snum, section, fname_base)
 
 
+class DSTM(VarCodingBlock):
+    """ Data Space Type Map
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.content = []
+        return section
+
+    def setDefaultEncoding(self):
+        ver = self.vi.getFileVersion()
+        if isGreaterOrEqVersion(ver, 7,0,0):
+            self.default_block_coding = BLOCK_CODING.ZLIB
+        else:
+            self.default_block_coding = BLOCK_CODING.NONE
+
 class TM80(VarCodingBlock):
-    """ Data Space Type Map 8.0+
+    """ Data Space Type Map LV8.0+
 
     Used for LV 8.0 and newer.
     """
@@ -2388,7 +2403,7 @@ class LVSR(CompleteBlock):
     """
     def createSection(self):
         section = super().createSection()
-        section.version = []
+        section.version = decodeVersion(0x0)
         section.execFlags = 0
         section.protected = False
         section.field08 = 0
@@ -2427,11 +2442,12 @@ class LVSR(CompleteBlock):
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
 
-        # Size of the data seem to be 120, 136 or 137
-        # Data before byte 120 does not move - so it's always safe to read
+        # Size of the data increses with further versions
+        # Data before byte 68 does not move - so it's always safe to read
         data = LVSRData(self.po)
-        if bldata.readinto(data) not in [120, 136, 137, sizeof(LVSRData)]:
-            raise EOFError("Data block too short for parsing {} data".format(self.ident))
+        dataLen = bldata.readinto(data)
+        if dataLen not in [68, 120, 136, 137, sizeof(LVSRData)]:
+            raise EOFError("Data block length {} too small for parsing {} data".format(dataLen, self.ident))
 
         section.version = decodeVersion(data.version)
         section.protected = ((data.execFlags & VI_EXEC_FLAGS.LibProtected.value) != 0)
@@ -2451,17 +2467,18 @@ class LVSR(CompleteBlock):
         section.field2C = int(data.field2C)
         section.field30 = int(data.field30)
         section.viSignature = bytes(data.viSignature)
-        section.field44 = int(data.field44)
-        section.field48 = int(data.field48)
-        section.field4C = int(data.field4C)
-        section.field4E = int(data.field4E)
-        section.field50_md5 = bytes(data.field50_md5)
-        section.libpass_md5 = bytes(data.libpass_md5)
-        section.libpass_text = None
-        section.field70 = int(data.field70)
-        section.field74 = int(data.field74)
         # Additional data, exists only in newer versions
         # sizeof(LVSR) per version: 8.6b7->120 9.0b25->120 9.0->120 10.0b84->120 10.0->136 11.0.1->136 12.0->136 13.0->136 14.0->137
+        if isGreaterOrEqVersion(section.version, 6,0):
+            section.field44 = int(data.field44)
+            section.field48 = int(data.field48)
+            section.field4C = int(data.field4C)
+            section.field4E = int(data.field4E)
+            section.field50_md5 = bytes(data.field50_md5)
+            section.libpass_md5 = bytes(data.libpass_md5)
+            section.libpass_text = None
+            section.field70 = int(data.field70)
+            section.field74 = int(data.field74)
         if isGreaterOrEqVersion(section.version, 10,0, stage='release'):
             section.field78_md5 = bytes(data.field78_md5)
         if isGreaterOrEqVersion(section.version, 14,0):
@@ -2493,16 +2510,17 @@ class LVSR(CompleteBlock):
         data_buf += int(section.field2C).to_bytes(4, byteorder='big')
         data_buf += int(section.field30).to_bytes(4, byteorder='big')
         data_buf += section.viSignature
-        data_buf += int(section.field44).to_bytes(4, byteorder='big')
-        data_buf += int(section.field48).to_bytes(4, byteorder='big')
-        data_buf += int(section.field4C).to_bytes(2, byteorder='big')
-        data_buf += int(section.field4E).to_bytes(2, byteorder='big')
-        data_buf += section.field50_md5
-        if section.libpass_text is not None:
-            pass #TODO re-compute md5 from pass
-        data_buf += section.libpass_md5
-        data_buf += int(section.field70).to_bytes(4, byteorder='big')
-        data_buf += int(section.field74).to_bytes(4, byteorder='big', signed=True)
+        if isGreaterOrEqVersion(section.version, 6,0):
+            data_buf += int(section.field44).to_bytes(4, byteorder='big')
+            data_buf += int(section.field48).to_bytes(4, byteorder='big')
+            data_buf += int(section.field4C).to_bytes(2, byteorder='big')
+            data_buf += int(section.field4E).to_bytes(2, byteorder='big')
+            data_buf += section.field50_md5
+            if section.libpass_text is not None:
+                pass #TODO re-compute md5 from pass
+            data_buf += section.libpass_md5
+            data_buf += int(section.field70).to_bytes(4, byteorder='big')
+            data_buf += int(section.field74).to_bytes(4, byteorder='big', signed=True)
         if isGreaterOrEqVersion(section.version, 10,0, stage='release'):
             data_buf += section.field78_md5
         if isGreaterOrEqVersion(section.version, 14,0):
