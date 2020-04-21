@@ -4182,7 +4182,7 @@ class VICD(CompleteBlock):
         section.codeID = bldata.read(4)
         archDependLen = 8 if self.isX64(section_num) else 4
         archEndianness = 'little' if self.isLE(section_num) else 'big'
-        if isGreaterOrEqVersion(ver, 12,0,0,0):# Should be False for 11,0,0,4, True for 14,0,0,3
+        if isGreaterOrEqVersion(ver, 12,0,0,0):# Should be False for LV 11,0,0,4, True for 14,0,0,3
             section.initProcOffset = int.from_bytes(initProcOffset, byteorder=archEndianness, signed=False)
             section.pTabOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
             section.codeFlags = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
@@ -4193,7 +4193,7 @@ class VICD(CompleteBlock):
             section.hostCodeEntryVI = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
             section.codeEndOffset = int.from_bytes(bldata.read(archDependLen), byteorder=archEndianness, signed=False)
             section.signatureName = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        else:
+        else: # Lowest version tested with this is LV 6,0,0,2
             section.initProcOffset = int.from_bytes(initProcOffset, byteorder=archEndianness, signed=False)
             section.pTabOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
             section.codeFlags = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
@@ -4203,14 +4203,14 @@ class VICD(CompleteBlock):
             section.codeEndOffset = int.from_bytes(bldata.read(archDependLen), byteorder=archEndianness, signed=False)
             section.hostCodeEntryVI = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
             section.signatureName = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-
         headLen = bldata.tell() - headStartPos
         section.content = bldata.read(section.codeEndOffset - headLen)
 
         section.endVerifier = bldata.read(4)
         section.endProp1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        section.endSignatureName = int.from_bytes(bldata.read(archDependLen), byteorder='big', signed=False)
-        section.endLocalLVRTCodeBlocks = int.from_bytes(bldata.read(archDependLen), byteorder='big', signed=False)
+        if isGreaterOrEqVersion(ver, 8,0,0,0):# Should be False for LV 6,0,0,2, True for 8,6,0,3
+            section.endSignatureName = int.from_bytes(bldata.read(archDependLen), byteorder='big', signed=False)
+            section.endLocalLVRTCodeBlocks = int.from_bytes(bldata.read(archDependLen), byteorder='big', signed=False)
         section.endCodeEndOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
         if isGreaterOrEqVersion(ver, 12,0,0,0):# Should be False for 11,0,0,4, True for 14,0,0,3
             section.endProp5 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
