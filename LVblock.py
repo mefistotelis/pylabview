@@ -1210,6 +1210,8 @@ class CONP(CompleteBlock):
 
     Contains list of types. For VIs, with exactly one
     type inside; for LLBs it stores more.
+    The Type Descriptor stored is of type Function and contains a list
+    of types used in connectors bound to terminal point on the VI icon.
     In LV7.1 the block is CPTM.
     """
     def createSection(self):
@@ -1990,7 +1992,7 @@ class CPMp(Block):
                 if (subelem.tag == "NameObject"):
                     pass # Items parsed somewhere else
                 elif (subelem.tag == "TypeDesc"):
-                    val = int(subelem.get("TypeID"), 0)
+                    val = int(subelem.get("Flags"), 0)
                     if val == -1: val = 65535
                     section.content.append(val)
                 else:
@@ -2033,7 +2035,7 @@ class CPMp(Block):
                 subelem = ET.SubElement(section_elem,"TypeDesc")
 
                 if val == 65535: val = -1
-                subelem.set("TypeID", "{:d}".format(val))
+                subelem.set("Flags", "{:d}".format(val))
 
             if len(section.content) == 0:
                 comment_elem = ET.Comment("List of TypeDescs is empty")
@@ -2164,7 +2166,7 @@ class DTHP(Block):
                 if (subelem.tag == "NameObject"):
                     pass # Items parsed somewhere else
                 elif (subelem.tag == "Client"):
-                    val = int(subelem.get("Flags"), 0)
+                    val = int(subelem.get("Count"), 0)
                     # Grow the list if needed (the labels may be in wrong order)
                     section.content.append(val)
                 else:
@@ -2201,14 +2203,27 @@ class DTHP(Block):
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         self.parseData(section_num=snum)
         ver = self.vi.getFileVersion()
-
         if isGreaterOrEqVersion(ver, 8,0,0,1):
             section_elem.set("IndexShift", "{:d}".format(section.indexShift))
+            # This is only for a comment, allowed to return None
+            VCTP = self.vi.get('VCTP')
 
-            for i, val in enumerate(section.content):
+            for val in section.content: # we expect one
+                for i in range(val):
+                    tdIndex = section.indexShift + i
+                    if VCTP is not None:
+                        td = VCTP.getTopType(tdIndex)
+                    if td is not None:
+                        comment_elem = ET.Comment(" TypeID {:d} : {} "\
+                          .format(tdIndex, enumOrIntToName(td.fullType())))
+                    else:
+                        comment_elem = ET.Comment(" TypeID {:d} "\
+                          .format(tdIndex))
+                    section_elem.append(comment_elem)
+
                 subelem = ET.SubElement(section_elem,"Client")
 
-                subelem.set("Flags", "0x{:04X}".format(val))
+                subelem.set("Count", "{:d}".format(val))
 
             if len(section.content) == 0:
                 comment_elem = ET.Comment("List of types is empty")
