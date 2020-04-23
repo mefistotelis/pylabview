@@ -1986,7 +1986,6 @@ class CGRS(VarCodingBlock):
         return section
 
     def setDefaultEncoding(self):
-        ver = self.vi.getFileVersion()
         self.default_block_coding = BLOCK_CODING.ZLIB
 
 
@@ -3844,8 +3843,8 @@ class RTSG(Block):
         Block.exportXMLSection(self, section_elem, snum, section, fname_base)
 
 
-class UCRF(Block):
-    """ UCR Files
+class UCRF(VarCodingBlock):
+    """ Uncompressed Resource File
 
         Keeps content of files within LLB library.
     """
@@ -3853,12 +3852,8 @@ class UCRF(Block):
         section = super().createSection()
         return section
 
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = super().getData(section_num=section_num, use_coding=use_coding)
-        return bldata
-
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
+    def setDefaultEncoding(self):
+        self.default_block_coding = BLOCK_CODING.NONE
 
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         fext = "rsrc"
@@ -3922,6 +3917,19 @@ class UCRF(Block):
         return fname_base
 
         block_fpath = os.path.dirname(self.po.xml)
+
+
+class CPRF(UCRF):
+    """ Compressed Resource File
+
+        Keeps content of files within LLB library.
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+    def setDefaultEncoding(self):
+        self.default_block_coding = BLOCK_CODING.NONE # no ZLIB - there is some kind of different compression/encoding
 
 
 class VCTP(CompleteBlock):
