@@ -2113,126 +2113,107 @@ class SCSR(Block):
         Block.exportXMLSection(self, section_elem, snum, section, fname_base)
 
 
-class DTHP(Block):
-    """ Data Type for Heap
+class DTHP(CompleteBlock):
+    """ Data Types for Heap
 
-        Stores index of one data type.
-        Content is very similar to TM80, but has one element
-        and is not compressed.
-        Implemented format for LV 8.0.0.1 and newer.
+        Defines Type Descriptors used within Heaps (FP and BD).
+        In LV8.0.0.1 and newer, the block only contains starting index and count
+        within the VCTP section of the slice which is used in Heaps. The slice
+        used by heaps is always at end of VCTP - so index + count from this section
+        is actually equal to total amount of entries stored in VCTP.
     """
     def createSection(self):
         section = super().createSection()
         section.indexShift = 0
+        section.tdCount = 0
         section.content = []
         return section
 
-    def initWithRSRCLate(self):
-        super().initWithRSRCLate()
-        pass
-
-    def parseRSRCData(self, section_num, bldata):
+    def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
         ver = self.vi.getFileVersion()
-
+        section.indexShift = 0
+        section.tdCount = 0
         section.content = []
+
         if isGreaterOrEqVersion(ver, 8,0,0,1):
-            count = 1 # This is a TypeDesc list, but with constant count of 1
-            if count > 0:
-                section.indexShift = readVariableSizeFieldU2p2(bldata)
-            # If there is no type provided, then there are no flags
+            section.tdCount = readVariableSizeFieldU2p2(bldata)
+            # If there is no count provided, then there is no shift
             # LV14 writes it like this; though it doesn't support this while reading
-            # it reads the non existing flags anyway, which really reads padding
-            if section.indexShift == 0:
-                count = 0
-            for i in range(count):
-                val = readVariableSizeFieldU2p2(bldata)
-                section.content.append(val)
+            # it reads the non existing value anyway, which really reads padding
+            if section.tdCount > 0:
+                section.indexShift = readVariableSizeFieldU2p2(bldata)
         else:
-            # No support for the 7.1 format
-            Block.parseRSRCData(self, section_num, bldata)
-
-    def initWithXMLSection(self, section, section_elem):
-        snum = section.start.section_idx
-        fmt = section_elem.get("Format")
-        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
-            section.content = []
-            section.indexShift = int(section_elem.get("IndexShift"), 0)
-            if (self.po.verbose > 2):
-                print("{:s}: For Block {} section {:d}, reading inline XML data"\
-                  .format(self.vi.src_fname,self.ident,snum))
-            self.clients = []
-            for subelem in section_elem:
-                if (subelem.tag == "NameObject"):
-                    pass # Items parsed somewhere else
-                elif (subelem.tag == "Client"):
-                    val = int(subelem.get("Count"), 0)
-                    # Grow the list if needed (the labels may be in wrong order)
-                    section.content.append(val)
-                else:
-                    raise AttributeError("Section contains unexpected tag")
-        else:
-            Block.initWithXMLSection(self, section, section_elem)
+            #TODO make support for the 7.1 format
+            raise NotImplementedError("Parsing the block from LV7.1 and older is not implemented")
         pass
 
-    def initWithXMLLate(self):
-        super().initWithXMLLate()
-        pass
+    def prepareRSRCData(self, section_num):
+        section = self.sections[section_num]
+        ver = self.vi.getFileVersion()
 
-    def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
+        data_buf = b''
+        if isGreaterOrEqVersion(ver, 8,0,0,1):
+            data_buf += prepareVariableSizeFieldU2p2(section.tdCount)
+            if section.tdCount > 0:
+                data_buf += prepareVariableSizeFieldU2p2(section.indexShift)
+        else:
+            #TODO make support for the 7.1 format
+            raise NotImplementedError("Preparing binary data for LV7.1 and older is not implemented")
+        return data_buf
+
+    def expectedRSRCSize(self, section_num):
         section = self.sections[section_num]
         ver = self.vi.getFileVersion()
 
         if isGreaterOrEqVersion(ver, 8,0,0,1):
-            data_buf = b''
-            data_buf += prepareVariableSizeFieldU2p2(section.indexShift)
-            for val in section.content:
-                data_buf += prepareVariableSizeFieldU2p2(val)
-
-            if (len(data_buf) < 2 + 2*len(section.content)):
-                raise RuntimeError("Block {} section {} generated binary data of invalid size"\
-                  .format(self.ident,section_num))
-
-            self.setData(data_buf, section_num=section_num)
+            exp_whole_len = 0
+            exp_whole_len += 2
+            if section.tdCount > 0:
+                exp_whole_len += 2
         else:
-            # No support for the 7.1 format
-            Block.updateSectionData(self, section_num)
+            exp_whole_len = None
+        return exp_whole_len
 
-    def exportXMLSection(self, section_elem, snum, section, fname_base):
-        self.parseData(section_num=snum)
+    def initWithXMLSectionData(self, section, section_elem):
+        section.content = []
+
+        for subelem in section_elem:
+            if (subelem.tag == "NameObject"):
+                pass # Items parsed somewhere else
+            elif (subelem.tag == "TypeDescSlice"):
+                section.indexShift = int(subelem.get("IndexShift"), 0)
+                section.tdCount = int(subelem.get("Count"), 0)
+            else:
+                raise AttributeError("Section contains unexpected tag")
+
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         ver = self.vi.getFileVersion()
+
         if isGreaterOrEqVersion(ver, 8,0,0,1):
-            section_elem.set("IndexShift", "{:d}".format(section.indexShift))
             # This is only for a comment, allowed to return None
             VCTP = self.vi.get('VCTP')
 
-            for val in section.content: # we expect one
-                for i in range(val):
-                    tdIndex = section.indexShift + i
-                    if VCTP is not None:
-                        td = VCTP.getTopType(tdIndex)
-                    if td is not None:
-                        comment_elem = ET.Comment(" TypeID {:d} : {} "\
-                          .format(tdIndex, enumOrIntToName(td.fullType())))
-                    else:
-                        comment_elem = ET.Comment(" TypeID {:d} "\
-                          .format(tdIndex))
-                    section_elem.append(comment_elem)
-
-                subelem = ET.SubElement(section_elem,"Client")
-
-                subelem.set("Count", "{:d}".format(val))
-
-            if len(section.content) == 0:
-                comment_elem = ET.Comment("List of types is empty")
+            for i in range(section.tdCount):
+                tdIndex = section.indexShift + i
+                if VCTP is not None:
+                    td = VCTP.getTopType(tdIndex)
+                if td is not None:
+                    comment_elem = ET.Comment(" Heap TypeID {:2d} = Consolidated TypeID {:2d} : {} "\
+                      .format(i+1, tdIndex, enumOrIntToName(td.fullType())))
+                else:
+                    comment_elem = ET.Comment(" Heap TypeID {:2d} = Consolidated TypeID {:2d} "\
+                      .format(i+1, tdIndex))
                 section_elem.append(comment_elem)
 
-            section_elem.set("Format", "inline")
+            subelem = ET.SubElement(section_elem,"TypeDescSlice")
+
+            subelem.set("IndexShift", "{:d}".format(section.indexShift))
+            subelem.set("Count", "{:d}".format(section.tdCount))
         else:
-            # No support for the 7.1 format
-            Block.exportXMLSection(self, section_elem, snum, section, fname_base)
+            #TODO make support for the 7.1 format
+            raise NotImplementedError("Exporting XML for LV7.1 and older is not implemented")
+        pass
 
 
 class DSTM(VarCodingBlock):
