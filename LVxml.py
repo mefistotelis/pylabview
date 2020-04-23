@@ -13,6 +13,15 @@ XML input/output support. Wrapped Python libraries, with any neccessary changes.
 import xml.etree.ElementTree as ET
 from xml.etree.ElementTree import ElementTree,Element,Comment,SubElement,parse
 
+class CommentedTreeBuilder(ET.TreeBuilder):
+    def comment(self, data):
+        self.start(Comment, {})
+        self.data(data)
+        self.end(Comment)
+
+# Use parse(source, parser=ET.commented_parser) to get the XML with comments retained
+commented_parser = ET.XMLParser(target=CommentedTreeBuilder())
+
 def et_escape_cdata_mind_binary(text):
     # escape character data
     try:
