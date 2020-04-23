@@ -1206,7 +1206,7 @@ class FLAG(SingleIntBlock):
 
 
 class CONP(CompleteBlock):
-    """ Connector Port type
+    """ Connector Port Type Map
 
     Contains list of types. For VIs, with exactly one
     type inside; for LLBs it stores more.
@@ -1277,24 +1277,54 @@ class CONP(CompleteBlock):
         return section.value
 
 
+class CPTM(Block):
+    """ Connector Port Type Map
+
+    Contains list of types.
+    """
+    pass
+
+
 class CPC2(CONP):
-    """ Checksum Password Connector Type v2
+    """ Connector Port Content Type v2
 
     Contains list of types. For VIs, with exactly one
     type inside; for LLBs it stores more.
-    The type pointed is the one used for calculating
+    The Type Descriptor stored is of type Function and contains a list
+    of types used in connectors bound to terminal point on the VI icon.
+
+    The type pointed is also used for calculating
     salt for Block Diagram password.
     In LV7.1 the block is CPCT.
     """
     pass
 
 
+class CPCT(Block):
+    """ Connector Port Content Type
+
+    Contains list of types.
+    """
+    pass
+
+
 class CPD2(CONP):
-    """ Connector Port D2
+    """ Connector Port DI v2
 
     Contains list of types. For VIs, with exactly one
     type inside; for LLBs it stores more.
+    The Type Descriptor stored is related to CONP and CPC2.
+
     In LV7.1 the block is CPDI.
+    """
+    pass
+
+
+class CPDI(Block):
+    """ Connector Port DI
+
+    Contains list of types.
+    The Type Descriptor stored is related to CPTM and CPCT.
     """
     pass
 
