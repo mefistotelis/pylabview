@@ -2176,14 +2176,14 @@ class SCSR(CompleteBlock):
                 section.content.append(digest)
             else:
                 raise AttributeError("Section contains unexpected tag")
+        pass
 
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         section_elem.set("Flags", "0x{:04X}".format(section.flags))
         for digest in section.content:
             subelem = ET.SubElement(section_elem,"Digest")
             subelem.text = digest.hex()
-
-        section_elem.set("Format", "inline")
+        pass
 
 
 class DTHP(CompleteBlock):
@@ -3859,7 +3859,7 @@ class FPHc(HeapVerc):
     pass
 
 
-class RTSG(Block):
+class RTSG(CompleteBlock):
     """ Runtime Signature Guid
 
     """
@@ -3868,23 +3868,44 @@ class RTSG(Block):
         section.content = []
         return section
 
-    def parseRSRCData(self, section_num, bldata):
+    def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
         section.content = []
 
         guid = bldata.read(16)
         section.content.append(guid)
 
-    def exportXMLSection(self, section_elem, snum, section, fname_base):
-        self.parseData(section_num=snum)
+    def prepareRSRCData(self, section_num):
+        section = self.sections[section_num]
 
+        data_buf = b''
+        for guid in section.content:
+            data_buf += guid[:16]
+        return data_buf
+
+    def expectedRSRCSize(self, section_num):
+        exp_whole_len = 0
+        exp_whole_len += 16
+        return exp_whole_len
+
+    def initWithXMLSectionData(self, section, section_elem):
+        section.content = []
+
+        for subelem in section_elem:
+            if (subelem.tag == "NameObject"):
+                pass # Items parsed somewhere else
+            elif (subelem.tag == "Guid"):
+                guid = bytes.fromhex(subelem.text)
+                section.content.append(guid)
+            else:
+                raise AttributeError("Section contains unexpected tag")
+        pass
+
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         for guid in section.content:
             subelem = ET.SubElement(section_elem,"Guid")
             subelem.text = guid.hex()
-
-        section_elem.set("Format", "inline")
-        # TODO remove when this is re-created from XML
-        Block.exportXMLSection(self, section_elem, snum, section, fname_base)
+        pass
 
 
 class UCRF(VarCodingBlock):
