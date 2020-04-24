@@ -34,11 +34,9 @@ import LVrsrcontainer
 
 class BLOCK_CODING(enum.Enum):
     NONE = 0
-    Comp = 1
-    ZComp = 2
-    UnComp = 3
-    ZLIB = 4
-    XOR = 5
+    COMP = 1
+    ZLIB = 2
+    XOR = 3
 
 
 class BlockHeader(RSRCStructure):
@@ -566,12 +564,18 @@ class Block(object):
         data = io.BytesIO(raw_data_section)
         if use_coding == BLOCK_CODING.NONE:
             pass
-        elif use_coding == BLOCK_CODING.Comp:
-            pass # TODO implement decompression
-        elif use_coding == BLOCK_CODING.ZComp:
-            pass # TODO implement decompression
-        elif use_coding == BLOCK_CODING.UnComp:
-            pass # TODO implement decompression
+        elif use_coding == BLOCK_CODING.COMP:
+            size = len(raw_data_section) - 4
+            if size < 2:
+                raise IOError("Unable to decompress section [%s:%d]: " \
+                            "block-size-error - size: %d" % (self.ident, section_num, size))
+            usize = int.from_bytes(data.read(4), byteorder='big', signed=False)
+            # Every 8 bytes result in at least one mask byte
+            if ( (usize < (size*9) // 8) or (usize > size * 8) ):
+                raise IOError("Unable to decompress section [%s:%d]: " \
+                            "uncompress-size-error - size: %d - uncompress-size: %d"
+                            % (self.ident, section_num, size, usize))
+            data = io.BytesIO(zcomp_zeromsk8_decompress(data.read(size), usize))
         elif use_coding == BLOCK_CODING.ZLIB:
             size = len(raw_data_section) - 4
             if size < 2:
@@ -607,15 +611,10 @@ class Block(object):
         if use_coding == BLOCK_CODING.NONE:
             raw_data_section = data_buf
             pass
-        elif use_coding == BLOCK_CODING.Comp:
-            raw_data_section = data_buf
-            pass # TODO implement compression
-        elif use_coding == BLOCK_CODING.ZComp:
-            raw_data_section = data_buf
-            pass # TODO implement compression
-        elif use_coding == BLOCK_CODING.UnComp:
-            raw_data_section = data_buf
-            pass # TODO implement compression
+        elif use_coding == BLOCK_CODING.COMP:
+            size = len(data_buf)
+            raw_data_section = int(size).to_bytes(4, byteorder='big')
+            raw_data_section += zcomp_zeromsk8_compress(data_buf)
         elif use_coding == BLOCK_CODING.ZLIB:
             size = len(data_buf)
             raw_data_section = int(size).to_bytes(4, byteorder='big')
@@ -3889,7 +3888,7 @@ class RTSG(Block):
 
 
 class UCRF(VarCodingBlock):
-    """ 'UnComp' Compressed Resource File
+    """ Uncompressed Resource File
 
         Keeps content of files within LLB library.
     """
@@ -3898,7 +3897,7 @@ class UCRF(VarCodingBlock):
         return section
 
     def setDefaultEncoding(self):
-        self.default_block_coding = BLOCK_CODING.UnComp
+        self.default_block_coding = BLOCK_CODING.NONE
 
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         fext = "rsrc"
@@ -3972,11 +3971,11 @@ class CPRF(UCRF):
         return section
 
     def setDefaultEncoding(self):
-        self.default_block_coding = BLOCK_CODING.Comp
+        self.default_block_coding = BLOCK_CODING.COMP
 
 
 class ZCRF(UCRF):
-    """ 'ZComp' Compressed Resource File
+    """ ZLib Compressed Resource File
 
         Keeps content of files within LLB library.
     """
@@ -3985,7 +3984,7 @@ class ZCRF(UCRF):
         return section
 
     def setDefaultEncoding(self):
-        self.default_block_coding = BLOCK_CODING.ZComp
+        self.default_block_coding = BLOCK_CODING.ZLIB
 
 
 class VCTP(CompleteBlock):

@@ -254,6 +254,53 @@ def crypto_xor8320_encrypt(data):
         key = nval ^ rol(key, 1, 32)
     return out
 
+def zcomp_zeromsk8_decompress(data, usize):
+    blocksCount = usize >> 3
+    remain = usize - (blocksCount << 3)
+    out = bytearray()
+    dataPos = blocksCount + (1 if remain > 0 else 0)
+    for blkId in range(blocksCount):
+        mask = data[blkId]
+        for bit in range(8):
+            if (mask & (1 << bit)) != 0:
+                out.append(data[dataPos])
+                dataPos += 1
+            else:
+                out.append(0)
+    if remain > 0:
+        mask = data[blocksCount]
+        for bit in range(remain):
+            if (mask & (1 << bit)) != 0:
+                out.append(data[dataPos])
+                dataPos += 1
+            else:
+                out.append(0)
+    # If size does not divide by 8, remove a few bytes at end
+    return out
+
+def zcomp_zeromsk8_compress(data):
+    blocksCount = len(data) >> 3
+    remain = len(data) - (blocksCount << 3)
+    masks = bytearray()
+    out = bytearray()
+    for blkId in range(blocksCount):
+        mask = 0
+        for bit in range(8):
+            val = data[blkId * 8 + bit]
+            if val != 0:
+                out.append(val)
+                mask = (mask | (1 << bit))
+        masks.append(mask)
+    if remain > 0:
+        mask = 0
+        for bit in range(remain):
+            val = data[blkId * 8 + bit]
+            if val != 0:
+                out.append(val)
+                mask = (mask | (1 << bit))
+        masks.append(mask)
+    return masks + out
+
 def readVariableSizeFieldU2p2(bldata):
     """ Reads VI field which is either 16-bit or 32-bit, depending on first bit
 
