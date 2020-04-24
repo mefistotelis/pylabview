@@ -608,10 +608,13 @@ class Block(object):
             raw_data_section = data_buf
             pass
         elif use_coding == BLOCK_CODING.Comp:
+            raw_data_section = data_buf
             pass # TODO implement compression
         elif use_coding == BLOCK_CODING.ZComp:
+            raw_data_section = data_buf
             pass # TODO implement compression
         elif use_coding == BLOCK_CODING.UnComp:
+            raw_data_section = data_buf
             pass # TODO implement compression
         elif use_coding == BLOCK_CODING.ZLIB:
             size = len(data_buf)
@@ -3957,8 +3960,6 @@ class UCRF(VarCodingBlock):
         if len(block_fpath) > 0:
             fname_base = block_fpath + '/' + fname_base
         return fname_base
-
-        block_fpath = os.path.dirname(self.po.xml)
 
 
 class CPRF(UCRF):
