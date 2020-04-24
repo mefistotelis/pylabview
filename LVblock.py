@@ -2078,8 +2078,11 @@ class CPMp(Block):
             for i, val in enumerate(section.content):
                 subelem = ET.SubElement(section_elem,"TypeDesc")
 
-                if val == 65535: val = -1
-                subelem.set("Flags", "{:d}".format(val))
+                if val == 65535:
+                    val = -1
+                    subelem.set("Flags", "{:d}".format(val))
+                else:
+                    subelem.set("Flags", "0x{:04X}".format(val))
 
             if len(section.content) == 0:
                 comment_elem = ET.Comment("List of TypeDescs is empty")
@@ -2126,7 +2129,7 @@ class HLPW(Block):
         return section
 
 
-class SCSR(Block):
+class SCSR(CompleteBlock):
     """ Syntax Checker Digest
 
     """
@@ -2136,7 +2139,7 @@ class SCSR(Block):
         section.flags = 0
         return section
 
-    def parseRSRCData(self, section_num, bldata):
+    def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
         section.content = []
 
@@ -2144,17 +2147,41 @@ class SCSR(Block):
         digest = bldata.read(16)
         section.content.append(digest)
 
-    def exportXMLSection(self, section_elem, snum, section, fname_base):
-        self.parseData(section_num=snum)
+    def prepareRSRCData(self, section_num):
+        section = self.sections[section_num]
 
+        data_buf = b''
+        data_buf += int(section.flags).to_bytes(4, byteorder='little', signed=False)
+        for digest in section.content:
+            data_buf += digest[:16]
+        return data_buf
+
+    def expectedRSRCSize(self, section_num):
+        exp_whole_len = 0
+        exp_whole_len += 4
+        exp_whole_len += 16
+        return exp_whole_len
+
+    def initWithXMLSectionData(self, section, section_elem):
+        section.content = []
+
+        section.flags = int(section_elem.get("Flags"), 0)
+        for subelem in section_elem:
+            if (subelem.tag == "NameObject"):
+                pass # Items parsed somewhere else
+            elif (subelem.tag == "Digest"):
+                digest = bytes.fromhex(subelem.text)
+                section.content.append(digest)
+            else:
+                raise AttributeError("Section contains unexpected tag")
+
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         section_elem.set("Flags", "0x{:04X}".format(section.flags))
         for digest in section.content:
             subelem = ET.SubElement(section_elem,"Digest")
             subelem.text = digest.hex()
 
         section_elem.set("Format", "inline")
-        # TODO remove when this is re-created from XML
-        Block.exportXMLSection(self, section_elem, snum, section, fname_base)
 
 
 class DTHP(CompleteBlock):
@@ -2243,7 +2270,7 @@ class DTHP(CompleteBlock):
                 if VCTP is not None:
                     td = VCTP.getTopType(tdIndex)
                 if td is not None:
-                    comment_elem = ET.Comment(" Heap TypeID {:2d} = Consolidated TypeID {:2d} : {} "\
+                    comment_elem = ET.Comment(" Heap TypeID {:2d} = Consolidated TypeID {:2d}: {} "\
                       .format(i+1, tdIndex, enumOrIntToName(td.fullType())))
                 else:
                     comment_elem = ET.Comment(" Heap TypeID {:2d} = Consolidated TypeID {:2d} "\
