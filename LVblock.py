@@ -3910,8 +3910,14 @@ class UCRF(VarCodingBlock):
                 fext_try = fext_try.strip('.- ')
             if len(fext_try) > 0:
                 fext = fext_try
-        block_fname = "{:s}.{:s}".format(fname_base,fext)
         bldata = self.getData(section_num=snum)
+        # Check what kind of RSRC file we have, to give it proper extension
+        rsrchead = LVrsrcontainer.RSRCHeader(self.po)
+        if bldata.readinto(rsrchead) == sizeof(rsrchead):
+            if rsrchead.checkSanity():
+                fext = LVrsrcontainer.getFileExtByType(rsrchead.ftype)
+        bldata.seek(0)
+        block_fname = "{:s}.{:s}".format(fname_base,fext)
         with open(block_fname, "wb") as block_fd:
             if (self.po.verbose > 1):
                 print("{}: Writing block {} section {} to '{}'".format(self.vi.src_fname,self.ident,snum,block_fname))
