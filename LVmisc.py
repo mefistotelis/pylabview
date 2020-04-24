@@ -292,6 +292,7 @@ def zcomp_zeromsk8_compress(data):
                 mask = (mask | (1 << bit))
         masks.append(mask)
     if remain > 0:
+        blkId = blocksCount
         mask = 0
         for bit in range(remain):
             val = data[blkId * 8 + bit]
