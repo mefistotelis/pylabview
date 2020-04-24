@@ -89,12 +89,12 @@ or some data added - you will have to do it manually.
 # Reversing EXE back to buildable project
 
 While it is possible to reverse the EXE built with LabVIEW to its source, there are no tools to automate such conversion at the moment. When VI files are being build, some elements are removed from them:
-- Block Diagram is removed and repaced by 'compiled' version, optimized to run on a specific version of labVIEW Runtime Environment (LVRT)
-- If the VI Front Panel is unused, it is also removed.
+- Block Diagram is removed, leaving only compiled version. The compiled version is kind of OBJ file, which can only run on a specific CPU, and specific version of labVIEW Runtime Environment (LVRT).
+- If GUI of the VI file is never shown, the unused VI Front Panel is also removed.
 
-The missing elements can be re-created, but currently there is no tool to do so. We don't even have a tool which would fully read all elements of the VI file - and that is required to try and re-construct missing parts.
+The missing elements can be re-created, and doing so with use of the XML format is much easier than doing that directly with binary form of the VI files. A script which reads the XML and re-constructs missing parts is totally possible to make.
 
-Still, even without the full VI reversed so source form, it is possible to extract the EXE back to a project, which then can be re-built with the same version of LabView which was originally used. It is then possible to start replacing single VIs with a newly created ones, while retaining useability of the whole project.
+Even without the VIs fully reversed so source form, it is possible to extract the EXE back to a project, which then can be re-built with the same version of LabView which was originally used. It is then possible to start replacing single VIs with a newly created ones, while retaining useability of the whole project.
 
 In order to reverse an executable back to LabView project:
 
