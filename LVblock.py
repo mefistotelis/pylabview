@@ -3695,7 +3695,10 @@ class HeapVerb(Block):
                 xml_fname = xml_path + '/' + section_elem.get("File")
             else:
                 xml_fname = section_elem.get("File")
-            tree = ET.parse(xml_fname)
+            try:
+                tree = ET.parse(xml_fname)
+            except Exception as e:
+                raise RuntimeError("XML file '{}' parsing exception: {}".format(section_elem.get("File"),str(e)))
             section.objects = []
             self.initWithXMLHeap(section, tree.getroot(), None)
         else:

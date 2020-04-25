@@ -11,16 +11,172 @@ XML input/output support. Wrapped Python libraries, with any neccessary changes.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
 import xml.etree.ElementTree as ET
-from xml.etree.ElementTree import ElementTree,Element,Comment,SubElement,parse
+from xml.etree.ElementTree import ElementTree,Element,Comment,SubElement
 
-class CommentedTreeBuilder(ET.TreeBuilder):
+class BinCompatTreeBuilder:
+    """Generic element structure builder.
+
+    This builder converts a sequence of start, data, and end method
+    calls to a well-formed element structure.
+
+    You can use this class to build an element structure using a custom XML
+    parser, or a parser for some other XML-like format.
+
+    *element_factory* is an optional element factory which is called
+    to create new Element instances, as necessary.
+
+    *comment_factory* is a factory to create comments to be used instead of
+    the standard factory.  If *insert_comments* is false (the default),
+    comments will not be inserted into the tree.
+
+    *pi_factory* is a factory to create processing instructions to be used
+    instead of the standard factory.  If *insert_pis* is false (the default),
+    processing instructions will not be inserted into the tree.
+    """
+    def __init__(self, element_factory=None, *,
+                 comment_factory=None, pi_factory=None,
+                 insert_comments=False, insert_pis=False):
+        self._data = [] # data collector
+        self._elem = [] # element stack
+        self._last = None # last element
+        self._root = None # root element
+        self._tail = None # true if we're after an end tag
+        if comment_factory is None:
+            comment_factory = Comment
+        self._comment_factory = comment_factory
+        self.insert_comments = insert_comments
+        if pi_factory is None:
+            pi_factory = ET.ProcessingInstruction
+        self._pi_factory = pi_factory
+        self.insert_pis = insert_pis
+        if element_factory is None:
+            element_factory = Element
+        self._factory = element_factory
+
+    def close(self):
+        """Flush builder buffers and return toplevel document Element."""
+        assert len(self._elem) == 0, "missing end tags"
+        assert self._root is not None, "missing toplevel element"
+        return self._root
+
+    def _flush(self):
+        if self._data:
+            if self._last is not None:
+                text = "".join(self._data)
+                if self._tail:
+                    assert self._last.tail is None, "internal error (tail)"
+                    self._last.tail = text
+                else:
+                    assert self._last.text is None, "internal error (text)"
+                    self._last.text = text
+            self._data = []
+
+    def data(self, data):
+        """Add text to current element.
+
+        NOTE: The change is here! This is the only method modified from original
+        implementation taken from Python 3.8. The change is to un-escape binary
+        characters; but also, since these data is parsed by chunks, data from
+        previous chunk may be required to un-escape next one. And this is why
+        we need custom implementation of this class.
+        """
+        unescaped_data = None
+        if len(self._data) > 0:
+            last_data = self._data[-1]
+            if len(last_data) < 6 and '&' in last_data:
+                self._data.pop()
+                unescaped_data = unescape_cdata_control_chars(last_data+data)
+        if unescaped_data is None:
+            unescaped_data = unescape_cdata_control_chars(data)
+        # If we have '&' near end, append that part separately - we may want modify it next time
+        if '&' in unescaped_data[-5:]:
+            self._data.append(unescaped_data[:-5])
+            self._data.append(unescaped_data[-5:])
+        else:
+            self._data.append(unescaped_data)
+
+    def start(self, tag, attrs):
+        """Open new element and return it.
+
+        *tag* is the element name, *attrs* is a dict containing element
+        attributes.
+
+        """
+        self._flush()
+        self._last = elem = self._factory(tag, attrs)
+        if self._elem:
+            self._elem[-1].append(elem)
+        elif self._root is None:
+            self._root = elem
+        self._elem.append(elem)
+        self._tail = 0
+        return elem
+
+    def end(self, tag):
+        """Close and return current Element.
+
+        *tag* is the element name.
+
+        """
+        self._flush()
+        self._last = self._elem.pop()
+        assert self._last.tag == tag,\
+               "end tag mismatch (expected %s, got %s)" % (
+                   self._last.tag, tag)
+        self._tail = 1
+        return self._last
+
+    def comment(self, text):
+        """Create a comment using the comment_factory.
+
+        *text* is the text of the comment.
+        """
+        return self._handle_single(
+            self._comment_factory, self.insert_comments, text)
+
+    def pi(self, target, text=None):
+        """Create a processing instruction using the pi_factory.
+
+        *target* is the target name of the processing instruction.
+        *text* is the data of the processing instruction, or ''.
+        """
+        return self._handle_single(
+            self._pi_factory, self.insert_pis, target, text)
+
+    def _handle_single(self, factory, insert, *args):
+        elem = factory(*args)
+        if insert:
+            self._flush()
+            self._last = elem
+            if self._elem:
+                self._elem[-1].append(elem)
+            self._tail = 1
+        return elem
+
+# Use parse(source, parser=ET.XMLParser(target=CommentedTreeBuilder())) to get the XML with comments retained
+class CommentedTreeBuilder(BinCompatTreeBuilder):
     def comment(self, data):
         self.start(Comment, {})
         self.data(data)
         self.end(Comment)
 
-# Use parse(source, parser=ET.commented_parser) to get the XML with comments retained
-commented_parser = ET.XMLParser(target=CommentedTreeBuilder())
+    def data(self, data):
+        """Add text to current element."""
+        super().data(unescape_cdata_control_chars(data))
+
+
+def parse(source, parser=None):
+    """Parse XML document into element tree.
+
+    *source* is a filename or file object containing XML data,
+    *parser* is an optional parser instance defaulting to XMLParser.
+
+    Return an ElementTree instance.
+
+    """
+    if parser is None:
+        parser = ET.XMLParser(target=BinCompatTreeBuilder())
+    return ET.parse(source, parser)
 
 def et_escape_cdata_mind_binary(text):
     # escape character data
@@ -63,7 +219,9 @@ def unescape_cdata_custom_chars(text, ccList):
     try:
         if True:
             for i in ccList:
+                import string
                 text = text.replace("&#x{:02X};".format(i), chr(i))
+        #if "#x" in text: print("".join(text[-5:]))#print("".join(filter(lambda x: x in string.printable, text)))#!!!!!!!!!!!!!
         return text
     except (TypeError, AttributeError):
         #ET._raise_serialization_error(text)
@@ -109,6 +267,18 @@ def _serialize_xml(write, elem, qnames, namespaces,
           short_empty_elements, **kwargs)
 ET._serialize_xml = ET._serialize['xml'] = _serialize_xml
 
+ET._original_escape_cdata = ET._escape_cdata
+
+def _escape_cdata(text):
+    # escape character data
+    try:
+        if any(chr(c) in text for c in [c for c in range(0,32) if c not in (ord("\n"), ord("\t"),)]):
+            return "<![CDATA[" + escape_cdata_control_chars(text) + "]]>"
+    except (TypeError, AttributeError):
+        ET._raise_serialization_error(text)
+    return ET._original_escape_cdata(text)
+ET._escape_cdata = _escape_cdata
+
 def pretty_element_tree_heap(elem, level=0):
     """ Pretty ElementTree for LV Heap XML data.
 
@@ -125,13 +295,7 @@ def pretty_element_tree_heap(elem, level=0):
     pass
 
 def safe_store_element_text(elem, text):
-    if text is None:
-        return
-    if any(chr(ele) in text for ele in range(0,32)):
-        elem.append(CDATA(escape_cdata_control_chars(text)))
-    else:
-        elem.text = text
+    elem.text = text
 
 def unescape_safe_store_element_text(elem_text):
-    text = unescape_cdata_control_chars(elem_text)
-    return text
+    return elem_text
