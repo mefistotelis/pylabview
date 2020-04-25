@@ -3908,6 +3908,117 @@ class RTSG(CompleteBlock):
         pass
 
 
+class GCPR(CompleteBlock):
+    """ Generated Code Profiler settings
+
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.content = []
+        return section
+
+    def parseRSRCSectionData(self, section_num, bldata):
+        section = self.sections[section_num]
+        section.content = []
+
+        section.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=True)
+        section.propBool4 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        section.propBool5 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        section.propBool6 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        section.propBool7 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        section.propBool8 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+
+        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        for i in range(count):
+            client = SimpleNamespace()
+            client.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            client.prop2 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            client.prop3 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            client.prop4 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            client.prop5 = readLStr(bldata, 1, self.po)
+            section.content.append(client)
+        pass
+
+    def prepareRSRCData(self, section_num):
+        section = self.sections[section_num]
+
+        data_buf = b''
+
+        data_buf += int(section.prop1).to_bytes(4, byteorder='big', signed=True)
+        data_buf += int(section.propBool4).to_bytes(1, byteorder='big', signed=False)
+        data_buf += int(section.propBool5).to_bytes(1, byteorder='big', signed=False)
+        data_buf += int(section.propBool6).to_bytes(1, byteorder='big', signed=False)
+        data_buf += int(section.propBool7).to_bytes(1, byteorder='big', signed=False)
+        data_buf += int(section.propBool8).to_bytes(1, byteorder='big', signed=False)
+
+        data_buf += len(section.content).to_bytes(4, byteorder='big', signed=False)
+        for client in section.content:
+            data_buf += int(client.prop1).to_bytes(4, byteorder='big', signed=False)
+            data_buf += int(client.prop2).to_bytes(4, byteorder='big', signed=False)
+            data_buf += int(client.prop3).to_bytes(4, byteorder='big', signed=False)
+            data_buf += int(client.prop4).to_bytes(4, byteorder='big', signed=False)
+            data_buf += prepareLStr(client.prop5, 1, self.po)
+
+        return data_buf
+
+    def expectedRSRCSize(self, section_num):
+        section = self.sections[section_num]
+        exp_whole_len = 0
+        exp_whole_len += 4 + 5 * 1
+        exp_whole_len += 4
+        for client in section.content:
+            exp_whole_len += 4 + 4 + 4 + 4
+            exp_whole_len += 4 + len(client.prop5)
+        return exp_whole_len
+
+    def initWithXMLSectionData(self, section, section_elem):
+        section.content = []
+
+        section.prop1 = section_elem.get("Prop1")
+        section.propBool4 = section_elem.get("PropBool4")
+        section.propBool5 = section_elem.get("PropBool5")
+        section.propBool6 = section_elem.get("PropBool6")
+        section.propBool7 = section_elem.get("PropBool7")
+        section.propBool8 = section_elem.get("PropBool8")
+
+        for subelem in section_elem:
+            if (subelem.tag == "NameObject"):
+                pass # Items parsed somewhere else
+            elif (subelem.tag == "NodeData"):
+                client = SimpleNamespace()
+                client.prop1 = subelem.get("Prop1")
+                client.prop2 = subelem.get("Prop2")
+                client.prop3 = subelem.get("Prop3")
+                client.prop4 = subelem.get("Prop4")
+                if subelem.text is not None:
+                    elem_text = ET.unescape_safe_store_element_text(subelem.text)
+                    client.prop5 = elem_text.encode(self.vi.textEncoding)
+                else:
+                    client.prop5 = b''
+                section.content.append(client)
+            else:
+                raise AttributeError("Section contains unexpected tag")
+        pass
+
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
+        section_elem.set("Prop1", "{:d}".format(section.prop1))
+        section_elem.set("PropBool4", "{:d}".format(section.propBool4))
+        section_elem.set("PropBool5", "{:d}".format(section.propBool5))
+        section_elem.set("PropBool6", "{:d}".format(section.propBool6))
+        section_elem.set("PropBool7", "{:d}".format(section.propBool7))
+        section_elem.set("PropBool8", "{:d}".format(section.propBool8))
+
+        for client in section.content:
+            subelem = ET.SubElement(section_elem,"NodeData")
+            subelem.set("Prop1", "{:d}".format(client.prop1))
+            subelem.set("Prop2", "{:d}".format(client.prop2))
+            subelem.set("Prop3", "{:d}".format(client.prop3))
+            subelem.set("Prop4", "{:d}".format(client.prop4))
+            pretty_string = client.prop5.decode(self.vi.textEncoding)
+            ET.safe_store_element_text(subelem, pretty_string)
+        pass
+
+
 class UCRF(VarCodingBlock):
     """ Uncompressed Resource File
 
