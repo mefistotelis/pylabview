@@ -132,6 +132,9 @@ def main():
 
             root = vi.exportBinBlocksXMLTree()
 
+            if po.file_map:
+                vi.printRSRCMap()
+
         if (po.verbose > 0):
             print("{}: Writing binding XML".format(po.xml))
         tree = ET.ElementTree(root)

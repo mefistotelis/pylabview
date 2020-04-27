@@ -442,19 +442,40 @@ class VI():
             block.updateData()
 
     def saveRSRCData(self, fh):
+        ver = self.getFileVersion()
         # Write header, though it is not completely filled yet
         rsrchead = self.rsrc_headers[0]
         fh.write((c_ubyte * sizeof(rsrchead)).from_buffer_copy(rsrchead))
 
         # Prepare list of blocks; this sets blocks order which we will use
         all_blocks = self.blocks.values()
+
         # Also create mutable array which will become the names block
         section_names = bytearray()
 
-        for block in all_blocks:
-            if (self.po.verbose > 0):
-                print("{}: Writing RSRC block {} data".format(self.src_fname,block.ident))
-            block.header.starts = block.saveRSRCData(fh, section_names)
+        if isGreaterOrEqVersion(ver, 7,0,0):
+            # The same order is used for both data and the following header blocks
+            for block in all_blocks:
+                if (self.po.verbose > 0):
+                    print("{}: Writing RSRC block {} data".format(self.src_fname,block.ident))
+                block.header.starts = block.saveRSRCData(fh, section_names)
+        else:
+            # Section headers are sorted normally, but section data is different - some sections are moved to end
+            data_at_end_blocks = []
+            for block in all_blocks:
+                if block.ident in (b'LVSR',):
+                    data_at_end_blocks.insert(0,block)
+                    continue
+                if block.ident in (b'BDPW',):
+                    data_at_end_blocks.append(block)
+                    continue
+                if (self.po.verbose > 0):
+                    print("{}: Writing RSRC block {} data".format(self.src_fname,block.ident))
+                block.header.starts = block.saveRSRCData(fh, section_names)
+            for block in data_at_end_blocks:
+                if (self.po.verbose > 0):
+                    print("{}: Writing RSRC block {} data at end".format(self.src_fname,block.ident))
+                block.header.starts = block.saveRSRCData(fh, section_names)
 
         rsrchead.rsrc_info_offset = fh.tell()
         rsrchead.rsrc_data_size = rsrchead.rsrc_info_offset - rsrchead.rsrc_data_offset
@@ -533,6 +554,7 @@ class VI():
     def exportXMLRoot(self):
         """ Creates root of the XML export tree
         """
+        ver = self.getFileVersion()
         elem = ET.Element('RSRC')
         rsrc_type_id = getRsrcTypeForFileType(self.ftype)
         elem.set("Type", rsrc_type_id.decode('ascii'))
@@ -545,7 +567,8 @@ class VI():
         if dataset_int1 is not None:
             elem.set("Int1", "0x{:08X}".format(dataset_int1))
 
-        if self.ftype == FILE_FMT_TYPE.LLB:
+        # The value is verified to be used in LV6.0.1, unused in LV8.6
+        if self.ftype == FILE_FMT_TYPE.LLB or isSmallerVersion(ver, 7,0,0):
             dataset_int2 = self.binflsthead.dataset_int2
         else:
             dataset_int2 = None

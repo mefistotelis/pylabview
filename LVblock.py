@@ -730,6 +730,7 @@ class Block(object):
 
         All sections are exported by this method.
         """
+        ver = self.vi.getFileVersion()
         pretty_ident = getPrettyStrFromRsrcType(self.ident)
 
         elem = ET.Element(pretty_ident)
@@ -740,7 +741,7 @@ class Block(object):
             section_elem = ET.SubElement(elem,"Section")
             section_elem.set("Index", str(snum))
 
-            if self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.LLB:
+            if self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.LLB or isSmallerVersion(ver, 7,0,0):
                 block_int5 = section.start.int5
             else:
                 block_int5 = None
