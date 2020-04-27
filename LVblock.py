@@ -2615,8 +2615,11 @@ class LVSR(CompleteBlock):
         section = self.sections[section_num]
         ver = self.vi.getFileVersion()
         exp_whole_len = 68
+
         if isGreaterOrEqVersion(section.version, 7,0):
-            exp_whole_len += 52
+            exp_whole_len += 28
+        if isGreaterOrEqVersion(section.version, 8,0):
+            exp_whole_len += 24
         if isGreaterOrEqVersion(section.version, 10,0, stage='release'):
             exp_whole_len += 16 # total 136
         if isGreaterOrEqVersion(section.version, 14,0):
