@@ -560,7 +560,7 @@ class VI():
         elem.set("Type", rsrc_type_id.decode('ascii'))
         elem.set("Encoding", self.textEncoding)
 
-        if self.ftype == FILE_FMT_TYPE.LLB:
+        if self.ftype == FILE_FMT_TYPE.LLB or isSmallerVersion(ver, 7,0,0):
             dataset_int1 = self.binflsthead.dataset_int1
         else:
             dataset_int1 = None
