@@ -38,7 +38,8 @@ class FILE_FMT_TYPE(enum.Enum):
     TemplateVI = 9
     Xcontrol = 10
     UsrIfaceResrc = 11
-    VI = 12
+    RFilesService = 12
+    VI = 13
 
 
 class RSRCHeader(RSRCStructure):
@@ -139,6 +140,7 @@ def getRsrcTypeForFileType(ftype):
         FILE_FMT_TYPE.Library: b'LIBR',
         FILE_FMT_TYPE.LLB: b'LVAR',
         FILE_FMT_TYPE.MenuPalette: b'LMNU',
+        FILE_FMT_TYPE.RFilesService: b'LVRS',
         FILE_FMT_TYPE.TemplateControl: b'sVCC',
         FILE_FMT_TYPE.TemplateVI: b'sVIN',
         FILE_FMT_TYPE.Xcontrol: b'LVXC',
