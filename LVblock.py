@@ -1395,10 +1395,12 @@ class CPDI(Block):
     pass
 
 
-class SingleStringBlock(Block):
+class SingleStringBlock(CompleteBlock):
     """ Block with raw data representing single string value
 
-    To be used as parser for several blocks.
+    This base class is to be used as parser for several blocks.
+    The blocks are assumed to store a text string; but if binary data is found
+    instead, then the block is stored as sting of hex values.
     """
     def createSection(self):
         section = super().createSection()
@@ -1408,47 +1410,108 @@ class SingleStringBlock(Block):
         section.eoln = '\r\n'
         return section
 
-    def parseRSRCData(self, section_num, bldata):
-        section = self.sections[section_num]
+    def setDefaultEncoding(self):
+        self.default_block_coding = BLOCK_CODING.NONE
 
-        string_len = int.from_bytes(bldata.read(section.size_len), byteorder='big', signed=False)
-        content = bldata.read(string_len)
+    def isBinaryString(self, content):
+        text_chars = len(re.findall(b"[\r\n\t\x20-\xfe]", content))
+        binary_chars = len(content) - text_chars
+        if len(content) > 4:
+            return binary_chars > len(content) / 10
+        else:
+            return binary_chars > 0
+
+    def parseBinaryString(self, content):
+        remain = content
+        chunks = []
+        while len(remain) > 0:
+            match = re.search(b"[\t\x20-\xfe]{6}", remain)
+            if not match:
+                chunk = SimpleNamespace()
+                chunk.storage = "hex"
+                chunk.content = remain
+                chunks.append(chunk)
+                break
+            hex_end = match.start()
+            if hex_end > 0:
+                chunk = SimpleNamespace()
+                chunk.storage = "hex"
+                chunk.content = remain[:hex_end]
+                chunks.append(chunk)
+            str_end = match.end()
+            if str_end > hex_end: # always true
+                chunk = SimpleNamespace()
+                chunk.storage = "text"
+                chunk.content = remain[hex_end:str_end]
+                chunks.append(chunk)
+            remain = remain[str_end:]
+        smaller_chunks = []
+        for chunk in chunks:
+            if chunk.storage != "hex" or len(chunk.content) <= 512:
+                smaller_chunks.append(chunk)
+                continue
+            num_parts = (len(chunk.content) + 511) // 512
+            part_len = (len(chunk.content) + num_parts - 1) // num_parts
+            remain = chunk.content
+            for i in range(num_parts):
+                part_chunk = SimpleNamespace()
+                part_chunk.storage = chunk.storage
+                part_chunk.content = remain[:part_len]
+                smaller_chunks.append(part_chunk)
+                remain = remain[part_len:]
+
+        return smaller_chunks
+
+    def parseTextString(self, content, textEncoding):
         # Need to divide decoded string, as single \n or \r may be there only due to the endoding
         # Also, ignore encoding errors - some strings are encoded with exotic code pages, as they
         # just use native code page of the operating system (which in case of Windows, varies).
-        content_str = content.decode(self.vi.textEncoding, errors="ignore")
+        content_str = content.decode(textEncoding, errors="ignore")
         # Somehow, these strings can contain various EOLN chars, even if \r\n is the most often used one
         # To avoid creating different files from XML, we have to detect the proper EOLN to use
         if content_str.count('\r\n') > content_str.count('\n\r'):
-            section.eoln = '\r\n'
+            eoln = '\r\n'
         elif content_str.count('\n\r') > 0:
-            section.eoln = '\n\r'
+            eoln = '\n\r'
         elif content_str.count('\n') > content_str.count('\r'):
-            section.eoln = '\n'
+            eoln = '\n'
         elif content_str.count('\r') > 0:
-            section.eoln = '\r'
+            eoln = '\r'
         else:
             # Set the most often used one as default
-            section.eoln = '\r\n'
+            eoln = '\r\n'
 
-        section.content = [s.encode(self.vi.textEncoding) for s in content_str.split(section.eoln)]
+        chunks = []
+        for line in content_str.split(eoln):
+            chunk = SimpleNamespace()
+            chunk.storage = "text"
+            chunk.content = line.encode(textEncoding)
+            chunks.append(chunk)
+        return chunks, eoln
 
-    def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
+    def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
+        section.content = []
+        section.eoln = ''
 
+        string_len = int.from_bytes(bldata.read(section.size_len), byteorder='big', signed=False)
+        content = bldata.read(string_len)
+
+        if self.isBinaryString(content):
+            section.content = self.parseBinaryString(content)
+            section.eoln = ''
+        else:
+            section.content, section.eoln = self.parseTextString(content, self.vi.textEncoding)
+        pass
+
+    def prepareRSRCData(self, section_num):
+        section = self.sections[section_num]
+        data_buf  = b''
         # There is no need to decode while joining
-        content_bytes = section.eoln.encode(self.vi.textEncoding).join(section.content)
+        content_bytes = section.eoln.encode(self.vi.textEncoding).join(chunk.content for chunk in section.content)
         data_buf = len(content_bytes).to_bytes(section.size_len, byteorder='big', signed=False)
         data_buf += content_bytes
-
-        exp_whole_len = self.expectedRSRCSize(section_num)
-        if (len(data_buf) != exp_whole_len):
-            raise RuntimeError("Block {} section {} generated binary data of invalid size"\
-              .format(self.ident,section_num))
-
-        self.setData(data_buf, section_num=section_num)
+        return data_buf
 
     def expectedRSRCSize(self, section_num):
         if section_num is None:
@@ -1456,56 +1519,60 @@ class SingleStringBlock(Block):
         section = self.sections[section_num]
 
         exp_whole_len = section.size_len
-        exp_whole_len +=sum(len(line) for line in section.content)
+        exp_whole_len +=sum(len(chunk.content) for chunk in section.content)
         exp_whole_len += len(section.eoln) * max(len(section.content)-1,0)
         return exp_whole_len
 
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = super().getData(section_num=section_num, use_coding=use_coding)
-        return bldata
+    def initWithXMLSectionData(self, section, section_elem):
+        section.eoln = section_elem.get("EOLN").replace("CR",'\r').replace("LF",'\n')
+        section.content = []
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
-
-    def initWithXMLSection(self, section, section_elem):
-        snum = section.start.section_idx
-        fmt = section_elem.get("Format")
-        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
-            if (self.po.verbose > 2):
-                print("{:s}: For Block {} section {:d}, reading inline XML data"\
-                  .format(self.vi.src_fname,self.ident,snum))
-            section.eoln = section_elem.get("EOLN").replace("CR",'\r').replace("LF",'\n')
-            section.content = []
-
-            for i, subelem in enumerate(section_elem):
-                if (subelem.tag == "NameObject"):
-                    pass # Items parsed somewhere else
-                elif (subelem.tag == "String"):
-                    if subelem.text is not None:
-                        elem_text = ET.unescape_safe_store_element_text(subelem.text)
-                        section.content.append(elem_text.encode(self.vi.textEncoding))
-                    else:
-                        section.content.append(b'')
+        for i, subelem in enumerate(section_elem):
+            if (subelem.tag == "NameObject"):
+                pass # Items parsed somewhere else
+            elif (subelem.tag == "String"):
+                chunk = SimpleNamespace()
+                storage = subelem.get("Storage")
+                if storage is None:
+                    chunk.storage = "text"
+                elif storage in ("hex", "text",):
+                    chunk.storage = storage
                 else:
-                    raise AttributeError("Section contains unexpected tag")
-        else:
-            Block.initWithXMLSection(self, section, section_elem)
+                    raise AttributeError("Section contains string with unexpected storage type")
+                if chunk.storage == "hex":
+                    line = subelem.text
+                    if line is not None:
+                        line = bytes.fromhex(line)
+                else:
+                    line = subelem.text
+                    if line is not None:
+                        line = line.encode(self.vi.textEncoding)
+                if line is not None:
+                    chunk.content = line
+                else:
+                    chunk.content = b''
+                section.content.append(chunk)
+            else:
+                raise AttributeError("Section contains unexpected tag")
         pass
 
-    def exportXMLSection(self, section_elem, snum, section, fname_base):
-        self.parseData(section_num=snum)
-
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         # Store the EOLN used as an attribute
         EOLN_type = section.eoln.replace('\r',"CR").replace('\n',"LF")
         section_elem.set("EOLN", "{:s}".format(EOLN_type))
 
-        for line in section.content:
+        for chunk in section.content:
             subelem = ET.SubElement(section_elem,"String")
+            if chunk.storage == "text":
+                pretty_string = chunk.content.decode(self.vi.textEncoding)
+            elif chunk.storage == "hex":
+                pretty_string = chunk.content.hex()
+                subelem.set("Storage", "{:s}".format(chunk.storage))
+            else:
+                raise AttributeError("Unsupported storage type")
 
-            pretty_string = line.decode(self.vi.textEncoding)
-            ET.safe_store_element_text(subelem, pretty_string)
-
-        section_elem.set("Format", "inline")
+            subelem.text = pretty_string
+        pass
 
 
 class TITL(SingleStringBlock):
