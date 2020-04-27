@@ -838,6 +838,7 @@ class CompleteBlock(Block):
     def createSection(self):
         section = super().createSection()
         section.parse_failed = False
+        section.storage_format = "inline"
         return section
 
     def setDefaultEncoding(self):
@@ -928,6 +929,21 @@ class CompleteBlock(Block):
                 print("{:s}: For Block {} section {:d}, reading inline XML data"\
                   .format(self.vi.src_fname,self.ident,snum))
             self.initWithXMLSectionData(section, section_elem)
+        elif fmt == "xml": # Format="xml" - the content is stored in a separate XML file
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading separate XML file '{}'"\
+                  .format(self.vi.src_fname,self.ident,snum,section_elem.get("File")))
+            xml_path = os.path.dirname(self.vi.src_fname)
+            if len(xml_path) > 0:
+                xml_fname = xml_path + '/' + section_elem.get("File")
+            else:
+                xml_fname = section_elem.get("File")
+            try:
+                tree = ET.parse(xml_fname)
+            except Exception as e:
+                section.parse_failed = True
+                raise RuntimeError("XML file '{}' parsing exception: {}".format(section_elem.get("File"),str(e)))
+            self.initWithXMLSectionData(section, tree.getroot())
         else:
             section.parse_failed = True
             Block.initWithXMLSection(self, section, section_elem)
@@ -952,23 +968,46 @@ class CompleteBlock(Block):
     def exportXMLSection(self, section_elem, section_num, section, fname_base):
         self.parseData(section_num=section_num)
 
+        storage_format = section.storage_format
         if section.parse_failed:
-            Block.exportXMLSection(self, section_elem, section_num, section, fname_base)
-            return
-
-        if (self.po.verbose > 1):
-            print("{}: Writing XML for block {}".format(self.vi.src_fname, self.ident))
+            storage_format = "raw"
 
         try:
-            self.exportXMLSectionData(section_elem, section_num, section, fname_base)
+            if storage_format == "inline":
+                if (self.po.verbose > 1):
+                    print("{}: Writing inline XML for block {}".format(self.vi.src_fname, self.ident))
+
+                self.exportXMLSectionData(section_elem, section_num, section, fname_base)
+                section_elem.set("Format", "inline")
+            elif storage_format == "xml":
+                if (self.po.verbose > 1):
+                    print("{}: Writing separate XML for block {}".format(self.vi.src_fname, self.ident))
+
+                block_fname = "{:s}.{:s}".format(fname_base,"xml")
+
+                root = ET.Element("SectionRoot")
+                self.exportXMLSectionData(root, snum, section, fname_base)
+
+                ET.pretty_element_tree_heap(root)
+
+                tree = ET.ElementTree(root)
+                with open(block_fname, "wb") as block_fd:
+                    if (self.po.verbose > 1):
+                        print("{}: Storing block {} section {} xml in '{}'".format(self.vi.src_fname,self.ident,snum,block_fname))
+                    tree.write(block_fd, encoding='utf-8', xml_declaration=True)
+
+                section_elem.set("Format", "xml")
+                section_elem.set("File", os.path.basename(block_fname))
+            elif storage_format == "raw":
+                Block.exportXMLSection(self, section_elem, section_num, section, fname_base)
+            else:
+                raise NotImplementedError("Unknown block storage format")
         except Exception as e:
             eprint("{:s}: Warning: Block {} section {} XML export exception: {}."\
                 .format(self.vi.src_fname,self.ident,section_num,str(e)))
             #raise # useful for debug
             Block.exportXMLSection(self, section_elem, section_num, section, fname_base)
             return
-
-        section_elem.set("Format", "inline")
 
     def getData(self, section_num=None, use_coding=None):
         if use_coding is None:
@@ -1167,6 +1206,7 @@ class FPTD(CompleteBlock):
         else:
             #TODO currently we do not know how to parse old version of FPTD block
             raise NotImplementedError("Preparing data for LV6 and older form of the block is not implemented")
+        return data_buf
 
     def expectedRSRCSize(self, section_num):
         if self.isSingleTDIndex():
@@ -3543,26 +3583,23 @@ class SUID(Block):
         return section
 
 
-class HeapVerP(Block):
+class HeapVerP(CompleteBlock):
     """ BD/FP Heap version P
     """
     def createSection(self):
         section = super().createSection()
+        section.storage_format = "xml"
         section.content = None
         return section
 
-    def parseRSRCData(self, section_num, bldata):
+    def setDefaultEncoding(self):
+        self.default_block_coding = BLOCK_CODING.NONE
+
+    def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
 
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         section.content = bldata.read(content_len)
-
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = super().getData(section_num=section_num, use_coding=use_coding)
-        return bldata
-
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
     def getContent(self):
         self.updateData()
@@ -3576,16 +3613,17 @@ class HeapVerP(Block):
         return md5(content).digest()
 
 
-class HeapVerb(Block):
+class HeapVerb(CompleteBlock):
     """ BD/FP Heap version b
     """
-    def __init__(self, *args):
-        super().__init__(*args)
-
     def createSection(self):
         section = super().createSection()
+        section.storage_format = "xml"
         section.objects = []
         return section
+
+    def setDefaultEncoding(self):
+        self.default_block_coding = BLOCK_CODING.ZLIB
 
     def getTopClassEn(self, section, obj_idx):
         """ Return classId of top object with class
@@ -3640,7 +3678,7 @@ class HeapVerb(Block):
 
         return parentNode, dataLen
 
-    def parseRSRCData(self, section_num, bldata):
+    def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
 
         section.objects = []
@@ -3651,18 +3689,15 @@ class HeapVerb(Block):
         while tot_len < content_len:
             parentNode, entry_len = self.parseRSRCHeap(section, bldata, parentNode)
             if entry_len <= 0:
-                print("{:s}: Block {} section {:d}, has not enough data for complete heap"\
-                  .format(self.vi.src_fname,self.ident,section_num))
-                break
+                raise RuntimeError("Not enough raw data for complete heap")
             tot_len += entry_len
 
         if parentNode != None:
             eprint("{}: Warning: In block {}, heap did not closed all tags"\
               .format(self.vi.src_fname, self.ident))
+        pass
 
-    def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
+    def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
 
         for obj in section.objects:
@@ -3675,15 +3710,17 @@ class HeapVerb(Block):
             data_buf += bldata.read()
 
         data_buf = int(len(data_buf)).to_bytes(4, byteorder='big') + data_buf
-
-        if (len(data_buf) < 4 + 2*len(section.objects)):
-            raise RuntimeError("Block {} section {} generated binary data of invalid size"\
-              .format(self.ident,section_num))
-
-        self.setData(data_buf, section_num=section_num)
+        return data_buf
 
     def expectedRSRCSize(self, section_num):
-        exp_whole_len = None
+        section = self.sections[section_num]
+        exp_whole_len = 0
+        for obj in section.objects:
+            #TODO implement and use expected size
+            #exp_whole_len += obj.expectedRSRCSize()
+            bldata = obj.getData()
+            exp_whole_len += len(bldata.read())
+        exp_whole_len += 4
         return exp_whole_len
 
     def initWithXMLHeap(self, section, elem, parentNode):
@@ -3706,41 +3743,22 @@ class HeapVerb(Block):
             section.objects.append(obj)
             #obj.initWithXML(elem) # No init needed for closing tag
 
-    def initWithXMLSection(self, section, section_elem):
-        snum = section.start.section_idx
-        fmt = section_elem.get("Format")
-        if fmt == "xml": # Format="xml" - the content is stored in a separate XML file
-            if (self.po.verbose > 2):
-                print("{:s}: For Block {} section {:d}, reading separate XML file '{}'"\
-                  .format(self.vi.src_fname,self.ident,snum,section_elem.get("File")))
-            xml_path = os.path.dirname(self.vi.src_fname)
-            if len(xml_path) > 0:
-                xml_fname = xml_path + '/' + section_elem.get("File")
-            else:
-                xml_fname = section_elem.get("File")
-            try:
-                tree = ET.parse(xml_fname)
-            except Exception as e:
-                raise RuntimeError("XML file '{}' parsing exception: {}".format(section_elem.get("File"),str(e)))
-            section.objects = []
-            self.initWithXMLHeap(section, tree.getroot(), None)
-        else:
-            Block.initWithXMLSection(self, section, section_elem)
-        pass
+    def initWithXMLSectionData(self, section, section_elem):
+        section.objects = []
 
-    def exportXMLSection(self, section_elem, snum, section, fname_base):
-        block_fname = "{:s}.{:s}".format(fname_base,"xml")
+        self.initWithXMLHeap(section, section_elem, None)
 
-        root = None
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
+        root = section_elem
         parent_elems = []
         elem = None
         for i, obj in enumerate(section.objects):
             scopeInfo = obj.getScopeInfo()
             tagName = LVheap.tagEnToName(obj.tagEn, obj.parent)
             if elem is None:
-                elem = ET.Element(tagName)
-                root = elem
-                parent_elems.append(root)
+                elem = root
+                elem.tag = tagName
+                parent_elems.append(elem)
             elif scopeInfo == LVheap.NODE_SCOPE.TagClose:
                 elem = parent_elems.pop()
                 if elem.tag != tagName:
@@ -3754,25 +3772,10 @@ class HeapVerb(Block):
             if scopeInfo == LVheap.NODE_SCOPE.TagOpen:
                 parent_elems.append(elem)
 
-        ET.pretty_element_tree_heap(root)
-
-        if (self.po.verbose > 1):
-            print("{}: Writing XML for block {}".format(self.vi.src_fname, self.ident))
-        tree = ET.ElementTree(root)
-        with open(block_fname, "wb") as block_fd:
-            if (self.po.verbose > 1):
-                print("{}: Writing block {} section {} xml to '{}'".format(self.vi.src_fname,self.ident,snum,block_fname))
-            tree.write(block_fd, encoding='utf-8', xml_declaration=True)
-
-        section_elem.set("Format", "xml")
-        section_elem.set("File", os.path.basename(block_fname))
-
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
-        bldata = super().getData(section_num=section_num, use_coding=use_coding)
-        return bldata
-
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
+        if len(parent_elems) > 0:
+            eprint("{}: Warning: In block {}, heap structure is not a valid XML tree"\
+              .format(self.vi.src_fname, self.ident))
+        pass
 
     def getContent(self):
         self.updateData()
@@ -3786,16 +3789,21 @@ class HeapVerb(Block):
         return md5(content).digest()
 
 
-class HeapVerc(Block):
+class HeapVerc(CompleteBlock):
     """ BD/FP Heap version c
     """
     def createSection(self):
         section = super().createSection()
+        section.storage_format = "xml"
         section.content = None
         return section
 
-    def parseRSRCData(self, section_num, bldata):
+    def setDefaultEncoding(self):
+        self.default_block_coding = BLOCK_CODING.ZLIB
+
+    def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
+        section.content = None
 
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         container_start = bldata.tell()
@@ -3816,13 +3824,6 @@ class HeapVerc(Block):
         # Read the raw data
         bldata.seek(container_start)
         section.content = bldata.read(content_len)
-
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
-        bldata = super().getData(section_num=section_num, use_coding=use_coding)
-        return bldata
-
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
     def getContent(self):
         self.updateData()
