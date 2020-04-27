@@ -37,9 +37,13 @@ If you want to verify whrther your specific file will be handled correctly by th
 - re-creating it from the XML
 - checking whether oroginal and re-created file are binary identical, or load with all features in LabVIEW
 
-Note that many LLB files created by the tool will not be binary identical to
-the originals; this is because some items in these files are not ordered, and
-the order depends on specific timing between threads while the file was saved.
+Note that some files created by the tool will not be binary identical to the
+originals. This includes many LLB files, and some VIs from LV6.0 and older.
+The differenes in LLB can happen because string names in these files are not ordered,
+and the order depends on specific timing between threads while the file was saved
+(this tool always uses the same ordering of all items).
+The differenes in old VI files are due to unpredicatable values used for padding
+between actual data (this tool uses zeros for padding).
 
 A few example files are included in the project.
 
