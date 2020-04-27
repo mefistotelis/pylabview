@@ -741,7 +741,8 @@ class Block(object):
             section_elem = ET.SubElement(elem,"Section")
             section_elem.set("Index", str(snum))
 
-            if self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.LLB or isSmallerVersion(ver, 7,0,0):
+            if self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.LLB or isSmallerVersion(ver, 8,0,0):
+                # Vefied to be non-zero in LV7.1 files, is zero in LV8.6 files
                 block_int5 = section.start.int5
             else:
                 block_int5 = None
@@ -3080,13 +3081,20 @@ class BDPW(Block):
         section.salt = None
         return section
 
+    def hasHash2(self):
+        """ Returns whether the block should have hash_2 stored.
+
+        Tested not to be there in LV7.1, is there in LV8.6b7
+        """
+        ver = self.vi.getFileVersion()
+        return isGreaterOrEqVersion(ver, 8,0,0)
+
     def parseRSRCData(self, section_num, bldata):
         section = self.sections[section_num]
-        ver = self.vi.getFileVersion()
 
         section.password_md5 = bldata.read(16)
         section.hash_1 = bldata.read(16)
-        if isGreaterOrEqVersion(ver, 7,0,0): # Not in 6.0.1, is there in 8.6b7
+        if self.hasHash2():
             section.hash_2 = bldata.read(16)
         else:
             section.hash_2 = b''
@@ -3095,16 +3103,15 @@ class BDPW(Block):
         if section_num is None:
             section_num = self.active_section_num
         section = self.sections[section_num]
-        ver = self.vi.getFileVersion()
 
         if True:
             self.recalculateHash1(section_num=section_num)
-        if isGreaterOrEqVersion(ver, 7,0,0):
+        if self.hasHash2():
             self.recalculateHash2(section_num=section_num)
 
         data_buf = section.password_md5
         data_buf += section.hash_1
-        if isGreaterOrEqVersion(ver, 7,0,0):
+        if self.hasHash2():
             data_buf += section.hash_2
 
         exp_whole_len = self.expectedRSRCSize(section_num)
@@ -3115,9 +3122,8 @@ class BDPW(Block):
         self.setData(data_buf, section_num=section_num)
 
     def expectedRSRCSize(self, section_num):
-        ver = self.vi.getFileVersion()
         exp_whole_len = 16 + 16
-        if isGreaterOrEqVersion(ver, 7,0,0):
+        if self.hasHash2():
             exp_whole_len += 16
         return exp_whole_len
 
