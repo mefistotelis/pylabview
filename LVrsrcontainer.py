@@ -80,7 +80,7 @@ class RSRCHeader(RSRCStructure):
             ret = False
         if self.rsrc_data_offset < sizeof(self):
             if (self.po.verbose > 0):
-                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.rsrc,'rsrc_data_offset',rsrc_data_offset))
+                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.rsrc,'rsrc_data_offset',self.rsrc_data_offset))
             ret = False
         return ret
 
