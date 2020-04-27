@@ -1137,9 +1137,9 @@ class DataFillUDClassInst(DataFill):
         self.libName = bldata.read(strlen)
         if (bldata.tell() % 4) > 0:
             bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
-        if numLevels > self.po.connector_list_limit:
+        if numLevels > self.po.typedesc_list_limit:
             raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
-              .format(self.getXMLTagName(), numLevels, self.po.connector_list_limit))
+              .format(self.getXMLTagName(), numLevels, self.po.typedesc_list_limit))
         for i in range(numLevels):
             datalen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             libVersion = bldata.read(datalen)

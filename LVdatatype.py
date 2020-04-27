@@ -3138,7 +3138,7 @@ def parseTDObject(vi, bldata, ver, po, useConsolidatedTypes=False):
     else:
         # A list of TDs, with definitions directly in place; then index of top item is provided
         varcount = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        if varcount > po.connector_list_limit:
+        if varcount > po.typedesc_list_limit:
             raise AttributeError("TD sub-types count {:d} exceeds limit"\
               .format(varcount))
         pos = bldata.tell()

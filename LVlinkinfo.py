@@ -361,7 +361,7 @@ class LinkObjBase:
 
     def parseLinkOffsetList(self, bldata):
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        if count > self.po.connector_list_limit:
+        if count > self.po.typedesc_list_limit:
             raise RuntimeError("{:s} {} Offset List length {} exceeds limit"\
               .format(type(self).__name__, self.ident, count))
         offsetList = []

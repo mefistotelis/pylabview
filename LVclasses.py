@@ -277,7 +277,7 @@ class LVVariant(LVObject):
     def parseRSRCAttribs(self, bldata):
         attrs = []
         attrcount = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        if attrcount > self.po.connector_list_limit:
+        if attrcount > self.po.typedesc_list_limit:
             raise RuntimeError("{} attributes count {} exceeds limit".format(type(self).__name__, attrcount))
         for i in range(attrcount):
             text_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
@@ -315,7 +315,7 @@ class LVVariant(LVObject):
             usesConsolidatedTD = True
         else:
             varcount = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            if varcount > self.po.connector_list_limit:
+            if varcount > self.po.typedesc_list_limit:
                 raise AttributeError("{:s} {:d} ver 0x{:X} types count {:d} exceeds limit"\
                   .format(type(self).__name__, self.index, varver, varcount))
             pos = bldata.tell()

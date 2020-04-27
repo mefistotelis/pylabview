@@ -1122,7 +1122,7 @@ class FPSE(SingleIntBlock):
         return section
 
 
-class FPTD(Block):
+class FPTD(CompleteBlock):
     """ Front Panel TypeDesc
 
     Contains list of types, with exactly one
@@ -1138,59 +1138,63 @@ class FPTD(Block):
         return section
 
     def isSingleTDIndex(self):
-        ver = self.vi.getFileVersion()
-        return isGreaterOrEqVersion(ver, 6,0,0)
+        """ Returns whether the block contains a single type index in consolidated list.
 
-    def parseRSRCData(self, section_num, bldata):
+        The block contains single TD index for LV 8.6.0, it does not for LV6.0.1
+        """
+        ver = self.vi.getFileVersion()
+        return isGreaterOrEqVersion(ver, 7,0,0)
+
+    def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
+        section.value = None
 
         if self.isSingleTDIndex():
             section.value = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         else:
             #TODO currently we do not know how to parse old version of FPTD block
-            super().parseRSRCData(section_num, bldata)
-
-    def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-
-        if self.isSingleTDIndex():
-            data_buf = int(section.value).to_bytes(2, byteorder='big')
-        else:
-            #TODO currently we do not know how to parse old version of FPTD block
-            super().updateSectionData(section_num)
-            return
-
-        if (len(data_buf) != 2):
-            raise RuntimeError("Block {} section {} generated binary data of invalid size"\
-              .format(self.ident,section_num))
-
-        self.setData(data_buf, section_num=section_num)
-
-    def initWithXMLSection(self, section, section_elem):
-        snum = section.start.section_idx
-        fmt = section_elem.get("Format")
-        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
-            if (self.po.verbose > 2):
-                print("{:s}: For Block {} section {:d}, reading inline XML data"\
-                  .format(self.vi.src_fname,self.ident,snum))
-            section.value = int(section_elem.get("Value"), 0)
-        else:
-            Block.initWithXMLSection(self, section, section_elem)
+            raise NotImplementedError("Parsing LV6 and older form of the block is not implemented")
         pass
 
-    def exportXMLSection(self, section_elem, snum, section, fname_base):
-        self.parseData(section_num=snum)
+    def prepareRSRCData(self, section_num):
+        section = self.sections[section_num]
 
+        data_buf = b''
         if self.isSingleTDIndex():
-            section_elem.set("Value", "{:d}".format(section.value))
+            data_buf += int(section.value).to_bytes(2, byteorder='big', signed=False)
         else:
             #TODO currently we do not know how to parse old version of FPTD block
-            super().exportXMLSection(section_elem, snum, section, fname_base)
-            return
+            raise NotImplementedError("Preparing data for LV6 and older form of the block is not implemented")
 
-        section_elem.set("Format", "inline")
+    def expectedRSRCSize(self, section_num):
+        if self.isSingleTDIndex():
+            exp_whole_len = 2
+        else:
+            exp_whole_len = None
+        return exp_whole_len
+
+    def initWithXMLSectionData(self, section, section_elem):
+        section.content = []
+
+        for subelem in section_elem:
+            if (subelem.tag == "NameObject"):
+                pass # Items parsed somewhere else
+            elif (subelem.tag == "TypeDesc"):
+                val = int(subelem.get("TypeID"), 0)
+                section.value = val
+            else:
+                raise AttributeError("Section contains unexpected tag")
+        pass
+
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
+        if self.isSingleTDIndex():
+            subelem = ET.SubElement(section_elem,"TypeDesc")
+
+            subelem.set("TypeID", "{:d}".format(section.value))
+        else:
+            #TODO currently we do not know how to parse old version of FPTD block
+            raise NotImplementedError("Exporting XML for LV6 and older form of the block is not implemented")
+        pass
 
     def getValue(self, section_num=None):
         if section_num is None:
@@ -1262,7 +1266,10 @@ class CONP(CompleteBlock):
         return data_buf
 
     def expectedRSRCSize(self, section_num):
-        exp_whole_len = 2
+        if self.isSingleTDIndex():
+            exp_whole_len = 2
+        else:
+            exp_whole_len = None
         return exp_whole_len
 
     def initWithXMLSectionData(self, section, section_elem):
@@ -1850,8 +1857,8 @@ class DFDS(CompleteBlock):
 
     def setDefaultEncoding(self):
         ver = self.vi.getFileVersion()
-        # verified NONE in 6.0.0, ZLIB in 8.6
-        if isGreaterOrEqVersion(ver, 7,0,0):
+        # Verified uncompressed in LV7.1.0, ZLIB compressed in LV8.6
+        if isGreaterOrEqVersion(ver, 8,0,0):
             self.default_block_coding = BLOCK_CODING.ZLIB
         else:
             self.default_block_coding = BLOCK_CODING.NONE
@@ -2299,7 +2306,8 @@ class DSTM(VarCodingBlock):
 
     def setDefaultEncoding(self):
         ver = self.vi.getFileVersion()
-        if isGreaterOrEqVersion(ver, 7,0,0):
+        # Verified uncompressed in LV7.1.0, compressed in LV8.6
+        if isGreaterOrEqVersion(ver, 8,0,0):
             self.default_block_coding = BLOCK_CODING.ZLIB
         else:
             self.default_block_coding = BLOCK_CODING.NONE
@@ -2515,7 +2523,7 @@ class LVSR(CompleteBlock):
         # Data before byte 68 does not move - so it's always safe to read
         data = LVSRData(self.po)
         dataLen = bldata.readinto(data)
-        if dataLen not in [68, 120, 136, 137, sizeof(LVSRData)]:
+        if dataLen not in [68, 96, 120, 136, 137, sizeof(LVSRData)]:
             raise EOFError("Data block length {} too small for parsing {} data".format(dataLen, self.ident))
 
         section.version = decodeVersion(data.version)
@@ -2537,13 +2545,14 @@ class LVSR(CompleteBlock):
         section.field30 = int(data.field30)
         section.viSignature = bytes(data.viSignature)
         # Additional data, exists only in newer versions
-        # sizeof(LVSR) per version: 8.6b7->120 9.0b25->120 9.0->120 10.0b84->120 10.0->136 11.0.1->136 12.0->136 13.0->136 14.0->137
-        if isGreaterOrEqVersion(section.version, 6,0):
+        # sizeof(LVSR) per version: 6.0.1->68 7.1.0->96 8.6b7->120 9.0b25->120 9.0->120 10.0b84->120 10.0->136 11.0.1->136 12.0->136 13.0->136 14.0->137
+        if isGreaterOrEqVersion(section.version, 7,0):
             section.field44 = int(data.field44)
             section.field48 = int(data.field48)
             section.field4C = int(data.field4C)
             section.field4E = int(data.field4E)
             section.field50_md5 = bytes(data.field50_md5)
+        if isGreaterOrEqVersion(section.version, 8,0):
             section.libpass_md5 = bytes(data.libpass_md5)
             section.libpass_text = None
             section.field70 = int(data.field70)
@@ -2579,12 +2588,13 @@ class LVSR(CompleteBlock):
         data_buf += int(section.field2C).to_bytes(4, byteorder='big')
         data_buf += int(section.field30).to_bytes(4, byteorder='big')
         data_buf += section.viSignature
-        if isGreaterOrEqVersion(section.version, 6,0):
+        if isGreaterOrEqVersion(section.version, 7,0):
             data_buf += int(section.field44).to_bytes(4, byteorder='big')
             data_buf += int(section.field48).to_bytes(4, byteorder='big')
             data_buf += int(section.field4C).to_bytes(2, byteorder='big')
             data_buf += int(section.field4E).to_bytes(2, byteorder='big')
             data_buf += section.field50_md5
+        if isGreaterOrEqVersion(section.version, 8,0):
             if section.libpass_text is not None:
                 pass #TODO re-compute md5 from pass
             data_buf += section.libpass_md5
@@ -2603,7 +2613,9 @@ class LVSR(CompleteBlock):
     def expectedRSRCSize(self, section_num):
         section = self.sections[section_num]
         ver = self.vi.getFileVersion()
-        exp_whole_len = 120
+        exp_whole_len = 68
+        if isGreaterOrEqVersion(section.version, 7,0):
+            exp_whole_len += 52
         if isGreaterOrEqVersion(section.version, 10,0, stage='release'):
             exp_whole_len += 16 # total 136
         if isGreaterOrEqVersion(section.version, 14,0):
@@ -3070,7 +3082,7 @@ class BDPW(Block):
 
         section.password_md5 = bldata.read(16)
         section.hash_1 = bldata.read(16)
-        if isGreaterOrEqVersion(ver, 6,0,0):
+        if isGreaterOrEqVersion(ver, 7,0,0): # Not in 6.0.1, is there in 8.6b7
             section.hash_2 = bldata.read(16)
         else:
             section.hash_2 = b''
@@ -3083,12 +3095,13 @@ class BDPW(Block):
 
         if True:
             self.recalculateHash1(section_num=section_num)
-        if isGreaterOrEqVersion(ver, 6,0,0):
+        if isGreaterOrEqVersion(ver, 7,0,0):
             self.recalculateHash2(section_num=section_num)
 
         data_buf = section.password_md5
         data_buf += section.hash_1
-        data_buf += section.hash_2
+        if isGreaterOrEqVersion(ver, 7,0,0):
+            data_buf += section.hash_2
 
         exp_whole_len = self.expectedRSRCSize(section_num)
         if (len(data_buf) != exp_whole_len):
@@ -3100,7 +3113,7 @@ class BDPW(Block):
     def expectedRSRCSize(self, section_num):
         ver = self.vi.getFileVersion()
         exp_whole_len = 16 + 16
-        if isGreaterOrEqVersion(ver, 6,0,0):
+        if isGreaterOrEqVersion(ver, 7,0,0):
             exp_whole_len += 16
         return exp_whole_len
 
@@ -4519,18 +4532,28 @@ class VITS(CompleteBlock):
         section = super().createSection()
         section.parse_failed = False
         section.content = []
+        section.endianness = 'big'
         return section
 
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
         ver = self.vi.getFileVersion()
-
-        # Endianness was wrong in some versions
-        if isGreaterOrEqVersion(ver, 6,1,0,4):
-            count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        else:
-            count = int.from_bytes(bldata.read(4), byteorder='little', signed=False)
         section.content = []
+        section.endianness = 'big'
+
+        # Get count of tags; endianness was wrong in some versions
+        if isGreaterOrEqVersion(ver, 6,1,0,4):
+            count = int.from_bytes(bldata.read(4), byteorder=section.endianness, signed=False)
+        else:
+            # We can't be sure whether the enianness in this version is correct or not. We have to check that
+            count = int.from_bytes(bldata.read(4), byteorder=section.endianness, signed=False)
+            if (count & 0xFFFF0000) != 0:
+                count = int.from_bytes(count.to_bytes(4, byteorder=section.endianness), byteorder='little', signed=False)
+                section.endianness = 'little'
+        if count > self.po.typedesc_list_limit:
+            raise RuntimeError("Tag String list consists of {:d} tags, limit is {:d}"\
+              .format(count,self.po.typedesc_list_limit))
+
         for i in range(count):
             val = SimpleNamespace()
             val.name = readLStr(bldata, 1, self.po)
@@ -4547,10 +4570,7 @@ class VITS(CompleteBlock):
         ver = self.vi.getFileVersion()
         data_buf = b''
         # Endianness was wrong in some versions
-        if isGreaterOrEqVersion(ver, 6,1,0,4):
-            data_buf += len(section.content).to_bytes(4, byteorder='big', signed=False)
-        else:
-            data_buf += len(section.content).to_bytes(4, byteorder='little', signed=False)
+        data_buf += len(section.content).to_bytes(4, byteorder=section.endianness, signed=False)
         for val in section.content:
             data_buf += prepareLStr(val.name, 1, self.po)
             if isSmallerVersion(ver, 6,5,0,2):
@@ -4564,7 +4584,11 @@ class VITS(CompleteBlock):
 
     def initWithXMLSectionData(self, section, section_elem):
         section.content = []
+        section.endianness = 'big'
 
+        endianness = section_elem.get("Endianness")
+        if endianness in ('little','big',):
+            section.endianness = endianness
         for subelem in section_elem:
             if (subelem.tag == "NameObject"):
                 continue # Items parsed somewhere else
@@ -4587,6 +4611,8 @@ class VITS(CompleteBlock):
         pass
 
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
+        if section.endianness != 'big':
+            section_elem.set("Endianness", section.endianness)
         for i, val in enumerate(section.content):
             subelem = ET.SubElement(section_elem, "Object")
             subelem.set("Name", val.name.decode(self.vi.textEncoding))
