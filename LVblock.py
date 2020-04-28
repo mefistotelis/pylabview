@@ -3523,7 +3523,7 @@ class BDPW(Block):
         return md5_hash_2
 
 
-class LIBN(Block):
+class LIBN(CompleteBlock):
     """ Library Names
 
     Stores names of libraries which contain this RSRC file.
@@ -3533,66 +3533,60 @@ class LIBN(Block):
         section.content = None
         return section
 
-    def parseRSRCData(self, section_num, bldata):
+    def setDefaultEncoding(self):
+        self.default_block_coding = BLOCK_CODING.NONE
+
+    def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
+        section.content = []
 
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        section.content = []
+        if count > self.po.typedesc_list_limit:
+            raise RuntimeError("String list consists of {:d} tags, limit is {:d}"\
+              .format(count,self.po.typedesc_list_limit))
         for i in range(count):
-            content_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-            section.content.append(bldata.read(content_len))
-
-    def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-
-        data_buf = int(len(section.content)).to_bytes(4, byteorder='big')
-        for name in section.content:
-            data_buf += preparePStr(name, 1, self.po)
-
-        if (len(data_buf) < 5):
-            raise RuntimeError("Block {} section {} generated binary data of invalid size"\
-              .format(self.ident,section_num))
-
-        self.setData(data_buf, section_num=section_num)
-
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = super().getData(section_num=section_num, use_coding=use_coding)
-        return bldata
-
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
-
-    def initWithXMLSection(self, section, section_elem):
-        snum = section.start.section_idx
-        fmt = section_elem.get("Format")
-        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
-            if (self.po.verbose > 2):
-                print("{:s}: For Block {} section {:d}, reading inline XML data"\
-                  .format(self.vi.src_fname,self.ident,snum))
-            section.content = []
-            # There can be multiple "Library" sub-elements
-            for i, subelem in enumerate(section_elem):
-                if (subelem.tag == "NameObject"):
-                    pass # Items parsed somewhere else
-                elif (subelem.tag == "Library"):
-                    name_text = subelem.get("Name")
-                    section.content.append(name_text.encode(self.vi.textEncoding))
-                else:
-                    raise AttributeError("Section contains something else than 'Library'")
-        else:
-            Block.initWithXMLSection(self, section, section_elem)
+            name = readPStr(bldata, 1, self.po)
+            section.content.append(name)
         pass
 
-    def exportXMLSection(self, section_elem, snum, section, fname_base):
-        self.parseData(section_num=snum)
+    def prepareRSRCData(self, section_num):
+        section = self.sections[section_num]
 
+        data_buf = b''
+        data_buf += int(len(section.content)).to_bytes(4, byteorder='big', signed=False)
+        for name in section.content:
+            data_buf += preparePStr(name, 1, self.po)
+        return data_buf
+
+    def expectedRSRCSize(self, section_num):
+        exp_whole_len = 4
+        for name in section.content:
+            exp_whole_len += 1+len(name)
+        return exp_whole_len
+
+    def initWithXMLSectionData(self, section, section_elem):
+        section.content = []
+
+        # There can be multiple "Library" sub-elements
+        for i, subelem in enumerate(section_elem):
+            if (subelem.tag == "NameObject"):
+                pass # Items parsed somewhere else
+            elif (subelem.tag == "Library"):
+                name_text = subelem.text
+                if name_text is not None:
+                    name = name_text.encode(self.vi.textEncoding)
+                else:
+                    name = b''
+                section.content.append(name)
+            else:
+                raise AttributeError("Section contains something else than 'Library'")
+        pass
+
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         for name in section.content:
             subelem = ET.SubElement(section_elem,"Library")
-            subelem.set("Name", name.decode(self.vi.textEncoding))
-
-        section_elem.set("Format", "inline")
+            subelem.text = name.decode(self.vi.textEncoding)
+        pass
 
     def getContent(self, section_num=None):
         if section_num is None:
@@ -3962,6 +3956,9 @@ class RTSG(CompleteBlock):
         section.content = []
         return section
 
+    def setDefaultEncoding(self):
+        self.default_block_coding = BLOCK_CODING.NONE
+
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
         section.content = []
@@ -4010,6 +4007,9 @@ class GCPR(CompleteBlock):
         section = super().createSection()
         section.content = []
         return section
+
+    def setDefaultEncoding(self):
+        self.default_block_coding = BLOCK_CODING.NONE
 
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
