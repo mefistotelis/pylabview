@@ -1510,7 +1510,7 @@ class SingleStringBlock(CompleteBlock):
         data_buf  = b''
         # There is no need to decode while joining
         content_bytes = section.eoln.encode(self.vi.textEncoding).join(chunk.content for chunk in section.content)
-        data_buf = len(content_bytes).to_bytes(section.size_len, byteorder='big', signed=False)
+        data_buf += len(content_bytes).to_bytes(section.size_len, byteorder='big', signed=False)
         data_buf += content_bytes
         return data_buf
 
@@ -1576,6 +1576,33 @@ class SingleStringBlock(CompleteBlock):
         pass
 
 
+class DLGH(SingleStringBlock):
+    """ Dialog HTML
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.size_len = 1
+        return section
+
+
+class ERRH(SingleStringBlock):
+    """ Error HTML
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.size_len = 1
+        return section
+
+
+class NODH(SingleStringBlock):
+    """ NOD HTML
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.size_len = 1
+        return section
+
+
 class TITL(SingleStringBlock):
     """ Title
     """
@@ -1601,7 +1628,6 @@ class HLPT(CompleteBlock):
         section = super().createSection()
         # Amount of bytes the size of this string uses
         section.content = []
-        section.parse_failed = False
         return section
 
     def parseRSRCSectionData(self, section_num, bldata):
@@ -1721,7 +1747,7 @@ class STR(Block):
         section_elem.set("Format", "inline")
 
 
-class STRsh(Block):
+class STRsh(CompleteBlock):
     """ Pascal Strings List
     """
     def createSection(self):
@@ -1729,61 +1755,146 @@ class STRsh(Block):
         section.content = []
         return section
 
-    def parseRSRCData(self, section_num, bldata):
+    def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
-
         section.content = []
-        strings_count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        for i in range(strings_count):
-            string_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-            string_val = bldata.read(string_len)
+        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        for i in range(count):
+            string_val = readPStr(bldata, 1, self.po)
             section.content.append(string_val)
-
-    def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-
-        data_buf = b''
-        data_buf += int(len(section.content)).to_bytes(2, byteorder='big')
-        for string_val in section.content:
-            data_buf += preparePStr(string_val, 1, self.po)
-
-        self.setData(data_buf, section_num=section_num)
-
-    def initWithXMLSection(self, section, section_elem):
-        snum = section.start.section_idx
-        fmt = section_elem.get("Format")
-        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
-            if (self.po.verbose > 2):
-                print("{:s}: For Block {} section {:d}, reading inline XML data"\
-                  .format(self.vi.src_fname,self.ident,snum))
-            section.content = []
-
-            for i, subelem in enumerate(section_elem):
-                if (subelem.tag == "NameObject"):
-                    pass # Items parsed somewhere else
-                elif (subelem.tag == "String"):
-                    if subelem.text is not None:
-                        section.content.append(subelem.text.encode(self.vi.textEncoding))
-                    else:
-                        section.content.append(b'')
-                else:
-                    raise AttributeError("Section contains unexpected tag")
-        else:
-            Block.initWithXMLSection(self, section, section_elem)
         pass
 
-    def exportXMLSection(self, section_elem, snum, section, fname_base):
-        self.parseData(section_num=snum)
+    def prepareRSRCData(self, section_num):
+        section = self.sections[section_num]
+        data_buf = b''
+        data_buf += len(section.content).to_bytes(2, byteorder='big', signed=False)
+        for string_val in section.content:
+            data_buf += preparePStr(string_val, 1, self.po)
+        return data_buf
 
+    def expectedRSRCSize(self, section_num):
+        exp_whole_len = 2
+        for string_val in section.content:
+            exp_whole_len += 1+len(string_val)
+        return exp_whole_len
+
+    def initWithXMLSectionData(self, section, section_elem):
+        section.content = []
+
+        for i, subelem in enumerate(section_elem):
+            if (subelem.tag == "NameObject"):
+                pass # Items parsed somewhere else
+            elif (subelem.tag == "String"):
+                if subelem.text is not None:
+                    section.content.append(subelem.text.encode(self.vi.textEncoding))
+                else:
+                    section.content.append(b'')
+            else:
+                raise AttributeError("Section contains unexpected tag")
+        pass
+
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         for string_val in section.content:
             subelem = ET.SubElement(section_elem,"String")
-
             pretty_string = string_val.decode(self.vi.textEncoding)
             subelem.text = pretty_string
+        pass
 
-        section_elem.set("Format", "inline")
+
+class DNmsh(STRsh):
+    """ D. Name Strings List
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+
+class HDbsh(STRsh):
+    """ Help Database item
+
+    Stores list of strings, though with exactly one string inside.
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+    def parseRSRCSectionData(self, section_num, bldata):
+        section = self.sections[section_num]
+        section.content = []
+        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        for i in range(count):
+            string_val = readLStr(bldata, 4, self.po)
+            section.content.append(string_val)
+        pass
+
+    def prepareRSRCData(self, section_num):
+        section = self.sections[section_num]
+        data_buf = b''
+        data_buf += len(section.content).to_bytes(4, byteorder='big', signed=False)
+        for string_val in section.content:
+            data_buf += prepareLStr(string_val, 4, self.po)
+        return data_buf
+
+    def expectedRSRCSize(self, section_num):
+        exp_whole_len = 4
+        for string_val in section.content:
+            exp_whole_len += 4+len(string_val)
+        if exp_whole_len % 4 > 0:
+            exp_whole_len += 4 - (exp_whole_len % 4)
+        return exp_whole_len
+
+    def initWithXMLSectionData(self, section, section_elem):
+        super().initWithXMLSectionData(section, section_elem)
+
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
+        super().exportXMLSectionData(section_elem, section_num, section, fname_base)
+
+
+class MItm(STRsh):
+    """ M. Item
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.prop2 = 0
+        return section
+
+    def parseRSRCSectionData(self, section_num, bldata):
+        section = self.sections[section_num]
+        section.content = []
+        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        section.prop2 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        for i in range(count):
+            string_val = readLStr(bldata, 4, self.po)
+            section.content.append(string_val)
+        pass
+
+    def prepareRSRCData(self, section_num):
+        section = self.sections[section_num]
+        data_buf = b''
+        data_buf += len(section.content).to_bytes(4, byteorder='big', signed=False)
+        data_buf += int(section.prop2).to_bytes(4, byteorder='big', signed=False)
+        for string_val in section.content:
+            data_buf += prepareLStr(string_val, 4, self.po)
+        return data_buf
+
+    def expectedRSRCSize(self, section_num):
+        exp_whole_len = 4
+        exp_whole_len += 4
+        for string_val in section.content:
+            exp_whole_len += 4+len(string_val)
+        if exp_whole_len % 4 > 0:
+            exp_whole_len += 4 - (exp_whole_len % 4)
+        return exp_whole_len
+
+    def initWithXMLSectionData(self, section, section_elem):
+        tmpprop = section_elem.get("Prop2")
+        if tmpprop is not None:
+            section.prop2 = int(tmpprop, 0)
+        super().initWithXMLSectionData(section, section_elem)
+
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
+        section_elem.set("Prop2", "{:d}".format(section.prop2))
+        super().exportXMLSectionData(section_elem, section_num, section, fname_base)
 
 
 class CPST(Block):
@@ -4215,6 +4326,19 @@ class ZCRF(UCRF):
 
     def setDefaultEncoding(self):
         self.default_block_coding = BLOCK_CODING.ZLIB
+
+
+class DLG3(UCRF):
+    """ Dialog Resource File
+
+        Used in Resource Packages like lvapp, lvstring, etc.
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+    def setDefaultEncoding(self):
+        self.default_block_coding = BLOCK_CODING.NONE
 
 
 class VCTP(CompleteBlock):
