@@ -3598,7 +3598,7 @@ class LIBN(CompleteBlock):
         return section.content
 
 
-class LVzp(Block):
+class LVzp(VarCodingBlock):
     """ LabView Zipped Program tree
 
     Used in llb-like objects created by building the project.
@@ -3611,12 +3611,8 @@ class LVzp(Block):
         section = super().createSection()
         return section
 
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.XOR):
-        bldata = super().getData(section_num=section_num, use_coding=use_coding)
-        return bldata
-
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.XOR):
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
+    def setDefaultEncoding(self):
+        self.default_block_coding = BLOCK_CODING.XOR
 
 
 class BNID(Block):
