@@ -428,8 +428,9 @@ def prepareQualifiedName(items, po):
 def readPStr(bldata, padto, po):
     strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
     strval = bldata.read(strlen)
-    padlen = (strlen+1) % padto
-    bldata.read(padlen)
+    uneven_len = (strlen+1) % padto # Handle padding
+    if uneven_len > 0:
+        bldata.read(padto - uneven_len)
     return strval
 
 def preparePStr(strval, padto, po):
@@ -437,8 +438,9 @@ def preparePStr(strval, padto, po):
     strlen = len(strval)
     data_buf += int(strlen).to_bytes(1, byteorder='big', signed=False)
     data_buf += bytes(strval)
-    padding_len = (strlen+1) % padto
-    data_buf += (b'\0' * padding_len)
+    uneven_len = (strlen+1) % padto # Handle padding
+    if uneven_len > 0:
+        data_buf += (b'\0' * (padto - uneven_len))
     return data_buf
 
 def readLStr(bldata, padto, po):
@@ -446,8 +448,9 @@ def readLStr(bldata, padto, po):
     if strlen > 0x20000000:
         raise RuntimeError("Long string is suspiciously long")
     strval = bldata.read(strlen)
-    padlen = (strlen+4) % padto
-    bldata.read(padlen)
+    uneven_len = (strlen+4) % padto # Handle padding
+    if uneven_len > 0:
+        bldata.read(padto - uneven_len)
     return strval
 
 def prepareLStr(strval, padto, po):
@@ -455,6 +458,7 @@ def prepareLStr(strval, padto, po):
     strlen = len(strval)
     data_buf += int(strlen).to_bytes(4, byteorder='big', signed=False)
     data_buf += bytes(strval)
-    padding_len = (strlen+4) % padto
-    data_buf += (b'\0' * padding_len)
+    uneven_len = (strlen+4) % padto # Handle padding
+    if uneven_len > 0:
+        data_buf += (b'\0' * (padto - uneven_len))
     return data_buf
