@@ -3844,9 +3844,9 @@ def newLinkObject(vi, list_ident, ident, po):
         ctor = LinkObjDSToVariableRelativeLink
     elif ident in (b'DSDS',) or list_ident in (b'VIDS',) and ident in (b'VIDS',):
         ctor = LinkObjDSToDSLink
-    elif ident in (b'DSEF',) or list_ident in (b'VIDS',) and ident in (b'XFun',):
+    elif ident in (b'DSEF',) or list_ident in (b'VIDS',b'BDHP',) and ident in (b'XFun',):
         ctor = LinkObjDSToExtFuncLink
-    elif ident in (b'DSCN',) or list_ident in (b'VIDS',) and ident in (b'LVSB',):
+    elif ident in (b'DSCN',) or list_ident in (b'VIDS',b'BDHP',) and ident in (b'LVSB',):
         ctor = LinkObjDSToCINLink
     elif ident in (b'DSSC',) or list_ident in (b'VIDS',) and ident in (b'SFTB',):
         ctor = LinkObjDSToScriptLink
@@ -3854,13 +3854,13 @@ def newLinkObject(vi, list_ident, ident, po):
         ctor = LinkObjDSToCallByRefLink
     elif ident in (b'DSSV',):
         ctor = LinkObjDSToStaticVILink
-    elif ident in (b'VIVI',) or list_ident in (b'LVIN',) and ident in (b'LVIN',):
+    elif ident in (b'VIVI',) or list_ident in (b'LVIN',b'BDHP',) and ident in (b'LVIN',):
         ctor = LinkObjVIToStdVILink
     elif ident in (b'VIPR',) or list_ident in (b'LVIN',) and ident in (b'LVPR',):
         ctor = LinkObjVIToProgRetLink
-    elif ident in (b'VIPV',) or list_ident in (b'LVIN',) and ident in (b'POLY',):
+    elif ident in (b'VIPV',) or list_ident in (b'LVIN',b'BDHP',) and ident in (b'POLY',):
         ctor = LinkObjVIToPolyLink
-    elif ident in (b'VICC',) or list_ident in (b'LVCC',) and ident in (b'LVCC',b'CCCC',):
+    elif ident in (b'VICC',) or list_ident in (b'LVCC',b'LVIN',b'BDHP',) and ident in (b'LVCC',b'CCCC',):
         ctor = LinkObjVIToCCLink
     elif ident in (b'BSVR',):
         ctor = LinkObjVIToStaticVILink
