@@ -567,27 +567,27 @@ class Block(object):
         elif use_coding == BLOCK_CODING.COMP:
             size = len(raw_data_section) - 4
             if size < 2:
-                raise IOError("Unable to decompress section [%s:%d]: " \
-                            "block-size-error - size: %d" % (self.ident, section_num, size))
+                raise IOError("Unable to decompress block {} section {}: "\
+                            "block-size-error - size: {}".format(self.ident, section_num, size))
             usize = int.from_bytes(data.read(4), byteorder='big', signed=False)
-            # Every 8 bytes result in at least one mask byte
-            if ( (usize < (size*9) // 8) or (usize > size * 8) ):
-                raise IOError("Unable to decompress section [%s:%d]: " \
-                            "uncompress-size-error - size: %d - uncompress-size: %d"
-                            % (self.ident, section_num, size, usize))
+            # Every 8 bytes result in at least one mask byte, so ratio is 9/8 to 8/1, and up to 7 bytes of input padded
+            if ( usize > size * 8 or (usize+7) < (size * 8) // 9 ):
+                raise IOError("Unable to decompress block {} section {}: "\
+                            "uncompress-size-error - size: {} - uncompress-size: {}"\
+                            .format(self.ident, section_num, size, usize))
             data = io.BytesIO(zcomp_zeromsk8_decompress(data.read(size), usize))
         elif use_coding == BLOCK_CODING.ZLIB:
             size = len(raw_data_section) - 4
             if size < 2:
-                raise IOError("Unable to decompress section [%s:%d]: " \
-                            "block-size-error - size: %d" % (self.ident, section_num, size))
+                raise IOError("Unable to decompress block {} section {}: "\
+                            "block-size-error - size: {}".format(self.ident, section_num, size))
             usize = int.from_bytes(data.read(4), byteorder='big', signed=False)
             # Acording to zlib docs, max theoretical compression ration is 1032:1
             if ( (size > 16) and (usize < (size*5) // 10) ) or \
                ( (size > 128) and (usize < (size*9) // 10) ) or (usize > size * 1032):
-                raise IOError("Unable to decompress section [%s:%d]: " \
-                            "uncompress-size-error - size: %d - uncompress-size: %d"
-                            % (self.ident, section_num, size, usize))
+                raise IOError("Unable to decompress block {} section {}: "\
+                            "uncompress-size-error - size: {} - uncompress-size: {}"\
+                            .format(self.ident, section_num, size, usize))
             data = io.BytesIO(zlib.decompress(data.read(size)))
         elif use_coding == BLOCK_CODING.XOR:
             size = len(raw_data_section)
