@@ -986,14 +986,15 @@ class CompleteBlock(Block):
                 block_fname = "{:s}.{:s}".format(fname_base,"xml")
 
                 root = ET.Element("SectionRoot")
-                self.exportXMLSectionData(root, snum, section, fname_base)
+                self.exportXMLSectionData(root, section_num, section, fname_base)
 
                 ET.pretty_element_tree_heap(root)
 
                 tree = ET.ElementTree(root)
                 with open(block_fname, "wb") as block_fd:
                     if (self.po.verbose > 1):
-                        print("{}: Storing block {} section {} xml in '{}'".format(self.vi.src_fname,self.ident,snum,block_fname))
+                        print("{}: Storing block {} section {} xml in '{}'"\
+                          .format(self.vi.src_fname,self.ident,section_num,block_fname))
                     tree.write(block_fd, encoding='utf-8', xml_declaration=True)
 
                 section_elem.set("Format", "xml")
@@ -3559,6 +3560,7 @@ class LIBN(CompleteBlock):
         return data_buf
 
     def expectedRSRCSize(self, section_num):
+        section = self.sections[section_num]
         exp_whole_len = 4
         for name in section.content:
             exp_whole_len += 1+len(name)
