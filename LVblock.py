@@ -3821,13 +3821,13 @@ class HeapVerb(CompleteBlock):
             if elem is None:
                 elem = root
                 elem.tag = tagName
-                parent_elems.append(elem)
             elif scopeInfo == LVheap.NODE_SCOPE.TagClose:
                 elem = parent_elems.pop()
                 if elem.tag != tagName:
                     eprint("{}: Warning: In block {}, closing tag {} instead of {}"\
                       .format(self.vi.src_fname, self.ident, tagName, elem.tag))
             else:
+                # Having two root items would crash here. And that's good, we can't have two roots.
                 elem = ET.SubElement(parent_elems[-1], tagName)
 
             obj.exportXML(elem, scopeInfo, "{:s}_{:04d}".format(fname_base,i))
