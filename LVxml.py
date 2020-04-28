@@ -11,7 +11,7 @@ XML input/output support. Wrapped Python libraries, with any neccessary changes.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
 import xml.etree.ElementTree as ET
-from xml.etree.ElementTree import ElementTree,Element,Comment,SubElement
+from xml.etree.ElementTree import ElementTree,Element,Comment,SubElement,XMLParser
 
 class BinCompatTreeBuilder:
     """Generic element structure builder.
@@ -153,7 +153,7 @@ class BinCompatTreeBuilder:
             self._tail = 1
         return elem
 
-# Use parse(source, parser=ET.XMLParser(target=CommentedTreeBuilder())) to get the XML with comments retained
+# Use parse(source, parser=ET.XMLParser(target=ET.CommentedTreeBuilder())) to get the XML with comments retained
 class CommentedTreeBuilder(BinCompatTreeBuilder):
     def comment(self, data):
         self.start(Comment, {})
@@ -175,7 +175,7 @@ def parse(source, parser=None):
 
     """
     if parser is None:
-        parser = ET.XMLParser(target=BinCompatTreeBuilder())
+        parser = XMLParser(target=BinCompatTreeBuilder())
     return ET.parse(source, parser)
 
 def et_escape_cdata_mind_binary(text):
