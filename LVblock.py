@@ -920,7 +920,7 @@ class CompleteBlock(Block):
     def initWithXMLSectionData(self, section, section_elem):
         raise NotImplementedError("Inintialization from XML is not implemented")
 
-    def initWithImageSectionData(self, section, image):
+    def initWithImageSectionData(self, section, section_elem, image):
         raise NotImplementedError("Inintialization from Image is not implemented")
 
     def initWithXMLSection(self, section, section_elem):
@@ -959,7 +959,7 @@ class CompleteBlock(Block):
             with open(bin_fname, "rb") as png_fh:
                 image = Image.open(png_fh)
                 image.getdata() # to make sure the file gets loaded; everything is lazy nowadays
-                self.initWithImageSectionData(section, image)
+                self.initWithImageSectionData(section, section_elem, image)
         else:
             section.parse_failed = True
             Block.initWithXMLSection(self, section, section_elem)
@@ -981,7 +981,7 @@ class CompleteBlock(Block):
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         raise NotImplementedError("Export of XML is not implemented")
 
-    def exportImageSectionData(self, block_fd, section_num, section, fname_base):
+    def exportImageSectionData(self, section_elem, block_fd, section_num, section, fname_base):
         raise NotImplementedError("Export of image is not implemented")
 
     def exportXMLSection(self, section_elem, section_num, section, fname_base):
@@ -1031,7 +1031,7 @@ class CompleteBlock(Block):
                     if (self.po.verbose > 1):
                         print("{}: Storing block {} section {} image in '{}'"\
                           .format(self.vi.src_fname,self.ident,section_num,block_fname))
-                    self.exportImageSectionData(block_fd, section_num, section, fname_base)
+                    self.exportImageSectionData(section_elem, block_fd, section_num, section, fname_base)
 
                 section_elem.set("Format", "png")
                 section_elem.set("File", os.path.basename(block_fname))
@@ -1677,6 +1677,14 @@ class ERRH(SingleStringBlock):
         return section
 
 
+class HLPT(SingleStringBlock):
+    """ Help Tag
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.size_len = 4
+        return section
+
 class NODH(SingleStringBlock):
     """ NOD HTML
     """
@@ -1695,15 +1703,6 @@ class NOEG(SingleStringBlock):
         return section
 
 
-class TITL(SingleStringBlock):
-    """ Title
-    """
-    def createSection(self):
-        section = super().createSection()
-        section.size_len = 1
-        return section
-
-
 class STRG(SingleStringBlock):
     """ String description
     """
@@ -1713,15 +1712,16 @@ class STRG(SingleStringBlock):
         return section
 
 
-class HLPT(CompleteBlock):
-    """ Help Tag
+class TITL(SingleStringBlock):
+    """ Title
     """
     def createSection(self):
         section = super().createSection()
-        section.size_len = 4
+        section.size_len = 1
         return section
 
-class STR(Block):
+
+class STR(SingleStringBlock):
     """ Short String / Input definition?
 
     This block seem to have different meaning depending on the kind of RSRC file
@@ -1730,60 +1730,32 @@ class STR(Block):
     """
     def createSection(self):
         section = super().createSection()
-        section.text = b''
+        section.size_len = 1
         return section
 
-    def parseRSRCData(self, section_num, bldata):
-        section = self.sections[section_num]
+    def isSingleShortString(self):
+        ver = self.vi.getFileVersion()
+        return (self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.LLB) or isSmallerVersion(ver, 8,0,0)
 
-        if self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.LLB:
-            string_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-            section.text = bldata.read(string_len)
+    def parseRSRCSectionData(self, section_num, bldata):
+        section = self.sections[section_num]
+        section.eoln = '\r\n'
+        section.content = []
+
+        if self.isSingleShortString():
+            super().parseRSRCSectionData(section_num, bldata)
         else: # File format is unknown
-            Block.parseRSRCData(self, section_num, bldata)
-
-    def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-
-        data_buf = b''
-        if self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.LLB:
-            pass # no additional data - only one string
-        else:
-            Block.updateSectionData(self, section_num=section_num)
-            return #TODO create the proper binary data for STR in other file types
-
-        data_buf += preparePStr(section.text, 1, self.po)
-
-        self.setData(data_buf, section_num=section_num)
-
-    def initWithXMLSection(self, section, section_elem):
-        snum = section.start.section_idx
-        fmt = section_elem.get("Format")
-        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
-            if (self.po.verbose > 2):
-                print("{:s}: For Block {} section {:d}, reading inline XML data"\
-                  .format(self.vi.src_fname,self.ident,snum))
-
-            section.text = section_elem.get("Text").encode(self.vi.textEncoding)
-        else:
-            Block.initWithXMLSection(self, section, section_elem)
+            raise NotImplementedError("No support for parsing the STR data")
         pass
 
-    def exportXMLSection(self, section_elem, snum, section, fname_base):
-        self.parseData(section_num=snum)
-
-        if self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.LLB:
-            pass # no additional data - only one string
-        else:
-            super().exportXMLSection(section_elem, snum, section, fname_base)
-            return #TODO create the proper XML data for STR in other file types
-
-        string_val = section.text.decode(self.vi.textEncoding)
-        section_elem.set("Text", string_val)
-
-        section_elem.set("Format", "inline")
+    def prepareRSRCData(self, section_num):
+        section = self.sections[section_num]
+        data_buf  = b''
+        if self.isSingleShortString():
+            data_buf += super().prepareRSRCData(section_num)
+        else: # File format is unknown
+            raise NotImplementedError("No support for preparing data for the STR data")
+        return data_buf
 
 
 class STRsh(CompleteBlock):
@@ -3179,8 +3151,8 @@ class vers(Block):
         return section.version_info
 
 
-class PNGI(CompleteBlock):
-    """ PNG Image
+class ImageBlock(CompleteBlock):
+    """ Block with image
     """
     def createSection(self):
         section = super().createSection()
@@ -3198,7 +3170,6 @@ class PNGI(CompleteBlock):
         image = Image.open(bldata)
         section.image = image
         image.getdata() # to make sure the file gets loaded; everything is lazy nowadays
-        padding = bldata.read(4)
 
     def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
@@ -3207,18 +3178,51 @@ class PNGI(CompleteBlock):
         section.image.save(bldata, format="PNG")
         bldata.seek(0)
         data_buf = bldata.read()
-        data_buf += b'\0' * 4
         return data_buf
 
-    def initWithImageSectionData(self, section, image):
+    def initWithImageSectionData(self, section, section_elem, image):
         section.image = image
 
-    def exportImageSectionData(self, block_fd, section_num, section, fname_base):
+    def exportImageSectionData(self, section_elem, block_fd, section_num, section, fname_base):
         section.image.save(block_fd, format="PNG")
 
     def loadImage(self):
         self.parseData()
         return self.image
+
+
+class PNGI(ImageBlock):
+    """ PNG Image
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.padding_len = 0
+        return section
+
+    def parseRSRCSectionData(self, section_num, bldata):
+        section = self.sections[section_num]
+
+        super().parseRSRCSectionData(section_num, bldata)
+        # Allow up to 16 bytes of padding
+        padding = bldata.read(16)
+        section.padding_len = max(len(padding) - 4, 0)
+
+    def prepareRSRCData(self, section_num):
+        section = self.sections[section_num]
+
+        data_buf = b''
+        data_buf += super().prepareRSRCData(section_num)
+        data_buf += b'\0' * section.padding_len
+        return data_buf
+
+    def initWithImageSectionData(self, section, section_elem, image):
+        section.padding_len = int(section_elem.get("PaddingLength"), 0)
+        print(section.padding_len)
+        super().initWithImageSectionData(section, section_elem, image)
+
+    def exportImageSectionData(self, section_elem, block_fd, section_num, section, fname_base):
+        section_elem.set("PaddingLength", "{:d}".format(section.padding_len))
+        super().exportImageSectionData(section_elem, block_fd, section_num, section, fname_base)
 
 
 class MNGI(PNGI):
@@ -3229,7 +3233,7 @@ class MNGI(PNGI):
         return section
 
 
-class ICON(PNGI):
+class ICON(ImageBlock):
     """ Icon 32x32 1bpp
     """
     def createSection(self):
