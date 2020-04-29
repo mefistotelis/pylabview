@@ -94,6 +94,12 @@ LABVIEW_COLOR_PALETTE_2 = [
     0xFFFFFF, 0x000000,
 ]
 
+CHAR_TO_WORD = {
+    '0': "zero", '1': "one", '2': "two", '3': "three", '4': "four", \
+    '5': "five", '6': "six", '7': "seven", '8': "eight", '9': "nine",
+}
+
+
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
@@ -103,6 +109,8 @@ def getPrettyStrFromRsrcType(rsrc_ident):
     pretty_ident = bytes(rsrc_ident).decode(encoding='ascii')
     pretty_ident = re.sub('#', 'sh', pretty_ident)
     pretty_ident = re.sub('[^a-zA-Z0-9_-]+', '', pretty_ident)
+    if len(pretty_ident) > 0 and pretty_ident[0] in CHAR_TO_WORD.keys():
+        pretty_ident = CHAR_TO_WORD[pretty_ident[0]] + pretty_ident[1:]
     if len(pretty_ident) < 3:
         eprint("Warning: Identifier has more than one special character.")
         pretty_ident += 'spec'
@@ -111,9 +119,14 @@ def getPrettyStrFromRsrcType(rsrc_ident):
 def getRsrcTypeFromPrettyStr(pretty_ident):
     """ Gives 4-byte identifier from alphanumeric string representation
     """
+    if len(pretty_ident) > 4:
+        pretty_ident = re.sub('sh', '#', pretty_ident)
+    if len(pretty_ident) > 4:
+        for c, s in CHAR_TO_WORD.items():
+            if pretty_ident.startswith(s):
+                pretty_ident = c + pretty_ident[len(s):]
+                break
     rsrc_ident = str(pretty_ident).encode(encoding='ascii')
-    if len(rsrc_ident) > 4:
-        rsrc_ident = re.sub(b'sh', b'#', rsrc_ident)
     if len(rsrc_ident) > 4:
         rsrc_ident = re.sub(b'spec', b'?', rsrc_ident)
     while len(rsrc_ident) < 4: rsrc_ident += b' '
