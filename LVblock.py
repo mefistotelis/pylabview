@@ -3293,14 +3293,36 @@ class ICON(PNGI):
         self.setData(data_buf, section_num=section_num)
 
 
-class icl8(ICON):
-    """ Icon Large 32x32 8bpp
+class ICNsh(ICON):
+    """ Icon Large Double 32x64 1bpp
     """
     def createSection(self):
         section = super().createSection()
         section.width = 32
-        section.height = 32
-        section.bpp = 8
+        section.height = 64
+        section.bpp = 1
+        return section
+
+
+class icssh(ICON):
+    """ Icon Small 16x16 1bpp
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.width = 16
+        section.height = 16
+        section.bpp = 1
+        return section
+
+
+class ics4(ICON):
+    """ Icon Small 16x16 4bpp
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.width = 16
+        section.height = 16
+        section.bpp = 4
         return section
 
 
@@ -3312,6 +3334,28 @@ class icl4(ICON):
         section.width = 32
         section.height = 32
         section.bpp = 4
+        return section
+
+
+class ics8(ICON):
+    """ Icon Small 16x16 8bpp
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.width = 16
+        section.height = 16
+        section.bpp = 8
+        return section
+
+
+class icl8(ICON):
+    """ Icon Large 32x32 8bpp
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.width = 32
+        section.height = 32
+        section.bpp = 8
         return section
 
 
