@@ -920,6 +920,9 @@ class CompleteBlock(Block):
     def initWithXMLSectionData(self, section, section_elem):
         raise NotImplementedError("Inintialization from XML is not implemented")
 
+    def initWithImageSectionData(self, section, image):
+        raise NotImplementedError("Inintialization from Image is not implemented")
+
     def initWithXMLSection(self, section, section_elem):
         snum = section.start.section_idx
         section.parse_failed = False
@@ -944,6 +947,19 @@ class CompleteBlock(Block):
                 section.parse_failed = True
                 raise RuntimeError("XML file '{}' parsing exception: {}".format(section_elem.get("File"),str(e)))
             self.initWithXMLSectionData(section, tree.getroot())
+        elif fmt == "png": # Format="png" - the content is stored separately as image file
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading PNG file '{}'"\
+                  .format(self.vi.src_fname,self.ident,snum,section_elem.get("File")))
+            bin_path = os.path.dirname(self.vi.src_fname)
+            if len(bin_path) > 0:
+                bin_fname = bin_path + '/' + section_elem.get("File")
+            else:
+                bin_fname = section_elem.get("File")
+            with open(bin_fname, "rb") as png_fh:
+                image = Image.open(png_fh)
+                image.getdata() # to make sure the file gets loaded; everything is lazy nowadays
+                self.initWithImageSectionData(section, image)
         else:
             section.parse_failed = True
             Block.initWithXMLSection(self, section, section_elem)
@@ -963,7 +979,10 @@ class CompleteBlock(Block):
         super().initWithXMLLate()
 
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
-        raise NotImplementedError("Export is not implemented")
+        raise NotImplementedError("Export of XML is not implemented")
+
+    def exportImageSectionData(self, block_fd, section_num, section, fname_base):
+        raise NotImplementedError("Export of image is not implemented")
 
     def exportXMLSection(self, section_elem, section_num, section, fname_base):
         self.parseData(section_num=section_num)
@@ -1000,6 +1019,21 @@ class CompleteBlock(Block):
                     tree.write(block_fd, encoding='utf-8', xml_declaration=True)
 
                 section_elem.set("Format", "xml")
+                section_elem.set("File", os.path.basename(block_fname))
+            elif storage_format == "png":
+                if (self.po.verbose > 1):
+                    print("{}: Writing Image file for block {} section {:d}"\
+                      .format(self.vi.src_fname, self.ident, section_num))
+
+                block_fname = "{:s}.{:s}".format(fname_base,"png")
+
+                with open(block_fname, "wb") as block_fd:
+                    if (self.po.verbose > 1):
+                        print("{}: Storing block {} section {} image in '{}'"\
+                          .format(self.vi.src_fname,self.ident,section_num,block_fname))
+                    self.exportImageSectionData(block_fd, section_num, section, fname_base)
+
+                section_elem.set("Format", "png")
                 section_elem.set("File", os.path.basename(block_fname))
             elif storage_format == "raw":
                 Block.exportXMLSection(self, section_elem, section_num, section, fname_base)
@@ -1652,6 +1686,15 @@ class NODH(SingleStringBlock):
         return section
 
 
+class NOEG(SingleStringBlock):
+    """ NOEG String
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.size_len = 1
+        return section
+
+
 class TITL(SingleStringBlock):
     """ Title
     """
@@ -1675,60 +1718,8 @@ class HLPT(CompleteBlock):
     """
     def createSection(self):
         section = super().createSection()
-        # Amount of bytes the size of this string uses
-        section.content = []
+        section.size_len = 4
         return section
-
-    def parseRSRCSectionData(self, section_num, bldata):
-        section = self.sections[section_num]
-
-        line = readLStr(bldata, 1, self.po)
-        section.content.append(line)
-
-        line_str = line.decode(self.vi.textEncoding, errors="ignore")
-        if any(chr(ele) in line_str for ele in range(0,32)):
-            raise RuntimeError("Binary format detected; no parsed form available")
-        pass
-
-    def prepareRSRCData(self, section_num):
-        section = self.sections[section_num]
-        data_buf  = b''
-        for line in section.content:
-            data_buf += prepareLStr(line, 1, self.po)
-        return data_buf
-
-    def expectedRSRCSize(self, section_num):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-
-        exp_whole_len = 4
-        exp_whole_len +=sum(len(line) for line in section.content)
-        return exp_whole_len
-
-    def initWithXMLSectionData(self, section, section_elem):
-        section.content = []
-
-        for i, subelem in enumerate(section_elem):
-            if (subelem.tag == "NameObject"):
-                pass # Items parsed somewhere else
-            elif (subelem.tag == "String"):
-                if subelem.text is not None:
-                    elem_text = ET.unescape_safe_store_element_text(subelem.text)
-                    section.content.append(elem_text.encode(self.vi.textEncoding))
-                else:
-                    section.content.append(b'')
-            else:
-                raise AttributeError("Section contains unexpected tag")
-        pass
-
-    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
-        for line in section.content:
-            subelem = ET.SubElement(section_elem,"String")
-
-            pretty_string = line.decode(self.vi.textEncoding)
-            ET.safe_store_element_text(subelem, pretty_string)
-        pass
 
 
 class STR(Block):
@@ -1923,7 +1914,7 @@ class MItm(STRsh):
     def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
         data_buf = b''
-        data_buf += len(section.prop1).to_bytes(4, byteorder='big', signed=False)
+        data_buf += int(section.prop1).to_bytes(4, byteorder='big', signed=False)
         data_buf += int(section.prop2).to_bytes(4, byteorder='big', signed=False)
         for string_val in section.content:
             data_buf += prepareLStr(string_val, 4, self.po)
@@ -3189,72 +3180,54 @@ class vers(Block):
         return section.version_info
 
 
-class PNGI(Block):
+class PNGI(CompleteBlock):
     """ PNG Image
     """
     def createSection(self):
         section = super().createSection()
+        section.storage_format = "png"
         section.image = None
         return section
 
-    def parseRSRCData(self, section_num, bldata):
+    def setDefaultEncoding(self):
+        self.default_block_coding = BLOCK_CODING.NONE
+
+    def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
+        section.image = None
+
         image = Image.open(bldata)
         section.image = image
         image.getdata() # to make sure the file gets loaded; everything is lazy nowadays
+        padding = bldata.read(4)
 
-    def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
+    def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
 
         bldata = BytesIO()
         section.image.save(bldata, format="PNG")
         bldata.seek(0)
-        self.setData(bldata.read(), section_num=section_num)
+        data_buf = bldata.read()
+        data_buf += b'\0' * 4
+        return data_buf
 
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = super().getData(section_num=section_num, use_coding=use_coding)
-        return bldata
+    def initWithImageSectionData(self, section, image):
+        section.image = image
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
-
-    def exportXMLSection(self, section_elem, section_num, section, fname_base):
-        block_fname = "{:s}.{:s}".format(fname_base,"png")
-
-        self.parseData(section_num=section_num)
-        with open(block_fname, "wb") as block_fd:
-            if (self.po.verbose > 1):
-                print("{}: Writing block {} section {} image to '{}'".format(self.vi.src_fname,self.ident,section_num,block_fname))
-            section.image.save(block_fd, format="PNG")
-
-        section_elem.set("Format", "png")
-        section_elem.set("File", os.path.basename(block_fname))
-
-    def initWithXMLSection(self, section, section_elem):
-        snum = section.start.section_idx
-        fmt = section_elem.get("Format")
-        if fmt == "png": # Format="png" - the content is stored separately as image file
-            if (self.po.verbose > 2):
-                print("{:s}: For Block {} section {:d}, reading PNG file '{}'"\
-                  .format(self.vi.src_fname,self.ident,snum,section_elem.get("File")))
-            bin_path = os.path.dirname(self.vi.src_fname)
-            if len(bin_path) > 0:
-                bin_fname = bin_path + '/' + section_elem.get("File")
-            else:
-                bin_fname = section_elem.get("File")
-            with open(bin_fname, "rb") as png_fh:
-                image = Image.open(png_fh)
-                section.image = image
-                image.getdata() # to make sure the file gets loaded; everything is lazy nowadays
-        else:
-            Block.initWithXMLSection(self, section, section_elem)
-        pass
+    def exportImageSectionData(self, block_fd, section_num, section, fname_base):
+        section.image.save(block_fd, format="PNG")
 
     def loadImage(self):
         self.parseData()
         return self.image
+
+
+class MNGI(PNGI):
+    """ MNG Image
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
 
 
 class ICON(PNGI):
