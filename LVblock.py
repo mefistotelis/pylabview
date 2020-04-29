@@ -975,13 +975,15 @@ class CompleteBlock(Block):
         try:
             if storage_format == "inline":
                 if (self.po.verbose > 1):
-                    print("{}: Writing inline XML for block {}".format(self.vi.src_fname, self.ident))
+                    print("{}: Writing inline XML for block {} section {:d}"\
+                      .format(self.vi.src_fname, self.ident, section_num))
 
                 self.exportXMLSectionData(section_elem, section_num, section, fname_base)
                 section_elem.set("Format", "inline")
             elif storage_format == "xml":
                 if (self.po.verbose > 1):
-                    print("{}: Writing separate XML for block {}".format(self.vi.src_fname, self.ident))
+                    print("{}: Writing separate XML for block {} section {:d}"\
+                      .format(self.vi.src_fname, self.ident, section_num))
 
                 block_fname = "{:s}.{:s}".format(fname_base,"xml")
 
@@ -993,7 +995,7 @@ class CompleteBlock(Block):
                 tree = ET.ElementTree(root)
                 with open(block_fname, "wb") as block_fd:
                     if (self.po.verbose > 1):
-                        print("{}: Storing block {} section {} xml in '{}'"\
+                        print("{}: Storing block {} section {:d} xml in '{}'"\
                           .format(self.vi.src_fname,self.ident,section_num,block_fname))
                     tree.write(block_fd, encoding='utf-8', xml_declaration=True)
 
@@ -1773,6 +1775,7 @@ class STRsh(CompleteBlock):
         return data_buf
 
     def expectedRSRCSize(self, section_num):
+        section = self.sections[section_num]
         exp_whole_len = 2
         for string_val in section.content:
             exp_whole_len += 1+len(string_val)
@@ -1836,6 +1839,7 @@ class HDbsh(STRsh):
         return data_buf
 
     def expectedRSRCSize(self, section_num):
+        section = self.sections[section_num]
         exp_whole_len = 4
         for string_val in section.content:
             exp_whole_len += 4+len(string_val)
@@ -1878,6 +1882,7 @@ class MItm(STRsh):
         return data_buf
 
     def expectedRSRCSize(self, section_num):
+        section = self.sections[section_num]
         exp_whole_len = 4
         exp_whole_len += 4
         for string_val in section.content:
@@ -3132,7 +3137,75 @@ class vers(Block):
         return section.version_info
 
 
-class ICON(Block):
+class PNGI(Block):
+    """ PNG Image
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.image = None
+        return section
+
+    def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+        image = Image.open(bldata)
+        section.image = image
+        image.getdata() # to make sure the file gets loaded; everything is lazy nowadays
+
+    def updateSectionData(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+
+        bldata = BytesIO()
+        section.image.save(bldata, format="PNG")
+        bldata.seek(0)
+        self.setData(bldata.read(), section_num=section_num)
+
+    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
+        bldata = super().getData(section_num=section_num, use_coding=use_coding)
+        return bldata
+
+    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
+        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
+
+    def exportXMLSection(self, section_elem, section_num, section, fname_base):
+        block_fname = "{:s}.{:s}".format(fname_base,"png")
+
+        self.parseData(section_num=section_num)
+        with open(block_fname, "wb") as block_fd:
+            if (self.po.verbose > 1):
+                print("{}: Writing block {} section {} image to '{}'".format(self.vi.src_fname,self.ident,section_num,block_fname))
+            section.image.save(block_fd, format="PNG")
+
+        section_elem.set("Format", "png")
+        section_elem.set("File", os.path.basename(block_fname))
+
+    def initWithXMLSection(self, section, section_elem):
+        snum = section.start.section_idx
+        fmt = section_elem.get("Format")
+        if fmt == "png": # Format="png" - the content is stored separately as image file
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d}, reading PNG file '{}'"\
+                  .format(self.vi.src_fname,self.ident,snum,section_elem.get("File")))
+            bin_path = os.path.dirname(self.vi.src_fname)
+            if len(bin_path) > 0:
+                bin_fname = bin_path + '/' + section_elem.get("File")
+            else:
+                bin_fname = section_elem.get("File")
+            with open(bin_fname, "rb") as png_fh:
+                image = Image.open(png_fh)
+                section.image = image
+                image.getdata() # to make sure the file gets loaded; everything is lazy nowadays
+        else:
+            Block.initWithXMLSection(self, section, section_elem)
+        pass
+
+    def loadImage(self):
+        self.parseData()
+        return self.image
+
+
+class ICON(PNGI):
     """ Icon 32x32 1bpp
     """
     def createSection(self):
@@ -3140,7 +3213,6 @@ class ICON(Block):
         section.width = 32
         section.height = 32
         section.bpp = 1
-        section.icon = None
         return section
 
     def parseRSRCData(self, section_num, bldata):
@@ -3188,14 +3260,14 @@ class ICON(Block):
         #for y in range(0, section.height):
         #    for x in range(0, section.width):
         #        icon.putpixel((x, y), bldata.read(1))
-        section.icon = icon
+        section.image = icon
 
     def updateSectionData(self, section_num=None):
         if section_num is None:
             section_num = self.active_section_num
         section = self.sections[section_num]
 
-        data_buf = bytes(section.icon.getdata())
+        data_buf = bytes(section.image.getdata())
         data_len = (section.width * section.height * section.bpp) // 8
 
         if section.bpp == 8:
@@ -3219,49 +3291,6 @@ class ICON(Block):
         if len(data_buf) < data_len:
             data_buf += b'\0' * (data_len - len(data_buf))
         self.setData(data_buf, section_num=section_num)
-
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = super().getData(section_num=section_num, use_coding=use_coding)
-        return bldata
-
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
-
-    def loadIcon(self):
-        self.parseData()
-        return self.icon
-
-    def exportXMLSection(self, section_elem, section_num, section, fname_base):
-        block_fname = "{:s}.{:s}".format(fname_base,"png")
-
-        self.parseData(section_num=section_num)
-        with open(block_fname, "wb") as block_fd:
-            if (self.po.verbose > 1):
-                print("{}: Writing block {} section {} image to '{}'".format(self.vi.src_fname,self.ident,section_num,block_fname))
-            section.icon.save(block_fd, format="PNG")
-
-        section_elem.set("Format", "png")
-        section_elem.set("File", os.path.basename(block_fname))
-
-    def initWithXMLSection(self, section, section_elem):
-        snum = section.start.section_idx
-        fmt = section_elem.get("Format")
-        if fmt == "png": # Format="png" - the content is stored separately as image file
-            if (self.po.verbose > 2):
-                print("{:s}: For Block {} section {:d}, reading PNG file '{}'"\
-                  .format(self.vi.src_fname,self.ident,snum,section_elem.get("File")))
-            bin_path = os.path.dirname(self.vi.src_fname)
-            if len(bin_path) > 0:
-                bin_fname = bin_path + '/' + section_elem.get("File")
-            else:
-                bin_fname = section_elem.get("File")
-            with open(bin_fname, "rb") as png_fh:
-                icon = Image.open(png_fh)
-                section.icon = icon
-                icon.getdata() # to make sure the file gets loaded
-        else:
-            Block.initWithXMLSection(self, section, section_elem)
-        pass
 
 
 class icl8(ICON):
