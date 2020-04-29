@@ -1906,15 +1906,16 @@ class MItm(STRsh):
     """
     def createSection(self):
         section = super().createSection()
+        section.prop1 = 0
         section.prop2 = 0
         return section
 
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
         section.content = []
-        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        section.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         section.prop2 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        for i in range(count):
+        for i in range(1):
             string_val = readLStr(bldata, 4, self.po)
             section.content.append(string_val)
         pass
@@ -1922,7 +1923,7 @@ class MItm(STRsh):
     def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
         data_buf = b''
-        data_buf += len(section.content).to_bytes(4, byteorder='big', signed=False)
+        data_buf += len(section.prop1).to_bytes(4, byteorder='big', signed=False)
         data_buf += int(section.prop2).to_bytes(4, byteorder='big', signed=False)
         for string_val in section.content:
             data_buf += prepareLStr(string_val, 4, self.po)
@@ -1939,12 +1940,16 @@ class MItm(STRsh):
         return exp_whole_len
 
     def initWithXMLSectionData(self, section, section_elem):
+        tmpprop = section_elem.get("Prop1")
+        if tmpprop is not None:
+            section.prop1 = int(tmpprop, 0)
         tmpprop = section_elem.get("Prop2")
         if tmpprop is not None:
             section.prop2 = int(tmpprop, 0)
         super().initWithXMLSectionData(section, section_elem)
 
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
+        section_elem.set("Prop1", "{:d}".format(section.prop1))
         section_elem.set("Prop2", "{:d}".format(section.prop2))
         super().exportXMLSectionData(section_elem, section_num, section, fname_base)
 
