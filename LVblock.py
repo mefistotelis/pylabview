@@ -1721,7 +1721,6 @@ class HLPT(CompleteBlock):
         section.size_len = 4
         return section
 
-
 class STR(Block):
     """ Short String / Input definition?
 
@@ -3336,6 +3335,17 @@ class icssh(ICON):
         section = super().createSection()
         section.width = 16
         section.height = 16
+        section.bpp = 1
+        return section
+
+
+class CURS(ICON):
+    """ Cursor 16x34 1bpp
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.width = 16
+        section.height = 34
         section.bpp = 1
         return section
 
