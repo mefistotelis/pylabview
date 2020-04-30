@@ -688,8 +688,8 @@ class Block(object):
         bldata = self.getData(section_num=snum)
         if (self.po.verbose > 1):
             print("{}: Writing block {} section {} to '{}'".format(self.vi.src_fname,self.ident,snum,block_fname))
-        with open(block_fname, "wb") as block_fd:
-            block_fd.write(bldata.read())
+        with open(block_fname, "wb") as block_fh:
+            block_fh.write(bldata.read())
 
         section_elem.set("Format", "bin")
         section_elem.set("File", os.path.basename(block_fname))
@@ -921,7 +921,7 @@ class CompleteBlock(Block):
     def initWithXMLSectionData(self, section, section_elem):
         raise NotImplementedError("Inintialization from XML is not implemented")
 
-    def initWithImageSectionData(self, section, section_elem, image, fh):
+    def initWithImageSectionData(self, section, section_elem, image, block_fh):
         raise NotImplementedError("Inintialization from Image is not implemented")
 
     def initWithXMLSection(self, section, section_elem):
@@ -982,7 +982,7 @@ class CompleteBlock(Block):
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         raise NotImplementedError("Export of XML is not implemented")
 
-    def exportImageSectionData(self, section_elem, block_fd, section_num, section, fname_base):
+    def exportImageSectionData(self, section_elem, block_fh, section_num, section, fname_base):
         raise NotImplementedError("Export of image is not implemented")
 
     def exportXMLSection(self, section_elem, section_num, section, fname_base):
@@ -1013,11 +1013,11 @@ class CompleteBlock(Block):
                 ET.pretty_element_tree_heap(root)
 
                 tree = ET.ElementTree(root)
-                with open(block_fname, "wb") as block_fd:
+                with open(block_fname, "wb") as block_fh:
                     if (self.po.verbose > 1):
                         print("{}: Storing block {} section {:d} xml in '{}'"\
                           .format(self.vi.src_fname,self.ident,section_num,block_fname))
-                    tree.write(block_fd, encoding='utf-8', xml_declaration=True)
+                    tree.write(block_fh, encoding='utf-8', xml_declaration=True)
 
                 section_elem.set("Format", "xml")
                 section_elem.set("File", os.path.basename(block_fname))
@@ -1028,11 +1028,11 @@ class CompleteBlock(Block):
 
                 block_fname = "{:s}.{:s}".format(fname_base,"png")
 
-                with open(block_fname, "wb") as block_fd:
+                with open(block_fname, "wb") as block_fh:
                     if (self.po.verbose > 1):
                         print("{}: Storing block {} section {} image in '{}'"\
                           .format(self.vi.src_fname,self.ident,section_num,block_fname))
-                    self.exportImageSectionData(section_elem, block_fd, section_num, section, fname_base)
+                    self.exportImageSectionData(section_elem, block_fh, section_num, section, fname_base)
 
                 section_elem.set("Format", "png")
                 section_elem.set("File", os.path.basename(block_fname))
@@ -3053,8 +3053,8 @@ class LVSR(CompleteBlock):
             part_fname = "{:s}_{:s}.{:s}".format(fname_base,subelem.tag,"bin")
             if (self.po.verbose > 1):
                 print("{}: Writing block {} section {} part to '{}'".format(self.vi.src_fname,self.ident,snum,part_fname))
-            with open(part_fname, "wb") as part_fd:
-                part_fd.write(section.field90)
+            with open(part_fname, "wb") as part_fh:
+                part_fh.write(section.field90)
             subelem.set("Format", "bin")
             subelem.set("File", os.path.basename(part_fname))
         pass
@@ -3222,11 +3222,11 @@ class ImageBlock(CompleteBlock):
         data_buf = bldata.read()
         return data_buf
 
-    def initWithImageSectionData(self, section, section_elem, image, fh):
+    def initWithImageSectionData(self, section, section_elem, image, block_fh):
         section.image = image
 
-    def exportImageSectionData(self, section_elem, block_fd, section_num, section, fname_base):
-        section.image.save(block_fd, format="PNG")
+    def exportImageSectionData(self, section_elem, block_fh, section_num, section, fname_base):
+        section.image.save(block_fh, format="PNG")
 
     def loadImage(self):
         """ Loads and returns the image stored in this block.
@@ -3275,22 +3275,22 @@ class PNGI(ImageBlock):
         data_buf += b'\0' * section.padding_len
         return data_buf
 
-    def initWithImageSectionData(self, section, section_elem, image, fh):
+    def initWithImageSectionData(self, section, section_elem, image, block_fh):
         section.padding_len = int(section_elem.get("PaddingLength"), 0)
-        super().initWithImageSectionData(section, section_elem, image, fh)
+        super().initWithImageSectionData(section, section_elem, image, block_fh)
         # Besides the interpreted image, also store the original data to avoid re-compressing
-        fh.seek(0)
-        section.media_compressed = fh.read()
+        block_fh.seek(0)
+        section.media_compressed = block_fh.read()
 
-    def exportImageSectionData(self, section_elem, block_fd, section_num, section, fname_base):
+    def exportImageSectionData(self, section_elem, block_fh, section_num, section, fname_base):
         section_elem.set("PaddingLength", "{:d}".format(section.padding_len))
         if section.parsed_data_updated:
             section.media_compressed = None
         if section.media_compressed is not None:
             # Do not recompress the file if there is no need, use original data
-            block_fd.write(section.media_compressed)
+            block_fh.write(section.media_compressed)
         else:
-            super().exportImageSectionData(section_elem, block_fd, section_num, section, fname_base)
+            super().exportImageSectionData(section_elem, block_fh, section_num, section, fname_base)
 
 
 class MNGI(PNGI):
@@ -4433,10 +4433,10 @@ class UCRF(VarCodingBlock):
                 fext = LVrsrcontainer.getFileExtByType(rsrchead.ftype)
         bldata.seek(0)
         block_fname = "{:s}.{:s}".format(fname_base,fext)
-        with open(block_fname, "wb") as block_fd:
+        with open(block_fname, "wb") as block_fh:
             if (self.po.verbose > 1):
                 print("{}: Writing block {} section {} to '{}'".format(self.vi.src_fname,self.ident,snum,block_fname))
-            block_fd.write(bldata.read())
+            block_fh.write(bldata.read())
 
         section_elem.set("Format", "bin")
         section_elem.set("File", os.path.basename(block_fname))

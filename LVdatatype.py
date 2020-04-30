@@ -577,8 +577,8 @@ class TDObject:
                   .format(self.vi.src_fname,self.index,os.path.basename(part_fname)))
             bldata = self.getData()
             bldata.read(4) # The data includes 4-byte header
-            with open(part_fname, "wb") as part_fd:
-                part_fd.write(bldata.read())
+            with open(part_fname, "wb") as part_fh:
+                part_fh.write(bldata.read())
 
             conn_elem.set("Format", "bin")
             conn_elem.set("File", os.path.basename(part_fname))
