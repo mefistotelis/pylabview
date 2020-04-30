@@ -4765,6 +4765,8 @@ class VICD(CompleteBlock):
     """
     def createSection(self):
         section = super().createSection()
+        # Exported file Content Map
+        section.ct_map = []
         # Properties at beginning
         section.initProcOffset = 0
         section.codeID = b''
@@ -4797,48 +4799,113 @@ class VICD(CompleteBlock):
         else:
             self.default_block_coding = BLOCK_CODING.NONE
 
+    @staticmethod
+    def addMapEntry(section, fh, eSize, eName, eKind):
+        """ Adds element to a MAP array for the file.
+
+        Uses name mangling from MsVS. Not that I like it, it's just the most
+        popular ATM - disassembler will read them.
+        """
+        eArr = "PA" if  eKind.endswith("[]") else ""
+        if eKind.startswith("i8"):
+            fullName = "?{}@@3{}CA".format(eName, eArr)
+        elif eKind.startswith("i16"):
+            fullName = "?{}@@3{}FA".format(eName, eArr)
+        elif eKind.startswith("i32"):
+            fullName = "?{}@@3{}HA".format(eName, eArr)
+        elif eKind.startswith("i64"):
+            fullName = "?{}@@3{}_JA".format(eName, eArr)
+        elif eKind.startswith("u8"):
+            fullName = "?{}@@3{}EA".format(eName, eArr)
+        elif eKind.startswith("u16"):
+            fullName = "?{}@@3{}GA".format(eName, eArr)
+        elif eKind.startswith("u32"):
+            fullName = "?{}@@3{}IA".format(eName, eArr)
+        elif eKind.startswith("u64"):
+            fullName = "?{}@@3{}_KA".format(eName, eArr)
+        else:
+            fullName = "{}".format(eName)
+        section.ct_map.append( (fh.tell()-eSize, eSize, fullName,) )
+
+    @staticmethod
+    def printMap(section, fh):
+        fh.write("  Address         Publics by Value\n\n")
+        for e in section.ct_map:
+            fh.write(" {:04X}:{:08X}       {:s}\n".format(1,e[0],e[2]))
+        pass
+
     def parseRSRCSectionData(self, section_num, bldata):
         ver = self.vi.getFileVersion()
         section = self.sections[section_num]
+        section.ct_map = []
 
         headStartPos = bldata.tell()
         initProcOffset = bldata.read(4)
+        self.addMapEntry(section, bldata, 4, "initProcOffset", "u32")
         section.codeID = bldata.read(4)
+        self.addMapEntry(section, bldata, 4, "codeID", "u8[]")
         archDependLen = 8 if self.isX64(section_num) else 4
         archEndianness = 'little' if self.isLE(section_num) else 'big'
         if isGreaterOrEqVersion(ver, 12,0,0,0):# Should be False for LV 11,0,0,4, True for 14,0,0,3
             section.initProcOffset = int.from_bytes(initProcOffset, byteorder=archEndianness, signed=False)
             section.pTabOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            self.addMapEntry(section, bldata, 4, "pTabOffset", "u32")
             section.codeFlags = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            self.addMapEntry(section, bldata, 4, "codeFlags", "u32")
             section.version = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            self.addMapEntry(section, bldata, 4, "version", "u32")
             section.verifier = bldata.read(4)
+            self.addMapEntry(section, bldata, 4, "verifier", "u8[]")
             section.numberOfBasicBlocks = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            self.addMapEntry(section, bldata, 4, "numberOfBasicBlocks", "u32")
             section.compilerOptimizationLevel = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            self.addMapEntry(section, bldata, 4, "compilerOptimizationLevel", "u32")
             section.hostCodeEntryVI = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            self.addMapEntry(section, bldata, 4, "hostCodeEntryVI", "u32")
             section.codeEndOffset = int.from_bytes(bldata.read(archDependLen), byteorder=archEndianness, signed=False)
+            self.addMapEntry(section, bldata, archDependLen, "codeEndOffset", "u64" if archDependLen == 8 else "u32")
             section.signatureName = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            self.addMapEntry(section, bldata, 4, "signatureName", "u32")
         else: # Lowest version tested with this is LV 6,0,0,2
             section.initProcOffset = int.from_bytes(initProcOffset, byteorder=archEndianness, signed=False)
             section.pTabOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            self.addMapEntry(section, bldata, 4, "pTabOffset", "u32")
             section.codeFlags = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            self.addMapEntry(section, bldata, 4, "codeFlags", "u32")
             section.version = int.from_bytes(bldata.read(4), byteorder='big', signed=False) # doesn't seem to really be version
+            self.addMapEntry(section, bldata, 4, "version", "u32")
             section.verifier = bldata.read(4)
+            self.addMapEntry(section, bldata, 4, "verifier", "u8[]")
             section.numberOfBasicBlocks = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            self.addMapEntry(section, bldata, 4, "numberOfBasicBlocks", "u32")
             section.codeEndOffset = int.from_bytes(bldata.read(archDependLen), byteorder=archEndianness, signed=False)
+            self.addMapEntry(section, bldata, archDependLen, "codeEndOffset", "u64" if archDependLen == 8 else "u32")
             section.hostCodeEntryVI = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            self.addMapEntry(section, bldata, 4, "hostCodeEntryVI", "u32")
             section.signatureName = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            self.addMapEntry(section, bldata, 4, "signatureName", "u32")
         headLen = bldata.tell() - headStartPos
         section.content = bldata.read(section.pTabOffset - headLen)
+        self.addMapEntry(section, bldata, section.pTabOffset - headLen, "codeBlob", "VarElemLenArray")
         section.patches = bldata.read(section.codeEndOffset - section.pTabOffset)
+        self.addMapEntry(section, bldata, section.codeEndOffset - section.pTabOffset, "patch_{}".format(0), "VarElemLenArray")
 
         section.endVerifier = bldata.read(4)
+        self.addMapEntry(section, bldata, 4, "endVerifier", "u8[]")
         section.endProp1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         if isGreaterOrEqVersion(ver, 7,0,0,0):# Should be False for LV 6,0,0,2, True for 7,1,0,3
+            #TODO inconsistency - signatureName doesn't have arch-dependant size
             section.endSignatureName = int.from_bytes(bldata.read(archDependLen), byteorder='big', signed=False)
+            self.addMapEntry(section, bldata, archDependLen, "endSignatureName", "u64" if archDependLen == 8 else "u32")
             section.endLocalLVRTCodeBlocks = int.from_bytes(bldata.read(archDependLen), byteorder='big', signed=False)
+            self.addMapEntry(section, bldata, archDependLen, "endLocalLVRTCodeBlocks", "u64" if archDependLen == 8 else "u32")
+        #TODO inconsistency - codeEndOffset has arch-dependant size
         section.endCodeEndOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+        self.addMapEntry(section, bldata, 4, "endCodeEndOffset", "u32")
         if isGreaterOrEqVersion(ver, 12,0,0,0):# Should be False for 11,0,0,4, True for 14,0,0,3
+            #TODO maybe it's just for 64-bit arch? a missing part of endCodeEndOffset?
             section.endProp5 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            self.addMapEntry(section, bldata, 4, "endProp5", "u32")
         pass
 
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
@@ -4857,6 +4924,13 @@ class VICD(CompleteBlock):
         subelem.set("HostCodeEntryVI", "0x{:X}".format(section.hostCodeEntryVI))
         subelem.set("CodeEndOffset", "0x{:X}".format(section.codeEndOffset))
         subelem.set("SignatureName", "0x{:X}".format(section.signatureName))
+
+        map_fname = "{:s}.{:s}".format(fname_base,"map")
+        if (self.po.verbose > 1):
+            print("{}: Writing code MAP file for block {} section {:d}"\
+              .format(self.vi.src_fname, self.ident, section_num))
+        with open(map_fname, "w") as map_fh:
+            self.printMap(section, map_fh)
 
         raise NotImplementedError("The block is only partially exported as XML")
 
