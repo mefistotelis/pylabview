@@ -491,14 +491,15 @@ class Block(object):
         else:
             self.active_section_num = section_num
 
-        if self.needParseData():
+        if self.needParseData(section_num=section_num):
+            section = self.sections[section_num]
             if self.vi.dataSource == "rsrc" or self.hasRawData(section_num=section_num):
                 bldata = self.getData(section_num=section_num)
                 self.parseRSRCData(section_num, bldata)
-                self.raw_data_updated = False
+                section.raw_data_updated = False
             elif self.vi.dataSource == "xml":
                 self.parseXMLData(section_num=section_num)
-                self.parsed_data_updated = False
+                section.parsed_data_updated = False
         pass
 
     def updateSectionData(self, section_num=None):
@@ -920,7 +921,7 @@ class CompleteBlock(Block):
     def initWithXMLSectionData(self, section, section_elem):
         raise NotImplementedError("Inintialization from XML is not implemented")
 
-    def initWithImageSectionData(self, section, section_elem, image):
+    def initWithImageSectionData(self, section, section_elem, image, fh):
         raise NotImplementedError("Inintialization from Image is not implemented")
 
     def initWithXMLSection(self, section, section_elem):
@@ -959,7 +960,7 @@ class CompleteBlock(Block):
             with open(bin_fname, "rb") as png_fh:
                 image = Image.open(png_fh)
                 image.getdata() # to make sure the file gets loaded; everything is lazy nowadays
-                self.initWithImageSectionData(section, section_elem, image)
+                self.initWithImageSectionData(section, section_elem, image, png_fh)
         else:
             section.parse_failed = True
             Block.initWithXMLSection(self, section, section_elem)
@@ -1898,6 +1899,17 @@ class StringListBlock(SingleStringBlock):
         pass
 
 
+class CPST(StringListBlock):
+    """ C. P. Strings
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.count_len = 4
+        section.size_len = 1
+        section.padding_len = 1
+        return section
+
+
 class DNmsh(StringListBlock):
     """ D. Name Strings List
     """
@@ -1944,8 +1956,10 @@ class STRsh(StringListBlock):
         return section
 
 
-class CPST(Block):
-    """ C. P. Strings
+class FDFL(Block):
+    """ FDFL Strings
+
+    Pairs text names and lists of 4-byte identifiers.
     """
     def createSection(self):
         section = super().createSection()
@@ -3208,13 +3222,17 @@ class ImageBlock(CompleteBlock):
         data_buf = bldata.read()
         return data_buf
 
-    def initWithImageSectionData(self, section, section_elem, image):
+    def initWithImageSectionData(self, section, section_elem, image, fh):
         section.image = image
 
     def exportImageSectionData(self, section_elem, block_fd, section_num, section, fname_base):
         section.image.save(block_fd, format="PNG")
 
     def loadImage(self):
+        """ Loads and returns the image stored in this block.
+
+        In case you modify that image, remeber to mark parsed_data_updated.
+        """
         self.parseData()
         return self.image
 
@@ -3225,31 +3243,54 @@ class PNGI(ImageBlock):
     def createSection(self):
         section = super().createSection()
         section.padding_len = 0
+        section.media_compressed = None
         return section
 
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
 
+        start_pos = bldata.tell()
         super().parseRSRCSectionData(section_num, bldata)
         # Allow up to 16 bytes of padding
         padding = bldata.read(16)
         section.padding_len = max(len(padding) - 4, 0)
 
+        # Our image is loaded; but also store the original data to avoid re-compressing
+        img_len = bldata.tell() - start_pos - section.padding_len
+        bldata.seek(start_pos)
+        section.media_compressed = bldata.read(img_len)
+        bldata.read(section.padding_len)
+
     def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
 
         data_buf = b''
-        data_buf += super().prepareRSRCData(section_num)
+        if section.parsed_data_updated:
+            section.media_compressed = None
+        if section.media_compressed is not None:
+            # Do not recompress the file if there is no need, use original data
+            data_buf += section.media_compressed
+        else:
+            data_buf += super().prepareRSRCData(section_num)
         data_buf += b'\0' * section.padding_len
         return data_buf
 
-    def initWithImageSectionData(self, section, section_elem, image):
+    def initWithImageSectionData(self, section, section_elem, image, fh):
         section.padding_len = int(section_elem.get("PaddingLength"), 0)
-        super().initWithImageSectionData(section, section_elem, image)
+        super().initWithImageSectionData(section, section_elem, image, fh)
+        # Besides the interpreted image, also store the original data to avoid re-compressing
+        fh.seek(0)
+        section.media_compressed = fh.read()
 
     def exportImageSectionData(self, section_elem, block_fd, section_num, section, fname_base):
         section_elem.set("PaddingLength", "{:d}".format(section.padding_len))
-        super().exportImageSectionData(section_elem, block_fd, section_num, section, fname_base)
+        if section.parsed_data_updated:
+            section.media_compressed = None
+        if section.media_compressed is not None:
+            # Do not recompress the file if there is no need, use original data
+            block_fd.write(section.media_compressed)
+        else:
+            super().exportImageSectionData(section_elem, block_fd, section_num, section, fname_base)
 
 
 class MNGI(PNGI):
