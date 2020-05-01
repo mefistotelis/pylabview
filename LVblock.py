@@ -1941,8 +1941,28 @@ class LSTsh(StringListBlock):
         section = super().createSection()
         section.count_len = 4
         section.size_len = 4
-        section.padding_len = 4
+        section.padding_len = 1
         return section
+
+    def getVarPadding(self):
+        ver = self.vi.getFileVersion()
+        # In some versions of LV, this block has padding
+        # No padding in LV14.0
+        # but lvapp from LV11 which has vers set to LV0.0 does have it
+        if isSmallerVersion(ver, 11,0,0,0):
+            return 4
+        return 1
+
+    def parseRSRCSectionData(self, section_num, bldata):
+        section = self.sections[section_num]
+        section.padding_len = self.getVarPadding()
+        super().parseRSRCSectionData(section_num, bldata)
+
+    def initWithXMLLate(self):
+        for snum in self.sections:
+            section = self.sections[snum]
+            section.padding_len = self.getVarPadding()
+        super().initWithXMLLate()
 
 
 class STRsh(StringListBlock):
@@ -2404,6 +2424,15 @@ class HIST(Block):
 
 class HLPP(Block):
     """ Help Path
+
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+
+class LPTH(Block):
+    """ L. Path
 
     """
     def createSection(self):
