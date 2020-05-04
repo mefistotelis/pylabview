@@ -118,45 +118,82 @@ class VI_IN_ST_FLAGS(enum.Enum):
 class VI_EXEC_FLAGS(enum.Enum):
     """ VI Execution flags
     """
-    Bit0 = 1 << 0	# unknown
-    Bit1 = 1 << 1	# unknown
-    Bit2 = 1 << 2	# unknown
-    Bit3 = 1 << 3	# unknown
-    Bit4 = 1 << 4	# unknown
-    IsReentrant = 1 << 5	# Indicates whether a VI can be reentrant (multiple instances of it can execute in parallel).
-    CloseAfterCall = 1 << 6	# Indicates whether to close the front panel after the VI runs.
-    Bit7 = 1 << 7	# unknown
-    Bit8 = 1 << 8	# unknown
-    Bit9 = 1 << 9	# unknown
-    ShowFPOnLoad = 1 << 10	# Indicates whether to show the front panel when the VI is loaded.
-    Bit11 = 1 << 11	# unknown
-    Bit12 = 1 << 12	# unknown
-    LibProtected = 1 << 13	# The library which this VI is part of is protected from changes
-    RunOnOpen = 1 << 14	# Indicates whether to run the VI when it opens.
-    ShowFPOnCall = 1 << 15	# Indicates whether to show the front panel when the VI is called.
-    Bit16 = 1 << 16	# unknown
-    Bit17 = 1 << 17	# in use; sets highest priority; realtime option?
-    Bit18 = 1 << 18	# unknown
-    Bit19 = 1 << 19	# unknown
-    Bit20 = 1 << 20	# unknown
-    Bit21 = 1 << 21	# unknown
-    Bit22 = 1 << 22	# unknown
-    Bit23 = 1 << 23	# unknown
-    Bit24 = 1 << 24	# unknown
-    Bit25 = 1 << 25	# unknown
-    Bit26 = 1 << 26	# unknown
-    Bit27 = 1 << 27	# unknown
-    Bit28 = 1 << 28	# unknown
-    Bit29 = 1 << 29	# unknown
-    Bit30 = 1 << 30	# unknown
-    Bit31 = 1 << 31	# unknown
+    BadSignal =		1 << 0	# bad signal
+    BadNode =		1 << 1	# bad node
+    BadSubVILink =	1 << 2	# bad SubVI link
+    BadSubVI =		1 << 3	# bad SubVI
+    NotReservable =	1 << 4	# not reservable
+    IsReentrant =	1 << 5	# Indicates whether a VI can be reentrant (multiple instances of it can execute in parallel).
+    CloseAfterCall = 1 << 6	# Indicates whether to close the front panel after the VI runs (auto reclose).
+    PooledReentrancy = 1 << 7	# pooled Reentrancy
+    LoadFP =		1 << 8	# load FP
+    HasNoBD =		1 << 9	# BD not available
+    ShowFPOnLoad =	1 << 10	# Indicates whether to show the front panel when the VI is loaded.
+    DynamicDispatch = 1 << 11	# fails to always call Parent VI (dynamic dispatching)
+    HasSetBD =		1 << 12	# BP Set
+    LibProtected =	1 << 13	# The library which this VI is part of is protected(locked) from changes.
+    RunOnOpen =		1 << 14	# Indicates whether to run the VI when it opens (load and go).
+    ShowFPOnCall =	1 << 15	# Indicates whether to show the front panel when the VI is called (Auto window).
+    BadCompile =	1 << 16	# Compile bad
+    IsSubroutine =	1 << 17	# VI is Subroutine; this sets high priority.
+    DSRecord =		1 << 18	# Record DS
+    CompilerBug =	1 << 19	# Compiler Bug
+    TypeDefVI =		1 << 20	# VI is typedef
+    StrictTypeDefVI = 1 << 21	# VI is strict typedef
+    BadDDO =		1 << 22	# Bad DDO
+    CtlChanged =	1 << 23	# Ctl-edit changed
+    SaveParallel =	1 << 24	# Save parallel
+    LibIssuesNoRun =	1 << 25	# library for this VI has some problem so VI is not runnable
+    AllowAutoPrealloc =	1 << 26	# Autopreallocation allowed
+    EvalWatermark =		1 << 27	# Evaluation version watermark
+    StdntWatermark =	1 << 28	# Student version watermark
+    HasInsaneItems =	1 << 29	# VI contains insanity
+    PropTypesIssues =	1 << 30	# PropTypes warnings other than SE warnings
+    BrokenPolyVI =		1 << 31	# PolyVI broken for polyVI-specific reason(s)
+
+
+class VI_FLAGS2(enum.Enum):
+    """ VI Flags dword 2
+    """
+    TaggedAndNotEdited =	1 << 0	# vi was tagged and has not entered edit mode, backup is suppressed
+    HideInstanceVICaption =	1 << 1	# Hide instance caption in the VI panel
+    SystemVI =			1 << 2	# VI and subVIs not shown in hierwin, unopened subVIs, etc.
+    VisibleVI =			1 << 3	# The VI is visible in hierwin, unopened subVIs, etc.
+    XDebugWindowVI =	1 << 4	# unknown
+    TemplateMask =		1 << 5	# temporary flag used to rename template VIs
+    SuppressXaction =	1 << 6	# transactions are disabled - VI is a template
+    AlwaysCallsParent =	1 << 7	# DynDispatch VI includes an unconditional use of Call Parent Node
+    UndoRedoChangedNoTypes = 1 << 8	# UndoRedo changed no types
+    InlinableDiagram =	1 << 9	# Typeprop says this VI's diagram is safe to Inline (used to be ObjIDChgOK)
+    SourceOnly =		1 << 10	# code saved in a seperate file (.viobj)
+    InlineIfPossible =	1 << 11	# this VI should be inlined into static callers if it is inlineable (has InlinableDiagram, VISettingsAreInlineSafe and VISupportsInlineFlag)
+    TransactionFailing = 1 << 12	# a transaction is currently being failed
+    SSEOptiMask =		1 << 13	# this VI has SSE optimization disabled
+    StudentOnlyMask =	1 << 14	# can be loaded in LV Student Ed., not full LV system
+    EvalOnlyMask =		1 << 15	# can be loaded in LV Evaluation, not full LV system
+    AllowPolyTypeAdapt = 1 << 16	# PolyVI shows automatic & allows VI to adapt to type
+    ShouldInline =		1 << 17	# this VI is inlined into static callers
+    RecalcFPDSOs =		1 << 18	# cross compiled from a different alignment
+    MarkForPolyVI =		1 << 19	# VI is polymorphic
+    VICanPassLVClassToDLL = 1 << 20	# VI is authorized to pass LVClasses to Call Library nodes (for known safe callbacks into LV)
+    UndoRedoInProgress = 1 << 21	# VI is currently undergoing undo/redo
+    DrawInstanceIcon =	1 << 22	# set: draw instance icon;  unset: draw PolyVI icon
+    ShowPolySelector =	1 << 23	# show PolySelector when new PolyVI icon is put on BD
+    ClearIndMask =		1 << 24	# clear charts etc. on call
+    DefaultGrownView =	1 << 25	# VI should be grown by default when dropped
+    DoNotClone =		1 << 26	# do not clone this instance VI
+    IsPrivateDataForUDClass = 1 << 27	# this ctl is private data for a LV class
+    InstanceVI =		1 << 28	# instance VI (wizard-locked 'LabVIEW Blocks')
+    DefaultErrorHandling = 1 << 29	# default error handling
+    RemotePanel =		1 << 30	# VI is a remote panel VI
+    SuppressInstanceHalo = 1 << 31	# do not draw blue halo around non-grown instance VIs
 
 
 class LVSRData(RSRCStructure):
     # sizes mostly confirmed in lvrt
     _fields_ = [('version', c_uint32),	#0
                 ('execFlags', c_uint32),	#4 see VI_EXEC_FLAGS
-                ('field08', c_uint32),	#8 flag 0x0001 = viSuppressBackup, 0x0020 = viIsTemplate, 0x40000000 = viRemoteClientPanel
+                ('viFlags2', c_uint32),	#8 see VI_FLAGS2
                 ('field0C', c_uint32),	#12
                 ('flags10', c_uint16),	#16
                 ('field12', c_uint16),	#18

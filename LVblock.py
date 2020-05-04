@@ -2794,7 +2794,7 @@ class LVSR(CompleteBlock):
         section.version = decodeVersion(0x0)
         section.execFlags = 0
         section.protected = False
-        section.field08 = 0
+        section.viFlags2 = 0
         section.field0C = 0
         section.flags10 = 0
         # flags10 & 0x0100 -> read DSTM block
@@ -2840,7 +2840,7 @@ class LVSR(CompleteBlock):
         section.version = decodeVersion(data.version)
         section.protected = ((data.execFlags & VI_EXEC_FLAGS.LibProtected.value) != 0)
         section.execFlags = data.execFlags & (~VI_EXEC_FLAGS.LibProtected.value)
-        section.field08 = int(data.field08)
+        section.viFlags2 = int(data.viFlags2)
         section.field0C = int(data.field0C)
         section.flags10 = int(data.flags10)
         section.field12 = int(data.field12)
@@ -2884,7 +2884,7 @@ class LVSR(CompleteBlock):
         data_execFlags = (section.execFlags & (~VI_EXEC_FLAGS.LibProtected.value)) | \
           (VI_EXEC_FLAGS.LibProtected.value if section.protected else 0)
         data_buf += int(data_execFlags).to_bytes(4, byteorder='big')
-        data_buf += int(section.field08).to_bytes(4, byteorder='big')
+        data_buf += int(section.viFlags2).to_bytes(4, byteorder='big')
         data_buf += int(section.field0C).to_bytes(4, byteorder='big')
         data_buf += int(section.flags10).to_bytes(2, byteorder='big')
         data_buf += int(section.field12).to_bytes(2, byteorder='big')
@@ -2973,6 +2973,7 @@ class LVSR(CompleteBlock):
                 section.execState = int(subelem.get("State"), 0)
                 section.execPrio = int(subelem.get("Priority"), 0)
                 section.execFlags = importXMLBitfields(VI_EXEC_FLAGS, subelem)
+                section.viFlags2 = importXMLBitfields(VI_FLAGS2, subelem)
             elif (subelem.tag == "ButtonsHidden"):
                 section.buttonsHidden = importXMLBitfields(VI_BTN_HIDE_FLAGS, subelem)
             elif (subelem.tag == "Instrument"):
@@ -2983,7 +2984,6 @@ class LVSR(CompleteBlock):
             elif (subelem.tag == "FrontPanel"):
                 section.frontpFlags = importXMLBitfields(VI_FP_FLAGS, subelem)
             elif (subelem.tag == "Unknown"):
-                section.field08 = int(subelem.get("Field08"), 0)
                 section.field0C = int(subelem.get("Field0C"), 0)
                 section.flags10 = int(subelem.get("Flags10"), 0)
                 section.field12 = int(subelem.get("Field12"), 0)
@@ -3041,6 +3041,7 @@ class LVSR(CompleteBlock):
         subelem.set("Priority", "{:d}".format(section.execPrio))
         exportXMLBitfields(VI_EXEC_FLAGS, subelem, section.execFlags, \
           skip_mask=VI_EXEC_FLAGS.LibProtected.value)
+        exportXMLBitfields(VI_FLAGS2, subelem, section.viFlags2)
 
         subelem = ET.SubElement(section_elem,"ButtonsHidden")
         exportXMLBitfields(VI_BTN_HIDE_FLAGS, subelem, section.buttonsHidden)
@@ -3055,7 +3056,6 @@ class LVSR(CompleteBlock):
 
         subelem = ET.SubElement(section_elem,"Unknown")
 
-        subelem.set("Field08", "{:d}".format(section.field08))
         subelem.set("Field0C", "{:d}".format(section.field0C))
         subelem.set("Flags10", "{:d}".format(section.flags10))
         subelem.set("Field12", "{:d}".format(section.field12))
