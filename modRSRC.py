@@ -153,7 +153,6 @@ def elemFindOrCreateWithAttribsAndTags(parentElem, elemName, attrs, tags, fo, po
             if tag[1] is None:
                 if sub_elem is not None and sub_elem.text is not None and sub_elem.text.strip() != '':
                     matchFail = True
-                    print("{} {}->{}, attributes: {} {}".format("XXX",parentElem.tag,elemName,attrs,sub_elem.text))
             elif sub_elem is not None and sub_elem.text != tagValToStr(tag[1]):
                 matchFail = True
             if matchFail:
@@ -168,7 +167,7 @@ def elemFindOrCreateWithAttribsAndTags(parentElem, elemName, attrs, tags, fo, po
         fo[FUNC_OPTS.changed] = True
         createdNew = True
     if (po.verbose > 1):
-        print("{} {}->{}, attributes: {}".format("Creating new" if createdNew else "Reusing existing",parentElem.tag,elemName,attrs))
+        print("{:s}: {} \"{}/{}\", attribs: {} sub-tags: {}".format(po.xml, "Creating new" if createdNew else "Reusing existing",parentElem.tag,elemName,attrs,tags))
     for attr in attrs:
         attrName = attr[0]
         attrVal = attr[1]
@@ -321,7 +320,7 @@ def recountHeapElements(RSRC, Heap, ver, fo, po):
             if count is not None:
                 if count >= 1 and count <= 28:
                     if (po.verbose > 1):
-                        print("Getting connector ports count from VCTP Function entries")
+                        print("{:s}: Getting connector ports count for \"conPane/cons\" from VCTP Function entries".format(po.xml))
                 else:
                         count = None
         # If failed, get the value from DSInit
@@ -330,7 +329,7 @@ def recountHeapElements(RSRC, Heap, ver, fo, po):
             if count is not None:
                 if count >= 1 and count <= 28:
                     if (po.verbose > 1):
-                        print("Getting connector ports count from DSInit Record")
+                        print("{:s}: Getting connector ports count for \"conPane/cons\" from DSInit Record".format(po.xml))
                 else:
                         count = None
         count_str = None
@@ -424,7 +423,7 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
     attribGetOrSetDefault(root_keyMappingList, "uid", 1, fo, po)
     attribGetOrSetDefault(root_keyMappingList, "ScopeInfo", 0, fo, po)
 
-    # Now content of the 'root->conPane' element
+    # Now content of the 'root/conPane' element
 
     root_conPane_conId = elemFindOrCreate(root_conPane, "conId", fo, po)
     elemTextGetOrSetDefault(root_conPane_conId, 4815, fo, po)
@@ -432,7 +431,7 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
     root_conPane_cons = elemFindOrCreate(root_conPane, "cons", fo, po)
     attribGetOrSetDefault(root_conPane_cons, "elements", 0, fo, po)
 
-    # Now content of the 'root->paneHierarchy' element
+    # Now content of the 'root/paneHierarchy' element
 
     objFlags = 0x050d51 # in new empty VI it's 0x0260834
     if False: #TODO if horiz scrollbar disabled
@@ -466,12 +465,12 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
     paneHierarchy_image = elemFindOrCreate(root_paneHierarchy, "image", fo, po)
     attribGetOrSetDefault(paneHierarchy_image, "class", "Image", fo, po)
 
-    # Now content of the 'root->paneHierarchy->image' element
+    # Now content of the 'root/paneHierarchy/image' element
 
     paneHierarchy_image_ImageResID = elemFindOrCreate(paneHierarchy_image, "ImageResID", fo, po)
     elemTextGetOrSetDefault(paneHierarchy_image_ImageResID, 0, fo, po)
 
-    # Now content of the 'root->paneHierarchy->partsList' element
+    # Now content of the 'root/paneHierarchy/partsList' element
 
     # NAME_LABEL properties taken from empty VI file created in LV14
     nameLabel = elemCheckOrCreate_partList_arrayElement(paneHierarchy_partsList, fo, po, aeClass="label", \
