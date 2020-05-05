@@ -292,6 +292,62 @@ def getConsolidatedTopType(RSRC, typeID, po):
     VCTP_FlatTypeDesc = VCTP.find("./TypeDesc["+str(VCTP_FlatTypeID+1)+"]")
     return VCTP_FlatTypeDesc
 
+def elemCheckOrCreate_zPlaneList_arrayElement(parent, fo, po, aeClass="fPDCO", \
+          aeTypeID=1, aeObjFlags=None, aeDdoClass="stdBool", aeConNum=None, \
+          aeTermListLength=None, aeDdoObjFlags=None, \
+          aeBounds=None, aeDdoTypeID=None, aeMinButSize=None):
+
+    searchTags = []
+    searchTags.append( ("typeDesc", "TypeID({})".format(aeTypeID),) )
+    arrayElement = elemFindOrCreateWithAttribsAndTags(parent, "SL__arrayElement", \
+      ( ("class", aeClass,), ), searchTags, fo, po)
+    attribGetOrSetDefault(arrayElement, "class", aeClass, fo, po)
+    attribGetOrSetDefault(arrayElement, "uid", 1, fo, po)
+
+    if aeObjFlags is not None:
+        objFlags = elemFindOrCreate(arrayElement, "objFlags", fo, po, pos=0)
+        elemTextGetOrSetDefault(objFlags, aeObjFlags, fo, po)
+
+    typeDesc = elemFindOrCreate(arrayElement, "typeDesc", fo, po)
+    elemTextGetOrSetDefault(typeDesc, "TypeID({})".format(aeTypeID), fo, po)
+
+    ddo = elemFindOrCreate(arrayElement, "ddo", fo, po)
+    attribGetOrSetDefault(ddo, "class", aeDdoClass, fo, po)
+    attribGetOrSetDefault(ddo, "uid", 1, fo, po)
+
+    if aeConNum is not None:
+        conNum = elemFindOrCreate(arrayElement, "conNum", fo, po)
+        elemTextGetOrSetDefault(conNum, aeConNum, fo, po)
+
+    if aeTermListLength is not None:
+        termListLength = elemFindOrCreate(arrayElement, "termListLength", fo, po)
+        elemTextGetOrSetDefault(termListLength, aeTermListLength, fo, po)
+
+    # Now content of 'arrayElement/ddo'
+
+    if aeDdoObjFlags is not None:
+        ddo_objFlags = elemFindOrCreate(ddo, "objFlags", fo, po, pos=0)
+        elemTextGetOrSetDefault(ddo_objFlags, aeDdoObjFlags, fo, po)
+
+    if aeBounds is not None:
+        ddo_bounds = elemFindOrCreate(ddo, "bounds", fo, po)
+        elemTextGetOrSetDefault(ddo_bounds, aeBounds, fo, po)
+
+    partsList = elemFindOrCreate(ddo, "partsList", fo, po)
+    attribGetOrSetDefault(partsList, "elements", 0, fo, po)
+
+    ddo_TypeDesc = elemFindOrCreate(ddo, "typeDesc", fo, po)
+    elemTextGetOrSetDefault(ddo_TypeDesc, "TypeID({})".format(aeDdoTypeID), fo, po)
+
+    ddo_MouseWheelSupport = elemFindOrCreate(ddo, "MouseWheelSupport", fo, po)
+    elemTextGetOrSetDefault(ddo_MouseWheelSupport, 0, fo, po)
+
+    if aeMinButSize is not None:
+        ddo_MinButSize = elemFindOrCreate(ddo, "MinButSize", fo, po)
+        elemTextGetOrSetDefault(ddo_MinButSize, aeMinButSize, fo, po)
+
+    return arrayElement, partsList
+
 def recountHeapElements(RSRC, Heap, ver, fo, po):
     """ Updates 'elements' attributes in the Heap tree
     """
@@ -513,7 +569,44 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
     elemCheckOrCreate_partList_arrayElement(paneHierarchy_partsList, fo, po, aeClass="annex", \
       aePartID=PARTID.ANNEX)
 
-    #TODO recover parts from TDs
+    # Now content of the 'root/paneHierarchy/zPlaneList' element
+    DTHP_typeDescSlice = RSRC.find("./DTHP/Section/TypeDescSlice")
+    if DTHP_typeDescSlice is not None:
+        indexShift = DTHP_typeDescSlice.get("IndexShift")
+        if indexShift is not None:
+            indexShift = int(indexShift, 0)
+        tdCount = DTHP_typeDescSlice.get("Count")
+        if tdCount is not None:
+            tdCount = int(tdCount, 0)
+    else:
+        raise NotImplementedError("DTHP should've been already re-created at this point.")
+
+    # recover DCOs from TDs
+    heapTypeMap = {htId+1:getConsolidatedTopType(RSRC, indexShift+htId, po) for htId in range(tdCount)}
+
+    usedTypeID = 0
+    for typeID, TypeDesc in heapTypeMap.items():
+        if usedTypeID >= typeID: continue
+        if TypeDesc.get("Type") == "Boolean":
+            ddoTypeID = typeID + 1
+            if ddoTypeID not in heapTypeMap or heapTypeMap[ddoTypeID] != TypeDesc:
+                eprint("{:s}: Warning: Heap TypeDesc {} '{}' is followed by different type"\
+                  .format(po.xml,typeID,TypeDesc.get("Type")))
+                ddoTypeID = None
+            print("{:s}: Associating TypeDesc {} with DCO of class '{}'"\
+              .format(po.xml,typeID,"stdBool"))
+            dco, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
+              aeTypeID=typeID, aeObjFlags=1, aeDdoClass="stdBool", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=1,
+              aeBounds=[0,0,15,27], aeDdoTypeID=ddoTypeID, aeMinButSize=[17,17])
+            #TODO add parts
+        else:
+            #TODO add more types
+            eprint("{:s}: Warning: Heap TypeDesc {} is not supported"\
+              .format(po.xml,typeID))
+        if ddoTypeID is not None:
+            usedTypeID = ddoTypeID
+        else:
+            usedTypeID = typeID
 
     #TODO re-compute sizes and positions so parts do not overlap and fit the window
 
@@ -544,7 +637,7 @@ def TM80_Fix(RSRC, DSTM, ver, fo, po):
     return fo[FUNC_OPTS.changed]
 
 def DTHP_Fix(RSRC, DTHP, ver, fo, po):
-    typeDescSlice = DTHP.get("TypeDescSlice")
+    typeDescSlice = DTHP.find("./TypeDescSlice")
     if typeDescSlice is None:
         typeDescSlice = ET.SubElement(DTHP, "TypeDescSlice")
         fo[FUNC_OPTS.changed] = True
@@ -616,12 +709,16 @@ def DTHP_Fix(RSRC, DTHP, ver, fo, po):
         # DTHP Count is within range of existing VCTP TypeDesc entries
         if VCTP_TypeDescList is not None:
             # If we have VCTP - just replace the value, VCTP knows best
-            maxTdCount = len(VCTP_TypeDescList) - minIndexShift
+            maxTdCount = len(VCTP_TypeDescList) - minIndexShift + 1
     if indexShift is None or indexShift < minIndexShift:
+        print("{:s}: Changing 'DTHP/TypeDescSlice' IndexShift to {}"\
+            .format(po.xml,minIndexShift))
         indexShift = minIndexShift
         typeDescSlice.set("IndexShift","{}".format(indexShift))
         fo[FUNC_OPTS.changed] = True
     if tdCount is None or tdCount > maxTdCount:
+        print("{:s}: Changing 'DTHP/TypeDescSlice' Count to {}"\
+            .format(po.xml,maxTdCount))
         tdCount = maxTdCount
         typeDescSlice.set("Count","{}".format(tdCount))
         fo[FUNC_OPTS.changed] = True
@@ -1032,7 +1129,7 @@ def main():
 
     else:
 
-        raise NotImplementedError('Unsupported command.')
+        raise NotImplementedError("Unsupported command.")
 
 if __name__ == "__main__":
     try:
