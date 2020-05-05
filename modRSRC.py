@@ -515,7 +515,6 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
 
     #TODO recover parts from TDs
 
-    recountHeapElements(RSRC, FPHP, ver, fo, po)
     #TODO re-compute sizes and positions so parts do not overlap and fit the window
 
     return fo[FUNC_OPTS.changed]
@@ -813,24 +812,34 @@ def fixSection(section_def, RSRC, section_elem, ver, po):
               .format(po.xml,sec_d[0]))
     return fo[FUNC_OPTS.changed]
 
-def makeUidsUnique(FPHP, BDHP, ver, po):
+def makeUidsUnique(FPHP, BDHP, ver, fo, po):
     """ Makes 'uid' values unique in FP and BD
+
+    Removes references to invalid 'uid's from the tree.
     """
-    fo = 1 * [None]
-    fo[FUNC_OPTS.changed] = False
+    # Prepare list of all elements with 'uid's
     elems = []
     for root in (FPHP, BDHP,):
         elems.extend(root.findall(".//*[@uid]"))
+    # List elements in which 'uid's are not unique
+    not_unique_elems = []
+    for xpath in ("./SL__rootObject/root/ddoList/SL__arrayElement","./SL__rootObject/root/conPane/cons/SL__arrayElement/ConnectionDCO"):
+        not_unique_elems.extend(FPHP.findall(xpath))
+    for xpath in ("./SL__rootObject/root/zPlaneList/SL__arrayElement","./SL__rootObject/root/nodeList/SL__arrayElement/termList/SL__arrayElement/dco"):
+        not_unique_elems.extend(BDHP.findall(xpath))
     all_used_uids = set()
-    for tag in elems:
-        uidStr = tag.get("uid")
+    for elem in elems:
+        uidStr = elem.get("uid")
         if representsInt(uidStr):
             uid = int(uidStr,0)
             all_used_uids.add(uid)
     used_uids = set()
     used_uids.add(0)
-    for tag in elems:
-        uidStr = tag.get("uid")
+    for elem in elems:
+        # Skip elems which we do not expect to be unique
+        if elem in not_unique_elems:
+            continue
+        uidStr = elem.get("uid")
         if representsInt(uidStr):
             uid = int(uidStr,0)
             isCorrect = (uid not in used_uids)
@@ -840,10 +849,37 @@ def makeUidsUnique(FPHP, BDHP, ver, po):
         if not isCorrect:
             while uid in all_used_uids:
                 uid += 1
-            tag.set("uid", str(uid))
+            elem.set("uid", str(uid))
             fo[FUNC_OPTS.changed] = True
         used_uids.add(uid)
         all_used_uids.add(uid)
+    # Now make sure that non-unique elems are not unique
+    # First, create a ma
+    parent_map = {}
+    parent_map.update({c:p for p in FPHP.iter( ) for c in p})
+    parent_map.update({c:p for p in BDHP.iter( ) for c in p})
+    for elem in not_unique_elems:
+        uidStr = elem.get("uid")
+        if representsInt(uidStr):
+            uid = int(uidStr,0)
+            isCorrect = (uid in used_uids)
+        else:
+            uid = max(used_uids)
+            isCorrect = False
+        if not isCorrect:
+            if (po.verbose > 1):
+                print("{:s}: Found reference to non-existing uid={}, removing"\
+                  .format(po.xml,uid))
+            # remove the reference from tree, moving up to first array; it so happens that all
+            # sub-trees which we may want to remove like that are elements of arrays
+            child_elem = elem
+            parent_elem = parent_map[child_elem]
+            while child_elem.tag != "SL__arrayElement":
+                child_elem = parent_elem
+                parent_elem = parent_map[child_elem]
+            parent_elem.remove(child_elem)
+            fo[FUNC_OPTS.changed] = True
+
     return fo[FUNC_OPTS.changed]
 
 def checkBlocksAvailable(root, po):
@@ -886,11 +922,11 @@ def checkBlocksAvailable(root, po):
     # No BD recovery here - make dummy, disconnected section
     BDHP = ET.Element("Section")
 
-    makeUidsUnique(FPHP, BDHP, ver, po)
+    fo = 1 * [None]
+    fo[FUNC_OPTS.changed] = False
+    makeUidsUnique(FPHP, BDHP, ver, fo, po)
+    recountHeapElements(RSRC, FPHP, ver, fo, po)
 
-    #for i, block_elem in enumerate(RSRC):
-    #    for k, section_elem in enumerate(block_elem):
-    #        fmt = section_elem.get("Format")
     pass
 
 def parseSubXMLs(root, po):
@@ -929,6 +965,7 @@ def resaveSubXMLs(root, po):
                 else:
                     xml_fname = section_elem.get("File")
                 for subroot in section_elem:
+                    ET.pretty_element_tree_heap(subroot)
                     section_tree = ET.ElementTree(subroot)
                     with open(xml_fname, "wb") as xml_fh:
                         section_tree.write(xml_fh, encoding='utf-8', xml_declaration=True)
@@ -987,9 +1024,9 @@ def main():
 
         checkBlocksAvailable(root, po)
 
-        ET.pretty_element_tree_heap(root)
         resaveSubXMLs(root, po)
         detachSubXMLs(root, po)
+        ET.pretty_element_tree_heap(root)
         with open(po.xml, "wb") as xml_fh:
             tree.write(xml_fh, encoding='utf-8', xml_declaration=True)
 
