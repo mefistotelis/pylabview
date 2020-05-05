@@ -289,9 +289,7 @@ def getConsolidatedTopType(RSRC, typeID, po):
     if VCTP_FlatTypeID is None:
         return None
     VCTP_FlatTypeID = int(VCTP_FlatTypeID, 0)
-    VCTP_FlatTypeDesc = VCTP.find("./TypeDesc["+str(VCTP_FlatTypeID-1)+"]")
-    if VCTP_FlatTypeDesc.get("Type") != "Function":
-        VCTP_FlatTypeDesc = None
+    VCTP_FlatTypeDesc = VCTP.find("./TypeDesc["+str(VCTP_FlatTypeID+1)+"]")
     return VCTP_FlatTypeDesc
 
 def recountHeapElements(RSRC, Heap, ver, fo, po):
@@ -314,6 +312,9 @@ def recountHeapElements(RSRC, Heap, ver, fo, po):
                     CONP_TypeID = int(CONP_TypeID, 0)
                 if CONP_TypeID is not None:
                     TypeDesc = getConsolidatedTopType(RSRC, CONP_TypeID, po)
+                if TypeDesc.get("Type") != "Function":
+                    eprint("{:s}: CONP references incorrect TD entry".format(po.xml))
+                    TypeDesc = None
             #TODO We could also detect the type with connectors by finding "Function" TDs, without CONP
             if TypeDesc is not None:
                 count = len(TypeDesc.findall("./TypeDesc"))
