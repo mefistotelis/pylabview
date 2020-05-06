@@ -327,10 +327,131 @@ def getConsolidatedTopType(RSRC, typeID, po):
     VCTP_FlatTypeDesc = VCTP.find("./TypeDesc["+str(VCTP_FlatTypeID+1)+"]")
     return VCTP_FlatTypeDesc
 
+def valueOfTypeToXML(valueType, val, po):
+    if valueType in ("Boolean", "BooleanU16",):
+        valStr = str(val)
+    elif valueType == "NumInt8":
+        valStr = int(val).to_bytes(1, byteorder='big', signed=True).hex()
+    elif valueType == "NumInt16":
+        valStr = int(val).to_bytes(2, byteorder='big', signed=True).hex()
+    elif valueType == "NumInt32":
+        valStr = int(val).to_bytes(4, byteorder='big', signed=True).hex()
+    elif valueType == "NumInt64":
+        valStr = int(val).to_bytes(8, byteorder='big', signed=True).hex()
+    elif valueType == "NumUInt8":
+        valStr = int(val).to_bytes(1, byteorder='big', signed=False).hex()
+    elif valueType == "NumUInt16":
+        valStr = int(val).to_bytes(2, byteorder='big', signed=False).hex()
+    elif valueType == "NumUInt32":
+        valStr = int(val).to_bytes(4, byteorder='big', signed=False).hex()
+    elif valueType == "NumUInt64":
+        valStr = int(val).to_bytes(8, byteorder='big', signed=False).hex()
+    elif valueType == "NumFloat32":
+        valStr = struct.pack('>f', val).hex()
+    elif valueType == "NumFloat64":
+        valStr = struct.pack('>d', val).hex()
+    elif valueType == "NumFloatExt":
+        valStr = prepareQuadFloat(val).hex()
+    elif valueType == "NumComplex64":
+        valStr = struct.pack('>f>f', val[0], val[1]).hex()
+    elif valueType == "NumComplex128":
+        valStr = struct.pack('>d>d', val[0], val[1]).hex()
+    elif valueType == "NumComplexExt":
+        valStr = prepareQuadFloat(val[0]).hex()+prepareQuadFloat(val[1]).hex()
+    #elif valueType == "UnitUInt8":
+    #elif valueType == "UnitUInt16":
+    #elif valueType == "UnitUInt32":
+    #elif valueType == "UnitFloat32":
+    #elif valueType == "UnitFloat64":
+    #elif valueType == "UnitFloatExt":
+    #elif valueType == "UnitComplex64":
+    #elif valueType == "UnitComplex128":
+    #elif valueType == "UnitComplexExt":
+    else:
+        valStr = str(val)
+    return valStr
+
+def valueTypeGetDefaultRange(valueType, po):
+    if valueType in ("Boolean", "BooleanU16",):
+        stdMin = 0
+        stdMax = 1
+        stdInc = 1
+    elif valueType == "NumInt8":
+        stdMin = -128
+        stdMax = 127
+        stdInc = 1
+    elif valueType == "NumInt16":
+        stdMin = -32768
+        stdMax = 32767
+        stdInc = 1
+    elif valueType == "NumInt32":
+        stdMin = -2147483648
+        stdMax = 2147483647
+        stdInc = 1
+    elif valueType == "NumInt64":
+        stdMin = -9223372036854775808
+        stdMax = 9223372036854775807
+        stdInc = 1
+    elif valueType == "NumUInt8":
+        stdMin = 0
+        stdMax = 255
+        stdInc = 1
+    elif valueType == "NumUInt16":
+        stdMin = 0
+        stdMax = 65535
+        stdInc = 1
+    elif valueType == "NumUInt32":
+        stdMin = 0
+        stdMax = 4294967295
+        stdInc = 1
+    elif valueType == "NumUInt64":
+        stdMin = 0
+        stdMax = 18446744073709551615
+        stdInc = 1
+    elif valueType == "NumFloat32":
+        stdMin = -3.402823466E+38
+        stdMax = 3.402823466E+38
+        stdInc = 0.1
+    elif valueType == "NumFloat64":
+        stdMin = -1.7976931348623158E+308
+        stdMax = 1.7976931348623158E+308
+        stdInc = 0.1
+    elif valueType == "NumFloatExt":
+        stdMin = None
+        stdMax = None
+        stdInc = 0.1
+    elif valueType == "NumComplex64":
+        stdMin = (-3.402823466E+38, -3.402823466E+38,)
+        stdMax = (3.402823466E+38, 3.402823466E+38,)
+        stdInc = (0.1, 0.1,)
+    elif valueType == "NumComplex128":
+        stdMin = (-1.7976931348623158E+308, -1.7976931348623158E+308)
+        stdMax = (1.7976931348623158E+308, 1.7976931348623158E+308)
+        stdInc = (0.1, 0.1,)
+    elif valueType == "NumComplexExt":
+        stdMin = None
+        stdMax = None
+        stdInc = (0.1, 0.1,)
+    #elif valueType == "UnitUInt8":
+    #elif valueType == "UnitUInt16":
+    #elif valueType == "UnitUInt32":
+    #elif valueType == "UnitFloat32":
+    #elif valueType == "UnitFloat64":
+    #elif valueType == "UnitFloatExt":
+    #elif valueType == "UnitComplex64":
+    #elif valueType == "UnitComplex128":
+    #elif valueType == "UnitComplexExt":
+    else:
+        stdMin = None
+        stdMax = None
+        stdInc = None
+    return stdMin, stdMax, stdInc
+
 def elemCheckOrCreate_zPlaneList_arrayElement(parent, fo, po, aeClass="fPDCO", \
           aeTypeID=1, aeObjFlags=None, aeDdoClass="stdBool", aeConNum=None, \
-          aeTermListLength=None, aeDdoObjFlags=None, \
-          aeBounds=None, aeDdoTypeID=None, aeMinButSize=None):
+          aeTermListLength=None, aeDdoObjFlags=None, aeBounds=None, \
+          aeDdoTypeID=None, aeMouseWheelSupport=None, aeMinButSize=None, \
+          valueType="Boolean", aeStdNumMin=None, aeStdNumMax=None, aeStdNumInc=None):
 
     searchTags = []
     searchTags.append( ("typeDesc", "TypeID({})".format(aeTypeID),) )
@@ -374,12 +495,28 @@ def elemCheckOrCreate_zPlaneList_arrayElement(parent, fo, po, aeClass="fPDCO", \
     ddo_TypeDesc = elemFindOrCreate(ddo, "typeDesc", fo, po)
     elemTextGetOrSetDefault(ddo_TypeDesc, "TypeID({})".format(aeDdoTypeID), fo, po)
 
-    ddo_MouseWheelSupport = elemFindOrCreate(ddo, "MouseWheelSupport", fo, po)
-    elemTextGetOrSetDefault(ddo_MouseWheelSupport, 0, fo, po)
+    if aeMouseWheelSupport is not None:
+        ddo_MouseWheelSupport = elemFindOrCreate(ddo, "MouseWheelSupport", fo, po)
+        elemTextGetOrSetDefault(ddo_MouseWheelSupport, aeMouseWheelSupport, fo, po)
 
     if aeMinButSize is not None:
         ddo_MinButSize = elemFindOrCreate(ddo, "MinButSize", fo, po)
         elemTextGetOrSetDefault(ddo_MinButSize, aeMinButSize, fo, po)
+
+    if aeStdNumMin is not None:
+        ddo_StdNumMin = elemFindOrCreate(ddo, "StdNumMin", fo, po)
+        aeStdNumMin_str = valueOfTypeToXML(valueType, aeStdNumMin, po)
+        elemTextGetOrSetDefault(ddo_StdNumMin, aeStdNumMin_str, fo, po)
+
+    if aeStdNumMax is not None:
+        ddo_StdNumMax = elemFindOrCreate(ddo, "StdNumMax", fo, po)
+        aeStdNumMax_str = valueOfTypeToXML(valueType, aeStdNumMax, po)
+        elemTextGetOrSetDefault(ddo_StdNumMax, aeStdNumMax_str, fo, po)
+
+    if aeStdNumInc is not None:
+        ddo_StdNumInc = elemFindOrCreate(ddo, "StdNumInc", fo, po)
+        aeStdNumInc_str = valueOfTypeToXML(valueType, aeStdNumInc, po)
+        elemTextGetOrSetDefault(ddo_StdNumInc, aeStdNumInc_str, fo, po)
 
     return arrayElement, partsList
 
@@ -510,7 +647,7 @@ def checkOrCreateParts_MultiCosm(RSRC, partsList, parentObjFlags, fo, po):
       aeBounds=[0,0,17,17], aeImageResID=-404, aeFgColor=0x001E4B00, aeBgColor=0x001E4B00)
 
 
-def checkOrCreateParts_Boolean(RSRC, partsList, parentObjFlags, fo, po):
+def checkOrCreateParts_stdBool(RSRC, partsList, parentObjFlags, fo, po):
     """ Checks content of partsList element of Boolean type
     """
     nameLabel = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="label", \
@@ -699,19 +836,32 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
     usedTypeID = 0
     for typeID, TypeDesc in heapTypeMap.items():
         if usedTypeID >= typeID: continue
+
+        ddoTypeID = typeID + 1
+        if ddoTypeID not in heapTypeMap or heapTypeMap[ddoTypeID] != TypeDesc:
+            eprint("{:s}: Warning: Heap TypeDesc {} '{}' is followed by different type"\
+              .format(po.xml,typeID,TypeDesc.get("Type")))
+            ddoTypeID = None
+
         if TypeDesc.get("Type") == "Boolean":
-            ddoTypeID = typeID + 1
-            if ddoTypeID not in heapTypeMap or heapTypeMap[ddoTypeID] != TypeDesc:
-                eprint("{:s}: Warning: Heap TypeDesc {} '{}' is followed by different type"\
-                  .format(po.xml,typeID,TypeDesc.get("Type")))
-                ddoTypeID = None
             print("{:s}: Associating TypeDesc {} with DCO of class '{}'"\
               .format(po.xml,typeID,"stdBool"))
             ddoObjFlags_val = 1
             dco, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
               aeTypeID=typeID, aeObjFlags=1, aeDdoClass="stdBool", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val,
-              aeBounds=[185,581,223,622], aeDdoTypeID=ddoTypeID, aeMinButSize=[17,17])
-            checkOrCreateParts_Boolean(RSRC, dco_partsList, ddoObjFlags_val, fo, po)
+              aeBounds=[185,581,223,622], aeDdoTypeID=ddoTypeID, aeMouseWheelSupport=0, aeMinButSize=[17,17], \
+              valueType=TypeDesc.get("Type"))
+            checkOrCreateParts_stdBool(RSRC, dco_partsList, ddoObjFlags_val, fo, po)
+        elif TypeDesc.get("Type").startswith("Num"):
+            print("{:s}: Associating TypeDesc {} with DCO of class '{}'"\
+              .format(po.xml,typeID,"stdNum"))
+            ddoObjFlags_val = 1
+            stdNumMin, stdNumMax, stdNumInc = valueTypeGetDefaultRange(TypeDesc.get("Type"), po)
+            dco, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
+              aeTypeID=typeID, aeObjFlags=393283, aeDdoClass="stdNum", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val, \
+              aeBounds=[185,581,223,622], aeDdoTypeID=ddoTypeID, aeMouseWheelSupport=2, aeMinButSize=[17,17], \
+              valueType=TypeDesc.get("Type"), aeStdNumMin=stdNumMin, aeStdNumMax=stdNumMax, aeStdNumInc=stdNumInc)
+            #checkOrCreateParts_stdNum(RSRC, dco_partsList, ddoObjFlags_val, fo, po)
         else:
             #TODO add more types
             eprint("{:s}: Warning: Heap TypeDesc {} is not supported"\
@@ -1089,8 +1239,9 @@ def makeUidsUnique(FPHP, BDHP, ver, fo, po):
                 parent_elem = parent_map[child_elem]
             parent_elem.remove(child_elem)
             fo[FUNC_OPTS.changed] = True
-    # Now make more detailed refilling of ddoList - it should have entries for all DDOs
+    # Now re-create required entries in branches which content we have in not_unique_elems
     zPlaneList_elems = FPHP.findall("./SL__rootObject/root/paneHierarchy/zPlaneList/SL__arrayElement[@class='fPDCO'][@uid]")
+    # Refilling of ddoList - it should have entries for all DDOs
     ddoList = FPHP.find("./SL__rootObject/root/ddoList")
     for ddo_elem in zPlaneList_elems:
         uidStr = ddo_elem.get("uid")
@@ -1100,6 +1251,9 @@ def makeUidsUnique(FPHP, BDHP, ver, fo, po):
         if ddoref is None:
             ddoref = ET.SubElement(ddoList, "SL__arrayElement")
             ddoref.set("uid",str(uid))
+    # Refilling of conPane - its content should correspond to connectors in VCTP pointed to by CONP
+    conPane_cons = FPHP.find("./SL__rootObject/root/conPane/cons")
+    #TODO refill conPane_cons
 
     return fo[FUNC_OPTS.changed]
 
