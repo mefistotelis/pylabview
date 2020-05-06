@@ -141,9 +141,11 @@ def elemTextGetOrSetDefault(elem, defVal, fo, po):
         attrVal = int(attrVal, 0)
     return attrVal
 
-def elemFindOrCreateWithAttribsAndTags(parentElem, elemName, attrs, tags, fo, po):
+def elemFindOrCreateWithAttribsAndTags(parentElem, elemName, attrs, tags, fo, po, parentPos=None):
     elem = None
     xpathAttrs = "".join([ "[@{}='{}']".format(attr[0],attribValToStr(attr[1])) for attr in attrs ] )
+    if parentPos is not None:
+        xpathAttrs += "["+str(parentPos)+"]"
     #elem_list = filter(lambda x: attrVal in x.get(attrName), parentElem.findall(".//{}[@{}='{}']".format(elemName,attrName)))
     elem_list = parentElem.findall(".//{}{}".format(elemName,xpathAttrs))
     for chk_elem in elem_list:
@@ -275,6 +277,39 @@ def elemCheckOrCreate_partList_arrayElement(parent, fo, po, aeClass="cosm", \
     if aeBgColor is not None:
         bgColor = elemFindOrCreate(arrayElement, "bgColor", fo, po)
         elemTextGetOrSetDefault(bgColor, "{:08X}".format(aeBgColor), fo, po)
+
+    return arrayElement
+
+def elemCheckOrCreate_table_arrayElement(parent, fo, po, aeClass="SubCosm", \
+      aeObjFlags=None, aeBounds=None, \
+      aeImageResID=None, aeFgColor=None, aeBgColor=None, parentPos=None):
+
+    searchTags = []
+    arrayElement = elemFindOrCreateWithAttribsAndTags(parent, "SL__arrayElement", \
+      ( ("class", aeClass,), ), searchTags, fo, po, parentPos=parentPos)
+    attribGetOrSetDefault(arrayElement, "class", aeClass, fo, po)
+
+    if aeObjFlags is not None:
+        objFlags = elemFindOrCreate(arrayElement, "objFlags", fo, po, pos=0)
+        elemTextGetOrSetDefault(objFlags, aeObjFlags, fo, po)
+
+    if aeBounds is not None:
+        bounds = elemFindOrCreate(arrayElement, "Bounds", fo, po)
+        elemTextGetOrSetDefault(bounds, aeBounds, fo, po)
+
+    if aeFgColor is not None:
+        fgColor = elemFindOrCreate(arrayElement, "FGColor", fo, po)
+        elemTextGetOrSetDefault(fgColor, "{:08X}".format(aeFgColor), fo, po)
+
+    if aeBgColor is not None:
+        bgColor = elemFindOrCreate(arrayElement, "BGColor", fo, po)
+        elemTextGetOrSetDefault(bgColor, "{:08X}".format(aeBgColor), fo, po)
+
+    if aeImageResID is not None:
+        image = elemFindOrCreate(arrayElement, "Image", fo, po)
+        attribGetOrSetDefault(image, "class", "Image", fo, po)
+        ImageResID = elemFindOrCreate(image, "ImageResID", fo, po)
+        elemTextGetOrSetDefault(ImageResID, aeImageResID, fo, po)
 
     return arrayElement
 
@@ -410,6 +445,122 @@ def recountHeapElements(RSRC, Heap, ver, fo, po):
             fo[FUNC_OPTS.changed] = True
     return fo[FUNC_OPTS.changed]
 
+def checkOrCreateParts_Pane(RSRC, partsList, parentObjFlags, fo, po):
+    """ Checks content of the 'root/paneHierarchy/partsList' element
+    """
+    # NAME_LABEL properties taken from empty VI file created in LV14
+    nameLabel = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="label", \
+      aePartID=PARTID.NAME_LABEL, aeObjFlags=1511754, aeMasterPart=PARTID.CONTENT_AREA, aeHowGrow=5,
+      aeBounds=[0,0,15,27], aeImageResID=-9, aeFgColor=0x01000000, aeBgColor=0x01000000)
+    nameLabel_textRec = elemFindOrCreate(nameLabel, "textRec", fo, po)
+    attribGetOrSetDefault(nameLabel_textRec, "class", "textHair", fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "mode", fo, po), 1028, fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "text", fo, po), "\"Pane\"", fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "bgColor", fo, po), "{:08X}".format(0x01000000), fo, po)
+
+    # Y_SCROLLBAR properties taken from empty VI file created in LV14
+    objFlags = 0x0d72
+    if (parentObjFlags & 0x0008) == 0x0008: # if vert scrollbar marked as disabled
+        objFlags |= 0x1008
+    elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="cosm", \
+      aePartID=PARTID.Y_SCROLLBAR, aeObjFlags=objFlags, aeMasterPart=PARTID.CONTENT_AREA, aeHowGrow=194, \
+      aeBounds=[0,1077,619,1093], aeImageResID=0, aeBgColor=0x00B3B3B3)
+
+    # X_SCROLLBAR properties taken from empty VI file created in LV14
+    objFlags = 0x1d73
+    if (parentObjFlags & 0x0004) == 0x0004: # if horiz scrollbar marked as disabled
+        objFlags |= 0x1008
+    elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="cosm", \
+      aePartID=PARTID.X_SCROLLBAR, aeObjFlags=objFlags, aeMasterPart=PARTID.CONTENT_AREA, aeHowGrow=56, \
+      aeBounds=[619,0,635,1077], aeImageResID=0, aeBgColor=0x00B3B3B3)
+
+    # EXTRA_FRAME_PART properties taken from empty VI file created in LV14
+    elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="cosm", \
+      aePartID=PARTID.EXTRA_FRAME_PART, aeObjFlags=7543, aeMasterPart=PARTID.CONTENT_AREA, aeHowGrow=10,
+      aeBounds=[619,1077,635,1093], aeImageResID=-365, aeFgColor=0x00B3B3B3, aeBgColor=0x00B3B3B3)
+
+    # CONTENT_AREA properties taken from empty VI file created in LV14
+    contentArea = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="cosm", \
+      aePartID=PARTID.CONTENT_AREA, aeObjFlags=4211, aeMasterPart=None, aeHowGrow=120, \
+      aeBounds=[0,0,619,1077], aeImageResID=-704, aeFgColor=0x00E2E2E2, aeBgColor=0x00E2E2E2)
+
+    # ANNEX properties taken from empty VI file created in LV14
+    elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="annex", \
+      aePartID=PARTID.ANNEX)
+
+    return contentArea
+
+def checkOrCreateParts_MultiCosm(RSRC, partsList, parentObjFlags, fo, po):
+    """ Checks content of partsList sub-element of bigMultiCosm type
+    """
+    elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="SubCosm", \
+      aePartID=None, aeObjFlags=None, aeMasterPart=None, aeHowGrow=None, \
+      aeBounds=[0,0,17,17], aeImageResID=-404, aeFgColor=0x001E4B00, aeBgColor=0x001E4B00)
+
+    elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="SubCosm", \
+      aePartID=None, aeObjFlags=None, aeMasterPart=None, aeHowGrow=None, \
+      aeBounds=[0,0,17,17], aeImageResID=-404, aeFgColor=0x001E4B00, aeBgColor=0x001E4B00)
+
+    elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="SubCosm", \
+      aePartID=None, aeObjFlags=None, aeMasterPart=None, aeHowGrow=None, \
+      aeBounds=[0,0,17,17], aeImageResID=-404, aeFgColor=0x001E4B00, aeBgColor=0x001E4B00)
+
+    elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="SubCosm", \
+      aePartID=None, aeObjFlags=None, aeMasterPart=None, aeHowGrow=None, \
+      aeBounds=[0,0,17,17], aeImageResID=-404, aeFgColor=0x001E4B00, aeBgColor=0x001E4B00)
+
+
+def checkOrCreateParts_Boolean(RSRC, partsList, parentObjFlags, fo, po):
+    """ Checks content of partsList element of Boolean type
+    """
+    nameLabel = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="label", \
+      aePartID=PARTID.NAME_LABEL, aeObjFlags=1507655, aeMasterPart=PARTID.BOOLEAN_BUTTON, aeHowGrow=4096,
+      aeBounds=[0,0,15,41], aeImageResID=-9, aeFgColor=0x01000000, aeBgColor=0x01000000)
+    nameLabel_textRec = elemFindOrCreate(nameLabel, "textRec", fo, po)
+    attribGetOrSetDefault(nameLabel_textRec, "class", "textHair", fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "mode", fo, po), 17412, fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "text", fo, po), "\"Boolean\"", fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "bgColor", fo, po), "{:08X}".format(0x01000000), fo, po)
+
+    boolButton = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="bigMultiCosm", \
+      aePartID=PARTID.BOOLEAN_BUTTON, aeObjFlags=2324, aeMasterPart=None, aeHowGrow=240, \
+      aeBounds=[19,2,36,19], aeImageResID=None, aeFgColor=0x001E4B00, aeBgColor=0x001E4B00)
+    boolButton_table = elemFindOrCreate(boolButton, "table", fo, po)
+    attribGetOrSetDefault(boolButton_table, "elements", 0, fo, po)
+
+    elemCheckOrCreate_table_arrayElement(boolButton_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,17,17], aeImageResID=-404, aeFgColor=0x001E4B00, aeBgColor=0x001E4B00, parentPos=1)
+    elemCheckOrCreate_table_arrayElement(boolButton_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,17,17], aeImageResID=-404, aeFgColor=0x0064FF00, aeBgColor=0x0064FF00, parentPos=2)
+    elemCheckOrCreate_table_arrayElement(boolButton_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,17,17], aeImageResID=-404, aeFgColor=0x001E4B00, aeBgColor=0x001E4B00, parentPos=3)
+    elemCheckOrCreate_table_arrayElement(boolButton_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,17,17], aeImageResID=-404, aeFgColor=0x0064FF00, aeBgColor=0x0064FF00, parentPos=4)
+
+    boolGlyph = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="bigMultiCosm", \
+      aePartID=PARTID.BOOLEAN_GLYPH, aeObjFlags=2359, aeMasterPart=PARTID.BOOLEAN_BUTTON, aeHowGrow=3840, \
+      aeBounds=[17,0,38,21], aeImageResID=None, aeFgColor=0x00B3B3B3, aeBgColor=0x00006600)
+    boolGlyph_table = elemFindOrCreate(boolGlyph, "table", fo, po)
+    attribGetOrSetDefault(boolGlyph_table, "elements", 0, fo, po)
+
+    elemCheckOrCreate_table_arrayElement(boolGlyph_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,21,21], aeImageResID=-411, aeFgColor=0x00B3B3B3, aeBgColor=0x00006600, parentPos=1)
+    elemCheckOrCreate_table_arrayElement(boolGlyph_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,21,21], aeImageResID=-411, aeFgColor=0x00B3B3B3, aeBgColor=0x0000FF00, parentPos=2)
+    elemCheckOrCreate_table_arrayElement(boolGlyph_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,21,21], aeImageResID=-411, aeFgColor=0x00B3B3B3, aeBgColor=0x00009900, parentPos=3)
+    elemCheckOrCreate_table_arrayElement(boolGlyph_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,21,21], aeImageResID=-411, aeFgColor=0x00B3B3B3, aeBgColor=0x00009900, parentPos=4)
+
+    # ANNEX properties taken from empty VI file created in LV14
+    annexPart = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="annex", \
+      aePartID=PARTID.ANNEX)
+    elemTextGetOrSetDefault(elemFindOrCreate(annexPart, "refListLength", fo, po), 0, fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(annexPart, "hGrowNodeListLength", fo, po), 0, fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(annexPart, "rsrcID", fo, po), 21012, fo, po)
+
+    return boolButton
+
 def FPHb_Fix(RSRC, FPHP, ver, fo, po):
     block_name = "FPHb"
 
@@ -528,46 +679,7 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
     elemTextGetOrSetDefault(paneHierarchy_image_ImageResID, 0, fo, po)
 
     # Now content of the 'root/paneHierarchy/partsList' element
-
-    # NAME_LABEL properties taken from empty VI file created in LV14
-    nameLabel = elemCheckOrCreate_partList_arrayElement(paneHierarchy_partsList, fo, po, aeClass="label", \
-      aePartID=PARTID.NAME_LABEL, aeObjFlags=1511754, aeMasterPart=PARTID.CONTENT_AREA, aeHowGrow=5,
-      aeBounds=[0,0,15,27], aeImageResID=-9, aeFgColor=0x01000000, aeBgColor=0x01000000)
-    nameLabel_textRec = elemFindOrCreate(nameLabel, "textRec", fo, po)
-    attribGetOrSetDefault(nameLabel_textRec, "class", "textHair", fo, po)
-    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "mode", fo, po), 1028, fo, po)
-    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "text", fo, po), "\"Pane\"", fo, po)
-    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "bgColor", fo, po), "{:08X}".format(0x01000000), fo, po)
-
-    # Y_SCROLLBAR properties taken from empty VI file created in LV14
-    objFlags = 0x0d72
-    if (paneHierarchy_objFlags_val & 0x0008) == 0x0008: # if vert scrollbar marked as disabled
-        objFlags |= 0x1008
-    elemCheckOrCreate_partList_arrayElement(paneHierarchy_partsList, fo, po, aeClass="cosm", \
-      aePartID=PARTID.Y_SCROLLBAR, aeObjFlags=objFlags, aeMasterPart=PARTID.CONTENT_AREA, aeHowGrow=194, \
-      aeBounds=[0,1077,619,1093], aeImageResID=0, aeBgColor=0x00B3B3B3)
-
-    # X_SCROLLBAR properties taken from empty VI file created in LV14
-    objFlags = 0x1d73
-    if (paneHierarchy_objFlags_val & 0x0004) == 0x0004: # if horiz scrollbar marked as disabled
-        objFlags |= 0x1008
-    elemCheckOrCreate_partList_arrayElement(paneHierarchy_partsList, fo, po, aeClass="cosm", \
-      aePartID=PARTID.X_SCROLLBAR, aeObjFlags=objFlags, aeMasterPart=PARTID.CONTENT_AREA, aeHowGrow=56, \
-      aeBounds=[619,0,635,1077], aeImageResID=0, aeBgColor=0x00B3B3B3)
-
-    # EXTRA_FRAME_PART properties taken from empty VI file created in LV14
-    elemCheckOrCreate_partList_arrayElement(paneHierarchy_partsList, fo, po, aeClass="cosm", \
-      aePartID=PARTID.EXTRA_FRAME_PART, aeObjFlags=7543, aeMasterPart=PARTID.CONTENT_AREA, aeHowGrow=10,
-      aeBounds=[619,1077,635,1093], aeImageResID=-365, aeFgColor=0x00B3B3B3, aeBgColor=0x00B3B3B3)
-
-    # CONTENT_AREA properties taken from empty VI file created in LV14
-    elemCheckOrCreate_partList_arrayElement(paneHierarchy_partsList, fo, po, aeClass="cosm", \
-      aePartID=PARTID.CONTENT_AREA, aeObjFlags=4211, aeMasterPart=None, aeHowGrow=120, \
-      aeBounds=[0,0,619,1077], aeImageResID=-704, aeFgColor=0x00E2E2E2, aeBgColor=0x00E2E2E2)
-
-    # ANNEX properties taken from empty VI file created in LV14
-    elemCheckOrCreate_partList_arrayElement(paneHierarchy_partsList, fo, po, aeClass="annex", \
-      aePartID=PARTID.ANNEX)
+    checkOrCreateParts_Pane(RSRC, paneHierarchy_partsList, paneHierarchy_objFlags_val, fo, po)
 
     # Now content of the 'root/paneHierarchy/zPlaneList' element
     DTHP_typeDescSlice = RSRC.find("./DTHP/Section/TypeDescSlice")
@@ -595,10 +707,11 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
                 ddoTypeID = None
             print("{:s}: Associating TypeDesc {} with DCO of class '{}'"\
               .format(po.xml,typeID,"stdBool"))
+            ddoObjFlags_val = 1
             dco, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
-              aeTypeID=typeID, aeObjFlags=1, aeDdoClass="stdBool", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=1,
-              aeBounds=[0,0,15,27], aeDdoTypeID=ddoTypeID, aeMinButSize=[17,17])
-            #TODO add parts
+              aeTypeID=typeID, aeObjFlags=1, aeDdoClass="stdBool", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val,
+              aeBounds=[185,581,223,622], aeDdoTypeID=ddoTypeID, aeMinButSize=[17,17])
+            checkOrCreateParts_Boolean(RSRC, dco_partsList, ddoObjFlags_val, fo, po)
         else:
             #TODO add more types
             eprint("{:s}: Warning: Heap TypeDesc {} is not supported"\
@@ -951,7 +1064,7 @@ def makeUidsUnique(FPHP, BDHP, ver, fo, po):
         used_uids.add(uid)
         all_used_uids.add(uid)
     # Now make sure that non-unique elems are not unique
-    # First, create a ma
+    # First, create a map to help in getting parents of elements
     parent_map = {}
     parent_map.update({c:p for p in FPHP.iter( ) for c in p})
     parent_map.update({c:p for p in BDHP.iter( ) for c in p})
@@ -976,6 +1089,17 @@ def makeUidsUnique(FPHP, BDHP, ver, fo, po):
                 parent_elem = parent_map[child_elem]
             parent_elem.remove(child_elem)
             fo[FUNC_OPTS.changed] = True
+    # Now make more detailed refilling of ddoList - it should have entries for all DDOs
+    zPlaneList_elems = FPHP.findall("./SL__rootObject/root/paneHierarchy/zPlaneList/SL__arrayElement[@class='fPDCO'][@uid]")
+    ddoList = FPHP.find("./SL__rootObject/root/ddoList")
+    for ddo_elem in zPlaneList_elems:
+        uidStr = ddo_elem.get("uid")
+        if representsInt(uidStr):
+            uid = int(uidStr,0)
+        ddoref = ddoList.find("./SL__arrayElement[@uid='{}']".format(uid))
+        if ddoref is None:
+            ddoref = ET.SubElement(ddoList, "SL__arrayElement")
+            ddoref.set("uid",str(uid))
 
     return fo[FUNC_OPTS.changed]
 
