@@ -21,6 +21,7 @@ import re
 import os
 import argparse
 import enum
+from types import SimpleNamespace
 
 import LVparts
 from LVparts import PARTID, DSINIT
@@ -899,6 +900,28 @@ def LIbd_Fix(RSRC, LIbd, ver, fo, po):
 def TM80_Fix(RSRC, DSTM, ver, fo, po):
     return fo[FUNC_OPTS.changed]
 
+def intRangesExcludeOne(iRanges, excludeIndex):
+    if excludeIndex is None:
+        return iRanges
+    nRanges = []
+    for rng in iRanges:
+        if excludeIndex < rng.min or excludeIndex > rng.max:
+            nRanges.append(rng)
+            continue
+        nRng = SimpleNamespace(min=rng.min,max=excludeIndex-1)
+        if nRng.max - nRng.min > 0:
+            nRanges.append(nRng)
+        nRng = SimpleNamespace(min=excludeIndex+1,max=rng.max)
+        if nRng.max - nRng.min > 0:
+            nRanges.append(nRng)
+    return nRanges
+
+def intRangesExcludeBelow(iRanges, excludeIndex):
+    if excludeIndex is None:
+        return iRanges
+    nRanges = intRangesExcludeOne(iRanges, excludeIndex)
+    return [ rng for rng in nRanges if rng.min > excludeIndex ]
+
 def DTHP_Fix(RSRC, DTHP, ver, fo, po):
     typeDescSlice = DTHP.find("./TypeDescSlice")
     if typeDescSlice is None:
@@ -910,44 +933,52 @@ def DTHP_Fix(RSRC, DTHP, ver, fo, po):
     tdCount = typeDescSlice.get("Count")
     if tdCount is not None:
         tdCount = int(tdCount, 0)
-    minIndexShift = 1 # Min possible value; we will increase it shortly
-    maxTdCount = 4095 # Max acceptable value; we will decrease it shortly
-    VCTP_TypeDescCount = None
+    # We have current values, now compute proper ones
+    VCTP_TypeDescList = []
+    VCTP_FlatTypeDescList = None
     VCTP = RSRC.find("./VCTP/Section")
     if VCTP is not None:
         VCTP_TypeDescList = VCTP.findall("TopLevel/TypeDesc")
         VCTP_FlatTypeDescList = VCTP.findall("TypeDesc")
-    if True: # find proper IndexShift value
-        # DTHP IndexShift is always above TM80 IndexShift
+    # Set min possible value; we will increase it shortly
+    # and max acceptable value; we will decrease it shortly
+    heapRanges = [ SimpleNamespace(min=1,max=len(VCTP_TypeDescList)+1) ]
+    if True: # find proper Heap TDs range
+        # DTHP range is always above TM80 IndexShift
         # This is not directly enforced in code, but before Heap TypeDescs
         # there are always TypeDescs which store options, and those are
         # filled with DFDS, meaning they have to be included in TM80 range
+        TM80_IndexShift = None
         TM80 = RSRC.find("./TM80/Section")
         if TM80 is not None:
             TM80_IndexShift = TM80.get("IndexShift")
             if TM80_IndexShift is not None:
                 TM80_IndexShift = int(TM80_IndexShift, 0)
-            if TM80_IndexShift is not None:
-                minIndexShift = max(minIndexShift, TM80_IndexShift+1)
+        heapRanges = intRangesExcludeBelow(heapRanges, TM80_IndexShift)
         # DTHP IndexShift must be high enough to not include TypeDesc from CONP
+        # Since CONP type is created with new VIm it is always before any heap TDs
+        CONP_TypeID = None
         CONP_TypeDesc = RSRC.find("./CONP/Section/TypeDesc")
         if CONP_TypeDesc is not None:
             CONP_TypeID = CONP_TypeDesc.get("TypeID")
             if CONP_TypeID is not None:
                 CONP_TypeID = int(CONP_TypeID, 0)
-            if CONP_TypeID is not None:
-                minIndexShift = max(minIndexShift, CONP_TypeID+1)
-        # DTHP IndexShift must be high enough to not include TypeDesc from CPC2
+        heapRanges = intRangesExcludeBelow(heapRanges, CONP_TypeID)
+        # DTHP must not include TypeDesc from CPC2
+        # That type is created when first connector from pane is assigned; so it's
+        # sometimes placed before, sometimes after heap TDs
+        CPC2_TypeID = None
         CPC2_TypeDesc = RSRC.find("./CPC2/Section/TypeDesc")
         if CPC2_TypeDesc is not None:
             CPC2_TypeID = CPC2_TypeDesc.get("TypeID")
             if CPC2_TypeID is not None:
                 CPC2_TypeID = int(CPC2_TypeID, 0)
-            if CPC2_TypeID is not None:
-                minIndexShift = max(minIndexShift, CPC2_TypeID+1)
-        # DTHP IndexShift must be high enough to not include TypeDesc of type "Function"
-        LastFunction_TypeID = None
-        for TypeDesc in reversed(VCTP_TypeDescList):
+        heapRanges = intRangesExcludeOne(heapRanges, CPC2_TypeID)
+        # DTHP must not include TypeDesc of type "Function"
+        # IndexShift must be high enough or count must be small enough to keep
+        # Function TDs outside.
+        nonHeapTypes = []
+        for TypeDesc in VCTP_TypeDescList:
             TypeDesc_Index = TypeDesc.get("Index")
             if TypeDesc_Index is not None:
                 TypeDesc_Index = int(TypeDesc_Index, 0)
@@ -958,21 +989,31 @@ def DTHP_Fix(RSRC, DTHP, ver, fo, po):
             if FlatTypeID >= len(VCTP_FlatTypeDescList): continue # Something is wrong with the list
             FlatTypeDesc = VCTP_FlatTypeDescList[FlatTypeID]
             if FlatTypeDesc.get("Type") == "Function":
-                LastFunction_TypeID = TypeDesc_Index
-                break
-        if LastFunction_TypeID is not None:
-            minIndexShift = max(minIndexShift, LastFunction_TypeID+1)
-        # DTHP IndexShift is within range of existing VCTP TypeDesc entries
-        if VCTP_TypeDescList is not None:
-            minIndexShift = min(minIndexShift, len(VCTP_TypeDescList))
-    if True: # find proper Count value
-        # Preserve VCTP size expressed by original value, if it's there.
-        if tdCount is not None:
-            maxTdCount = tdCount + (indexShift - minIndexShift)
-        # DTHP Count is within range of existing VCTP TypeDesc entries
-        if VCTP_TypeDescList is not None:
-            # If we have VCTP - just replace the value, VCTP knows best
-            maxTdCount = len(VCTP_TypeDescList) - minIndexShift + 1
+                # Function type can only be part of heap types if its FlatTypeID is used two times
+                # in the file, and the other use is not a heap type.
+                for OtherTypeDesc in VCTP_TypeDescList:
+                    OtherTypeDesc_Index = OtherTypeDesc.get("Index")
+                    if OtherTypeDesc_Index is not None:
+                        OtherTypeDesc_Index = int(OtherTypeDesc_Index, 0)
+                    OtherFlatTypeID = OtherTypeDesc.get("FlatTypeID")
+                    if OtherFlatTypeID is not None:
+                        OtherFlatTypeID = int(OtherFlatTypeID, 0)
+                    # Let's assume the second use of the same Function type can be in heap types
+                    # So only if we are on first use of that flat type, disallow it s use in heap
+                    if OtherFlatTypeID == FlatTypeID:
+                        if OtherTypeDesc_Index == TypeDesc_Index:
+                            nonHeapTypes.append(TypeDesc_Index)
+                        break
+            #TODO check if other types should be removed from heap
+        for TypeDesc_Index in nonHeapTypes:
+            heapRanges = intRangesExcludeOne(heapRanges, TypeDesc_Index)
+    minIndexShift = 0
+    maxTdCount = 0
+    for rng in heapRanges:
+        if rng.max - rng.min <= maxTdCount:
+            continue
+        minIndexShift = rng.min
+        maxTdCount = rng.max - rng.min
     if indexShift is None or indexShift < minIndexShift:
         print("{:s}: Changing 'DTHP/TypeDescSlice' IndexShift to {}"\
             .format(po.xml,minIndexShift))
