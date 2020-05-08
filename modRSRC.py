@@ -922,6 +922,18 @@ def intRangesExcludeBelow(iRanges, excludeIndex):
     nRanges = intRangesExcludeOne(iRanges, excludeIndex)
     return [ rng for rng in nRanges if rng.min > excludeIndex ]
 
+def intRangesOneContaining(iRanges, leaveIndex):
+    if leaveIndex is None:
+        return iRanges
+    nRanges = []
+    for rng in iRanges:
+        if leaveIndex < rng.min or leaveIndex > rng.max:
+            continue
+        nRanges.append(nRng)
+    if len(nRanges) < 1:
+        return iRanges
+    return nRanges
+
 def DTHP_Fix(RSRC, DTHP, ver, fo, po):
     typeDescSlice = DTHP.find("./TypeDescSlice")
     if typeDescSlice is None:
@@ -974,6 +986,14 @@ def DTHP_Fix(RSRC, DTHP, ver, fo, po):
             if CPC2_TypeID is not None:
                 CPC2_TypeID = int(CPC2_TypeID, 0)
         heapRanges = intRangesExcludeOne(heapRanges, CPC2_TypeID)
+        # DTHP must not include TypeDesc from PFTD
+        FPTD_TypeID = None
+        FPTD_TypeDesc = RSRC.find("./FPTD/Section/TypeDesc")
+        if FPTD_TypeDesc is not None:
+            FPTD_TypeID = FPTD_TypeDesc.get("TypeID")
+            if FPTD_TypeID is not None:
+                FPTD_TypeID = int(FPTD_TypeID, 0)
+        heapRanges = intRangesExcludeOne(heapRanges, FPTD_TypeID)
         # DTHP must not include TypeDesc of type "Function"
         # IndexShift must be high enough or count must be small enough to keep
         # Function TDs outside.
@@ -1009,20 +1029,25 @@ def DTHP_Fix(RSRC, DTHP, ver, fo, po):
             heapRanges = intRangesExcludeOne(heapRanges, TypeDesc_Index)
     minIndexShift = 0
     maxTdCount = 0
+    if (po.verbose > 1):
+        print("{:s}: Possible heap TD ranges: {}"\
+            .format(po.xml,heapRanges))
     for rng in heapRanges:
         if rng.max - rng.min <= maxTdCount:
             continue
         minIndexShift = rng.min
         maxTdCount = rng.max - rng.min
     if indexShift is None or indexShift < minIndexShift:
-        print("{:s}: Changing 'DTHP/TypeDescSlice' IndexShift to {}"\
-            .format(po.xml,minIndexShift))
+        if (po.verbose > 0):
+            print("{:s}: Changing 'DTHP/TypeDescSlice' IndexShift to {}"\
+                .format(po.xml,minIndexShift))
         indexShift = minIndexShift
         typeDescSlice.set("IndexShift","{}".format(indexShift))
         fo[FUNC_OPTS.changed] = True
     if tdCount is None or tdCount > maxTdCount:
-        print("{:s}: Changing 'DTHP/TypeDescSlice' Count to {}"\
-            .format(po.xml,maxTdCount))
+        if (po.verbose > 0):
+            print("{:s}: Changing 'DTHP/TypeDescSlice' Count to {}"\
+                .format(po.xml,maxTdCount))
         tdCount = maxTdCount
         typeDescSlice.set("Count","{}".format(tdCount))
         fo[FUNC_OPTS.changed] = True
