@@ -1202,13 +1202,13 @@ class FPSE(SingleIntBlock):
 
 
 class FPTD(CompleteBlock):
-    """ Front Panel TypeDesc
+    """ Front Panel Type for DataLog
 
     Contains list of types, with exactly one
     type inside. The type points to DataLog
     TypeDesc.
 
-    The content is different for old format VIs.
+    The content is different for pre-LV7.0 format VIs.
     There, the type definition seem to be stored directly?
     """
     def createSection(self):
@@ -2052,7 +2052,25 @@ class LinkObjRefs(CompleteBlock):
         return data_buf
 
     def expectedRSRCSize(self, section_num):
-        exp_whole_len = None # TODO make expected size computation for LinkObjRefs
+        section = self.sections[section_num]
+        ver = self.vi.getFileVersion()
+        exp_whole_len = 0
+        exp_whole_len += 2 + 4
+        if isSmallerVersion(ver, 14,0,0,3):
+            str_len = 1 + len(section.unk1)
+            uneven_len = str_len % 2
+            if uneven_len > 0:
+                str_len += 2 - uneven_len
+            exp_whole_len += str_len
+            exp_whole_len += 2 + len(section.unk2)
+        exp_whole_len += 4
+        for client in section.content:
+            cli_len = df.expectedRSRCSize()
+            if cli_len is None:
+                return None
+            exp_whole_len += 2
+            exp_whole_len += cli_len
+        exp_whole_len += 2
         return exp_whole_len
 
     def initWithXMLList(self, section, list_elem):
@@ -2219,6 +2237,16 @@ class DFDS(CompleteBlock):
             data_buf += df.prepareRSRCData()
         return data_buf
 
+    def expectedRSRCSize(self, section_num):
+        exp_whole_len = 0
+        for df in section.content:
+            df_len = df.expectedRSRCSize()
+            if df_len is None:
+                exp_whole_len = None
+                break
+            exp_whole_len += df_len
+        return exp_whole_len
+
     def initWithXMLSectionData(self, section, section_elem):
         section.content = []
 
@@ -2289,17 +2317,13 @@ class DFDS(CompleteBlock):
         pass
 
 
-class GCDI(Block):
+class GCDI(VarCodingBlock):
     def createSection(self):
         section = super().createSection()
         return section
 
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.ZLIB):
-        bldata = super().getData(section_num=section_num, use_coding=use_coding)
-        return bldata
-
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.ZLIB):
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
+    def setDefaultEncoding(self):
+        self.default_block_coding = BLOCK_CODING.ZLIB
 
 
 class CGRS(VarCodingBlock):
@@ -2315,7 +2339,7 @@ class CGRS(VarCodingBlock):
         self.default_block_coding = BLOCK_CODING.ZLIB
 
 
-class CPMp(Block):
+class CPMp(CompleteBlock):
     """ Connection Points Map
     """
     def createSection(self):
@@ -2324,7 +2348,10 @@ class CPMp(Block):
         section.field1 = 0
         return section
 
-    def parseRSRCData(self, section_num, bldata):
+    def setDefaultEncoding(self):
+        self.default_block_coding = BLOCK_CODING.NONE
+
+    def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
 
         count = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
@@ -2334,74 +2361,56 @@ class CPMp(Block):
             value = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
             section.content.append(value)
 
-    def initWithXMLSection(self, section, section_elem):
-        snum = section.start.section_idx
-        fmt = section_elem.get("Format")
-        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
-            section.content = []
-            section.field1 = int(section_elem.get("Field1"), 0)
-            if (self.po.verbose > 2):
-                print("{:s}: For Block {} section {:d}, reading inline XML data"\
-                  .format(self.vi.src_fname,self.ident,snum))
-            for subelem in section_elem:
-                if (subelem.tag == "NameObject"):
-                    pass # Items parsed somewhere else
-                elif (subelem.tag == "TypeDesc"):
-                    val = int(subelem.get("Flags"), 0)
-                    if val == -1: val = 65535
-                    section.content.append(val)
-                else:
-                    raise AttributeError("Section contains unexpected tag")
-        else:
-            Block.initWithXMLSection(self, section, section_elem)
-        pass
-
-    def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
+    def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
 
-        data_buf = int(len(section.content)).to_bytes(1, byteorder='big')
+        data_buf = len(section.content).to_bytes(1, byteorder='big')
         data_buf += int(section.field1).to_bytes(1, byteorder='big')
         for value in section.content:
             data_buf += int(value).to_bytes(2, byteorder='big')
+        return data_buf
 
-        if (len(data_buf) != 2+2*len(section.content)):
-            raise RuntimeError("Block {} section {} generated binary data of invalid size"\
-              .format(self.ident,section_num))
+    def expectedRSRCSize(self, section_num):
+        section = self.sections[section_num]
+        exp_whole_len = 0
+        exp_whole_len += 1 + 1
+        exp_whole_len += 2 * len(section.content)
+        return exp_whole_len
 
-        self.setData(data_buf, section_num=section_num)
+    def initWithXMLSectionData(self, section, section_elem):
+        section.content = []
 
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = super().getData(section_num=section_num, use_coding=use_coding)
-        return bldata
+        section.field1 = int(section_elem.get("Field1"), 0)
+        if (self.po.verbose > 2):
+            print("{:s}: For Block {} section {:d}, reading inline XML data"\
+              .format(self.vi.src_fname,self.ident,snum))
+        for subelem in section_elem:
+            if (subelem.tag == "NameObject"):
+                pass # Items parsed somewhere else
+            elif (subelem.tag == "TypeDesc"):
+                val = int(subelem.get("Flags"), 0)
+                if val == -1: val = 65535
+                section.content.append(val)
+            else:
+                raise AttributeError("Section contains unexpected tag")
+        pass
 
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
+        section_elem.set("Field1", "{:d}".format(section.field1))
 
-    def exportXMLSection(self, section_elem, snum, section, fname_base):
-        self.parseData(section_num=snum)
-        ver = self.vi.getFileVersion()
+        for i, val in enumerate(section.content):
+            subelem = ET.SubElement(section_elem,"TypeDesc")
 
-        if True:
-            section_elem.set("Field1", "{:d}".format(section.field1))
+            if val == 65535:
+                val = -1
+                subelem.set("Flags", "{:d}".format(val))
+            else:
+                subelem.set("Flags", "0x{:04X}".format(val))
 
-            for i, val in enumerate(section.content):
-                subelem = ET.SubElement(section_elem,"TypeDesc")
-
-                if val == 65535:
-                    val = -1
-                    subelem.set("Flags", "{:d}".format(val))
-                else:
-                    subelem.set("Flags", "0x{:04X}".format(val))
-
-            if len(section.content) == 0:
-                comment_elem = ET.Comment("List of TypeDescs is empty")
-                section_elem.append(comment_elem)
-
-            section_elem.set("Format", "inline")
-        else:
-            Block.exportXMLSection(self, section_elem, snum, section, fname_base)
+        if len(section.content) == 0:
+            comment_elem = ET.Comment("List of TypeDescs is empty")
+            section_elem.append(comment_elem)
+        pass
 
 
 class FTAB(Block):
@@ -2587,6 +2596,7 @@ class DTHP(CompleteBlock):
 
             for i in range(section.tdCount):
                 tdIndex = section.indexShift + i
+                td = None
                 if VCTP is not None:
                     td = VCTP.getTopType(tdIndex)
                 if td is not None:

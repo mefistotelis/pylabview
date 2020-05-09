@@ -1196,7 +1196,7 @@ class LinkObjBase:
     def expectedRSRCSize(self):
         """ Returns data size expected to be returned by prepareRSRCData().
         """
-        exp_whole_len = 4
+        exp_whole_len = None
         return exp_whole_len
 
     def initWithXML(self, lnkobj_elem):

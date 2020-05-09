@@ -117,6 +117,10 @@ class DataFill:
         data_buf = b''
         return data_buf
 
+    def expectedRSRCSize(self):
+        exp_whole_len = None # TODO make expected size computation for DF sub-classes
+        return exp_whole_len
+
     def initWithXML(self, df_elem):
         """ Early part of Data Fill loading from XML file
 
