@@ -583,7 +583,7 @@ def recountHeapElements(RSRC, Heap, ver, fo, po):
             fo[FUNC_OPTS.changed] = True
     return fo[FUNC_OPTS.changed]
 
-def checkOrCreateParts_Pane(RSRC, partsList, parentObjFlags, fo, po):
+def checkOrCreateParts_Pane(RSRC, partsList, parentObjFlags, labelText, fo, po):
     """ Checks content of the 'root/paneHierarchy/partsList' element
     """
     # NAME_LABEL properties taken from empty VI file created in LV14
@@ -593,7 +593,7 @@ def checkOrCreateParts_Pane(RSRC, partsList, parentObjFlags, fo, po):
     nameLabel_textRec = elemFindOrCreate(nameLabel, "textRec", fo, po)
     attribGetOrSetDefault(nameLabel_textRec, "class", "textHair", fo, po)
     elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "mode", fo, po), 1028, fo, po)
-    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "text", fo, po), "\"Pane\"", fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "text", fo, po), "\""+labelText+"\"", fo, po)
     elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "bgColor", fo, po), "{:08X}".format(0x01000000), fo, po)
 
     # Y_SCROLLBAR properties taken from empty VI file created in LV14
@@ -648,7 +648,7 @@ def checkOrCreateParts_MultiCosm(RSRC, partsList, parentObjFlags, fo, po):
       aeBounds=[0,0,17,17], aeImageResID=-404, aeFgColor=0x001E4B00, aeBgColor=0x001E4B00)
 
 
-def checkOrCreateParts_stdBool(RSRC, partsList, parentObjFlags, fo, po):
+def checkOrCreateParts_stdBool(RSRC, partsList, parentObjFlags, labelText, fo, po):
     """ Checks content of partsList element of Boolean type
     """
     nameLabel = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="label", \
@@ -657,7 +657,7 @@ def checkOrCreateParts_stdBool(RSRC, partsList, parentObjFlags, fo, po):
     nameLabel_textRec = elemFindOrCreate(nameLabel, "textRec", fo, po)
     attribGetOrSetDefault(nameLabel_textRec, "class", "textHair", fo, po)
     elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "mode", fo, po), 17412, fo, po)
-    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "text", fo, po), "\"Boolean\"", fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "text", fo, po), "\""+labelText+"\"", fo, po)
     elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "bgColor", fo, po), "{:08X}".format(0x01000000), fo, po)
 
     boolButton = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="bigMultiCosm", \
@@ -817,7 +817,7 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
     elemTextGetOrSetDefault(paneHierarchy_image_ImageResID, 0, fo, po)
 
     # Now content of the 'root/paneHierarchy/partsList' element
-    checkOrCreateParts_Pane(RSRC, paneHierarchy_partsList, paneHierarchy_objFlags_val, fo, po)
+    checkOrCreateParts_Pane(RSRC, paneHierarchy_partsList, paneHierarchy_objFlags_val, "Pane", fo, po)
 
     # Now content of the 'root/paneHierarchy/zPlaneList' element
     DTHP_typeDescSlice = RSRC.find("./DTHP/Section/TypeDescSlice")
@@ -848,21 +848,25 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
             print("{:s}: Associating TypeDesc {} with DCO of class '{}'"\
               .format(po.xml,typeID,"stdBool"))
             ddoObjFlags_val = 1
+            labelText = TypeDesc.get("Label")
+            if labelText is None: labelText = "Boolean"
             dco, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
               aeTypeID=typeID, aeObjFlags=1, aeDdoClass="stdBool", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val,
               aeBounds=[185,581,223,622], aeDdoTypeID=ddoTypeID, aeMouseWheelSupport=0, aeMinButSize=[17,17], \
               valueType=TypeDesc.get("Type"))
-            checkOrCreateParts_stdBool(RSRC, dco_partsList, ddoObjFlags_val, fo, po)
+            checkOrCreateParts_stdBool(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
         elif TypeDesc.get("Type").startswith("Num"):
             print("{:s}: Associating TypeDesc {} with DCO of class '{}'"\
               .format(po.xml,typeID,"stdNum"))
             ddoObjFlags_val = 1
+            labelText = TypeDesc.get("Label")
+            if labelText is None: labelText = "Numeric"
             stdNumMin, stdNumMax, stdNumInc = valueTypeGetDefaultRange(TypeDesc.get("Type"), po)
             dco, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
               aeTypeID=typeID, aeObjFlags=393283, aeDdoClass="stdNum", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val, \
               aeBounds=[185,581,223,622], aeDdoTypeID=ddoTypeID, aeMouseWheelSupport=2, aeMinButSize=[17,17], \
               valueType=TypeDesc.get("Type"), aeStdNumMin=stdNumMin, aeStdNumMax=stdNumMax, aeStdNumInc=stdNumInc)
-            #checkOrCreateParts_stdNum(RSRC, dco_partsList, ddoObjFlags_val, fo, po)
+            #checkOrCreateParts_stdNum(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
         else:
             #TODO add more types
             eprint("{:s}: Warning: Heap TypeDesc {} is not supported"\
