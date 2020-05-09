@@ -2068,7 +2068,7 @@ class LinkObjRefs(CompleteBlock):
             exp_whole_len += 2 + len(section.unk2)
         exp_whole_len += 4
         for client in section.content:
-            cli_len = df.expectedRSRCSize()
+            cli_len = client.expectedRSRCSize()
             if cli_len is None:
                 return None
             exp_whole_len += 2
