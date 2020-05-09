@@ -172,6 +172,7 @@ class DSINIT(enum.IntEnum):
     DSHiliteTableTypeDesc	= 2
     Unknown3	= 3
     Unknown4	= 4
+    # Points to Cluster type which consists of another Cluster and then connector types
     DSProbeTableTypeDesc	= 5
     NumDCOs		= 6
     FPdcoInfoTblOffst	= 7

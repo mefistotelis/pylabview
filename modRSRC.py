@@ -994,6 +994,9 @@ def DTHP_Fix(RSRC, DTHP, ver, fo, po):
             if FPTD_TypeID is not None:
                 FPTD_TypeID = int(FPTD_TypeID, 0)
         heapRanges = intRangesExcludeOne(heapRanges, FPTD_TypeID)
+        # DTHP must not include TypeDesc with DS Probe Table
+        DSProbeTable_TypeID = getDSInitEntry(RSRC, DSINIT.DSProbeTableTypeDesc, po)
+        heapRanges = intRangesExcludeOne(heapRanges, DSProbeTable_TypeID)
         # DTHP must not include TypeDesc of type "Function"
         # IndexShift must be high enough or count must be small enough to keep
         # Function TDs outside.
