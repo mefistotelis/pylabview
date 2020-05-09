@@ -118,7 +118,7 @@ class DataFill:
         return data_buf
 
     def expectedRSRCSize(self):
-        exp_whole_len = None # TODO make expected size computation for DF sub-classes
+        exp_whole_len = None
         return exp_whole_len
 
     def initWithXML(self, df_elem):
@@ -149,6 +149,10 @@ class DataFillVoid(DataFill):
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
         return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 0
+        return exp_whole_len
 
     def initWithXML(self, df_elem):
         pass
@@ -206,6 +210,10 @@ class DataFillInt(DataFill):
         data_buf = int(self.value).to_bytes(self.size, byteorder='big', signed=self.signed)
         return data_buf
 
+    def expectedRSRCSize(self):
+        exp_whole_len = self.size
+        return exp_whole_len
+
     def initWithXML(self, df_elem):
         self.value = int(df_elem.text, 0)
 
@@ -239,6 +247,18 @@ class DataFillFloat(DataFill):
             raise RuntimeError("Class {} used for unexpected type {}"\
               .format(type(self).__name__, self.getXMLTagName()))
         return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 0
+        if self.tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
+            exp_whole_len += 4
+        elif self.tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
+            exp_whole_len += 8
+        elif self.tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
+            exp_whole_len += 16
+        else:
+            exp_whole_len = None
+        return exp_whole_len
 
     def initWithXML(self, df_elem):
         self.value = float(df_elem.text)
@@ -281,6 +301,18 @@ class DataFillComplex(DataFill):
             raise RuntimeError("Class {} used for unexpected type {}"\
               .format(type(self).__name__, self.getXMLTagName()))
         return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 0
+        if self.tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
+            exp_whole_len += 8
+        elif self.tdType in (TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,):
+            exp_whole_len += 16
+        elif self.tdType in (TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
+            exp_whole_len += 32
+        else:
+            exp_whole_len = None
+        return exp_whole_len
 
     def initWithXML(self, df_elem):
         valRe = float(df_elem.find('real').text)
@@ -327,6 +359,11 @@ class DataFillBool(DataFill):
         data_buf += int(self.value).to_bytes(self.size, byteorder='big', signed=False)
         return data_buf
 
+    def expectedRSRCSize(self):
+        exp_whole_len = 0
+        exp_whole_len += self.size
+        return exp_whole_len
+
     def initWithXML(self, df_elem):
         self.value = int(df_elem.text, 0)
 
@@ -350,6 +387,11 @@ class DataFillString(DataFill):
         data_buf += len(self.value).to_bytes(4, byteorder='big', signed=False)
         data_buf += self.value
         return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 0
+        exp_whole_len += 4 + len(self.value)
+        return exp_whole_len
 
     def initWithXML(self, df_elem):
         if df_elem.text is not None: # Empty string may be None after parsing
@@ -383,6 +425,10 @@ class DataFillPath(DataFill):
         data_buf += self.value.prepareRSRCData(avoid_recompute=avoid_recompute)
         return data_buf
 
+    def expectedRSRCSize(self):
+        exp_whole_len = self.value.expectedRSRCSize()
+        return exp_whole_len
+
     def initWithXML(self, df_elem):
         clsident = df_elem.get("Ident")
         if clsident == 'PTH0':
@@ -413,6 +459,10 @@ class DataFillCString(DataFill):
         data_buf = b''
         data_buf += int(self.value).to_bytes(4, byteorder='big', signed=False)
         return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 4
+        return exp_whole_len
 
     def initWithXML(self, df_elem):
         self.value = int(df_elem.text, 0)
@@ -482,6 +532,16 @@ class DataFillArray(DataFill):
             data_buf += sub_df.prepareRSRCData(avoid_recompute=avoid_recompute)
         return data_buf
 
+    def expectedRSRCSize(self):
+        exp_whole_len = 0
+        exp_whole_len += 4 * len(self.dimensions)
+        for sub_df in self.value:
+            sub_len = sub_df.expectedRSRCSize()
+            if sub_len is None:
+                return None
+            exp_whole_len += sub_len
+        return exp_whole_len
+
     def initWithXML(self, df_elem):
         self.dimensions = []
         self.value = []
@@ -518,6 +578,10 @@ class DataFillArrayDataPtr(DataFill):
         data_buf = b''
         data_buf += int(self.value).to_bytes(4, byteorder='big', signed=False)
         return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 4
+        return exp_whole_len
 
     def initWithXML(self, df_elem):
         self.value = int(df_elem.text, 0)
@@ -558,6 +622,15 @@ class DataFillCluster(DataFill):
             data_buf += sub_df.prepareRSRCData(avoid_recompute=avoid_recompute)
         return data_buf
 
+    def expectedRSRCSize(self):
+        exp_whole_len = 0
+        for sub_df in self.value:
+            sub_len = sub_df.expectedRSRCSize()
+            if sub_len is None:
+                return None
+            exp_whole_len += sub_len
+        return exp_whole_len
+
     def initWithXML(self, df_elem):
         self.value = []
         for i, subelem in enumerate(df_elem):
@@ -595,6 +668,10 @@ class DataFillLVVariant(DataFill):
         data_buf = b''
         data_buf += self.value.prepareRSRCData(avoid_recompute=avoid_recompute)
         return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = self.value.expectedRSRCSize()
+        return exp_whole_len
 
     def initWithXML(self, df_elem):
         if df_elem.tag == LVclasses.LVVariant.__name__:
@@ -719,6 +796,15 @@ class DataFillMeasureData(DataFill):
             data_buf += sub_df.prepareRSRCData(avoid_recompute=avoid_recompute)
         return data_buf
 
+    def expectedRSRCSize(self):
+        exp_whole_len = 0
+        for sub_df in self.value:
+            sub_len = sub_df.expectedRSRCSize()
+            if sub_len is None:
+                return None
+            exp_whole_len += sub_len
+        return exp_whole_len
+
     def initWithXML(self, df_elem):
         self.value = []
         for i, subelem in enumerate(df_elem):
@@ -772,6 +858,14 @@ class DataFillComplexFixedPt(DataFill):
                 data_buf += int(self.vflags[i]).to_bytes(1, byteorder='big', signed=False)
         return data_buf
 
+    def expectedRSRCSize(self):
+        exp_whole_len = 0
+        for i in range(2):
+            exp_whole_len += 8
+            if self.td.allocOv:
+                exp_whole_len += 1
+        return exp_whole_len
+
     def initWithXML(self, df_elem):
         subelem = df_elem.find('real')
         valRe = int(subelem.text, 0)
@@ -815,6 +909,14 @@ class DataFillFixedPoint(DataFill):
             data_buf += int(self.vflags).to_bytes(1, byteorder='big', signed=False)
         return data_buf
 
+    def expectedRSRCSize(self):
+        exp_whole_len = 0
+        if True:
+            exp_whole_len += 8
+            if self.td.allocOv:
+                exp_whole_len += 1
+        return exp_whole_len
+
     def initWithXML(self, df_elem):
         valRe = int(df_elem.text, 0)
         flagRe = df_elem.get("Flags")
@@ -847,6 +949,11 @@ class DataFillBlock(DataFill):
         data_buf = b''
         data_buf += self.value
         return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 0
+        exp_whole_len += len(self.value)
+        return exp_whole_len
 
     def initWithXML(self, df_elem):
         self.value = bytes.fromhex(df_elem.text)
@@ -896,6 +1003,15 @@ class DataFillRepeatedBlock(DataFill):
             data_buf += sub_df.prepareRSRCData(avoid_recompute=avoid_recompute)
         return data_buf
 
+    def expectedRSRCSize(self):
+        exp_whole_len = 0
+        for sub_df in self.value:
+            sub_len = sub_df.expectedRSRCSize()
+            if sub_len is None:
+                return None
+            exp_whole_len += sub_len
+        return exp_whole_len
+
     def initWithXML(self, df_elem):
         self.value = []
         for i, subelem in enumerate(df_elem):
@@ -935,6 +1051,10 @@ class DataFillSimpleRefnum(DataFill):
         data_buf = b''
         data_buf += int(self.value).to_bytes(4, byteorder='big', signed=False)
         return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 4
+        return exp_whole_len
 
     def initWithXML(self, df_elem):
         self.value = int(df_elem.text, 0)
@@ -980,6 +1100,18 @@ class DataFillIORefnum(DataFill):
             data_buf += int(self.value).to_bytes(4, byteorder='big', signed=False)
         return data_buf
 
+    def expectedRSRCSize(self):
+        ver = self.vi.getFileVersion()
+        exp_whole_len = 0
+        if isGreaterOrEqVersion(ver, 6,0,0):
+            if self.isRefnumTag(self.td):
+                data_buf += 4 + len(self.value)
+            else:
+                exp_whole_len += 4
+        else:
+            exp_whole_len += 4
+        return exp_whole_len
+
     def initWithXML(self, df_elem):
         storedAs = df_elem.get("StoredAs")
         if storedAs == "String":
@@ -1023,6 +1155,10 @@ class DataFillUDRefnum(DataFill):
         data_buf = b''
         data_buf += int(self.value).to_bytes(4, byteorder='big', signed=False)
         return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 4
+        return exp_whole_len
 
     def initWithXML(self, df_elem):
         self.value = int(df_elem.text, 0)
@@ -1087,6 +1223,19 @@ class DataFillUDTagRefnum(DataFill):
             data_buf += len(self.usrdef4).to_bytes(4, byteorder='big', signed=False)
             data_buf += self.usrdef4
         return data_buf
+
+    def expectedRSRCSize(self):
+        ver = self.vi.getFileVersion()
+        exp_whole_len = 0
+        exp_whole_len += 4 + len(self.value)
+        if isGreaterOrEqVersion(ver, 12,0,0,2) and isSmallerVersion(ver, 12,0,0,5):
+            exp_whole_len += 1
+        if self.td.refType() in (REFNUM_TYPE.UsrDefTagFlt,):
+            exp_whole_len += 4 + len(self.usrdef1)
+            exp_whole_len += 4 + len(self.usrdef2)
+            exp_whole_len += 4
+            exp_whole_len += 4 + len(self.usrdef4)
+        return exp_whole_len
 
     def initWithXML(self, df_elem):
         self.usrdef1 = None
@@ -1158,6 +1307,19 @@ class DataFillUDClassInst(DataFill):
             data_buf += libVersion
         return data_buf
 
+    def expectedRSRCSize(self):
+        exp_whole_len = 0
+        exp_whole_len += 4
+        if True:
+            str_len += 1 + len(self.libName)
+            uneven_len = str_len % 4
+            if uneven_len > 0:
+                str_len += 4 - uneven_len
+            exp_whole_len += str_len
+        for libVersion in self.value:
+            exp_whole_len += 4 + len(libVersion)
+        return exp_whole_len
+
     def initWithXML(self, df_elem):
         self.value = []
         self.libName = b''
@@ -1207,6 +1369,13 @@ class DataFillPtr(DataFill):
             data_buf += int(self.value).to_bytes(4, byteorder='big', signed=False)
         return data_buf
 
+    def expectedRSRCSize(self):
+        ver = self.vi.getFileVersion()
+        exp_whole_len = 0
+        if isSmallerVersion(ver, 8,6,0,1):
+            exp_whole_len += 4
+        return exp_whole_len
+
     def initWithXML(self, df_elem):
         if df_elem.text != "None":
             self.value = int(df_elem.text, 0)
@@ -1227,6 +1396,10 @@ class DataFillPtrTo(DataFill):
         data_buf = b''
         data_buf += int(self.value).to_bytes(4, byteorder='big', signed=False)
         return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 4
+        return exp_whole_len
 
     def initWithXML(self, df_elem):
         self.value = int(df_elem.text, 0)
@@ -1259,6 +1432,10 @@ class DataFillUnexpected(DataFill):
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
         return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = None
+        return exp_whole_len
 
     def initWithXML(self, df_elem):
         self.value = None
@@ -1302,6 +1479,15 @@ class DataFillTypeDef(DataFill):
         for sub_df in self.value:
             data_buf += sub_df.prepareRSRCData(avoid_recompute=avoid_recompute)
         return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = 0
+        for sub_df in self.value:
+            sub_len = sub_df.expectedRSRCSize()
+            if sub_len is None:
+                return None
+            exp_whole_len += sub_len
+        return exp_whole_len
 
     def initWithXML(self, df_elem):
         self.value = []
