@@ -1949,6 +1949,9 @@ class LSTsh(StringListBlock):
         # In some versions of LV, this block has padding
         # No padding in LV14.0
         # but lvapp from LV11 which has vers set to LV0.0 does have it
+        # LVRS files which don't have version block at all, go without padding
+        if self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.RFilesService:
+            return 1
         if isSmallerVersion(ver, 11,0,0,0):
             return 4
         return 1
