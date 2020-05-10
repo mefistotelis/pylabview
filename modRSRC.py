@@ -314,6 +314,20 @@ def elemCheckOrCreate_table_arrayElement(parent, fo, po, aeClass="SubCosm", \
 
     return arrayElement
 
+def elemCheckOrCreate_table_arrayElementImg(parent, fo, po, aeClass="Image", \
+      aeImageResID=None, parentPos=None):
+
+    searchTags = []
+    arrayElement = elemFindOrCreateWithAttribsAndTags(parent, "SL__arrayElement", \
+      ( ("class", aeClass,), ), searchTags, fo, po, parentPos=parentPos)
+    attribGetOrSetDefault(arrayElement, "class", aeClass, fo, po)
+
+    if aeImageResID is not None:
+        ImageResID = elemFindOrCreate(arrayElement, "ImageResID", fo, po)
+        elemTextGetOrSetDefault(ImageResID, aeImageResID, fo, po)
+
+    return arrayElement
+
 def getConsolidatedTopType(RSRC, typeID, po):
     VCTP = RSRC.find("./VCTP/Section")
     if VCTP is None:
@@ -699,6 +713,75 @@ def checkOrCreateParts_stdBool(RSRC, partsList, parentObjFlags, labelText, fo, p
 
     return boolButton
 
+def checkOrCreateParts_stdNum(RSRC, partsList, parentObjFlags, labelText, fo, po):
+    """ Checks content of partsList element of Numeric type
+    """
+    nameLabel = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="label", \
+      aePartID=PARTID.NAME_LABEL, aeObjFlags=1507654, aeMasterPart=PARTID.FRAME, aeHowGrow=4096,
+      aeBounds=[0,0,15,41], aeImageResID=-9, aeFgColor=0x01000000, aeBgColor=0x01000000)
+    nameLabel_textRec = elemFindOrCreate(nameLabel, "textRec", fo, po)
+    attribGetOrSetDefault(nameLabel_textRec, "class", "textHair", fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "mode", fo, po), 17412, fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "text", fo, po), "\""+labelText+"\"", fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "bgColor", fo, po), "{:08X}".format(0x01000000), fo, po)
+
+    numText = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="numLabel", \
+      aePartID=PARTID.NUMERIC_TEXT, aeObjFlags=264498, aeMasterPart=PARTID.FRAME, aeHowGrow=240, \
+      aeBounds=[19,4,34,50], aeImageResID=-239, aeFgColor=0x00D2D2D2, aeBgColor=0x00D2D2D2)
+    numText_textRec = elemFindOrCreate(numText, "textRec", fo, po)
+    attribGetOrSetDefault(numText_textRec, "class", "textHair", fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(numText_textRec, "mode", fo, po), 8389634, fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(numText_textRec, "bgColor", fo, po), "{:08X}".format(0x00D2D2D2), fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(numText, "format", fo, po), "\"%.0f\"", fo, po)
+
+    numIncr = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="bigMultiCosm", \
+      aePartID=PARTID.INCREMENT, aeObjFlags=6458, aeMasterPart=PARTID.FRAME, aeHowGrow=12288, \
+      aeBounds=[14,-11,26,1], aeImageResID=None, aeFgColor=0x00BCBCBC, aeBgColor=0x00BCBCBC)
+    numIncr_table = elemFindOrCreate(numIncr, "table", fo, po)
+    attribGetOrSetDefault(numIncr_table, "elements", 0, fo, po)
+
+    elemCheckOrCreate_table_arrayElement(numIncr_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,12,12], aeImageResID=-413, aeFgColor=0x00BCBCBC, aeBgColor=0x00BCBCBC, parentPos=1)
+    elemCheckOrCreate_table_arrayElement(numIncr_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,12,12], aeImageResID=-413, aeFgColor=0x00969696, aeBgColor=0x00969696, parentPos=2)
+
+    numDecr = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="bigMultiCosm", \
+      aePartID=PARTID.DECREMENT, aeObjFlags=6458, aeMasterPart=PARTID.FRAME, aeHowGrow=12288, \
+      aeBounds=[26,-11,38,1], aeImageResID=None, aeFgColor=0x00BCBCBC, aeBgColor=0x00BCBCBC)
+    numDecr_table = elemFindOrCreate(numDecr, "table", fo, po)
+    attribGetOrSetDefault(numDecr_table, "elements", 0, fo, po)
+
+    elemCheckOrCreate_table_arrayElement(numDecr_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,12,12], aeImageResID=-414, aeFgColor=0x00BCBCBC, aeBgColor=0x00BCBCBC, parentPos=1)
+    elemCheckOrCreate_table_arrayElement(numDecr_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,12,12], aeImageResID=-414, aeFgColor=0x00969696, aeBgColor=0x00969696, parentPos=2)
+
+    numRadix = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="multiCosm", \
+      aePartID=PARTID.RADIX, aeObjFlags=6458, aeMasterPart=PARTID.FRAME, aeHowGrow=4288, \
+      aeBounds=[19,4,34,10], aeImageResID=None, aeFgColor=0x00D9DADC, aeBgColor=0x007586A0)
+    numRadix_table = elemFindOrCreate(numRadix, "table", fo, po)
+    attribGetOrSetDefault(numRadix_table, "elements", 0, fo, po)
+
+    elemCheckOrCreate_table_arrayElementImg(numRadix_table, fo, po, aeClass="Image", aeImageResID=-2000, parentPos=1)
+    elemCheckOrCreate_table_arrayElementImg(numRadix_table, fo, po, aeClass="Image", aeImageResID=-2001, parentPos=2)
+    elemCheckOrCreate_table_arrayElementImg(numRadix_table, fo, po, aeClass="Image", aeImageResID=-2002, parentPos=3)
+    elemCheckOrCreate_table_arrayElementImg(numRadix_table, fo, po, aeClass="Image", aeImageResID=-2003, parentPos=4)
+    elemCheckOrCreate_table_arrayElementImg(numRadix_table, fo, po, aeClass="Image", aeImageResID=-2095, parentPos=5)
+
+    elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="cosm", \
+      aePartID=PARTID.FRAME, aeObjFlags=2327, aeMasterPart=None, aeHowGrow=240, \
+      aeBounds=[15,0,38,54], aeImageResID=-412, aeFgColor=0x00B3B3B3, aeBgColor=0x01000000)
+
+    # ANNEX properties taken from empty VI file created in LV14
+    annexPart = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="annex", \
+      aePartID=PARTID.ANNEX)
+    elemTextGetOrSetDefault(elemFindOrCreate(annexPart, "refListLength", fo, po), 0, fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(annexPart, "hGrowNodeListLength", fo, po), 0, fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(annexPart, "rsrcID", fo, po), 21004, fo, po)
+
+    return numText
+
+
 def FPHb_Fix(RSRC, FPHP, ver, fo, po):
     block_name = "FPHb"
 
@@ -864,9 +947,9 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
             stdNumMin, stdNumMax, stdNumInc = valueTypeGetDefaultRange(TypeDesc.get("Type"), po)
             dco, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
               aeTypeID=typeID, aeObjFlags=393283, aeDdoClass="stdNum", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val, \
-              aeBounds=[185,581,223,622], aeDdoTypeID=ddoTypeID, aeMouseWheelSupport=2, aeMinButSize=[17,17], \
+              aeBounds=[185,581,223,622], aeDdoTypeID=ddoTypeID, aeMouseWheelSupport=2, aeMinButSize=None, \
               valueType=TypeDesc.get("Type"), aeStdNumMin=stdNumMin, aeStdNumMax=stdNumMax, aeStdNumInc=stdNumInc)
-            #checkOrCreateParts_stdNum(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
+            checkOrCreateParts_stdNum(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
         else:
             #TODO add more types
             eprint("{:s}: Warning: Heap TypeDesc {} is not supported"\
