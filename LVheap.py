@@ -1372,15 +1372,19 @@ class UNRECOGNIZED_CLASS(PHONY_ENUM):
 
 
 class HeapNode(object):
-    def __init__(self, vi, po, parentNode, tagEn, scopeInfo):
-        """ Creates new Section object, represention one of possible contents of a Block.
+    """ Class for all objects stored in either FP or BD heap
 
-        Support of a section is mostly implemented in Block, so there isn't much here.
+    Used directly for nodes with no data inside, and used as base class for nodes
+    which do store some data.
+    """
+    def __init__(self, vi, po, parentNode, tagEn, scopeInfo):
+        """ Creates new Heap Node object.
         """
         self.vi = vi
         self.po = po
         self.attribs = {}
         self.content = None
+        self.format = "inline"
         self.parent = parentNode
         self.tagEn = tagEn
         self.scopeInfo = scopeInfo
@@ -1525,6 +1529,8 @@ class HeapNode(object):
         return tagText
 
     def exportXML(self, elem, scopeInfo, fname_base):
+        if self.format != "inline":
+            elem.set("Format", self.format)
         for atId, atVal in self.attribs.items():
             propName = attributeIdToName(atId)
             elem.set(propName, attributeValueIntOrEnToStr(atId, atVal, self.parent))
@@ -1558,7 +1564,11 @@ class HeapNode(object):
     def initWithXML(self, elem):
         attribs = {}
         for name, value in elem.attrib.items():
-            if name in ["ScopeInfo"]: # Tags to ignore at this point
+            if name in ("ScopeInfo",): # Attribs to ignore at this point
+                continue
+            if name == "Format":
+                if value in ("inline","hex",):
+                    self.format = value
                 continue
             atId = attributeNameToId(name)
             if atId is None:
@@ -1573,11 +1583,19 @@ class HeapNode(object):
             tagText = elem.text.strip()
         else:
             tagText = ""
-        self.initContentWithXML(tagText)
+
+        if self.format == "inline":
+            self.initContentWithXML(tagText)
+        elif self.format == "hex":
+            HeapNode.initContentWithXML(self, tagText)
+        else:
+            raise AttributeError("Unsupported value of Format attrib in heap XML")
         pass
 
 
 class HeapNodeStdInt(HeapNode):
+    """ Class for Heap Nodes which store standard size integer value
+    """
     def __init__(self, *args, btlen=-1, signed=True):
         super().__init__(*args)
         self.btlen = btlen
@@ -1619,6 +1637,8 @@ class HeapNodeStdInt(HeapNode):
 
 
 class HeapNodeTypeId(HeapNodeStdInt):
+    """ Class for Heap Nodes which store integer representing Heap TypeID
+    """
     def __init__(self, *args):
         super().__init__(*args, btlen=-1, signed=True)
 
@@ -1635,6 +1655,8 @@ class HeapNodeTypeId(HeapNodeStdInt):
 
 
 class HeapNodeRect(HeapNode):
+    """ Class for Heap Nodes which store rectangle data - four coords
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.left = 0
@@ -1673,6 +1695,8 @@ class HeapNodeRect(HeapNode):
 
 
 class HeapNodePoint(HeapNode):
+    """ Class for Heap Nodes which store point data - two coords
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.x = 0
@@ -1703,6 +1727,8 @@ class HeapNodePoint(HeapNode):
 
 
 class HeapNodeString(HeapNode):
+    """ Class for Heap Nodes which store string data
+    """
     def __init__(self, *args):
         super().__init__(*args)
 
@@ -1728,6 +1754,8 @@ class HeapNodeString(HeapNode):
 
 
 class HeapNodePStrList(HeapNode):
+    """ Class for Heap Nodes which store list of strings with one-byte lengths
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.values = []
@@ -1788,6 +1816,8 @@ class HeapNodePStrList(HeapNode):
 
 
 class HeapNodeBool(HeapNode):
+    """ Class for Heap Nodes which store boolean value
+    """
     def __init__(self, *args):
         super().__init__(*args)
         self.value = False
