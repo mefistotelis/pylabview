@@ -666,6 +666,12 @@ class VI():
             out_list.append( (len(out_list), conn_idx, clientTD.nested,) )
         return out_list
 
+    def getHeapTD(self, heapTypeId):
+        DTHP = self.get('DTHP')
+        if DTHP is None:
+            return None
+        return DTHP.getHeapTD(heapTypeId)
+
     def setNewPassword(self, password_text=None, password_md5=None):
         """ Calculates password
         """

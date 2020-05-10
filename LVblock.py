@@ -2624,6 +2624,20 @@ class DTHP(CompleteBlock):
             raise NotImplementedError("Exporting XML for LV7.1 and older is not implemented")
         pass
 
+    def getHeapTD(self, heapTypeId, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        self.parseData(section_num=section_num)
+        section = self.sections[section_num]
+
+        VCTP = self.vi.get('VCTP')
+        if VCTP is None:
+            return None
+        if heapTypeId < 1 or heapTypeId > section.tdCount:
+            return None
+        tdIndex = section.indexShift + heapTypeId - 1
+        return VCTP.getTopType(tdIndex)
+
 
 class DSTM(VarCodingBlock):
     """ Data Space Type Map
