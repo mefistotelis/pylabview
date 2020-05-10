@@ -1592,6 +1592,14 @@ class HeapNode(object):
             raise AttributeError("Unsupported value of Format attrib in heap XML")
         pass
 
+    def initWithXMLLate(self):
+        """ Late part of Heap Node loading from XML file
+
+        Can access some basic data from other blocks and sections.
+        Useful only if properties needs an update after other blocks are accessible.
+        """
+        pass
+
 
 class HeapNodeStdInt(HeapNode):
     """ Class for Heap Nodes which store standard size integer value

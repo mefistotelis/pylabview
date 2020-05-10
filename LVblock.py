@@ -4180,6 +4180,14 @@ class HeapVerb(CompleteBlock):
               .format(self.vi.src_fname, self.ident))
         pass
 
+    def initWithXMLLate(self):
+        super().initWithXMLLate()
+        for snum in self.sections:
+            section = self.sections[snum]
+            for obj in section.objects:
+                obj.initWithXMLLate()
+        pass
+
     def getContent(self):
         self.updateData()
         bldata = self.getData()
