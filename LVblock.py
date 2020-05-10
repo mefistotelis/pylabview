@@ -4064,6 +4064,8 @@ class HeapVerb(CompleteBlock):
         i = len(section.objects)
         obj = LVheap.createObjectNode(self.vi, self.po, parentNode, tagEn, scopeInfo)
         section.objects.append(obj)
+        if parentNode is not None:
+            parentNode.childs.append(obj)
         obj.parseRSRCData(bldata, hasAttrList, sizeSpec)
         if scopeInfo == LVheap.NODE_SCOPE.TagOpen:
             parentNode = obj
@@ -4128,6 +4130,8 @@ class HeapVerb(CompleteBlock):
         scopeInfo = LVheap.autoScopeInfoFromET(elem)
         obj = LVheap.createObjectNode(self.vi, self.po, parentNode, tagEn, scopeInfo)
         section.objects.append(obj)
+        if parentNode is not None:
+            parentNode.childs.append(obj)
 
         obj.initWithXML(elem)
 
@@ -4138,6 +4142,8 @@ class HeapVerb(CompleteBlock):
             scopeInfo = LVheap.NODE_SCOPE.TagClose.value
             obj = LVheap.createObjectNode(self.vi, self.po, parentNode, tagEn, scopeInfo)
             section.objects.append(obj)
+            if parentNode is not None:
+                parentNode.childs.append(obj)
             #obj.initWithXML(elem) # No init needed for closing tag
 
     def initWithXMLSectionData(self, section, section_elem):
