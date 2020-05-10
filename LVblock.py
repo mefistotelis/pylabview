@@ -819,7 +819,11 @@ class Block(object):
 
     def __repr__(self):
         bldata = self.getData()
-        if self.size > 32:
+        if self.size is None:
+            d = bldata.read(31).hex()
+            if len(d) == 2*31:
+                d += ".."
+        elif self.size > 32:
             d = bldata.read(31).hex() + ".."
         else:
             d = bldata.read(32).hex()
