@@ -250,6 +250,7 @@ class DataFillFloat(DataFill):
 
     def expectedRSRCSize(self):
         exp_whole_len = 0
+        from LVdatatype import TD_FULL_TYPE
         if self.tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
             exp_whole_len += 4
         elif self.tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
@@ -304,6 +305,7 @@ class DataFillComplex(DataFill):
 
     def expectedRSRCSize(self):
         exp_whole_len = 0
+        from LVdatatype import TD_FULL_TYPE
         if self.tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
             exp_whole_len += 8
         elif self.tdType in (TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,):

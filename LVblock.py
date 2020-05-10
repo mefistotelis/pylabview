@@ -2241,6 +2241,7 @@ class DFDS(CompleteBlock):
         return data_buf
 
     def expectedRSRCSize(self, section_num):
+        section = self.sections[section_num]
         exp_whole_len = 0
         for df in section.content:
             df_len = df.expectedRSRCSize()
