@@ -1055,7 +1055,7 @@ def DTHP_Fix(RSRC, DTHP, ver, fo, po):
                 TM80_IndexShift = int(TM80_IndexShift, 0)
         heapRanges = intRangesExcludeBelow(heapRanges, TM80_IndexShift)
         # DTHP IndexShift must be high enough to not include TypeDesc from CONP
-        # Since CONP type is created with new VIm it is always before any heap TDs
+        # Since CONP type is created with new VIs it is always before any heap TDs
         CONP_TypeID = None
         CONP_TypeDesc = RSRC.find("./CONP/Section/TypeDesc")
         if CONP_TypeDesc is not None:
