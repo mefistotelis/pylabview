@@ -343,48 +343,26 @@ def getConsolidatedTopType(RSRC, typeID, po):
     return VCTP_FlatTypeDesc
 
 def valueOfTypeToXML(valueType, val, po):
+    """ Returns dict of values for its XML representation of given type
+
+    Returns dict with tag:value pairs, text property of the base element is under "tagText" key.
+    """
     if valueType in ("Boolean", "BooleanU16",):
-        valStr = str(val)
-    elif valueType == "NumInt8":
-        valStr = int(val).to_bytes(1, byteorder='big', signed=True).hex()
-    elif valueType == "NumInt16":
-        valStr = int(val).to_bytes(2, byteorder='big', signed=True).hex()
-    elif valueType == "NumInt32":
-        valStr = int(val).to_bytes(4, byteorder='big', signed=True).hex()
-    elif valueType == "NumInt64":
-        valStr = int(val).to_bytes(8, byteorder='big', signed=True).hex()
-    elif valueType == "NumUInt8":
-        valStr = int(val).to_bytes(1, byteorder='big', signed=False).hex()
-    elif valueType == "NumUInt16":
-        valStr = int(val).to_bytes(2, byteorder='big', signed=False).hex()
-    elif valueType == "NumUInt32":
-        valStr = int(val).to_bytes(4, byteorder='big', signed=False).hex()
-    elif valueType == "NumUInt64":
-        valStr = int(val).to_bytes(8, byteorder='big', signed=False).hex()
-    elif valueType == "NumFloat32":
-        valStr = struct.pack('>f', val).hex()
-    elif valueType == "NumFloat64":
-        valStr = struct.pack('>d', val).hex()
-    elif valueType == "NumFloatExt":
-        valStr = prepareQuadFloat(val).hex()
-    elif valueType == "NumComplex64":
-        valStr = struct.pack('>f>f', val[0], val[1]).hex()
-    elif valueType == "NumComplex128":
-        valStr = struct.pack('>d>d', val[0], val[1]).hex()
-    elif valueType == "NumComplexExt":
-        valStr = prepareQuadFloat(val[0]).hex()+prepareQuadFloat(val[1]).hex()
-    #elif valueType == "UnitUInt8":
-    #elif valueType == "UnitUInt16":
-    #elif valueType == "UnitUInt32":
-    #elif valueType == "UnitFloat32":
-    #elif valueType == "UnitFloat64":
-    #elif valueType == "UnitFloatExt":
-    #elif valueType == "UnitComplex64":
-    #elif valueType == "UnitComplex128":
-    #elif valueType == "UnitComplexExt":
+        valDict = { "tagText" : str(val) }
+    elif valueType in ("NumInt8", "NumInt16", "NumInt32", "NumInt64",):
+        valDict = { "tagText" : str(val) }
+    elif valueType in ("NumUInt8", "NumUInt16", "NumUInt32", "NumUInt64",\
+      "UnitUInt8", "UnitUInt16", "UnitUInt32",):
+        valDict = { "tagText" : str(val) }
+    elif valueType in ("NumFloat32", "NumFloat64", "NumFloatExt",\
+      "UnitFloat32", "UnitFloat64", "UnitFloatExt"):
+        valDict = { "tagText" : str(val) }
+    elif valueType in ("NumComplex64", "NumComplex128", "NumComplexExt",\
+      "UnitComplex64", "UnitComplex128", "UnitComplexExt",):
+        valDict = { "real" : str(val[0]), "imaginary" : str(val[1]) }
     else:
-        valStr = str(val)
-    return valStr
+        valDict = { "tagText" : str(val) }
+    return valDict
 
 def valueTypeGetDefaultRange(valueType, po):
     if valueType in ("Boolean", "BooleanU16",):
@@ -520,18 +498,33 @@ def elemCheckOrCreate_zPlaneList_arrayElement(parent, fo, po, aeClass="fPDCO", \
 
     if aeStdNumMin is not None:
         ddo_StdNumMin = elemFindOrCreate(ddo, "StdNumMin", fo, po)
-        aeStdNumMin_str = valueOfTypeToXML(valueType, aeStdNumMin, po)
-        elemTextGetOrSetDefault(ddo_StdNumMin, aeStdNumMin_str, fo, po)
+        aeStdNumMin_dict = valueOfTypeToXML(valueType, aeStdNumMin, po)
+        for tagName, tagValue in aeStdNumMin_dict.items():
+            if tagName == "tagText":
+                elemTextGetOrSetDefault(ddo_StdNumMin, tagValue, fo, po)
+                continue
+            tmp_subtag = elemFindOrCreate(ddo_StdNumMin, tagName, fo, po)
+            elemTextGetOrSetDefault(tmp_subtag, tagValue, fo, po)
 
     if aeStdNumMax is not None:
         ddo_StdNumMax = elemFindOrCreate(ddo, "StdNumMax", fo, po)
-        aeStdNumMax_str = valueOfTypeToXML(valueType, aeStdNumMax, po)
-        elemTextGetOrSetDefault(ddo_StdNumMax, aeStdNumMax_str, fo, po)
+        aeStdNumMax_dict = valueOfTypeToXML(valueType, aeStdNumMax, po)
+        for tagName, tagValue in aeStdNumMax_dict.items():
+            if tagName == "tagText":
+                elemTextGetOrSetDefault(ddo_StdNumMax, tagValue, fo, po)
+                continue
+            tmp_subtag = elemFindOrCreate(ddo_StdNumMax, tagName, fo, po)
+            elemTextGetOrSetDefault(tmp_subtag, tagValue, fo, po)
 
     if aeStdNumInc is not None:
         ddo_StdNumInc = elemFindOrCreate(ddo, "StdNumInc", fo, po)
-        aeStdNumInc_str = valueOfTypeToXML(valueType, aeStdNumInc, po)
-        elemTextGetOrSetDefault(ddo_StdNumInc, aeStdNumInc_str, fo, po)
+        aeStdNumInc_dict = valueOfTypeToXML(valueType, aeStdNumInc, po)
+        for tagName, tagValue in aeStdNumInc_dict.items():
+            if tagName == "tagText":
+                elemTextGetOrSetDefault(ddo_StdNumInc, tagValue, fo, po)
+                continue
+            tmp_subtag = elemFindOrCreate(ddo_StdNumInc, tagName, fo, po)
+            elemTextGetOrSetDefault(tmp_subtag, tagValue, fo, po)
 
     return arrayElement, partsList
 
