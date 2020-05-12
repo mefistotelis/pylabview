@@ -2839,15 +2839,15 @@ class LVSR(CompleteBlock):
         section.execState = 0
         section.execPrio = 0
         section.viType = 0
-        section.field24 = 0
+        section.prefExecSyst = 0
         section.field28 = 0
         section.field2C = 0
         section.field30 = 0
         section.viSignature = b''
-        section.field44 = 0
-        section.field48 = 0
+        section.alignGridFP = 0
+        section.alignGridBD = 0
         section.field4C = 0
-        section.field4E = 0
+        section.ctrlIndStyle = 0
         section.field50_md5 = b''
         section.libpass_text = None
         section.libpass_md5 = b''
@@ -2882,7 +2882,7 @@ class LVSR(CompleteBlock):
         section.execState = int(data.execState)
         section.execPrio = int(data.execPrio)
         section.viType = int(data.viType)
-        section.field24 = int(data.field24)
+        section.prefExecSyst = int(data.prefExecSyst)
         section.field28 = int(data.field28)
         section.field2C = int(data.field2C)
         section.field30 = int(data.field30)
@@ -2890,10 +2890,10 @@ class LVSR(CompleteBlock):
         # Additional data, exists only in newer versions
         # sizeof(LVSR) per version: 6.0.1->68 7.1.0->96 8.6b7->120 9.0b25->120 9.0->120 10.0b84->120 10.0->136 11.0.1->136 12.0->136 13.0->136 14.0->137
         if isGreaterOrEqVersion(section.version, 7,0):
-            section.field44 = int(data.field44)
-            section.field48 = int(data.field48)
+            section.alignGridFP = int(data.alignGridFP)
+            section.alignGridBD = int(data.alignGridBD)
             section.field4C = int(data.field4C)
-            section.field4E = int(data.field4E)
+            section.ctrlIndStyle = int(data.ctrlIndStyle)
             section.field50_md5 = bytes(data.field50_md5)
         if isGreaterOrEqVersion(section.version, 8,0):
             section.libpass_md5 = bytes(data.libpass_md5)
@@ -2926,16 +2926,16 @@ class LVSR(CompleteBlock):
         data_buf += int(section.execState).to_bytes(4, byteorder='big')
         data_buf += int(section.execPrio).to_bytes(2, byteorder='big')
         data_buf += int(section.viType).to_bytes(2, byteorder='big')
-        data_buf += int(section.field24).to_bytes(4, byteorder='big', signed=True)
+        data_buf += int(section.prefExecSyst).to_bytes(4, byteorder='big', signed=True)
         data_buf += int(section.field28).to_bytes(4, byteorder='big')
         data_buf += int(section.field2C).to_bytes(4, byteorder='big')
         data_buf += int(section.field30).to_bytes(4, byteorder='big')
         data_buf += section.viSignature
         if isGreaterOrEqVersion(section.version, 7,0):
-            data_buf += int(section.field44).to_bytes(4, byteorder='big')
-            data_buf += int(section.field48).to_bytes(4, byteorder='big')
+            data_buf += int(section.alignGridFP).to_bytes(4, byteorder='big')
+            data_buf += int(section.alignGridBD).to_bytes(4, byteorder='big')
             data_buf += int(section.field4C).to_bytes(2, byteorder='big')
-            data_buf += int(section.field4E).to_bytes(2, byteorder='big')
+            data_buf += int(section.ctrlIndStyle).to_bytes(2, byteorder='big')
             data_buf += section.field50_md5
         if isGreaterOrEqVersion(section.version, 8,0):
             if section.libpass_text is not None:
@@ -3019,14 +3019,14 @@ class LVSR(CompleteBlock):
                 section.field0C = int(subelem.get("Field0C"), 0)
                 section.flags10 = int(subelem.get("Flags10"), 0)
                 section.field12 = int(subelem.get("Field12"), 0)
-                section.field24 = int(subelem.get("Field24"), 0)
+                section.prefExecSyst = int(subelem.get("PrefExecSyst"), 0)
                 section.field28 = int(subelem.get("Field28"), 0)
                 section.field2C = int(subelem.get("Field2C"), 0)
                 section.field30 = int(subelem.get("Field30"), 0)
-                section.field44 = int(subelem.get("Field44"), 0)
-                section.field48 = int(subelem.get("Field48"), 0)
+                section.alignGridFP = int(subelem.get("AlignGridFP"), 0)
+                section.alignGridBD = int(subelem.get("AlignGridBD"), 0)
                 section.field4C = int(subelem.get("Field4C"), 0)
-                section.field4E = int(subelem.get("Field4E"), 0)
+                section.ctrlIndStyle = int(subelem.get("CtrlIndStyle"), 0)
                 field50_hash = subelem.get("Field50Hash")
                 section.field50_md5 = bytes.fromhex(field50_hash)
                 section.field70 = int(subelem.get("Field70"), 0)
@@ -3091,14 +3091,14 @@ class LVSR(CompleteBlock):
         subelem.set("Field0C", "{:d}".format(section.field0C))
         subelem.set("Flags10", "{:d}".format(section.flags10))
         subelem.set("Field12", "{:d}".format(section.field12))
-        subelem.set("Field24", "{:d}".format(section.field24))
+        subelem.set("PrefExecSyst", "{:d}".format(section.prefExecSyst))
         subelem.set("Field28", "{:d}".format(section.field28))
         subelem.set("Field2C", "{:d}".format(section.field2C))
         subelem.set("Field30", "{:d}".format(section.field30))
-        subelem.set("Field44", "{:d}".format(section.field44))
-        subelem.set("Field48", "{:d}".format(section.field48))
+        subelem.set("AlignGridFP", "{:d}".format(section.alignGridFP))
+        subelem.set("AlignGridBD", "{:d}".format(section.alignGridBD))
         subelem.set("Field4C", "{:d}".format(section.field4C))
-        subelem.set("Field4E", "{:d}".format(section.field4E))
+        subelem.set("CtrlIndStyle", "{:d}".format(section.ctrlIndStyle))
         subelem.set("Field50Hash", section.field50_md5.hex())
         subelem.set("Field70", "{:d}".format(section.field70))
         subelem.set("Field74", "{:d}".format(section.field74))
@@ -3965,6 +3965,30 @@ class LVzp(VarCodingBlock):
 
     def setDefaultEncoding(self):
         self.default_block_coding = BLOCK_CODING.XOR
+
+
+class PRT(CompleteBlock):
+    """ Print settings
+
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+    def parseRSRCSectionData(self, section_num, bldata):
+        section = self.sections[section_num]
+        section.content = None
+
+        section.unknown00 = bldata.read(38)
+        section.unknown26 = bldata.read(14)
+        section.unknown34 = bldata.read(8)
+        section.marginTop = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        section.marginLeft = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        section.marginBottom = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        section.marginRight = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        section.unknown44 = bldata.read(52)
+
+        raise NotImplementedError("Parsing the block is not fully implemented")
 
 
 class BNID(Block):

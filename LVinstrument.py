@@ -40,14 +40,14 @@ class VI_TYPE(enum.Enum):
 class VI_FP_FLAGS(enum.Enum):
     """ VI Front Panel Flags
     """
-    ShowScrollBar = ((1 << 0) | (1 << 1))	 # Indicates whether to display the scroll bars on the front panel.
-    Bit2 = 1 << 2	# unknown
-    ToolBarVisible = 1 << 3	# Indicates whether to display the toolbar while the VI runs.
-    ShowMenuBar = 1 << 4	# 	Indicates whether to display the menu bar on the front panel while the VI runs.
+    ShowScrollBar = ((1 << 0) | (1 << 1))	 # Indicates whether to display the scroll bars on the front panel. in LV14: Customize Window Apearence -> Show vertical/horizonal scroll bar
+    ShowTitleBar = 1 << 2	# Indicates whether to display title bar in the VI FP window. in LV14: Customize Window Apearence -> Windows has title bar
+    ToolBarVisible = 1 << 3	# Indicates whether to display the toolbar while the VI runs. in LV14: Customize Window Apearence -> Show toolbar when running
+    ShowMenuBar = 1 << 4	# Indicates whether to display the menu bar on the front panel while the VI runs. in LV14: Customize Window Apearence -> Show menu bar
     AutoCenter = 1 << 5	# Marked as deprecated in LV2019
     SizeToScreen = 1 << 6	# Marked as deprecated in LV2019
-    NoRuntimePopUp = 1 << 7	# Indicates whether to display shortcut menus for front panel objects while the VI runs.
-    MarkReturnBtn = 1 << 8	# Indicates whether to highlight Boolean controls that have a shortcut key of <Enter>.
+    NoRuntimePopUp = 1 << 7	# Indicates whether to display shortcut menus for front panel objects while the VI runs. in LV14: Customize Window Apearence -> Allow default run-time shortcut menus
+    MarkReturnBtn = 1 << 8	# Indicates whether to highlight Boolean controls that have a shortcut key of <Enter>. in LV14: Customize Window Apearence -> Highlight Enter boolean
     Bit9 = 1 << 9	# unknown
     Bit10 = 1 << 10	# unknown
     Bit11 = 1 << 11	# unknown
@@ -65,9 +65,9 @@ class VI_BTN_HIDE_FLAGS(enum.Enum):
     Bit2 = 1 << 2	# unknown
     Bit3 = 1 << 3	# unknown
     Bit4 = 1 << 4	# unknown
-    FreeRunButton = 1 << 5	# Indicates whether to display the Run Continuously button on the toolbar while the VI runs.
+    FreeRunButton = 1 << 5	# Indicates whether to display the Run Continuously button on the toolbar while the VI runs. in LV14: Customize Window Apearence -> Show Run Continuously button
     Bit6 = 1 << 6	# unknown
-    AbortButton = 1 << 7	# Indicates whether to display the Abort Execution button on the toolbar while the VI runs.
+    AbortButton = 1 << 7	# Indicates whether to display the Abort Execution button on the toolbar while the VI runs. in LV14: Customize Window Apearence -> Show Abort button
     Bit8 = 1 << 8	# unknown
     Bit9 = 1 << 9	# unknown
     Bit10 = 1 << 10	# unknown
@@ -128,7 +128,7 @@ class VI_EXEC_FLAGS(enum.Enum):
     PooledReentrancy = 1 << 7	# pooled Reentrancy
     LoadFP =		1 << 8	# load FP
     HasNoBD =		1 << 9	# BD not available
-    ShowFPOnLoad =	1 << 10	# Indicates whether to show the front panel when the VI is loaded.
+    ShowFPOnLoad =	1 << 10	# Indicates whether to show the front panel when the VI is loaded. in LV14: Customize Window Apearence -> Show front panel when loaded
     DynamicDispatch = 1 << 11	# fails to always call Parent VI (dynamic dispatching)
     HasSetBD =		1 << 12	# BP Set
     LibProtected =	1 << 13	# The library which this VI is part of is protected(locked) from changes.
@@ -179,14 +179,87 @@ class VI_FLAGS2(enum.Enum):
     UndoRedoInProgress = 1 << 21	# VI is currently undergoing undo/redo
     DrawInstanceIcon =	1 << 22	# set: draw instance icon;  unset: draw PolyVI icon
     ShowPolySelector =	1 << 23	# show PolySelector when new PolyVI icon is put on BD
-    ClearIndMask =		1 << 24	# clear charts etc. on call
+    ClearIndMask =		1 << 24	# Clear charts etc on call. in LV14: Execution -> Clear indicators when called
     DefaultGrownView =	1 << 25	# VI should be grown by default when dropped
     DoNotClone =		1 << 26	# do not clone this instance VI
     IsPrivateDataForUDClass = 1 << 27	# this ctl is private data for a LV class
     InstanceVI =		1 << 28	# instance VI (wizard-locked 'LabVIEW Blocks')
-    DefaultErrorHandling = 1 << 29	# default error handling
+    DefaultErrorHandling = 1 << 29	# Integrates default error handling. in LV14: Execution -> Enable automatic error handling
     RemotePanel =		1 << 30	# VI is a remote panel VI
     SuppressInstanceHalo = 1 << 31	# do not draw blue halo around non-grown instance VIs
+
+
+class VI_FLAGS0C(enum.Enum):
+    """ VI Flags dword at 0x0C
+    """
+    Bit0 = 1 << 0	# unknown
+    Bit1 = 1 << 1	# unknown
+    Bit2 = 1 << 2	# in LV14: Execution -> Auto handle menus at launch
+    Bit3 = 1 << 3	# unknown
+    Bit4 = 1 << 4	# unknown
+    Bit5 = 1 << 5	# unknown
+    Bit6 = 1 << 6	# unknown
+    Bit7 = 1 << 7	# unknown
+    Bit8 = 1 << 8	# unknown
+    Bit9 = 1 << 9	# unknown
+    Bit10 = 1 << 10	# unknown
+    Bit11 = 1 << 11	# unknown
+    Bit12 = 1 << 12	# unknown
+    Bit13 = 1 << 13	# unknown
+    Bit14 = 1 << 14	# unknown
+    Bit15 = 1 << 15	# unknown
+    Bit16 = 1 << 16	# unknown
+    Bit17 = 1 << 17	# unknown
+    Bit18 = 1 << 18	# unknown
+    Bit19 = 1 << 19	# unknown
+    Bit20 = 1 << 20	# unknown
+    Bit21 = 1 << 21	# unknown
+    Bit22 = 1 << 22	# unknown
+    Bit23 = 1 << 23	# unknown
+    Bit24 = 1 << 24	# unknown
+    Bit25 = 1 << 25	# unknown
+    Bit26 = 1 << 26	# unknown
+    Bit27 = 1 << 27	# unknown
+    Bit28 = 1 << 28	# unknown
+    Bit29 = 1 << 29	# unknown
+    Bit30 = 1 << 30	# unknown
+    Bit31 = 1 << 31	# unknown
+
+class VI_FLAGS12(enum.Enum):
+    """ VI Flags dword at 0x12
+    """
+    Bit0 = 1 << 0	# unknown
+    Bit1 = 1 << 1	# Window is Floating or Hide window when LV not active
+    Bit2 = 1 << 2	# unknown
+    Bit3 = 1 << 3	# Indicates whether the VI FP window can be closed. in LV14: Customize Window Apearence -> Allow user to close window
+    Bit4 = 1 << 4	# Indicates whether the VI FP window can be resized. in LV14: Customize Window Apearence -> Allow user to resize window
+    Bit5 = 1 << 5	# Indicates whether the VI FP window can be minimized. in LV14: Customize Window Apearence -> Allow user to minimize window
+    Bit6 = 1 << 6	# Indicates whether the VI FP window has transparency. 'pctTransparent' should be defined in FP. in LV14: Customize Window Apearence -> Window runs transparently
+    Bit7 = 1 << 7	# unknown
+    Bit8 = 1 << 8	# unknown
+    Bit9 = 1 << 9	# Window is Floating or Hide window when LV not active
+    Bit10 = 1 << 10	# unknown
+    Bit11 = 1 << 11	# unknown
+    Bit12 = 1 << 12	# unknown
+    Bit13 = 1 << 13	# unknown
+    Bit14 = 1 << 14	# unknown
+    Bit15 = 1 << 15	# unknown
+    Bit16 = 1 << 16	# unknown
+    Bit17 = 1 << 17	# unknown
+    Bit18 = 1 << 18	# unknown
+    Bit19 = 1 << 19	# unknown
+    Bit20 = 1 << 20	# unknown
+    Bit21 = 1 << 21	# unknown
+    Bit22 = 1 << 22	# unknown
+    Bit23 = 1 << 23	# unknown
+    Bit24 = 1 << 24	# unknown
+    Bit25 = 1 << 25	# unknown
+    Bit26 = 1 << 26	# unknown
+    Bit27 = 1 << 27	# unknown
+    Bit28 = 1 << 28	# unknown
+    Bit29 = 1 << 29	# unknown
+    Bit30 = 1 << 30	# unknown
+    Bit31 = 1 << 31	# unknown
 
 
 class LVSRData(RSRCStructure):
@@ -203,15 +276,15 @@ class LVSRData(RSRCStructure):
                 ('execState', c_uint32),	#28 valid values under mask 0xF
                 ('execPrio', c_uint16),	#32 priority of the VI when it runs in parallel with other tasks; expected values 0..4
                 ('viType', c_uint16),	#34 type of VI
-                ('field24', c_int32),	#36 signed
+                ('prefExecSyst', c_int32),	#36 signed; Preferred execution system: -1=same as caller, 3=data acquisition
                 ('field28', c_uint32),	#40 linked value 1/3
                 ('field2C', c_uint32),	#44 linked value 2/3
                 ('field30', c_uint32),	#48 linked value 3/3
                 ('viSignature', c_ubyte * 16),	#52 A hash identifying the VI file; used by LV while registering for events
-                ('field44', c_uint32),	#68
-                ('field48', c_uint32),	#72
+                ('alignGridFP', c_uint32),	#68 Alignment Grid Size for Front Panel
+                ('alignGridBD', c_uint32),	#72 Alignment Grid Size for Block Diagram
                 ('field4C', c_uint16),	#76
-                ('field4E', c_uint16),	#78
+                ('ctrlIndStyle', c_uint16),	#78 Visual style of FP controls and indicators: 0=modern, 1=classic, 2=system, 3=silver. in LV14: Editor Options -> Control Style for Create Control/Indicator
                 ('field50_md5', c_ubyte * 16),	#80
                 ('libpass_md5', c_ubyte * 16),	#96
                 ('field70', c_uint32),	#112
