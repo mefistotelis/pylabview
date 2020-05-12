@@ -1895,7 +1895,8 @@ class HeapNodeTDDataFill(HeapNode):
         td = self.vi.getHeapTD(heapTypeId)
         self.setTD(td)
 
-    def shrinkRepeatedBits(self, btval):
+    @staticmethod
+    def shrinkRepeatedBits(btval):
         if len(btval) < 2:
             return btval
         i = 0
@@ -1913,145 +1914,168 @@ class HeapNodeTDDataFill(HeapNode):
                 break
         return btval[i:]
 
+    @staticmethod
+    def parseRSRCContentDirect(bldata, tdType):
+        val = None
+        from LVdatatype import TD_FULL_TYPE
+        # Signed integer values are sign-extended automatically and no further processing is needed
+        if tdType in (TD_FULL_TYPE.NumInt8,):
+            val = int.from_bytes(bldata.read(1), byteorder='big', signed=True)
+        elif tdType in (TD_FULL_TYPE.NumInt16,):
+            val = int.from_bytes(bldata.read(2), byteorder='big', signed=True)
+        elif tdType in (TD_FULL_TYPE.NumInt32,):
+            val = int.from_bytes(bldata.read(4), byteorder='big', signed=True)
+        elif tdType in (TD_FULL_TYPE.NumInt64,):
+            val = int.from_bytes(bldata.read(8), byteorder='big', signed=True)
+        # Unsigned integers need to be sign-extended as well, so pretend they're signed at first
+        elif tdType in (TD_FULL_TYPE.NumUInt8,TD_FULL_TYPE.UnitUInt8,):
+            val = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        elif tdType in (TD_FULL_TYPE.NumUInt16,TD_FULL_TYPE.UnitUInt16,):
+            tmpbt = int.from_bytes(bldata.read(2), byteorder='big', signed=True).to_bytes(2, byteorder='big', signed=True)
+            val = int.from_bytes(tmpbt, byteorder='big', signed=False)
+        elif tdType in (TD_FULL_TYPE.NumUInt32,TD_FULL_TYPE.UnitUInt32,):
+            tmpbt = int.from_bytes(bldata.read(4), byteorder='big', signed=True).to_bytes(4, byteorder='big', signed=True)
+            val = int.from_bytes(tmpbt, byteorder='big', signed=False)
+        elif tdType in (TD_FULL_TYPE.NumUInt64,):
+            tmpbt = int.from_bytes(bldata.read(8), byteorder='big', signed=True).to_bytes(8, byteorder='big', signed=True)
+            val = int.from_bytes(tmpbt, byteorder='big', signed=False)
+        # Float values have special reaing routines
+        elif tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
+            val = struct.unpack('>f', bldata.read(4))[0]
+        elif tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
+            val = struct.unpack('>d', bldata.read(8))[0]
+        elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
+            val = readQuadFloat(bldata)
+        return val
+
+    @staticmethod
+    def prepareRSRCContentDirect(val, tdType):
+        content = None
+        from LVdatatype import TD_FULL_TYPE
+        # Signed integer values
+        if tdType in (TD_FULL_TYPE.NumInt8,):
+            tmpbt = int(val).to_bytes(1, byteorder='big', signed=True)
+            content = HeapNodeTDDataFill.shrinkRepeatedBits(tmpbt)
+        elif tdType in (TD_FULL_TYPE.NumInt16,):
+            tmpbt = int(val).to_bytes(2, byteorder='big', signed=True)
+            content = HeapNodeTDDataFill.shrinkRepeatedBits(tmpbt)
+        elif tdType in (TD_FULL_TYPE.NumInt32,):
+            tmpbt = int(val).to_bytes(4, byteorder='big', signed=True)
+            content = HeapNodeTDDataFill.shrinkRepeatedBits(tmpbt)
+        elif tdType in (TD_FULL_TYPE.NumInt64,):
+            tmpbt = int(val).to_bytes(8, byteorder='big', signed=True)
+            content = HeapNodeTDDataFill.shrinkRepeatedBits(tmpbt)
+        # Unsigned integer values
+        elif tdType in (TD_FULL_TYPE.NumUInt8,TD_FULL_TYPE.UnitUInt8,):
+            tmpbt = int(val).to_bytes(1, byteorder='big', signed=False)
+            content = HeapNodeTDDataFill.shrinkRepeatedBits(tmpbt)
+        elif tdType in (TD_FULL_TYPE.NumUInt16,TD_FULL_TYPE.UnitUInt16,):
+            tmpbt = int(val).to_bytes(2, byteorder='big', signed=False)
+            content = HeapNodeTDDataFill.shrinkRepeatedBits(tmpbt)
+        elif tdType in (TD_FULL_TYPE.NumUInt32,TD_FULL_TYPE.UnitUInt32,):
+            tmpbt = int(val).to_bytes(4, byteorder='big', signed=False)
+            content = HeapNodeTDDataFill.shrinkRepeatedBits(tmpbt)
+        elif tdType in (TD_FULL_TYPE.NumUInt64,):
+            tmpbt = int(val).to_bytes(8, byteorder='big', signed=False)
+            content = HeapNodeTDDataFill.shrinkRepeatedBits(tmpbt)
+        # Float values
+        elif tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
+            tmpbt = struct.pack('>f', val)
+            content = tmpbt
+        elif tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
+            tmpbt = struct.pack('>d', val)
+            content = tmpbt
+        elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
+            tmpbt = prepareQuadFloat(val)
+            content = tmpbt
+        return content
+
+    def parseRSRCContentTree(self):
+        ret = False
+        tdType = self.td.fullType()
+        from LVdatatype import TD_FULL_TYPE
+        if tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,\
+              TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,\
+              TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
+            # Real and imaginary part will be filled within children
+            ret = True
+        return ret
+
+    def prepareRSRCContentTree(self):
+        ret = False
+        tdType = self.td.fullType()
+        from LVdatatype import TD_FULL_TYPE
+        if tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,\
+              TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,\
+              TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
+            # Real and imaginary part will be prepared within children
+            ret = True
+        return ret
+
     def parseRSRCContent(self):
-        # Do nothing if we don't have TD set
+        if self.scopeInfo == NODE_SCOPE.TagClose:
+            return
         if self.td is None:
             self.findAndStoreTD()
+        # Do nothing if we don't have TD set
         if self.td is None:
             self.value = None
             self.format = "hex"
             return
-        if not isinstance(self.content, (bytes, bytearray,)):
-            raise AttributeError("Tag '{}' of Class '{}' has no byte-like content"\
-              .format(self.tagEn.name, parentTopClassEn(self.parent).name))
-        bldata = BytesIO(self.content)
-
+        ret = False
         tdType = self.td.fullType()
-        from LVdatatype import TD_FULL_TYPE
-        # Signed integer values are sign-extended automatically and no further processing is needed
-        if tdType in (TD_FULL_TYPE.NumInt8,):
-            self.value = int.from_bytes(bldata.read(1), byteorder='big', signed=True)
-        elif tdType in (TD_FULL_TYPE.NumInt16,):
-            self.value = int.from_bytes(bldata.read(2), byteorder='big', signed=True)
-        elif tdType in (TD_FULL_TYPE.NumInt32,):
-            self.value = int.from_bytes(bldata.read(4), byteorder='big', signed=True)
-        elif tdType in (TD_FULL_TYPE.NumInt64,):
-            self.value = int.from_bytes(bldata.read(8), byteorder='big', signed=True)
-        # Unsigned integers need to be sign-extended as well, so pretend they're signed at first
-        elif tdType in (TD_FULL_TYPE.NumUInt8,TD_FULL_TYPE.UnitUInt8,):
-            self.value = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        elif tdType in (TD_FULL_TYPE.NumUInt16,TD_FULL_TYPE.UnitUInt16,):
-            tmpbt = int.from_bytes(bldata.read(2), byteorder='big', signed=True).to_bytes(2, byteorder='big', signed=True)
-            self.value = int.from_bytes(tmpbt, byteorder='big', signed=False)
-        elif tdType in (TD_FULL_TYPE.NumUInt32,TD_FULL_TYPE.UnitUInt32,):
-            tmpbt = int.from_bytes(bldata.read(4), byteorder='big', signed=True).to_bytes(4, byteorder='big', signed=True)
-            self.value = int.from_bytes(tmpbt, byteorder='big', signed=False)
-        elif tdType in (TD_FULL_TYPE.NumUInt64,):
-            tmpbt = int.from_bytes(bldata.read(8), byteorder='big', signed=True).to_bytes(8, byteorder='big', signed=True)
-            self.value = int.from_bytes(tmpbt, byteorder='big', signed=False)
-        # Float values have special reaing routines
-        elif tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
-            self.value = struct.unpack('>f', bldata.read(4))[0]
-        elif tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
-            self.value = struct.unpack('>d', bldata.read(8))[0]
-        elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
-            self.value = readQuadFloat(bldata)
-        else:
-            raise RuntimeError("Class {} used for unexpected type {}"\
-              .format(type(self).__name__, tdType))
+        # We have two types of content, depending on TD type: text value directly in current tag, or in children
+        if isinstance(self.content, (bytes, bytearray,)):
+            bldata = BytesIO(self.content)
+            val = self.parseRSRCContentDirect(bldata, tdType)
+            if val is not None:
+                self.value = val
+                ret = True
+        if not ret:
+            ret = self.parseRSRCContentTree()
+        if not ret:
+            raise AttributeError("Tag '{}' of Class '{}' could not parse its TypeDesc type={} dependent content"\
+              .format(self.tagEn.name, parentTopClassEn(self.parent).name,tdType))
         self.format = "inline"
 
     def updateContent(self):
-        if self.td is None or self.value is None:
+        if self.td is None:
             return
+        ret = False
         tdType = self.td.fullType()
-        from LVdatatype import TD_FULL_TYPE
-        # Signed integer values
-        if tdType in (TD_FULL_TYPE.NumInt8,):
-            tmpbt = int(self.value).to_bytes(1, byteorder='big', signed=True)
-            self.content = self.shrinkRepeatedBits(tmpbt)
-        elif tdType in (TD_FULL_TYPE.NumInt16,):
-            tmpbt = int(self.value).to_bytes(2, byteorder='big', signed=True)
-            self.content = self.shrinkRepeatedBits(tmpbt)
-        elif tdType in (TD_FULL_TYPE.NumInt32,):
-            tmpbt = int(self.value).to_bytes(4, byteorder='big', signed=True)
-            self.content = self.shrinkRepeatedBits(tmpbt)
-        elif tdType in (TD_FULL_TYPE.NumInt64,):
-            tmpbt = int(self.value).to_bytes(8, byteorder='big', signed=True)
-            self.content = self.shrinkRepeatedBits(tmpbt)
-        # Unsigned integer values
-        elif tdType in (TD_FULL_TYPE.NumUInt8,TD_FULL_TYPE.UnitUInt8,):
-            tmpbt = int(self.value).to_bytes(1, byteorder='big', signed=False)
-            self.content = self.shrinkRepeatedBits(tmpbt)
-        elif tdType in (TD_FULL_TYPE.NumUInt16,TD_FULL_TYPE.UnitUInt16,):
-            tmpbt = int(self.value).to_bytes(2, byteorder='big', signed=False)
-            self.content = self.shrinkRepeatedBits(tmpbt)
-        elif tdType in (TD_FULL_TYPE.NumUInt32,TD_FULL_TYPE.UnitUInt32,):
-            tmpbt = int(self.value).to_bytes(4, byteorder='big', signed=False)
-            self.content = self.shrinkRepeatedBits(tmpbt)
-        elif tdType in (TD_FULL_TYPE.NumUInt64,):
-            tmpbt = int(self.value).to_bytes(8, byteorder='big', signed=False)
-            self.content = self.shrinkRepeatedBits(tmpbt)
-        # Float values
-        elif tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
-            tmpbt = struct.pack('>f', self.value)
-            self.content = tmpbt
-        elif tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
-            tmpbt = struct.pack('>d', self.value)
-            self.content = tmpbt
-        elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
-            tmpbt = prepareQuadFloat(self.value)
-            self.content = tmpbt
-        else:
-            raise RuntimeError("Class {} used for unexpected type {}"\
-              .format(type(self).__name__, tdType))
+        content = self.prepareRSRCContentDirect(self.value, tdType)
+        if content is not None:
+            self.content = content
+            ret = True
+        if not ret:
+            ret = self.prepareRSRCContentTree()
+        if not ret:
+            raise AttributeError("Tag '{}' of Class '{}' could not generate TypeDesc type={} dependent content"\
+              .format(self.tagEn.name, parentTopClassEn(self.parent).name,tdType))
 
-    def prepareContentXML(self, fname_base):
-        if self.format == "hex":
-            return HeapNode.prepareContentXML(self, fname_base)
-
-        text = ""
-        tdType = self.td.fullType()
+    @staticmethod
+    def prepareXMLContentDirect(val, tdType):
+        text = None
         from LVdatatype import TD_FULL_TYPE
         if tdType in (TD_FULL_TYPE.NumInt8,TD_FULL_TYPE.NumInt16,TD_FULL_TYPE.NumInt32,TD_FULL_TYPE.NumInt64,):
-            text = "{:d}".format(self.value)
+            text = "{:d}".format(val)
         elif tdType in (TD_FULL_TYPE.NumUInt8,TD_FULL_TYPE.UnitUInt8,TD_FULL_TYPE.NumUInt16,TD_FULL_TYPE.UnitUInt16,\
           TD_FULL_TYPE.NumUInt32,TD_FULL_TYPE.UnitUInt32,TD_FULL_TYPE.NumUInt64,):
-            text = "{:d}".format(self.value)
+            text = "{:d}".format(val)
         elif tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
-            tmpbt = struct.pack('>f', self.value)
-            text = "{:f} (0x{:08X})".format(self.value, int.from_bytes(tmpbt, byteorder='big', signed=False))
+            tmpbt = struct.pack('>f', val)
+            text = "{:f} (0x{:08X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
         elif tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
-            tmpbt = struct.pack('>d', self.value)
-            text = "{:f} (0x{:016X})".format(self.value, int.from_bytes(tmpbt, byteorder='big', signed=False))
+            tmpbt = struct.pack('>d', val)
+            text = "{:f} (0x{:016X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
         elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
-            tmpbt = prepareQuadFloat(self.value)
-            text = "{:f} (0x{:032X})".format(self.value, int.from_bytes(tmpbt, byteorder='big', signed=False))
-        else:
-            raise RuntimeError("Class {} used for unexpected type {}"\
-              .format(type(self).__name__, tdType))
-
+            tmpbt = prepareQuadFloat(val)
+            text = "{:f} (0x{:032X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
         return text
 
-    def initContentWithXML(self, tagText):
-        self.raw_str = tagText
-        # Further initialization will be done in late function below
-
-    def initWithXMLLate(self):
-        if self.scopeInfo == NODE_SCOPE.TagClose:
-            return
-        if self.format == "hex":
-            # in this case, the content was filled already
-            return
-        self.findAndStoreTD()
-        if self.td is None:
-            # if we have no TD, we can't do anything with the string
-            raise AttributeError("Tag '{}' of Class '{}' has non-hex content, but cannot get related TypeDesc"\
-              .format(self.tagEn.name, parentTopClassEn(self.parent).name))
-        text = self.raw_str
-        self.raw_str = None
+    @staticmethod
+    def parseXMLContentDirect(text, tdType):
         val = None
-        tdType = self.td.fullType()
         from LVdatatype import TD_FULL_TYPE
         if tdType in (TD_FULL_TYPE.NumInt8,TD_FULL_TYPE.NumInt16,TD_FULL_TYPE.NumInt32,TD_FULL_TYPE.NumInt64,):
             val = int(text.strip(),0)
@@ -2076,6 +2100,187 @@ class HeapNodeTDDataFill(HeapNode):
                 hexParse = re.search(r'([0-9Ee.\+-]+|[\+-]?inf)',text)
                 if hexParse is not None:
                     val = float(hexParse.group(1))
+        return val
+
+    def prepareContentXML(self, fname_base):
+        if self.format == "hex" or self.scopeInfo == NODE_SCOPE.TagClose:
+            return HeapNode.prepareContentXML(self, fname_base)
+
+        text = ""
+        ret = False
+        tdType = self.td.fullType()
+        from LVdatatype import TD_FULL_TYPE
+        tmpText = HeapNodeTDDataFill.prepareXMLContentDirect(self.value, tdType)
+        if tmpText is not None:
+            text = tmpText
+            ret = True
+        if not ret:
+            if tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,\
+              TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,\
+              TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
+                ret = True # real content is stored in children
+        if not ret:
+            raise AttributeError("Tag '{}' of Class '{}' could not generate TypeDesc type={} XML text"\
+              .format(self.tagEn.name, parentTopClassEn(self.parent).name,tdType))
+
+        return text
+
+    def initContentWithXML(self, tagText):
+        self.raw_str = tagText
+        # Further initialization will be done in late function below
+
+    def initWithXMLLate(self):
+        if self.scopeInfo == NODE_SCOPE.TagClose:
+            return
+        if self.format == "hex":
+            # in this case, the content was filled already
+            return
+        self.findAndStoreTD()
+        if self.td is None:
+            # if we have no TD, we can't do anything with the string
+            raise AttributeError("Tag '{}' of Class '{}' has non-hex content, but cannot get related TypeDesc"\
+              .format(self.tagEn.name, parentTopClassEn(self.parent).name))
+        text = self.raw_str
+        self.raw_str = None
+        ret = False
+        val = None
+        tdType = self.td.fullType()
+        from LVdatatype import TD_FULL_TYPE
+        val = HeapNodeTDDataFill.parseXMLContentDirect(text, tdType)
+        if val is not None:
+            ret = True
+        elif tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,\
+              TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,\
+              TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
+            ret = True # real content is stored in children
+        if ret:
+            self.value = val
+        else:
+            raise AttributeError("Tag '{}' of Class '{}' could not parse TypeDesc type={} XML text"\
+              .format(self.tagEn.name, parentTopClassEn(self.parent).name,tdType))
+        self.updateContent()
+
+
+class HeapNodeTDDataFillLeaf(HeapNode):
+    """ Leaf of a value within heap which represents DataFill for given TD
+
+    This node gets content before TD is available, so stores it in raw or string form.
+    Then, when parent node receives the TD reference, the content is converted to value of proper type.
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.value = None
+        self.raw_str = None
+
+    @staticmethod
+    def parseRSRCContentDirect(bldata, tdType):
+        val = None
+        from LVdatatype import TD_FULL_TYPE
+        if tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,\
+              TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,\
+              TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
+            if tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
+                val = HeapNodeTDDataFill.parseRSRCContentDirect(bldata, TD_FULL_TYPE.NumFloat32)
+            elif tdType in (TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,):
+                val = HeapNodeTDDataFill.parseRSRCContentDirect(bldata, TD_FULL_TYPE.NumFloat64)
+            elif tdType in (TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
+                val = HeapNodeTDDataFill.parseRSRCContentDirect(bldata, TD_FULL_TYPE.NumFloatExt)
+        return val
+
+    def parseRSRCContent(self):
+        if self.scopeInfo == NODE_SCOPE.TagClose:
+            return
+        # Do nothing if we don't have TD set
+        if self.parent.td is None or self.format == "hex":
+            self.value = None
+            self.format = "hex"
+            return
+        ret = False
+        if isinstance(self.content, (bytes, bytearray,)):
+            bldata = BytesIO(self.content)
+            val = self.parseRSRCContentDirect(bldata, self.parent.td.fullType())
+            if val is not None:
+                self.value = val
+                ret = True
+        if not ret:
+            raise AttributeError("Tag '{}' of Class '{}' could not parse its TypeDesc dependent content"\
+              .format(self.tagEn.name, parentTopClassEn(self.parent).name))
+        self.format = "inline"
+
+    def updateContent(self):
+        if self.parent.td is None:
+            return
+        ret = False
+        tdType = self.parent.td.fullType()
+        from LVdatatype import TD_FULL_TYPE
+        content = None
+        if tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
+            content = HeapNodeTDDataFill.prepareRSRCContentDirect(self.value, TD_FULL_TYPE.NumFloat32)
+        elif tdType in (TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,):
+            content = HeapNodeTDDataFill.prepareRSRCContentDirect(self.value, TD_FULL_TYPE.NumFloat64)
+        elif tdType in (TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
+            content = HeapNodeTDDataFill.prepareRSRCContentDirect(self.value, TD_FULL_TYPE.NumFloatExt)
+        if content is not None:
+            self.content = content
+            ret = True
+        if not ret:
+            raise AttributeError("Tag '{}' of Class '{}' could not generate TypeDesc type={} dependent content"\
+              .format(self.tagEn.name, parentTopClassEn(self.parent).name,tdType))
+
+    def prepareContentXML(self, fname_base):
+        if self.format == "hex" or self.scopeInfo == NODE_SCOPE.TagClose:
+            return HeapNode.prepareContentXML(self, fname_base)
+
+        text = ""
+        ret = False
+        tdType = self.parent.td.fullType()
+        from LVdatatype import TD_FULL_TYPE
+        if tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
+            tmpText = HeapNodeTDDataFill.prepareXMLContentDirect(self.value, TD_FULL_TYPE.NumFloat32)
+            if tmpText is not None:
+                text = tmpText
+                ret = True
+        elif tdType in (TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,):
+            tmpText = HeapNodeTDDataFill.prepareXMLContentDirect(self.value, TD_FULL_TYPE.NumFloat64)
+            if tmpText is not None:
+                text = tmpText
+                ret = True
+        elif tdType in (TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
+            tmpText = HeapNodeTDDataFill.prepareXMLContentDirect(self.value, TD_FULL_TYPE.NumFloatExt)
+            if tmpText is not None:
+                text = tmpText
+                ret = True
+        if not ret:
+            raise AttributeError("Tag '{}' of Class '{}' could not generate TypeDesc type={} XML text"\
+              .format(self.tagEn.name, parentTopClassEn(self.parent).name,tdType))
+
+        return text
+
+    def initContentWithXML(self, tagText):
+        self.raw_str = tagText
+        # Further initialization will be done in late function below
+
+    def initWithXMLLate(self):
+        if self.scopeInfo == NODE_SCOPE.TagClose:
+            return
+        if self.format == "hex":
+            # in this case, the content was filled already
+            return
+        if self.parent.td is None:
+            # if we have no TD, we can't do anything with the string
+            raise AttributeError("Tag '{}' of Class '{}' has non-hex content, but cannot get related TypeDesc"\
+              .format(self.tagEn.name, parentTopClassEn(self.parent).name))
+        text = self.raw_str
+        self.raw_str = None
+        val = None
+        tdType = self.parent.td.fullType()
+        from LVdatatype import TD_FULL_TYPE
+        if tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
+            val = HeapNodeTDDataFill.parseXMLContentDirect(text, TD_FULL_TYPE.NumFloat32)
+        elif tdType in (TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,):
+            val = HeapNodeTDDataFill.parseXMLContentDirect(text, TD_FULL_TYPE.NumFloat64)
+        elif tdType in (TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
+            val = HeapNodeTDDataFill.parseXMLContentDirect(text, TD_FULL_TYPE.NumFloatExt)
         else:
             raise RuntimeError("Class {} used for unexpected type {}"\
               .format(type(self).__name__, tdType))
@@ -2345,6 +2550,11 @@ NODE_DATAFILL_TAGS_LIST = (
     OBJ_FIELD_TAGS.OF__StdNumInc,
 )
 
+NODE_DTFILLEAF_TAGS_LIST = (
+    OBJ_COMPLEX_SCALAR_TAGS.OF__real,
+    OBJ_COMPLEX_SCALAR_TAGS.OF__imaginary,
+)
+
 
 def getFrontPanelHeapIdent(hfmt):
     """ Gives 4-byte heap identifier from HEAP_FORMAT member
@@ -2580,6 +2790,9 @@ def createObjectNode(vi, po, parentNode, tagEn, scopeInfo):
     elif tagEn == OBJ_FIELD_TAGS.OF__activePlot and \
       parentNodeTagMatches(parentNode, (OBJ_FIELD_TAGS.OF__ddo,)):
         obj = HeapNodeStdInt(vi, po, parentNode, tagEn, scopeInfo, btlen=-1, signed=True)
+    elif tagEn in NODE_DTFILLEAF_TAGS_LIST and \
+      parentNodeTagMatches(parentNode, NODE_DATAFILL_TAGS_LIST):
+        obj = HeapNodeTDDataFillLeaf(vi, po, parentNode, tagEn, scopeInfo)
     else:
         obj = HeapNode(vi, po, parentNode, tagEn, scopeInfo)
     return obj
