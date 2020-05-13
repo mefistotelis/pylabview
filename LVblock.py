@@ -3004,6 +3004,7 @@ class LVSR(CompleteBlock):
             elif (subelem.tag == "Execution"):
                 section.execState = int(subelem.get("State"), 0)
                 section.execPrio = int(subelem.get("Priority"), 0)
+                section.prefExecSyst = int(subelem.get("PrefExecSyst"), 0)
                 section.execFlags = importXMLBitfields(VI_EXEC_FLAGS, subelem)
                 section.viFlags2 = importXMLBitfields(VI_FLAGS2, subelem)
             elif (subelem.tag == "ButtonsHidden"):
@@ -3014,19 +3015,20 @@ class LVSR(CompleteBlock):
                 section.viSignature = bytes.fromhex(tmphash)
                 section.instrState = importXMLBitfields(VI_IN_ST_FLAGS, subelem)
             elif (subelem.tag == "FrontPanel"):
+                section.ctrlIndStyle = int(subelem.get("CtrlIndStyle"), 0)
                 section.frontpFlags = importXMLBitfields(VI_FP_FLAGS, subelem)
+            elif (subelem.tag == "Flags0C"):
+                section.field0C = importXMLBitfields(VI_FLAGS0C, subelem)
+            elif (subelem.tag == "Flags12"):
+                section.field12 = importXMLBitfields(VI_FLAGS12, subelem)
             elif (subelem.tag == "Unknown"):
-                section.field0C = int(subelem.get("Field0C"), 0)
                 section.flags10 = int(subelem.get("Flags10"), 0)
-                section.field12 = int(subelem.get("Field12"), 0)
-                section.prefExecSyst = int(subelem.get("PrefExecSyst"), 0)
                 section.field28 = int(subelem.get("Field28"), 0)
                 section.field2C = int(subelem.get("Field2C"), 0)
                 section.field30 = int(subelem.get("Field30"), 0)
                 section.alignGridFP = int(subelem.get("AlignGridFP"), 0)
                 section.alignGridBD = int(subelem.get("AlignGridBD"), 0)
                 section.field4C = int(subelem.get("Field4C"), 0)
-                section.ctrlIndStyle = int(subelem.get("CtrlIndStyle"), 0)
                 field50_hash = subelem.get("Field50Hash")
                 section.field50_md5 = bytes.fromhex(field50_hash)
                 section.field70 = int(subelem.get("Field70"), 0)
@@ -3071,6 +3073,7 @@ class LVSR(CompleteBlock):
         subelem = ET.SubElement(section_elem,"Execution")
         subelem.set("State", "{:d}".format(section.execState))
         subelem.set("Priority", "{:d}".format(section.execPrio))
+        subelem.set("PrefExecSyst", "{:d}".format(section.prefExecSyst))
         exportXMLBitfields(VI_EXEC_FLAGS, subelem, section.execFlags, \
           skip_mask=VI_EXEC_FLAGS.LibProtected.value)
         exportXMLBitfields(VI_FLAGS2, subelem, section.viFlags2)
@@ -3084,21 +3087,24 @@ class LVSR(CompleteBlock):
         exportXMLBitfields(VI_IN_ST_FLAGS, subelem, section.instrState)
 
         subelem = ET.SubElement(section_elem,"FrontPanel")
+        subelem.set("CtrlIndStyle", "{:d}".format(section.ctrlIndStyle))
         exportXMLBitfields(VI_FP_FLAGS, subelem, section.frontpFlags)
+
+        subelem = ET.SubElement(section_elem,"Flags0C")
+        exportXMLBitfields(VI_FLAGS0C, subelem, section.field0C)
+
+        subelem = ET.SubElement(section_elem,"Flags12")
+        exportXMLBitfields(VI_FLAGS12, subelem, section.field12)
 
         subelem = ET.SubElement(section_elem,"Unknown")
 
-        subelem.set("Field0C", "{:d}".format(section.field0C))
         subelem.set("Flags10", "{:d}".format(section.flags10))
-        subelem.set("Field12", "{:d}".format(section.field12))
-        subelem.set("PrefExecSyst", "{:d}".format(section.prefExecSyst))
         subelem.set("Field28", "{:d}".format(section.field28))
         subelem.set("Field2C", "{:d}".format(section.field2C))
         subelem.set("Field30", "{:d}".format(section.field30))
         subelem.set("AlignGridFP", "{:d}".format(section.alignGridFP))
         subelem.set("AlignGridBD", "{:d}".format(section.alignGridBD))
         subelem.set("Field4C", "{:d}".format(section.field4C))
-        subelem.set("CtrlIndStyle", "{:d}".format(section.ctrlIndStyle))
         subelem.set("Field50Hash", section.field50_md5.hex())
         subelem.set("Field70", "{:d}".format(section.field70))
         subelem.set("Field74", "{:d}".format(section.field74))

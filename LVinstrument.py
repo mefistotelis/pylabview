@@ -44,75 +44,75 @@ class VI_FP_FLAGS(enum.Enum):
     ShowTitleBar = 1 << 2	# Indicates whether to display title bar in the VI FP window. in LV14: Customize Window Apearence -> Windows has title bar
     ToolBarVisible = 1 << 3	# Indicates whether to display the toolbar while the VI runs. in LV14: Customize Window Apearence -> Show toolbar when running
     ShowMenuBar = 1 << 4	# Indicates whether to display the menu bar on the front panel while the VI runs. in LV14: Customize Window Apearence -> Show menu bar
-    AutoCenter = 1 << 5	# Marked as deprecated in LV2019
-    SizeToScreen = 1 << 6	# Marked as deprecated in LV2019
+    AutoCenter = 1 << 5	# Sets initial position of the FP window on screen to be centered. in LV14: Window Run-Time Positiion -> Positiion; in LV19: marked as deprecated
+    SizeToScreen = 1 << 6	# Sets initial position of the FP window on screen to be maximized. in LV14: Window Run-Time Positiion -> Positiion; in LV19: marked as deprecated
     NoRuntimePopUp = 1 << 7	# Indicates whether to display shortcut menus for front panel objects while the VI runs. in LV14: Customize Window Apearence -> Allow default run-time shortcut menus
     MarkReturnBtn = 1 << 8	# Indicates whether to highlight Boolean controls that have a shortcut key of <Enter>. in LV14: Customize Window Apearence -> Highlight Enter boolean
-    Bit9 = 1 << 9	# unknown
-    Bit10 = 1 << 10	# unknown
-    Bit11 = 1 << 11	# unknown
-    Bit12 = 1 << 12	# unknown
-    Bit13 = 1 << 13	# unknown
-    Bit14 = 1 << 14	# unknown
-    Bit15 = 1 << 15	# unknown
+    ViFpBit9 = 1 << 9	# unknown
+    ScaleProportn = 1 << 10	# Maintain proportions of window for different monitor resolutions.
+    ViFpBit11 = 1 << 11	# unknown
+    ViFpBit12 = 1 << 12	# unknown
+    ViFpBit13 = 1 << 13	# unknown
+    ViFpBit14 = 1 << 14	# unknown
+    ViFpBit15 = 1 << 15	# unknown
 
 
 class VI_BTN_HIDE_FLAGS(enum.Enum):
     """ VI Tool Bar Buttons Hidding flags
     """
     RunButton = 1 << 0	# Indicates whether to display the Run button on the toolbar while the VI runs.
-    Bit1 = 1 << 1	# unknown
-    Bit2 = 1 << 2	# unknown
-    Bit3 = 1 << 3	# unknown
-    Bit4 = 1 << 4	# unknown
+    ViBhBit1 = 1 << 1	# unknown
+    ViBhBit2 = 1 << 2	# unknown
+    ViBhBit3 = 1 << 3	# unknown
+    ViBhBit4 = 1 << 4	# unknown
     FreeRunButton = 1 << 5	# Indicates whether to display the Run Continuously button on the toolbar while the VI runs. in LV14: Customize Window Apearence -> Show Run Continuously button
-    Bit6 = 1 << 6	# unknown
+    ViBhBit6 = 1 << 6	# unknown
     AbortButton = 1 << 7	# Indicates whether to display the Abort Execution button on the toolbar while the VI runs. in LV14: Customize Window Apearence -> Show Abort button
-    Bit8 = 1 << 8	# unknown
-    Bit9 = 1 << 9	# unknown
-    Bit10 = 1 << 10	# unknown
-    Bit11 = 1 << 11	# unknown
-    Bit12 = 1 << 12	# unknown
-    Bit13 = 1 << 13	# unknown
-    Bit14 = 1 << 14	# unknown
-    Bit15 = 1 << 15	# unknown
+    ViBhBit8 = 1 << 8	# unknown
+    ViBhBit9 = 1 << 9	# unknown
+    ViBhBit10 = 1 << 10	# unknown
+    ViBhBit11 = 1 << 11	# unknown
+    ViBhBit12 = 1 << 12	# unknown
+    ViBhBit13 = 1 << 13	# unknown
+    ViBhBit14 = 1 << 14	# unknown
+    ViBhBit15 = 1 << 15	# unknown
 
 
 class VI_IN_ST_FLAGS(enum.Enum):
     """ VI Insrument State flags
     """
-    Bit0 = 1 << 0	# unknown
-    Bit1 = 1 << 1	# unknown
-    Bit2 = 1 << 2	# unknown
-    Bit3 = 1 << 3	# unknown
-    Bit4 = 1 << 4	# unknown
-    Bit5 = 1 << 5	# unknown
-    Bit6 = 1 << 6	# unknown
-    Bit7 = 1 << 7	# unknown
-    Bit8 = 1 << 8	# unknown
+    InStBit0 = 1 << 0	# unknown
+    InStBit1 = 1 << 1	# unknown
+    InStBit2 = 1 << 2	# unknown
+    InStBit3 = 1 << 3	# unknown
+    InStBit4 = 1 << 4	# unknown
+    InStBit5 = 1 << 5	# unknown
+    InStBit6 = 1 << 6	# unknown
+    InStBit7 = 1 << 7	# unknown
+    InStBit8 = 1 << 8	# unknown
     DebugCapable = 1 << 9	# Whether you can use debugging tools on the VI. For example, you can set breakpoints, create probes, enable execution highlighting, and single-step through execution.
-    Bit10 = 1 << 10	# unknown
-    Bit11 = 1 << 11	# unknown
-    Bit12 = 1 << 12	# unknown
-    Bit13 = 1 << 13	# unknown
-    Bit14 = 1 << 14	# unknown
-    Bit15 = 1 << 15	# unknown
-    Bit16 = 1 << 16	# unknown
-    Bit17 = 1 << 17	# unknown
-    Bit18 = 1 << 18	# unknown
-    Bit19 = 1 << 19	# unknown
-    Bit20 = 1 << 20	# unknown
-    Bit21 = 1 << 21	# unknown
-    Bit22 = 1 << 22	# unknown
-    Bit23 = 1 << 23	# unknown
-    Bit24 = 1 << 24	# unknown
-    Bit25 = 1 << 25	# unknown
-    Bit26 = 1 << 26	# unknown
-    Bit27 = 1 << 27	# unknown
-    Bit28 = 1 << 28	# unknown
-    Bit29 = 1 << 29	# unknown
-    Bit30 = 1 << 30	# unknown
-    Bit31 = 1 << 31	# unknown
+    InStBit10 = 1 << 10	# unknown
+    InStBit11 = 1 << 11	# unknown
+    InStBit12 = 1 << 12	# unknown
+    InStBit13 = 1 << 13	# unknown
+    InStBit14 = 1 << 14	# unknown
+    PrintAfterExec = 1 << 15	# Print FP on Execution Complete. in LV14: Print Options -> Automatically print front panel every time VI completes execution
+    InStBit16 = 1 << 16	# unknown
+    InStBit17 = 1 << 17	# unknown
+    InStBit18 = 1 << 18	# unknown
+    InStBit19 = 1 << 19	# unknown
+    InStBit20 = 1 << 20	# unknown
+    InStBit21 = 1 << 21	# unknown
+    InStBit22 = 1 << 22	# unknown
+    InStBit23 = 1 << 23	# unknown
+    InStBit24 = 1 << 24	# unknown
+    InStBit25 = 1 << 25	# unknown
+    InStBit26 = 1 << 26	# unknown
+    InStBit27 = 1 << 27	# unknown
+    InStBit28 = 1 << 28	# unknown
+    InStBit29 = 1 << 29	# unknown
+    InStBit30 = 1 << 30	# unknown
+    InStBit31 = 1 << 31	# unknown
 
 
 class VI_EXEC_FLAGS(enum.Enum):
@@ -124,16 +124,16 @@ class VI_EXEC_FLAGS(enum.Enum):
     BadSubVI =		1 << 3	# bad SubVI
     NotReservable =	1 << 4	# not reservable
     IsReentrant =	1 << 5	# Indicates whether a VI can be reentrant (multiple instances of it can execute in parallel).
-    CloseAfterCall = 1 << 6	# Indicates whether to close the front panel after the VI runs (auto reclose).
+    CloseAfterCall = 1 << 6	# Indicates whether to close the front panel after the VI runs (auto reclose). in LV14: Customize Window Apearence -> Close afterwards if originally closed
     PooledReentrancy = 1 << 7	# pooled Reentrancy
     LoadFP =		1 << 8	# load FP
     HasNoBD =		1 << 9	# BD not available
     ShowFPOnLoad =	1 << 10	# Indicates whether to show the front panel when the VI is loaded. in LV14: Customize Window Apearence -> Show front panel when loaded
     DynamicDispatch = 1 << 11	# fails to always call Parent VI (dynamic dispatching)
-    HasSetBD =		1 << 12	# BP Set
+    HasSetBP =		1 << 12	# BreakPoint Set on the VI. in LV14: Execution -> Suspend when called
     LibProtected =	1 << 13	# The library which this VI is part of is protected(locked) from changes.
-    RunOnOpen =		1 << 14	# Indicates whether to run the VI when it opens (load and go).
-    ShowFPOnCall =	1 << 15	# Indicates whether to show the front panel when the VI is called (Auto window).
+    RunOnOpen =		1 << 14	# Indicates whether to run the VI when it opens (load and go). in LV14: Execution -> Run when opened
+    ShowFPOnCall =	1 << 15	# Indicates whether to show the front panel when the VI is called (Auto window). in LV14: Customize Window Apearence -> Show front panel when called
     BadCompile =	1 << 16	# Compile bad
     IsSubroutine =	1 << 17	# VI is Subroutine; this sets high priority.
     DSRecord =		1 << 18	# Record DS
@@ -192,74 +192,42 @@ class VI_FLAGS2(enum.Enum):
 class VI_FLAGS0C(enum.Enum):
     """ VI Flags dword at 0x0C
     """
-    Bit0 = 1 << 0	# unknown
-    Bit1 = 1 << 1	# unknown
-    Bit2 = 1 << 2	# in LV14: Execution -> Auto handle menus at launch
-    Bit3 = 1 << 3	# unknown
-    Bit4 = 1 << 4	# unknown
-    Bit5 = 1 << 5	# unknown
-    Bit6 = 1 << 6	# unknown
-    Bit7 = 1 << 7	# unknown
-    Bit8 = 1 << 8	# unknown
-    Bit9 = 1 << 9	# unknown
-    Bit10 = 1 << 10	# unknown
-    Bit11 = 1 << 11	# unknown
-    Bit12 = 1 << 12	# unknown
-    Bit13 = 1 << 13	# unknown
-    Bit14 = 1 << 14	# unknown
-    Bit15 = 1 << 15	# unknown
-    Bit16 = 1 << 16	# unknown
-    Bit17 = 1 << 17	# unknown
-    Bit18 = 1 << 18	# unknown
-    Bit19 = 1 << 19	# unknown
-    Bit20 = 1 << 20	# unknown
-    Bit21 = 1 << 21	# unknown
-    Bit22 = 1 << 22	# unknown
-    Bit23 = 1 << 23	# unknown
-    Bit24 = 1 << 24	# unknown
-    Bit25 = 1 << 25	# unknown
-    Bit26 = 1 << 26	# unknown
-    Bit27 = 1 << 27	# unknown
-    Bit28 = 1 << 28	# unknown
-    Bit29 = 1 << 29	# unknown
-    Bit30 = 1 << 30	# unknown
-    Bit31 = 1 << 31	# unknown
+    ViCBit0 = 1 << 0	# unknown
+    ViCBit1 = 1 << 1	# unknown
+    AutoHndlMenus = 1 << 2	# Automatically handle menu selections when you open and run the VI. in LV14: Execution -> Auto handle menus at launch
+    ViCBit3 = 1 << 3	# unknown
+    ViCBit4 = 1 << 4	# unknown
+    ViCBit5 = 1 << 5	# unknown
+    ViCBit6 = 1 << 6	# unknown
+    ViCBit7 = 1 << 7	# unknown
+    ViCBit8 = 1 << 8	# unknown
+    ViCBit9 = 1 << 9	# unknown
+    ViCBit10 = 1 << 10	# unknown
+    ViCBit11 = 1 << 11	# unknown
+    ViCBit12 = 1 << 12	# unknown
+    ViCBit13 = 1 << 13	# unknown
+    ViCBit14 = 1 << 14	# unknown
+    ViCBit15 = 1 << 15	# unknown
 
 class VI_FLAGS12(enum.Enum):
     """ VI Flags dword at 0x12
     """
-    Bit0 = 1 << 0	# unknown
-    Bit1 = 1 << 1	# Window is Floating or Hide window when LV not active
-    Bit2 = 1 << 2	# unknown
-    Bit3 = 1 << 3	# Indicates whether the VI FP window can be closed. in LV14: Customize Window Apearence -> Allow user to close window
-    Bit4 = 1 << 4	# Indicates whether the VI FP window can be resized. in LV14: Customize Window Apearence -> Allow user to resize window
-    Bit5 = 1 << 5	# Indicates whether the VI FP window can be minimized. in LV14: Customize Window Apearence -> Allow user to minimize window
-    Bit6 = 1 << 6	# Indicates whether the VI FP window has transparency. 'pctTransparent' should be defined in FP. in LV14: Customize Window Apearence -> Window runs transparently
-    Bit7 = 1 << 7	# unknown
-    Bit8 = 1 << 8	# unknown
-    Bit9 = 1 << 9	# Window is Floating or Hide window when LV not active
-    Bit10 = 1 << 10	# unknown
-    Bit11 = 1 << 11	# unknown
-    Bit12 = 1 << 12	# unknown
-    Bit13 = 1 << 13	# unknown
-    Bit14 = 1 << 14	# unknown
-    Bit15 = 1 << 15	# unknown
-    Bit16 = 1 << 16	# unknown
-    Bit17 = 1 << 17	# unknown
-    Bit18 = 1 << 18	# unknown
-    Bit19 = 1 << 19	# unknown
-    Bit20 = 1 << 20	# unknown
-    Bit21 = 1 << 21	# unknown
-    Bit22 = 1 << 22	# unknown
-    Bit23 = 1 << 23	# unknown
-    Bit24 = 1 << 24	# unknown
-    Bit25 = 1 << 25	# unknown
-    Bit26 = 1 << 26	# unknown
-    Bit27 = 1 << 27	# unknown
-    Bit28 = 1 << 28	# unknown
-    Bit29 = 1 << 29	# unknown
-    Bit30 = 1 << 30	# unknown
-    Bit31 = 1 << 31	# unknown
+    WndBit0 = 1 << 0	# unknown
+    WndFloatUnk1 = 1 << 1	# Window is Floating or Hide window when LV not active
+    WndBit2 = 1 << 2	# unknown
+    WndCanClose = 1 << 3	# Indicates whether the VI FP window can be closed. in LV14: Customize Window Apearence -> Allow user to close window
+    WndCanResize = 1 << 4	# Indicates whether the VI FP window can be resized. in LV14: Customize Window Apearence -> Allow user to resize window
+    WndCanMinimize = 1 << 5	# Indicates whether the VI FP window can be minimized. in LV14: Customize Window Apearence -> Allow user to minimize window
+    WndTransparent = 1 << 6	# Indicates whether the VI FP window has transparency. 'pctTransparent' should be defined in FP. in LV14: Customize Window Apearence -> Window runs transparently
+    WndBit7 = 1 << 7	# unknown
+    WndBit8 = 1 << 8	# unknown
+    WndFloatUnk9 = 1 << 9	# Window is Floating or Hide window when LV not active
+    WndBit10 = 1 << 10	# unknown
+    WndBit11 = 1 << 11	# unknown
+    WndBit12 = 1 << 12	# unknown
+    WndBit13 = 1 << 13	# unknown
+    WndBit14 = 1 << 14	# unknown
+    WndBit15 = 1 << 15	# unknown
 
 
 class LVSRData(RSRCStructure):
@@ -267,9 +235,9 @@ class LVSRData(RSRCStructure):
     _fields_ = [('version', c_uint32),	#0
                 ('execFlags', c_uint32),	#4 see VI_EXEC_FLAGS
                 ('viFlags2', c_uint32),	#8 see VI_FLAGS2
-                ('field0C', c_uint32),	#12
+                ('field0C', c_uint32),	#12 see VI_FLAGS0C
                 ('flags10', c_uint16),	#16
-                ('field12', c_uint16),	#18
+                ('field12', c_uint16),	#18 see VI_FLAGS12
                 ('buttonsHidden', c_uint16),	#20 set based on value of viType, see VI_BTN_HIDE_FLAGS
                 ('frontpFlags', c_uint16),	#18 see VI_FP_FLAGS
                 ('instrState', c_uint32),	#24 see VI_IN_ST_FLAGS
