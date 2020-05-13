@@ -3006,6 +3006,7 @@ class LVSR(CompleteBlock):
                 section.execPrio = int(subelem.get("Priority"), 0)
                 section.prefExecSyst = int(subelem.get("PrefExecSyst"), 0)
                 section.execFlags = importXMLBitfields(VI_EXEC_FLAGS, subelem)
+            elif (subelem.tag == "Execution2"):
                 section.viFlags2 = importXMLBitfields(VI_FLAGS2, subelem)
             elif (subelem.tag == "ButtonsHidden"):
                 section.buttonsHidden = importXMLBitfields(VI_BTN_HIDE_FLAGS, subelem)
@@ -3076,6 +3077,8 @@ class LVSR(CompleteBlock):
         subelem.set("PrefExecSyst", "{:d}".format(section.prefExecSyst))
         exportXMLBitfields(VI_EXEC_FLAGS, subelem, section.execFlags, \
           skip_mask=VI_EXEC_FLAGS.LibProtected.value)
+
+        subelem = ET.SubElement(section_elem,"Execution2")
         exportXMLBitfields(VI_FLAGS2, subelem, section.viFlags2)
 
         subelem = ET.SubElement(section_elem,"ButtonsHidden")
