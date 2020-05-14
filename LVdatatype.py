@@ -2351,6 +2351,7 @@ class TDObjectCluster(TDObject):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.dfComments = {}
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
@@ -2442,6 +2443,11 @@ class TDObjectCluster(TDObject):
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
+
+    def setDataFillComments(self, dfComments):
+        """ Sets list of comments which will describe Data Fill elements in XML
+        """
+        self.dfComments = dfComments
 
 
 class TDObjectMeasureData(TDObject):
@@ -3231,6 +3237,34 @@ def exportXMLTDObject(vi, clients, topType, obj_elem, fname_base, po):
         clientTD.nested.exportXMLFinish(subelem)
     return
 
+def ctypeToFullTypeEnum(obj_ctype):
+    """ Given a type from ctype module, returns TD_FULL_TYPE item
+    """
+    if obj_ctype in (c_bool,):
+        return TD_FULL_TYPE.Boolean
+    elif obj_ctype.__name__ in ("c_int8","c_byte","c_char",):
+        return TD_FULL_TYPE.NumInt8
+    elif obj_ctype.__name__ in ("c_int16","c_short","c_short_be",):
+        return TD_FULL_TYPE.NumInt16
+    elif obj_ctype.__name__ in ("c_int32","c_long","c_long_be",):
+        return TD_FULL_TYPE.NumInt32
+    elif obj_ctype.__name__ in ("c_int64","c_longlong","c_longlong_be",):
+        return TD_FULL_TYPE.NumInt64
+    elif obj_ctype.__name__ in ("c_uint8","c_ubyte","c_ubyte_be",):
+        return TD_FULL_TYPE.NumUInt8
+    elif obj_ctype.__name__ in ("c_uint16","c_ushort","c_ushort_be",):
+        return TD_FULL_TYPE.NumUInt16
+    elif obj_ctype.__name__ in ("c_uint32","c_ulong","c_ulong_be",):
+        return TD_FULL_TYPE.NumUInt32
+    elif obj_ctype.__name__ in ("c_uint64","c_ulonglong","c_ulonglong_be",):
+        return TD_FULL_TYPE.NumUInt64
+    elif obj_ctype.__name__ in ("c_float",):
+        return TD_FULL_TYPE.NumFloat32
+    elif obj_ctype.__name__ in ("c_double",):
+        return TD_FULL_TYPE.NumFloat64
+    elif obj_ctype.__name__ in ("c_longdouble",):
+        return TD_FULL_TYPE.NumFloatExt
+    return None
 
 def newTDObject(vi, idx, obj_flags, obj_type, po):
     """ Creates and returns new Type Descriptor object with given parameters

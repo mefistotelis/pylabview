@@ -2656,6 +2656,22 @@ class DSTM(VarCodingBlock):
         else:
             self.default_block_coding = BLOCK_CODING.NONE
 
+    def getMinTypeId(self, section_num=None):
+        """ Returns minimal TypeID mapped in this section
+        """
+        return 1
+
+    def getMaxTypeId(self, section_num=None):
+        """ Returns TypeID of first item above ones mapped in this section
+        """
+        return 1+len(section.content)
+
+    def getTypeEntry(self, tme_index, section_num=None):
+        return None
+
+    def getTypeMap(self, section_num=None):
+        return []
+
 class TM80(VarCodingBlock):
     """ Data Space Type Map LV8.0+
 
@@ -2776,6 +2792,26 @@ class TM80(VarCodingBlock):
                   .format(self.vi.src_fname,self.ident,section_num,section.indexShift,i))
 
         return tmEntry
+
+    def getMinTypeId(self, section_num=None):
+        """ Returns minimal TypeID mapped in this section
+        """
+        if section_num is None:
+            section_num = self.active_section_num
+        self.parseData(section_num=section_num)
+        section = self.sections[section_num]
+
+        return section.indexShift
+
+    def getMaxTypeId(self, section_num=None):
+        """ Returns TypeID of first item above ones mapped in this section
+        """
+        if section_num is None:
+            section_num = self.active_section_num
+        self.parseData(section_num=section_num)
+        section = self.sections[section_num]
+
+        return section.indexShift + len(section.content)
 
     def getTypeMap(self, section_num=None):
         if section_num is None:
@@ -4754,7 +4790,6 @@ class VCTP(CompleteBlock):
         return data_buf
 
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
-        self.commentSpecialTypes(section_num)
         for clientTD in section.content:
             if len(clientTD.nested.full_name) > 0:
                 comment_elem = ET.Comment(" FlatTypeID {:d}: {} "\
@@ -4791,9 +4826,12 @@ class VCTP(CompleteBlock):
         section = self.sections[section_num]
 
         # Besides the normal parsing, also parse sub-objects
+        needParse = self.needParseData(section_num=section_num)
         Block.parseData(self, section_num=section_num)
-        for clientTD in section.content:
-            clientTD.nested.parseData()
+        if needParse:
+            for clientTD in section.content:
+                clientTD.nested.parseData()
+            self.commentSpecialTypes(section_num)
 
     def checkSanity(self, section_num=None):
         if section_num is None:
@@ -4819,14 +4857,49 @@ class VCTP(CompleteBlock):
         they're easier to understand within the XML file.
         """
         section = self.sections[section_num]
-        from LVdatatype import TD_FULL_TYPE
-        for flatIdx in section.topLevel:
-            if len(section.content) <= flatIdx:
+        topRange = range(1,len(section.topLevel)+1)
+        # If we have Type Map, check only items which are there
+        TM = self.vi.get_one_of('TM80', 'DSTM')
+        if TM is not None:
+            topRange = range(TM.getMinTypeId(), TM.getMaxTypeId())
+        # Make flat range, leaving only valid entries to avoid multiplying checks
+        flatRange = []
+        for typeId in topRange:
+            flatIdx = len(section.topLevel)+1
+            if typeId >= 1 and typeId <= len(section.topLevel):
+                flatIdx = section.topLevel[typeId-1]
+            if flatIdx >= len(section.content):
                 continue
+            flatRange.append(flatIdx)
+        # Now find the special types
+        from LVdatatype import TD_FULL_TYPE
+        for flatIdx in flatRange:
             clientTD = section.content[flatIdx]
             if clientTD.nested.fullType() != TD_FULL_TYPE.RepeatedBlock or clientTD.nested.getNumRepeats() != 51:
                 continue
             clientTD.nested.setDataFillComments( {e.value: e.name for e in LVparts.DSINIT} )
+            break
+        for flatIdx in flatRange:
+            clientTD = section.content[flatIdx]
+            if clientTD.nested.fullType() != TD_FULL_TYPE.RepeatedBlock:
+                continue
+            td_clust = None
+            for cli_idx, td_idx, td_obj, td_flags in clientTD.nested.clientsEnumerate():
+                td_clust = td_obj
+            if td_clust is None or td_clust.fullType() != TD_FULL_TYPE.Cluster:
+                continue
+            match = True
+            for cli_idx, td_idx, td_obj, td_flags in td_clust.clientsEnumerate():
+                if cli_idx >= len(LVparts.DCO._fields_):
+                    match = False
+                    break
+                expectedCType = LVparts.DCO._fields_[cli_idx][1]
+                expectedType = ctypeToFullTypeEnum(expectedCType)
+                if expectedType is not None and td_obj.fullType() != expectedType:
+                    match = False
+                    break
+            if match:
+                td_clust.setDataFillComments( {i: e[0] for i,e in enumerate(LVparts.DCO._fields_)} )
             break
 
     def getContent(self, section_num=None):
