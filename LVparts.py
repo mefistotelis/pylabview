@@ -12,6 +12,9 @@
 
 
 import enum
+from ctypes import *
+
+import LVmisc
 
 class PARTID(enum.IntEnum):
     """ Part identifiers
@@ -224,4 +227,57 @@ def dsInitIdToEnum(dsInitId):
     if dsInitId not in set(item.value for item in DSINIT):
         return dsInitId
     return DSINIT(dsInitId)
+
+
+class DCO(LVmisc.RSRCStructure):
+    """ DCO type as stored within DFDS block.
+
+    The definition of this struct is used to have
+    names of elements, and to compare the types
+    with TypeDesc stored within RSRC and so find this
+    specific structure.
+    It is not used for loading data.
+    """
+    _fields_ = [
+      ('dcoIndex', c_int16),
+      ('ipCon', c_uint16),
+      ('syncDisplay', c_uint8),
+      ('extraUsed', c_uint8),
+      ('flat', c_uint8),
+      ('conNum', c_int8),
+      ('flagDSO', c_int32),
+      ('flagTMI', c_int32),
+      ('defaultDataTMI', c_int32),
+      ('extraDataTMI', c_int32),
+      ('dsSz', c_int32),
+      ('ddoWriteCode', c_uint8),
+      ('ddoNeedsSubVIStartup', c_uint8),
+      ('isIndicator', c_uint8),
+      ('isScalar', c_uint8),
+      ('defaultDataOffset', c_int32),
+      ('transferDataOffset', c_int32),
+      ('extraDataOffset', c_int32),
+      ('execDataPtrOffset', c_int32),
+      ('eltDsSz', c_int32),
+      ('copyReq', c_uint8),
+      ('local', c_uint8),
+      ('feo', c_uint8),
+      ('nDims', c_uint8),
+      ('copyProcIdx', c_uint8),
+      ('copyFromRtnIdx', c_uint8),
+      ('misclFlags', c_uint8),
+      ('unusedFillerByte', c_uint8),
+      ('subTypeDSO', c_int32),
+      ('customCopyFromOffset', c_uint8 * 4),
+      ('customCopyToOffset', c_uint8 * 4),
+      ('customCopyOffset', c_uint8 * 4),
+    ]
+
+    def __init__(self, po):
+        self.po = po
+        pass
+
+    def checkSanity(self):
+        ret = True
+        return ret
 
