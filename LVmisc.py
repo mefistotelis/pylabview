@@ -411,6 +411,8 @@ def prepareQuadFloat(val):
     """
     mantissa, exponent = math.frexp(val)
     sign = -1 if mantissa < 0 else 1
+    # Fix exponent on zero value
+    if mantissa == 0: exponent = -16382
     # Shift by one bit - because we remove the highest one from QuadFloat representation
     exponent -= 1
     significand = int(abs(mantissa) * (2 ** 113))

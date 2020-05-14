@@ -1945,7 +1945,7 @@ class HeapNodeTDDataFill(HeapNode):
         elif tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
             val = struct.unpack('>d', bldata.read(8))[0]
         elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
-            val = readQuadFloat(bldata)
+            val = LVmisc.readQuadFloat(bldata)
         return val
 
     @staticmethod
@@ -1986,7 +1986,7 @@ class HeapNodeTDDataFill(HeapNode):
             tmpbt = struct.pack('>d', val)
             content = tmpbt
         elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
-            tmpbt = prepareQuadFloat(val)
+            tmpbt = LVmisc.prepareQuadFloat(val)
             content = tmpbt
         return content
 
@@ -2069,7 +2069,7 @@ class HeapNodeTDDataFill(HeapNode):
             tmpbt = struct.pack('>d', val)
             text = "{:f} (0x{:016X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
         elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
-            tmpbt = prepareQuadFloat(val)
+            tmpbt = LVmisc.prepareQuadFloat(val)
             text = "{:f} (0x{:032X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
         return text
 
@@ -2095,7 +2095,7 @@ class HeapNodeTDDataFill(HeapNode):
                         val = struct.unpack('>d', tmpbt)[0]
                     elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
                         tmpbt = int(hexParse.group(1),0).to_bytes(16, byteorder='big', signed=False)
-                        val = readQuadFloat(tmpbt)
+                        val = LVmisc.readQuadFloat(BytesIO(tmpbt))
             if val is None: # Get the value from formatted float
                 hexParse = re.search(r'([0-9Ee.\+-]+|[\+-]?inf)',text)
                 if hexParse is not None:
