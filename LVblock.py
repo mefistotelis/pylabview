@@ -30,6 +30,7 @@ import LVclasses
 import LVdatafill
 import LVlinkinfo
 import LVheap
+import LVparts
 import LVrsrcontainer
 
 class BLOCK_CODING(enum.Enum):
@@ -4753,6 +4754,7 @@ class VCTP(CompleteBlock):
         return data_buf
 
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
+        self.commentSpecialTypes(section_num)
         for clientTD in section.content:
             if len(clientTD.nested.full_name) > 0:
                 comment_elem = ET.Comment(" FlatTypeID {:d}: {} "\
@@ -4809,6 +4811,23 @@ class VCTP(CompleteBlock):
                       .format(self.vi.src_fname,i,len(section.content)))
                 ret = False
         return ret
+
+    def commentSpecialTypes(self, section_num):
+        """ Set lists of values to special types
+
+        This finds data types with VI options, and sets their comments so that
+        they're easier to understand within the XML file.
+        """
+        section = self.sections[section_num]
+        from LVdatatype import TD_FULL_TYPE
+        for flatIdx in section.topLevel:
+            if len(section.content) <= flatIdx:
+                continue
+            clientTD = section.content[flatIdx]
+            if clientTD.nested.fullType() != TD_FULL_TYPE.RepeatedBlock or clientTD.nested.getNumRepeats() != 51:
+                continue
+            clientTD.nested.setDataFillComments( {e.value: e.name for e in LVparts.DSINIT} )
+            break
 
     def getContent(self, section_num=None):
         if section_num is None:

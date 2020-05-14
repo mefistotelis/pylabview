@@ -1028,7 +1028,13 @@ class DataFillRepeatedBlock(DataFill):
             sub_df.initWithXMLLate()
 
     def exportXML(self, df_elem, fname_base):
-        for sub_df in self.value:
+        comments = {}
+        if self.td is not None:
+            comments = self.td.dfComments
+        for i, sub_df in enumerate(self.value):
+            if (i in comments) and (comments[i] != ""):
+                comment_elem = ET.Comment(" {:s} ".format(comments[i]))
+                df_elem.append(comment_elem)
             subelem = ET.SubElement(df_elem, sub_df.getXMLTagName())
             sub_df.exportXML(subelem, fname_base)
         pass

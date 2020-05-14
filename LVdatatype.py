@@ -2057,6 +2057,7 @@ class TDObjectRepeatedBlock(TDObject):
         super().__init__(*args)
         self.clients = []
         self.numRepeats = 0
+        self.dfComments = {}
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
@@ -2165,6 +2166,15 @@ class TDObjectRepeatedBlock(TDObject):
                   .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
+
+    def setDataFillComments(self, dfComments):
+        """ Sets list of comments which will describe Data Fill elements in XML
+        """
+        self.dfComments = dfComments
+
+    def getNumRepeats(self):
+        self.parseData()
+        return self.numRepeats
 
 
 class TDObjectRef(TDObject):
