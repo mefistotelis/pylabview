@@ -208,6 +208,23 @@ class VI_FLAGS0C(enum.Enum):
     ViCBit13 = 1 << 13	# unknown
     ViCBit14 = 1 << 14	# unknown
     ViCBit15 = 1 << 15	# unknown
+    ViCBit16 = 1 << 16	# unknown
+    ViCBit17 = 1 << 17	# unknown
+    ViCBit18 = 1 << 18	# unknown
+    ViCBit19 = 1 << 19	# unknown
+    ViCBit20 = 1 << 20	# unknown
+    ViCBit21 = 1 << 21	# unknown
+    ViCBit22 = 1 << 22	# unknown
+    ViCBit23 = 1 << 23	# unknown
+    ViCBit24 = 1 << 24	# unknown
+    ViCBit25 = 1 << 25	# unknown
+    ViCBit26 = 1 << 26	# unknown
+    ViCBit27 = 1 << 27	# unknown
+    ViCBit28 = 1 << 28	# unknown
+    ViCBit29 = 1 << 29	# unknown
+    ViCBit30 = 1 << 30	# unknown
+    ViCBit31 = 1 << 31	# unknown
+
 
 class VI_FLAGS12(enum.Enum):
     """ VI Flags dword at 0x12
