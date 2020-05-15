@@ -1239,6 +1239,7 @@ class DataFillUDTagRefnum(DataFill):
         return data_buf
 
     def expectedRSRCSize(self):
+        from LVdatatyperef import REFNUM_TYPE
         ver = self.vi.getFileVersion()
         exp_whole_len = 0
         exp_whole_len += 4 + len(self.value)
