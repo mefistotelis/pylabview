@@ -1950,13 +1950,17 @@ class LSTsh(StringListBlock):
         return section
 
     def getVarPadding(self):
-        ver = self.vi.getFileVersion()
         # In some versions of LV, this block has padding
         # No padding in LV14.0
         # but lvapp from LV11 which has vers set to LV0.0 does have it
         # LVRS files which don't have version block at all, go without padding
+        # Some MNU files from LV14 also have no vers block and no padding
         if self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.RFilesService:
             return 1
+        vers = self.vi.get('vers')
+        if vers is None:
+            return 1
+        ver = self.vi.getFileVersion()
         if isSmallerVersion(ver, 11,0,0,0):
             return 4
         return 1
