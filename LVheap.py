@@ -1473,7 +1473,8 @@ class HeapNode(object):
         if avoid_recompute and self.raw_data_updated:
             return # If we have strong raw data, and new one will be weak, then leave the strong buffer
 
-        self.updateContent()
+        if self.format == "inline":
+            self.updateContent()
 
         data_buf = b''
 
@@ -2214,18 +2215,23 @@ class HeapNodeTDDataFillLeaf(HeapNode):
         tdType = self.parent.td.fullType()
         from LVdatatype import TD_FULL_TYPE
         content = None
-        if tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
-            content = HeapNodeTDDataFill.prepareRSRCContentDirect(self.value, TD_FULL_TYPE.NumFloat32)
-        elif tdType in (TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,):
-            content = HeapNodeTDDataFill.prepareRSRCContentDirect(self.value, TD_FULL_TYPE.NumFloat64)
-        elif tdType in (TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
-            content = HeapNodeTDDataFill.prepareRSRCContentDirect(self.value, TD_FULL_TYPE.NumFloatExt)
-        if content is not None:
-            self.content = content
-            ret = True
-        if not ret:
-            raise AttributeError("Tag '{}' of Class '{}' could not generate TypeDesc type={} dependent content"\
-              .format(self.tagEn.name, parentTopClassEn(self.parent).name,tdType))
+        try:
+            if tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
+                content = HeapNodeTDDataFill.prepareRSRCContentDirect(self.value, TD_FULL_TYPE.NumFloat32)
+            elif tdType in (TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,):
+                content = HeapNodeTDDataFill.prepareRSRCContentDirect(self.value, TD_FULL_TYPE.NumFloat64)
+            elif tdType in (TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
+                content = HeapNodeTDDataFill.prepareRSRCContentDirect(self.value, TD_FULL_TYPE.NumFloatExt)
+            if content is not None:
+                self.content = content
+                ret = True
+            if not ret:
+                raise AttributeError("Failed to generate TypeDesc type={} dependent content"\
+                  .format(tdType))
+        except Exception as e:
+            raise AttributeError("Tag '{}' of Class '{}' failed to update binary content: {}"\
+              .format(self.tagEn.name, parentTopClassEn(self.parent).name, str(e)))
+
 
     def prepareContentXML(self, fname_base):
         if self.format == "hex" or self.scopeInfo == NODE_SCOPE.TagClose:
@@ -2273,22 +2279,26 @@ class HeapNodeTDDataFillLeaf(HeapNode):
         text = self.raw_str
         self.raw_str = None
         val = None
-        tdType = self.parent.td.fullType()
-        from LVdatatype import TD_FULL_TYPE
-        if tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
-            val = HeapNodeTDDataFill.parseXMLContentDirect(text, TD_FULL_TYPE.NumFloat32)
-        elif tdType in (TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,):
-            val = HeapNodeTDDataFill.parseXMLContentDirect(text, TD_FULL_TYPE.NumFloat64)
-        elif tdType in (TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
-            val = HeapNodeTDDataFill.parseXMLContentDirect(text, TD_FULL_TYPE.NumFloatExt)
-        else:
-            raise RuntimeError("Class {} used for unexpected type {}"\
-              .format(type(self).__name__, tdType))
-        if val is not None:
-            self.value = val
-        else:
-            raise AttributeError("Tag '{}' of Class '{}' has content with bad value"\
-              .format(self.tagEn.name, parentTopClassEn(self.parent).name))
+        try:
+            tdType = self.parent.td.fullType()
+            from LVdatatype import TD_FULL_TYPE
+            if tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
+                val = HeapNodeTDDataFill.parseXMLContentDirect(text, TD_FULL_TYPE.NumFloat32)
+            elif tdType in (TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,):
+                val = HeapNodeTDDataFill.parseXMLContentDirect(text, TD_FULL_TYPE.NumFloat64)
+            elif tdType in (TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
+                val = HeapNodeTDDataFill.parseXMLContentDirect(text, TD_FULL_TYPE.NumFloatExt)
+            else:
+                raise RuntimeError("Class {} used for unexpected type {}"\
+                  .format(type(self).__name__, tdType))
+            if val is not None:
+                self.value = val
+            else:
+                raise AttributeError("Class {} got content with with bad value"\
+                  .format(type(self).__name__))
+        except Exception as e:
+            raise AttributeError("Tag '{}' of Class '{}' failed to init from XML: {}"\
+              .format(self.tagEn.name, parentTopClassEn(self.parent).name, str(e)))
         self.updateContent()
 
 
