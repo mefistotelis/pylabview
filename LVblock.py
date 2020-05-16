@@ -4041,10 +4041,6 @@ class PRT(CompleteBlock):
         section.flags = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         section.field28 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         section.orientation = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        section.field30 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        section.field34 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        section.field38 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        section.field3C = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         section.marginUnit = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         section.field44 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         section.field48 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
@@ -4065,10 +4061,6 @@ class PRT(CompleteBlock):
         section.field84 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         section.field88 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         section.field8C = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        section.field90 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        section.field94 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-
-        raise NotImplementedError("Parsing the block is not fully implemented")
 
     def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
@@ -4086,10 +4078,6 @@ class PRT(CompleteBlock):
         data_buf += int(section.flags).to_bytes(4, byteorder='big', signed=False)
         data_buf += int(section.field28).to_bytes(4, byteorder='big', signed=False)
         data_buf += int(section.orientation).to_bytes(4, byteorder='big', signed=False)
-        data_buf += int(section.field30).to_bytes(4, byteorder='big', signed=False)
-        data_buf += int(section.field34).to_bytes(4, byteorder='big', signed=False)
-        data_buf += int(section.field38).to_bytes(4, byteorder='big', signed=False)
-        data_buf += int(section.field3C).to_bytes(4, byteorder='big', signed=False)
         data_buf += int(section.marginUnit).to_bytes(4, byteorder='big', signed=False)
         data_buf += int(section.field44).to_bytes(4, byteorder='big', signed=False)
         data_buf += int(section.field48).to_bytes(4, byteorder='big', signed=False)
@@ -4110,8 +4098,6 @@ class PRT(CompleteBlock):
         data_buf += int(section.field84).to_bytes(4, byteorder='big', signed=False)
         data_buf += int(section.field88).to_bytes(4, byteorder='big', signed=False)
         data_buf += int(section.field8C).to_bytes(4, byteorder='big', signed=False)
-        data_buf += int(section.field90).to_bytes(4, byteorder='big', signed=False)
-        data_buf += int(section.field94).to_bytes(4, byteorder='big', signed=False)
         return data_buf
 
     def initWithXMLSectionData(self, section, section_elem):
@@ -4146,22 +4132,12 @@ class PRT(CompleteBlock):
                 section.field28 = int(tmp, 0)
                 tmp = subelem.get("Orientation")
                 section.orientation = int(tmp, 0)
-                tmp = subelem.get("Field30")
-                section.field30 = int(tmp, 0)
-                tmp = subelem.get("Field34")
-                section.field34 = int(tmp, 0)
-                tmp = subelem.get("Field38")
-                section.field38 = int(tmp, 0)
-                tmp = subelem.get("Field3C")
-                section.field3C = int(tmp, 0)
                 tmp = subelem.get("MarginUnit")
                 section.marginUnit = int(tmp, 0)
                 tmp = subelem.get("Field44")
                 section.field44 = int(tmp, 0)
                 tmp = subelem.get("Field48")
                 section.field48 = int(tmp, 0)
-                tmp = subelem.get("Field4C")
-                section.field4C = int(tmp, 0)
             elif (subelem.tag == "Margins"):
                 tmp = subelem.get("Top")
                 section.marginTop = float(tmp)
@@ -4198,10 +4174,6 @@ class PRT(CompleteBlock):
                 section.field88 = int(tmp, 0)
                 tmp = subelem.get("Field8C")
                 section.field8C = int(tmp, 0)
-                tmp = subelem.get("Field90")
-                section.field90 = int(tmp, 0)
-                tmp = subelem.get("Field94")
-                section.field94 = int(tmp, 0)
             else:
                 raise AttributeError("Section contains unexpected tag")
         pass
@@ -4220,10 +4192,6 @@ class PRT(CompleteBlock):
         subelem.set("Flags", "{:d}".format(section.flags))
         subelem.set("Field28", "{:d}".format(section.field28))
         subelem.set("Orientation", "{:d}".format(section.orientation))
-        subelem.set("Field30", "{:d}".format(section.field30))
-        subelem.set("Field35", "{:d}".format(section.field34))
-        subelem.set("Field38", "{:d}".format(section.field38))
-        subelem.set("Field3C", "{:d}".format(section.field3C))
         subelem.set("MarginUnit", "{:d}".format(section.marginUnit))
         subelem.set("Field44", "{:d}".format(section.field44))
         subelem.set("Field48", "{:d}".format(section.field48))
@@ -4246,8 +4214,6 @@ class PRT(CompleteBlock):
         subelem.set("Field84", "{:d}".format(section.field84))
         subelem.set("Field88", "{:d}".format(section.field88))
         subelem.set("Field8C", "{:d}".format(section.field8C))
-        subelem.set("Field90", "{:d}".format(section.field90))
-        subelem.set("Field94", "{:d}".format(section.field94))
         pass
 
 
