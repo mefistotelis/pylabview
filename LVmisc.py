@@ -398,24 +398,77 @@ def prepareVariableSizeFieldU124(val):
     pass
 
 def readQuadFloat(bldata):
-    """ Read quad precision float value (aka FloatExt).
+    """ Read quad precision float value (aka FloatExt)
+
+    Uses Decimal module to achieve precision independent of local platform.
     """
     asint = int.from_bytes(bldata.read(16), byteorder='big', signed=False)
-    sign = (-1.0) ** (asint >> 127);
-    exponent = ((asint >> 112) & 0x7FFF) - 16383;
+    sign = (-1) ** (asint >> 127) # For some reason, having the value in brackets is very important
+    exponent = ((asint >> 112) & 0x7FFF) - 16383
     significand = (asint & ((1 << 112) - 1)) | (1 << 112)
-    return sign * significand * 2.0 ** (exponent - 112)
+    from decimal import Decimal, localcontext
+    with localcontext() as ctx:
+        ctx.prec = 36  # quad float has up to 36 digits precision
+        val = Decimal(sign) * Decimal(significand) * Decimal(2) ** (exponent - 112)
+    return val
+
+def frexpQuadFloat(d, e_largest=16383):
+    """Implementation of 'frexp' for arbitrary precision decimals
+
+    Result is a pair F, E, where 0 < F < 1 is a Decimal object,
+    and E is a signed integer such that
+    d = F * 2**E
+    e_largest is the maximum absolute value of the exponent
+    to ensure termination of the calculation
+
+    This function was based on Simfloat code by Robert Clewley
+    (robclewley@github).
+    """
+    from decimal import Decimal
+    if d < 0:
+        res = frexpQuadFloat(-d)
+        return -res[0], res[1]
+
+    elif d == 0:
+        return Decimal("0"), 0
+
+    elif d >= 1:
+        w_dec = int(d)
+        e_dec = 0
+        while w_dec > 0 and abs(e_dec) <= e_largest:
+            d /= 2
+            w_dec = int(d)
+            e_dec += 1
+        return d, e_dec
+
+    else:
+        # 0 < d < 1
+        w_dec = 0
+        e_dec = 0
+        while w_dec == 0 and abs(e_dec) <= e_largest:
+            w_dec = int(d*2)
+            if w_dec > 0:
+                break
+            else:
+                d *= 2
+                e_dec -= 1
+        return d, e_dec
 
 def prepareQuadFloat(val):
-    """ Build quad precision float value (aka FloatExt).
+    """ Build quad precision float value (aka FloatExt)
+
+    Uses Decimal module to achieve precision independent of local platform.
     """
-    mantissa, exponent = math.frexp(val)
-    sign = -1 if mantissa < 0 else 1
-    # Fix exponent on zero value
-    if mantissa == 0: exponent = -16382
-    # Shift by one bit - because we remove the highest one from QuadFloat representation
-    exponent -= 1
-    significand = int(abs(mantissa) * (2 ** 113))
+    from decimal import Decimal, localcontext
+    with localcontext() as ctx:
+        ctx.prec = 36  # quad float has up to 36 digits precision
+        mantissa, exponent = frexpQuadFloat(val)
+        sign = -1 if mantissa < 0 else 1
+        # Properly handle exponent on zero value
+        if mantissa == 0: exponent = -16382
+        # Shift by one bit - because we remove the highest one from QuadFloat representation
+        exponent -= 1
+        significand = int(abs(mantissa) * (2 ** 113))
     asint = ((1 << 127) if sign < 0 else 0) |\
       (((exponent + 16383) & 0x7FFF) << 112) |\
       significand & ((1 << 112) - 1)

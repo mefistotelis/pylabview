@@ -2065,13 +2065,13 @@ class HeapNodeTDDataFill(HeapNode):
             text = "{:d}".format(val)
         elif tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
             tmpbt = struct.pack('>f', val)
-            text = "{:f} (0x{:08X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
+            text = "{:g} (0x{:08X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
         elif tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
             tmpbt = struct.pack('>d', val)
-            text = "{:f} (0x{:016X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
+            text = "{:g} (0x{:016X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
         elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
             tmpbt = LVmisc.prepareQuadFloat(val)
-            text = "{:f} (0x{:032X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
+            text = "{:g} (0x{:032X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
         return text
 
     @staticmethod
