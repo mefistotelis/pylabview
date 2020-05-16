@@ -2426,6 +2426,24 @@ class CPMp(CompleteBlock):
         pass
 
 
+class DLDR(Block):
+    """ DL Data Record
+
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+
+class DLLP(Block):
+    """ DL Local Path
+
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+
 class FTAB(Block):
     """ Font Table
 
