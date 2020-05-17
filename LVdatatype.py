@@ -164,6 +164,43 @@ class TYPEDESC_FLAGS(enum.Enum):
     Bit7 = 1 << 7	# unknown
 
 
+class TM_FLAGS(enum.Enum):
+    """ Type Map Flags
+    """
+    TMFBit0 = 1 << 0	# IsDSAlignPadding?
+    TMFBit1 = 1 << 1	# IsStripChartRec?
+    TMFBit2 = 1 << 2	# IsFPDCOOpData
+    TMFBit3 = 1 << 3	# unknown
+    TMFBit4 = 1 << 4	# IsChartHist
+    TMFBit5 = 1 << 5	# unknown
+    TMFBit6 = 1 << 6	# unknown
+    TMFBit7 = 1 << 7	# IsSubType
+    TMFBit8 = 1 << 8	# unknown
+    TMFBit9 = 1 << 9	# unknown
+    TMFBit10 = 1 << 10	# unknown
+    TMFBit11 = 1 << 11	# unknown
+    TMFBit12 = 1 << 12	# unknown
+    TMFBit13 = 1 << 13	# HasSaveData
+    TMFBit14 = 1 << 14	# unknown
+    TMFBit15 = 1 << 15	# unknown
+    TMFBit16 = 1 << 16	# unknown
+    TMFBit17 = 1 << 17	# unknown
+    TMFBit18 = 1 << 18	# unknown
+    TMFBit19 = 1 << 19	# unknown
+    TMFBit20 = 1 << 20	# unknown
+    TMFBit21 = 1 << 21	# unknown
+    TMFBit22 = 1 << 22	# unknown
+    TMFBit23 = 1 << 23	# unknown
+    TMFBit24 = 1 << 24	# unknown
+    TMFBit25 = 1 << 25	# unknown
+    TMFBit26 = 1 << 26	# unknown
+    TMFBit27 = 1 << 27	# unknown
+    TMFBit28 = 1 << 28	# unknown
+    TMFBit29 = 1 << 29	# unknown
+    TMFBit30 = 1 << 30	# unknown
+    TMFBit31 = 1 << 31	# unknown
+
+
 class TAG_TYPE(enum.Enum):
     """ Type of tag
     """

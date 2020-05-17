@@ -2195,8 +2195,11 @@ class DFDS(CompleteBlock):
         else:
             self.default_block_coding = BLOCK_CODING.NONE
 
-    def isSpecialDSTMCluster(self, tmItm):
-        return (tmItm.flags & (0x0010|0x0020|0x0040|0x0004)) != 0
+    def isSpecialDSTMCluster(self, tmEntry):
+        return (tmEntry.flags & (TM_FLAGS.TMFBit4 | \
+          TM_FLAGS.TMFBit5 | \
+          TM_FLAGS.TMFBit6 | \
+          TM_FLAGS.TMFBit2)) != 0
 
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
@@ -2211,12 +2214,12 @@ class DFDS(CompleteBlock):
 
             for tmEntry in TypeMap:
                 df = None
-                if (tmEntry.flags & 0x0008) != 0 or \
-                   (tmEntry.flags & 0x0800) != 0 or \
-                   (tmEntry.flags & 0x0400) != 0:
+                if (tmEntry.flags & TM_FLAGS.TMFBit3) != 0 or \
+                   (tmEntry.flags & TM_FLAGS.TMFBit11) != 0 or \
+                   (tmEntry.flags & TM_FLAGS.TMFBit10) != 0:
                     continue
-                if (tmEntry.flags & 0x2000) != 0 or \
-                   (tmEntry.flags & 0x0001) != 0:
+                if (tmEntry.flags & TM_FLAGS.TMFBit13) != 0 or \
+                   (tmEntry.flags & TM_FLAGS.TMFBit0) != 0:
                     try:
                         df = LVdatafill.newDataFillObjectWithTD(self.vi, tmEntry.index, tmEntry.flags, tmEntry.td, self.po)
                         section.content.append(df)
@@ -2293,12 +2296,12 @@ class DFDS(CompleteBlock):
             if TypeMap is not None and not section.parse_failed:
                 for tmEntry in TypeMap:
                     dtHasFill = False
-                    if (tmEntry.flags & 0x0008) != 0 or \
-                       (tmEntry.flags & 0x0800) != 0 or \
-                       (tmEntry.flags & 0x0400) != 0:
+                    if (tmEntry.flags & TM_FLAGS.TMFBit3) != 0 or \
+                       (tmEntry.flags & TM_FLAGS.TMFBit11) != 0 or \
+                       (tmEntry.flags & TM_FLAGS.TMFBit10) != 0:
                         continue
-                    if (tmEntry.flags & 0x2000) != 0 or \
-                       (tmEntry.flags & 0x0001) != 0:
+                    if (tmEntry.flags & TM_FLAGS.TMFBit13) != 0 or \
+                       (tmEntry.flags & TM_FLAGS.TMFBit0) != 0:
                         dtHasFill = True
                     elif tmEntry.td.fullType() == TD_FULL_TYPE.Cluster and self.isSpecialDSTMCluster(tmEntry):
                         dtHasFill = True
@@ -2703,8 +2706,6 @@ class TM80(VarCodingBlock):
         section = super().createSection()
         section.indexShift = 0
         section.content = []
-        # flag 0x0004 -> IsFPDCOOpData
-        # flag 0x0010 -> IsChartHist
         return section
 
     def setDefaultEncoding(self):
@@ -2739,8 +2740,7 @@ class TM80(VarCodingBlock):
                 if (subelem.tag == "NameObject"):
                     pass # Items parsed somewhere else
                 elif (subelem.tag == "Client"):
-                    val = int(subelem.get("Flags"), 0)
-                    # Grow the list if needed (the labels may be in wrong order)
+                    val = importXMLBitfields(TM_FLAGS, subelem)
                     section.content.append(val)
                 else:
                     raise AttributeError("Section contains unexpected tag")
@@ -2786,7 +2786,7 @@ class TM80(VarCodingBlock):
 
             subelem = ET.SubElement(section_elem,"Client")
 
-            subelem.set("Flags", "0x{:04X}".format(val))
+            exportXMLBitfields(TM_FLAGS, subelem, val)
 
         if len(section.content) == 0:
             comment_elem = ET.Comment("List of types is empty")

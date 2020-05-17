@@ -222,7 +222,7 @@ def exportXMLBitfields(EnumClass, subelem, value, skip_mask=0):
         if ((mask.value & skip_mask) != 0): # Skip fields given as mask
             continue
         # Add only properties which have bit set or have non-default bit name
-        addProperty = ((value & mask.value) != 0) or (not re.match("(^Bit[0-9]*$)", mask.name))
+        addProperty = ((value & mask.value) != 0) or (not re.match("(^[A-Za-z]{0,3}Bit[0-9]+$)", mask.name))
         if not addProperty:
             continue
         nshift = getFirstSetBitPos(mask.value) - 1
