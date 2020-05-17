@@ -4244,6 +4244,22 @@ class BNID(Block):
         return section
 
 
+class CNST(Block):
+    """ Constant Node UID set
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+
+class LPIN(Block):
+    """ Loop Invariant Node UID set
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+
 class NUID(Block):
     """ N. U. Identifier
 
@@ -4256,6 +4272,14 @@ class NUID(Block):
 class SUID(Block):
     """ S. U. Identifier
 
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+
+class VPDP(Block):
+    """ VI Primitive Dependency Flags
     """
     def createSection(self):
         section = super().createSection()
