@@ -1357,6 +1357,48 @@ class OBJ_EVENT_SPEC_TAGS(ENUM_TAGS):
     OF__dynIndex = 8
 
 
+class OBJ_BASE_TABLE_CONTROL_FLAGS(enum.IntEnum):
+    """ Flags for baseTableControl
+    """
+    BTCUnused0		= 0
+    EditableHeaders	= 1
+    MoveableHeaders	= 2
+    MultilineInput	= 3
+    NoHorizontalLines = 4
+    NoVerticalLines	= 5
+    GlyphsInAllCells = 6
+    NoEmptyGlyphSpace = 7
+    BTCUnused8		= 8
+    AutosizeRows	= 9
+    SmoothScrolling	= 10
+    TwoDimScrollbars = 11
+    BTCUnused12		= 12
+    HasDefaultHeight = 13
+    HasDefaultWidth	= 14
+    BTCBit15		= 15
+
+
+class OBJ_BASE_LISTBOX_FLAGS(enum.IntEnum):
+    """ Flags for baseListbox
+    """
+    NoZeroSelection	= 0
+    Multiselect		= 1
+    ToggleItem		= 2
+    Dragging		= 3
+    KbCaseSensitive	= 4
+    KbCaseInsensitive = 5
+    DisableTracking	= 6
+    IsMulticolumn	= 7
+    SingleCellSelect = 8
+    UseIndent		= 9
+    Use16PixelIcon	= 10
+    GlyphClickEqDouble = 11
+    ShowGlyphs		= 12
+    IsArray			= 13
+    Unused14		= 14
+    UseResourceIcons = 15
+
+
 class PHONY_ENUM:
     pass
 
