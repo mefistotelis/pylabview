@@ -412,7 +412,7 @@ def readQuadFloat(bldata):
         val = Decimal(sign) * Decimal(significand) * Decimal(2) ** (exponent - 112)
     return val
 
-def frexpQuadFloat(d, e_largest=16383):
+def frexpQuadFloat(d, e_largest=16384):
     """Implementation of 'frexp' for arbitrary precision decimals
 
     Result is a pair F, E, where 0 < F < 1 is a Decimal object,
