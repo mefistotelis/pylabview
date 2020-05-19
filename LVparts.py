@@ -168,57 +168,114 @@ def partIdToEnum(partId):
     return PARTID(partId)
 
 class DSINIT(enum.IntEnum):
-    """ Part identifiers
+    """ Dats Space Initialization metadata
+
+    Stores values used for Data Space initialization, including references
+    to TypeDesc used and location of instantiated data within the data space.
+
+    The table contains few offsets to Invariant Data Space. This space
+    is created by instantiating data for types in Type Map (DSTM/TM80 block).
+    Part of the space is also covered by Default Fill (DFDS), though the data
+    from DFDS are unflattened in Invariant Data Space, so sizes do not always
+    match. Any varaible size items with size not defined in TypeDesc are
+    represented within the Invariant Data Space as pointers, so that their
+    size stays constant.
     """
+    # Amount of entries in the Hilite Table pointed by two values below
+    # Hilite Table stores something related to highliting items on a FP?
     nHiliteTableEntries	= 0
+    # Offset of the Hilite Table within Invariant Data Space
     hiliteTableOffset	= 1
+    # Type Map Index which points to TypeDesc for Hilite Table
     hiliteTableTMI		= 2
+    # Amount of entries in the Probe Table pointed by two values below
+    # Probe Table is a Cluster which consists of another Cluster and then
+    # connector types representing the Probe Points.
     nProbeTableEntries	= 3
+    # Offset of the Probe Table within Invariant Data Space
     probeTableOffset	= 4
-    # Points to Type Map Index of Cluster type which consists of another Cluster and then connector types
+    # Type Map Index which points to TypeDesc for Probe Table
     probeTableTMI	= 5
+    # Amount of DCO structures in the DCO Table pointed by two values below
+    # DCO Table is a RepeatedBlock with Clusters inside, each represening a DCO.
     nDCOs			= 6
+    # Offset of the DCO Table within Invariant Data Space
     fpdcoTableOfst	= 7
-    # Points to Type Map Index of RepeatedBlock with Clusters inside, each represening a DCO
+    # Type Map Index which points to TypeDesc for DCO Table
     fpdcoTableTMI	= 8
+    # Amount of Clump QE Allocations pointed by two values below
     nClumpQEs		= 9
+    # Offset of the Clump QE Alloc within Invariant Data Space
     clumpQEAllocOffset	= 10
+    # Type Map Index which points to TypeDesc for Clump QE Alloc
     clumpQEAllocTMI		= 11
+    # Amount of Connection Port Connections
+    # Probably used as size to some tables here, bit not for the ones just below.
     nConnections		= 12
+    # Offset of the VI Param Table within Invariant Data Space
     viParamTableOffset	= 13
+    # Type Map Index which points to TypeDesc for VI Param Table
     viParamTableTMI		= 14
+    # Amount of entries in the Extra DCO Info pointed by two values below
     nExtraDCOInfoEntries = 15
+    # Offset of the Extra DCO Info within Invariant Data Space
     extraDCOInfoOffset	= 16
+    # Type Map Index which points to TypeDesc for Extra DCO Info
     extraDCOInfoTMI		= 17
+    # Amount of index values within Local Input Connections List
     nLocalInputConnections	= 18
+    # Offset of the Local Input Connections List within Invariant Data Space
     localInputConnIdxOffset	= 19
+    # Type Map Index which points to TypeDesc for Local Input Connections List
     localInputConnIdxTMI	= 20
+    # Amount of index values within Non-Local Input Connections List
     nNonLocalInputConnections = 21
+    # Offset of the Non-Local Input Connections List within Invariant Data Space
     nonLocalInputConnIdxOffset = 22
+    # Amount of index values within Conditional Indicators List
     nCondIndicators		= 23
+    # Offset of the Conditional Indicators List within Invariant Data Space
     condIndIdxOffset	= 24
+    # Amount of index values within Output Connections List
     nOutputConnections	= 25
     nOutPutLocalGlobals	= 26
+    # Offset of the Output Connections List within Invariant Data Space
     outputConnIdxOffset	= 27
+    # Amount of index values within Input Connections List
     nInputConnections	= 28
+    # Offset of the Input Connections List within Invariant Data Space
     inputConnIdxOffset	= 29
+    # Amount of entries within Internal Hilite Table
     numInternalHiliteTableEntries = 30
+    # Type Map Index which points to TypeDesc for Internal Hilite Table Handle and Pointers
     internalHiliteTableHandleAndPtrTMI = 31
     nSyncDisplays		= 32
     syncDisplayIdxOffset = 33
+    # Amount of entries in the subVI Patches Lists pointed by two values below
     nSubVIPatches		= 34
+    # Type Map Index which points to TypeDesc for subVI Patch Tags
     subVIPatchTagsTMI	= 35
+    # Type Map Index which points to TypeDesc for subVI Patch
     subVIPatchTMI		= 36
     enpdTdOffsetsDso	= 37
     enpdTdOffsetsTMI	= 38
+    # Amount of DDO structures in the DDO Table pointed by two values below
     nDDOs				= 39
+    # Offset of the DDO Table within Invariant Data Space
     spDDOTableOffset	= 40
+    # Type Map Index which points to TypeDesc for DDO Table
     spDDOTableTMI		= 41
+    # Amount of index values in the Step-Into Nodes List pointed by two values below
     nStepIntoNodes		= 42
+    # Offset of the Step-Into Nodes List within Invariant Data Space
     stepIntoNodeIdxTableOffset = 43
+    # Type Map Index which points to TypeDesc for Step-Into Nodes List
     stepIntoNodeIdxTableTMI = 44
+    # Type Map Index which points to TypeDesc for Hilite Index Table
     hiliteIdxTableTMI	= 45
+    # Amount of entries in the Generated Code Profile Result Table pointed by the value below
     numGeneratedCodeProfileResultTableEntries = 46
+    # Type Map Index which points to TypeDesc for Generated Code Profile Result Table
     generatedCodeProfileResultTableTMI = 47
     lReRunPCOffset	= 48
     lResumePCOffset	= 49
