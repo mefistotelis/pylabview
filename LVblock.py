@@ -2332,6 +2332,39 @@ class DFDS(CompleteBlock):
             df.exportXML(subelem, fname_base)
         pass
 
+    def getDataFill(self, df_idx, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        self.parseData(section_num=section_num)
+        section = self.sections[section_num]
+
+        df = section.content[df_idx]
+        return df
+
+    def getDFForTD(self, td, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        self.parseData(section_num=section_num)
+        section = self.sections[section_num]
+
+        for df in section.content:
+            if df.td != td:
+                continue
+            return df
+        return None
+
+    def getDFForTypeId(self, tdIndex, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        self.parseData(section_num=section_num)
+        section = self.sections[section_num]
+
+        for df in section.content:
+            if df.index != tdIndex:
+                continue
+            return df
+        return None
+
 
 class GCDI(VarCodingBlock):
     def createSection(self):
