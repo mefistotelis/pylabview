@@ -51,7 +51,7 @@ class DataFill:
     def isSpecialDSTMClusterElement(self, idx, tm_flags):
         ver = self.vi.getFileVersion()
 
-        if (tm_flags & 0x0004) != 0:
+        if (tm_flags & TM_FLAGS.TMFBit2) != 0:
             if isSmallerVersion(ver, 10,0,0,2):
                 if idx == 2:
                     return True
@@ -59,13 +59,13 @@ class DataFill:
                 if idx == 1:
                     return True
             return False
-        if (tm_flags & 0x0010) != 0:
+        if (tm_flags & TM_FLAGS.TMFBit4) != 0:
             if idx in (1,2,3,):
                 return True
-        elif (tm_flags & 0x0020) != 0:
+        elif (tm_flags & TM_FLAGS.TMFBit5) != 0:
             if idx == 3:
                 return True
-        elif (tm_flags & 0x0040) != 0:
+        elif (tm_flags & TM_FLAGS.TMFBit6) != 0:
             if idx == 2:
                 return True
         return False
@@ -1532,7 +1532,7 @@ class SpecialDSTMCluster(DataFillCluster):
         DataFill.setTD(self, td, idx, tm_flags)
         if len(self.value) < 1:
             return # If value list is not filled yet, no further work to do
-        skipNextEntry = ((self.tm_flags & 0x0200) != 0)
+        skipNextEntry = ((self.tm_flags & TM_FLAGS.TMFBit9) != 0)
         cli_idx = 0
         for cli_bad_idx, td_idx, sub_td, td_flags in self.td.clientsEnumerate():
             if not self.isSpecialDSTMClusterElement(cli_idx, self.tm_flags):
@@ -1547,7 +1547,7 @@ class SpecialDSTMCluster(DataFillCluster):
 
     def initWithRSRCParse(self, bldata):
         self.value = []
-        skipNextEntry = ((self.tm_flags & 0x0200) != 0)
+        skipNextEntry = ((self.tm_flags & TM_FLAGS.TMFBit9) != 0)
         for cli_idx, td_idx, sub_td, td_flags in self.td.clientsEnumerate():
             if not self.isSpecialDSTMClusterElement(cli_idx, self.tm_flags):
                 continue

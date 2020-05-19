@@ -164,7 +164,7 @@ class TYPEDESC_FLAGS(enum.Enum):
     Bit7 = 1 << 7	# unknown
 
 
-class TM_FLAGS(enum.Enum):
+class TM_FLAGS(enum.IntEnum):
     """ Type Map Flags
     """
     TMFBit0 = 1 << 0	# IsDSAlignPadding?
