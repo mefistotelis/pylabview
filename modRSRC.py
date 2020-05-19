@@ -562,7 +562,7 @@ def recountHeapElements(RSRC, Heap, ver, fo, po):
                         count = None
         # If failed, get the value from DSInit
         if count is None:
-            count = getDSInitEntry(RSRC, DSINIT.NConnectorPorts, po)
+            count = getDSInitEntry(RSRC, DSINIT.nConnections, po)
             if count is not None:
                 if count >= 1 and count <= 28:
                     if (po.verbose > 1):
@@ -1074,9 +1074,111 @@ def DTHP_Fix(RSRC, DTHP, ver, fo, po):
             if FPTD_TypeID is not None:
                 FPTD_TypeID = int(FPTD_TypeID, 0)
         heapRanges = intRangesExcludeOne(heapRanges, FPTD_TypeID)
-        # DTHP must not include TypeDesc with DS Probe Table
-        DSProbeTable_TypeID = getDSInitEntry(RSRC, DSINIT.DSProbeTableTypeDesc, po)
-        heapRanges = intRangesExcludeOne(heapRanges, DSProbeTable_TypeID)
+        # DTHP must not include TypeDesc with Hilite Table
+        HiliteTable_TypeID = None
+        if TM80_IndexShift is not None:
+            val_TMI = getDSInitEntry(RSRC, DSINIT.hiliteTableTMI, po)
+            if val_TMI is not None and val_TMI >= 0:
+                HiliteTable_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
+        heapRanges = intRangesExcludeOne(heapRanges, HiliteTable_TypeID)
+        # DTHP must not include TypeDesc with Probe Table
+        ProbeTable_TypeID = None
+        if TM80_IndexShift is not None:
+            val_TMI = getDSInitEntry(RSRC, DSINIT.probeTableTMI, po)
+            if val_TMI is not None:
+                ProbeTable_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
+        heapRanges = intRangesExcludeOne(heapRanges, ProbeTable_TypeID)
+        # DTHP must not include TypeDesc with FP DCO Table
+        FpDCOTable_TypeID = None
+        if TM80_IndexShift is not None:
+            val_TMI = getDSInitEntry(RSRC, DSINIT.fpdcoTableTMI, po)
+            if val_TMI is not None:
+                FpDCOTable_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
+        heapRanges = intRangesExcludeOne(heapRanges, FpDCOTable_TypeID)
+        # DTHP must not include TypeDesc with Clump QE Alloc
+        ClumpQEAlloc_TypeID = None
+        if TM80_IndexShift is not None:
+            val_TMI = getDSInitEntry(RSRC, DSINIT.clumpQEAllocTMI, po)
+            if val_TMI is not None:
+                ClumpQEAlloc_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
+        heapRanges = intRangesExcludeOne(heapRanges, ClumpQEAlloc_TypeID)
+        # DTHP must not include TypeDesc with VI Param Table
+        VIParamTable_TypeID = None
+        if TM80_IndexShift is not None:
+            val_TMI = getDSInitEntry(RSRC, DSINIT.viParamTableTMI, po)
+            if val_TMI is not None:
+                VIParamTable_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
+        heapRanges = intRangesExcludeOne(heapRanges, VIParamTable_TypeID)
+        # DTHP must not include TypeDesc with Extra DCO Info
+        ExtraDCOInfo_TypeID = None
+        if TM80_IndexShift is not None:
+            val_TMI = getDSInitEntry(RSRC, DSINIT.extraDCOInfoTMI, po)
+            if val_TMI is not None:
+                ExtraDCOInfo_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
+        heapRanges = intRangesExcludeOne(heapRanges, ExtraDCOInfo_TypeID)
+        # DTHP must not include TypeDesc with IO Conn Idx
+        IOConnIdx_TypeID = None
+        if TM80_IndexShift is not None:
+            val_TMI = getDSInitEntry(RSRC, DSINIT.localInputConnIdxTMI, po)
+            if val_TMI is not None:
+                IOConnIdx_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
+        heapRanges = intRangesExcludeOne(heapRanges, IOConnIdx_TypeID)
+        # DTHP must not include TypeDesc with InternalHiliteTableHandleAndPtr
+        InternalHiliteTableHandleAndPtr_TypeID = None
+        if TM80_IndexShift is not None:
+            val_TMI = getDSInitEntry(RSRC, DSINIT.internalHiliteTableHandleAndPtrTMI, po)
+            if val_TMI is not None:
+                InternalHiliteTableHandleAndPtr_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
+        heapRanges = intRangesExcludeOne(heapRanges, InternalHiliteTableHandleAndPtr_TypeID)
+        # DTHP must not include TypeDesc with SubVI Patch Tags
+        SubVIPatchTags_TypeID = None
+        if TM80_IndexShift is not None:
+            val_TMI = getDSInitEntry(RSRC, DSINIT.subVIPatchTagsTMI, po)
+            if val_TMI is not None:
+                SubVIPatchTags_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
+        heapRanges = intRangesExcludeOne(heapRanges, SubVIPatchTags_TypeID)
+        # DTHP must not include TypeDesc with SubVI Patch
+        SubVIPatch_TypeID = None
+        if TM80_IndexShift is not None:
+            val_TMI = getDSInitEntry(RSRC, DSINIT.subVIPatchTMI, po)
+            if val_TMI is not None:
+                SubVIPatch_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
+        heapRanges = intRangesExcludeOne(heapRanges, SubVIPatch_TypeID)
+        # DTHP must not include TypeDesc with Enpd Td Offsets
+        EnpdTdOffsets_TypeID = None
+        if TM80_IndexShift is not None:
+            val_TMI = getDSInitEntry(RSRC, DSINIT.enpdTdOffsetsTMI, po)
+            if val_TMI is not None:
+                EnpdTdOffsets_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
+        heapRanges = intRangesExcludeOne(heapRanges, EnpdTdOffsets_TypeID)
+        # DTHP must not include TypeDesc with Sp DDO Table
+        SpDDOTable_TypeID = None
+        if TM80_IndexShift is not None:
+            val_TMI = getDSInitEntry(RSRC, DSINIT.spDDOTableTMI, po)
+            if val_TMI is not None:
+                SpDDOTable_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
+        heapRanges = intRangesExcludeOne(heapRanges, SpDDOTable_TypeID)
+        # DTHP must not include TypeDesc with StepInto Node Idx Table
+        StepIntoNodeIdxTable_TypeID = None
+        if TM80_IndexShift is not None:
+            val_TMI = getDSInitEntry(RSRC, DSINIT.stepIntoNodeIdxTableTMI, po)
+            if val_TMI is not None:
+                StepIntoNodeIdxTable_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
+        heapRanges = intRangesExcludeOne(heapRanges, StepIntoNodeIdxTable_TypeID)
+        # DTHP must not include TypeDesc with Hilite Idx Table
+        HiliteIdxTable_TypeID = None
+        if TM80_IndexShift is not None:
+            val_TMI = getDSInitEntry(RSRC, DSINIT.hiliteIdxTableTMI, po)
+            if val_TMI is not None:
+                HiliteIdxTable_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
+        heapRanges = intRangesExcludeOne(heapRanges, HiliteIdxTable_TypeID)
+        # DTHP must not include TypeDesc with Generated Code Profile Result Table
+        GeneratedCodeProfileResultTable_TypeID = None
+        if TM80_IndexShift is not None:
+            val_TMI = getDSInitEntry(RSRC, DSINIT.generatedCodeProfileResultTableTMI, po)
+            if val_TMI is not None:
+                GeneratedCodeProfileResultTable_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
+        heapRanges = intRangesExcludeOne(heapRanges, GeneratedCodeProfileResultTable_TypeID)
         # DTHP must not include TypeDesc of type "Function"
         # IndexShift must be high enough or count must be small enough to keep
         # Function TDs outside.
