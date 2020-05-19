@@ -232,7 +232,9 @@ class DSINIT(enum.IntEnum):
     nLocalInputConnections	= 18
     # Offset of the Local Input Connections List within Invariant Data Space
     localInputConnIdxOffset	= 19
-    # Type Map Index which points to TypeDesc for Local Input Connections List
+    # Type Map Index which points to TypeDesc for several Connections Lists
+    # The TypeDesc stores Lists: Non-Local/Local Input Connections, Conditional
+    # Indicators, Output Connections, Input Connections.
     localInputConnIdxTMI	= 20
     # Amount of index values within Non-Local Input Connections List
     nNonLocalInputConnections = 21
