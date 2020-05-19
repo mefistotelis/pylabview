@@ -5153,8 +5153,9 @@ class VCTP(CompleteBlock):
                 if expectedType is not None and td_obj.fullType() != expectedType:
                     match = False
                     break
-            if match:
-                td_clust.setDataFillComments( {i: e[0] for i,e in enumerate(LVparts.DCO._fields_)} )
+            if not match:
+                continue
+            td_clust.setDataFillComments( {i: e[0] for i,e in enumerate(LVparts.DCO._fields_)} )
             break
 
     def getContent(self, section_num=None):

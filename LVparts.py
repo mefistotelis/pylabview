@@ -180,6 +180,10 @@ class DSINIT(enum.IntEnum):
     match. Any varaible size items with size not defined in TypeDesc are
     represented within the Invariant Data Space as pointers, so that their
     size stays constant.
+
+    The table also contains TMI index values. These contain some flag bits
+    at top, and below there is an index on Type Map table of a related
+    Type Descriptor.
     """
     # Amount of entries in the Hilite Table pointed by two values below
     # Hilite Table stores something related to highliting items on a FP?
@@ -193,6 +197,8 @@ class DSINIT(enum.IntEnum):
     # connector types representing the Probe Points.
     nProbeTableEntries	= 3
     # Offset of the Probe Table within Invariant Data Space
+    # Probe Table stores Probe Points in form of RepeatedBlock with two I32
+    # values per entry.
     probeTableOffset	= 4
     # Type Map Index which points to TypeDesc for Probe Table
     probeTableTMI	= 5
@@ -249,7 +255,9 @@ class DSINIT(enum.IntEnum):
     numInternalHiliteTableEntries = 30
     # Type Map Index which points to TypeDesc for Internal Hilite Table Handle and Pointers
     internalHiliteTableHandleAndPtrTMI = 31
+    # Amount of index values in the Sync Displays List pointed by the value below
     nSyncDisplays		= 32
+    # Offset of the Sync Displays Index List within Invariant Data Space
     syncDisplayIdxOffset = 33
     # Amount of entries in the subVI Patches Lists pointed by two values below
     nSubVIPatches		= 34
@@ -258,6 +266,7 @@ class DSINIT(enum.IntEnum):
     # Type Map Index which points to TypeDesc for subVI Patch
     subVIPatchTMI		= 36
     enpdTdOffsetsDso	= 37
+    # Type Map Index which points to TypeDesc for Enpd TD Offsets
     enpdTdOffsetsTMI	= 38
     # Amount of DDO structures in the DDO Table pointed by two values below
     nDDOs				= 39
