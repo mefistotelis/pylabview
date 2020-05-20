@@ -2263,12 +2263,8 @@ class DFDS(CompleteBlock):
             exp_whole_len += df_len
         return exp_whole_len
 
-    def initWithXMLSectionData(self, section, section_elem):
-        section.content = []
-
-        for subelem in section_elem:
-            if (subelem.tag == "NameObject"):
-                continue # Items parsed somewhere else
+    def initWithXMLSectionDataFillTag(self, section, dftop_elem):
+        for subelem in dftop_elem:
             if (subelem.tag == "SpecialDSTMCluster"):
                 # Special condition for special cluster - its type is just Cluster
                 tdType = TD_FULL_TYPE.Cluster
@@ -2278,6 +2274,18 @@ class DFDS(CompleteBlock):
                 df = LVdatafill.newDataFillObjectWithTag(self.vi, subelem.tag, self.po)
             df.initWithXML(subelem)
             section.content.append(df)
+        pass
+
+    def initWithXMLSectionData(self, section, section_elem):
+        section.content = []
+
+        for subelem in section_elem:
+            if (subelem.tag == "NameObject"):
+                continue # Items parsed somewhere else
+            if (subelem.tag == "DataFill"):
+                self.initWithXMLSectionDataFillTag(section, subelem)
+            else:
+                raise AttributeError("Section contains unexpected tag")
         pass
 
     def initWithXMLLate(self):
@@ -2322,12 +2330,20 @@ class DFDS(CompleteBlock):
 
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         for df in section.content:
+            dftop_elem = ET.SubElement(section_elem, "DataFill")
             # For some old LV versions type map index may not make sense; but we are not supporting them ATM
             if df.index >= 0:
-                comment_elem = ET.Comment(" Data for TypeID {:d} ".format(df.index))
-                section_elem.append(comment_elem)
+                dftop_elem.set("TypeID", "{:d}".format(df.index))
 
-            subelem = ET.SubElement(section_elem, df.getXMLTagName())
+            commentText = ""
+            if df.td is not None:
+                if df.td.label is not None:
+                     commentText += df.td.label.decode(self.vi.textEncoding, errors="ignore")
+            if len(commentText) > 0:
+                comment_elem = ET.Comment(" {:s} ".format(commentText))
+                dftop_elem.append(comment_elem)
+
+            subelem = ET.SubElement(dftop_elem, df.getXMLTagName())
 
             df.exportXML(subelem, fname_base)
         pass
