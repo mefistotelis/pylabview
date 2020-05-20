@@ -185,6 +185,14 @@ def elemFindOrCreateWithAttribsAndTags(parentElem, elemName, attrs, tags, fo, po
                 elem.remove(sub_elem)
     return elem
 
+def getDFDSRecord(RSRC, typeID, po):
+    """ Returns DFDS entry for given typeID.
+    """
+    DS_entry = RSRC.find("./DFDS/Section/DataFill[@TypeID='{}']".format(typeID))
+    if DS_entry is None:
+        return None
+    return DS_entry
+
 def getDSInitRecord(RSRC, po):
     """ Returns DSInit, which is a record of 51 integers of initialized data.
 
@@ -196,9 +204,9 @@ def getDSInitRecord(RSRC, po):
     # Usually what we need will just be the first DFDS item. And even if not,
     # it's always first item with 51 ints inside. So instead of going though
     # type map and VCTP, we can localise the proper type directly.
-    DSI_candidates = DFDS.findall('./RepeatedBlock/I32/..')
+    DSI_candidates = DFDS.findall('./DataFill/RepeatedBlock/I32/../..')
     for DSInit in DSI_candidates:
-        if len(DSInit.findall('./I32')) == 51:
+        if len(DSInit.findall('./RepeatedBlock[1]/I32')) == 51:
             return DSInit
     # No matching type in DFDS
     return None
@@ -209,10 +217,38 @@ def getDSInitEntry(RSRC, entryId, po):
     DSInit = getDSInitRecord(RSRC, po)
     if DSInit is None:
         return None
-    entry_elem = DSInit.find("./I32["+str(int(entryId+1))+"]")
+    entry_elem = DSInit.find("./RepeatedBlock[1]/I32["+str(int(entryId+1))+"]")
     if entry_elem is None:
         return None
     return int(entry_elem.text,0)
+
+def getFpDCOTable(RSRC, po, TM80_IndexShift=None, FpDCOTable_TypeID=None):
+    """ Returns DCO Table from DataSpace.
+    """
+    if FpDCOTable_TypeID is None:
+        if TM80_IndexShift is None:
+            TM80 = RSRC.find("./TM80/Section")
+            if TM80 is not None:
+                TM80_IndexShift = TM80.get("IndexShift")
+                if TM80_IndexShift is not None:
+                    TM80_IndexShift = int(TM80_IndexShift, 0)
+        if TM80_IndexShift is not None:
+            val_TMI = getDSInitEntry(RSRC, DSINIT.fpdcoTableTMI, po)
+            if val_TMI is not None:
+                FpDCOTable_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
+    if FpDCOTable_TypeID is None:
+        return None
+    FpDCOTable = getDFDSRecord(RSRC, FpDCOTable_TypeID, po)
+    return FpDCOTable
+
+def getFpDCOEntry(RSRC, dcoIndex, po, TM80_IndexShift=None, FpDCOTable_TypeID=None):
+    """ Returns DCO entry from DataSpace.
+    """
+    FpDCOTable = getFpDCOTable(RSRC, po, TM80_IndexShift=TM80_IndexShift, FpDCOTable_TypeID=FpDCOTable_TypeID)
+    if FpDCOTable is None:
+        return None
+    FpDCO = FpDCOTable.find("./RepeatedBlock/Cluster["+str(dcoIndex)+"]")
+    return FpDCO
 
 def vers_Fix(RSRC, vers, ver, fo, po):
     sect_index = vers.get("Index")
@@ -1179,6 +1215,31 @@ def DTHP_Fix(RSRC, DTHP, ver, fo, po):
             if val_TMI is not None:
                 GeneratedCodeProfileResultTable_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
         heapRanges = intRangesExcludeOne(heapRanges, GeneratedCodeProfileResultTable_TypeID)
+        # DTHP must not include TypeDesc values pointed to by DCOs
+        DCO_fields = [ field[0] for field in LVparts.DCO._fields_ ]
+        FpDCOTable = getFpDCOTable(RSRC, po, TM80_IndexShift=TM80_IndexShift, FpDCOTable_TypeID=FpDCOTable_TypeID)
+        if FpDCOTable is not None and TM80_IndexShift is not None:
+            for FpDCO in FpDCOTable.findall("./RepeatedBlock/Cluster"):
+                FpDCOFlags_TypeID = None
+                FpDCODefaultDataTMI_TypeID = None
+                FpDCOExtraData_TypeID = None
+                # List fields without comments
+                FpDCO_FieldList = list(filter(lambda f: f.tag is not ET.Comment, FpDCO.findall("./*")))
+                val_TMI = FpDCO_FieldList[DCO_fields.index('flagTMI')].text
+                if val_TMI is not None:
+                    val_TMI = int(val_TMI,0)
+                    FpDCOFlags_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
+                val_TMI = FpDCO_FieldList[DCO_fields.index('defaultDataTMI')].text
+                if val_TMI is not None:
+                    val_TMI = int(val_TMI,0)
+                    FpDCODefaultDataTMI_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
+                val_TMI = FpDCO_FieldList[DCO_fields.index('extraDataTMI')].text
+                if val_TMI is not None:
+                    val_TMI = int(val_TMI,0)
+                    FpDCOExtraData_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
+                heapRanges = intRangesExcludeOne(heapRanges, FpDCOFlags_TypeID)
+                heapRanges = intRangesExcludeOne(heapRanges, FpDCODefaultDataTMI_TypeID)
+                heapRanges = intRangesExcludeOne(heapRanges, FpDCOExtraData_TypeID)
         # DTHP must not include TypeDesc of type "Function"
         # IndexShift must be high enough or count must be small enough to keep
         # Function TDs outside.

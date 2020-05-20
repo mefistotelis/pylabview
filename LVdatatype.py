@@ -180,7 +180,7 @@ class TM_FLAGS(enum.IntEnum):
     TMFBit10 = 1 << 10	# unknown
     TMFBit11 = 1 << 11	# unknown
     TMFBit12 = 1 << 12	# unknown
-    TMFBit13 = 1 << 13	# HasSaveData
+    TMFBit13 = 1 << 13	# HasSaveData Informs whether the content is stored in DFDS
     TMFBit14 = 1 << 14	# unknown
     TMFBit15 = 1 << 15	# unknown
     TMFBit16 = 1 << 16	# unknown
