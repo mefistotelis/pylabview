@@ -250,6 +250,25 @@ def getFpDCOEntry(RSRC, dcoIndex, po, TM80_IndexShift=None, FpDCOTable_TypeID=No
     FpDCO = FpDCOTable.find("./RepeatedBlock/Cluster["+str(dcoIndex)+"]")
     return FpDCO
 
+def getProbeTable(RSRC, po, TM80_IndexShift=None, ProbeTable_TypeID=None):
+    """ Returns Probe Table from DataSpace.
+    """
+    if ProbeTable_TypeID is None:
+        if TM80_IndexShift is None:
+            TM80 = RSRC.find("./TM80/Section")
+            if TM80 is not None:
+                TM80_IndexShift = TM80.get("IndexShift")
+                if TM80_IndexShift is not None:
+                    TM80_IndexShift = int(TM80_IndexShift, 0)
+        if TM80_IndexShift is not None:
+            val_TMI = getDSInitEntry(RSRC, DSINIT.probeTableTMI, po)
+            if val_TMI is not None:
+                ProbeTable_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
+    if ProbeTable_TypeID is None:
+        return None
+    ProbeTable = getDFDSRecord(RSRC, ProbeTable_TypeID, po)
+    return ProbeTable
+
 def vers_Fix(RSRC, vers, ver, fo, po):
     sect_index = vers.get("Index")
     if sect_index is not None:
@@ -1240,6 +1259,20 @@ def DTHP_Fix(RSRC, DTHP, ver, fo, po):
                 heapRanges = intRangesExcludeOne(heapRanges, FpDCOFlags_TypeID)
                 heapRanges = intRangesExcludeOne(heapRanges, FpDCODefaultDataTMI_TypeID)
                 heapRanges = intRangesExcludeOne(heapRanges, FpDCOExtraData_TypeID)
+        # DTHP must not include TypeDesc values pointed to by ProbePoints
+        ProbeTable = getProbeTable(RSRC, po, TM80_IndexShift=TM80_IndexShift, ProbeTable_TypeID=ProbeTable_TypeID)
+        if ProbeTable is not None and TM80_IndexShift is not None:
+            ProbeTable_FieldList = list(filter(lambda f: f.tag is not ET.Comment, ProbeTable.findall("./RepeatedBlock/I32")))
+            for i in range(len(ProbeTable_FieldList)//2):
+                val_TMI = ProbeTable_FieldList[2*i+1].text
+                if val_TMI is not None:
+                    val_TMI = int(val_TMI, 0)
+                if val_TMI < 1:
+                    val_TMI = None
+                ProbePoint_TypeID = None
+                if val_TMI is not None:
+                    ProbePoint_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
+                heapRanges = intRangesExcludeOne(heapRanges, ProbePoint_TypeID)
         # DTHP must not include TypeDesc of type "Function"
         # IndexShift must be high enough or count must be small enough to keep
         # Function TDs outside.
