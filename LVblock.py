@@ -5144,12 +5144,20 @@ class VCTP(CompleteBlock):
             flatRange.append(flatIdx)
         # Now find the special types
         from LVdatatype import TD_FULL_TYPE
+        from LVparts import DSINIT, DCO
+        # Find DSInit
+        tdDSInit = None
         for flatIdx in flatRange:
             clientTD = section.content[flatIdx]
             if clientTD.nested.fullType() != TD_FULL_TYPE.RepeatedBlock or clientTD.nested.getNumRepeats() != 51:
                 continue
-            clientTD.nested.setDataFillComments( {e.value: e.name for e in LVparts.DSINIT} )
+            tdDSInit = clientTD.nested
             break
+        # Comment DSInit
+        if tdDSInit is not None:
+            tdDSInit.setDataFillComments( {e.value: e.name for e in DSINIT} )
+        # Find DCO
+        tdDCO = None
         for flatIdx in flatRange:
             clientTD = section.content[flatIdx]
             if clientTD.nested.fullType() != TD_FULL_TYPE.RepeatedBlock:
@@ -5161,18 +5169,41 @@ class VCTP(CompleteBlock):
                 continue
             match = True
             for cli_idx, td_idx, td_obj, td_flags in td_clust.clientsEnumerate():
-                if cli_idx >= len(LVparts.DCO._fields_):
+                if cli_idx >= len(DCO._fields_):
                     match = False
                     break
-                expectedCType = LVparts.DCO._fields_[cli_idx][1]
+                expectedCType = DCO._fields_[cli_idx][1]
                 expectedType = ctypeToFullTypeEnum(expectedCType)
                 if expectedType is not None and td_obj.fullType() != expectedType:
                     match = False
                     break
             if not match:
                 continue
-            td_clust.setDataFillComments( {i: e[0] for i,e in enumerate(LVparts.DCO._fields_)} )
+            tdDCO = td_clust
             break
+        # Comment DCO
+        if tdDCO is not None:
+            tdDCO.setDataFillComments( {i: e[0] for i,e in enumerate(DCO._fields_)} )
+        # Find ProbeTable
+        tdProbeTable = None
+        DFDS = self.vi.get('DFDS')
+        dfDSInit = None
+        if DFDS is not None and tdDSInit is not None:
+            dfDSInit = DFDS.getDFForTD(tdDSInit)
+        probeTable_typeId = None
+        if TM is not None and dfDSInit is not None:
+            if len(dfDSInit.value) > DSINIT.probeTableTMI:
+                probeTable_typeId = TM.getMinTypeId() + dfDSInit.value[DSINIT.probeTableTMI].value
+        if probeTable_typeId is not None:
+            tdProbeTable = self.getTopType(probeTable_typeId, section_num=section_num)
+        # Comment ProbeTable
+        if tdProbeTable is not None:
+            dfComments = {}
+            for i in range(tdProbeTable.getNumRepeats()//2):
+                dfComments[2*i+0] = "ProbePoint{}.Flags".format(i)
+                dfComments[2*i+1] = "ProbePoint{}.TMI".format(i)
+            tdProbeTable.setDataFillComments( dfComments )
+        pass
 
     def getContent(self, section_num=None):
         if section_num is None:
