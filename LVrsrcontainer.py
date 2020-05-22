@@ -343,6 +343,10 @@ class VI():
         for block in self.blocks.values():
             block.parseData()
 
+        # Do final integrations which establish dependencies betweebn blocks
+        for block in self.blocks.values():
+            block.integrateData()
+
         return (len(blocks) > 0)
 
     def readRSRC(self, fh):
@@ -399,6 +403,10 @@ class VI():
         # Now when everything is ready, parse the blocks data
         for block in self.blocks.values():
             block.parseData()
+
+        # Do final integrations which establish dependencies betweebn blocks
+        for block in self.blocks.values():
+            block.integrateData()
 
         return (len(blocks) > 0)
 

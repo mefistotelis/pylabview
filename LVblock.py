@@ -503,6 +503,19 @@ class Block(object):
                 section.parsed_data_updated = False
         pass
 
+    def integrateData(self, section_num=None):
+        """ Integrate data of specific section with other blocks
+
+        After all blocks are parsed, we can establish inter-block dependencies
+        and do any more complex part of initialization which depends on other
+        blocks within the VI file.
+        This function should implement any data gathering from other blocks
+        which could cause circular dependency if executed during parsing.
+        """
+        if section_num is None:
+            section_num = self.active_section_num
+        pass
+
     def updateSectionData(self, section_num=None):
         """ Updates RAW data stored in given section to any changes in properties
         """
@@ -2211,7 +2224,6 @@ class DFDS(CompleteBlock):
             raise RuntimeError("No type map block to put default data into types")
         elif isGreaterOrEqVersion(ver, 8,0,0,1):
             TypeMap = TM.getTypeMap()
-
             for tmEntry in TypeMap:
                 df = None
                 if (tmEntry.flags & TM_FLAGS.TMFBit3) != 0 or \
@@ -2744,7 +2756,7 @@ class DSTM(VarCodingBlock):
         return None
 
     def getTypeMap(self, section_num=None):
-        return []
+        return tuple()
 
 class TM80(VarCodingBlock):
     """ Data Space Type Map LV8.0+
@@ -2904,7 +2916,7 @@ class TM80(VarCodingBlock):
             else:
                 typeMap.append(tmEntry)
 
-        return typeMap
+        return tuple(typeMap)
 
 
 class LVIN(Block):
@@ -5102,7 +5114,11 @@ class VCTP(CompleteBlock):
         if needParse:
             for clientTD in section.content:
                 clientTD.nested.parseData()
-            self.commentSpecialTypes(section_num)
+
+    def integrateData(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        self.commentSpecialTypes(section_num)
 
     def checkSanity(self, section_num=None):
         if section_num is None:
