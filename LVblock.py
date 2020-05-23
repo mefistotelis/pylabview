@@ -2370,15 +2370,17 @@ class DFDS(CompleteBlock):
         return df
 
     def getDFForTD(self, td, section_num=None):
+        """ Parses whole DF tree in search of one instantiating given TD
+        """
         if section_num is None:
             section_num = self.active_section_num
         self.parseData(section_num=section_num)
         section = self.sections[section_num]
 
         for df in section.content:
-            if df.td != td:
-                continue
-            return df
+            dfFound = df.findTD(td)
+            if dfFound is not None:
+                return dfFound
         return None
 
     def getDFForTypeId(self, tdIndex, section_num=None):
@@ -5165,10 +5167,17 @@ class VCTP(CompleteBlock):
         tdDSInit = None
         for flatIdx in flatRange:
             clientTD = section.content[flatIdx]
-            if clientTD.nested.fullType() != TD_FULL_TYPE.RepeatedBlock or clientTD.nested.getNumRepeats() != 51:
-                continue
-            tdDSInit = clientTD.nested
-            break
+            if clientTD.nested.fullType() == TD_FULL_TYPE.RepeatedBlock and clientTD.nested.getNumRepeats() == 51:
+                tdDSInit = clientTD.nested
+                break
+            # DSInit can sometimes be within cluster with other data (found that in LV12 files)
+            elif clientTD.nested.fullType() == TD_FULL_TYPE.Cluster and clientTD.nested.hasClients():
+                for _, _, td_obj, _ in clientTD.nested.clientsEnumerate():
+                    if td_obj.fullType() == TD_FULL_TYPE.RepeatedBlock and td_obj.getNumRepeats() == 51:
+                        tdDSInit = td_obj
+                        break
+                if tdDSInit is not None:
+                    break
         # Comment DSInit
         if tdDSInit is not None:
             tdDSInit.setDataFillComments( {e.value: e.name for e in DSINIT} )

@@ -50,6 +50,7 @@ class DataFill:
 
     def isSpecialDSTMClusterElement(self, idx, tm_flags):
         ver = self.vi.getFileVersion()
+        from LVdatatype import TM_FLAGS
 
         if (tm_flags & TM_FLAGS.TMFBit2) != 0:
             if isSmallerVersion(ver, 10,0,0,2):
@@ -81,6 +82,13 @@ class DataFill:
         self.index = idx
         self.td = td
         self.tm_flags = tm_flags
+
+    def findTD(self, td):
+        """ Searches DF branches for one instantiating given TD
+        """
+        if self.td == td:
+            return self
+        return None
 
     def prepareDict(self):
         typeName = enumOrIntToName(self.tdType)
@@ -496,6 +504,16 @@ class DataFillArray(DataFill):
         for sub_df in self.value:
             sub_df.setTD(sub_td, -1, self.tm_flags)
 
+    def findTD(self, td):
+        dfFound = super().findTD(td)
+        if dfFound is not None:
+            return dfFound
+        for sub_df in self.value:
+            dfFound = sub_df.findTD(td)
+            if dfFound is not None:
+                return dfFound
+        return None
+
     def initWithRSRCParse(self, bldata):
         self.dimensions = []
         for dim in self.td.dimensions:
@@ -606,6 +624,16 @@ class DataFillCluster(DataFill):
         for cli_idx, td_idx, sub_td, td_flags in self.td.clientsEnumerate():
             sub_df = self.value[cli_idx]
             sub_df.setTD(sub_td, td_idx, self.tm_flags)
+
+    def findTD(self, td):
+        dfFound = super().findTD(td)
+        if dfFound is not None:
+            return dfFound
+        for sub_df in self.value:
+            dfFound = sub_df.findTD(td)
+            if dfFound is not None:
+                return dfFound
+        return None
 
     def initWithRSRCParse(self, bldata):
         self.value = []
@@ -779,6 +807,16 @@ class DataFillMeasureData(DataFill):
         super().setTD(td, idx, tm_flags)
         # Do not propagate to clients - self.containedTd should be propagated
         # And it is propagates somewhere else
+
+    def findTD(self, td):
+        dfFound = super().findTD(td)
+        if dfFound is not None:
+            return dfFound
+        for sub_df in self.value:
+            dfFound = sub_df.findTD(td)
+            if dfFound is not None:
+                return dfFound
+        return None
 
     def prepareDict(self):
         flavorName = enumOrIntToName(self.tdSubType)
@@ -986,6 +1024,16 @@ class DataFillRepeatedBlock(DataFill):
                 sub_td_idx = td_idx
         for sub_df in self.value:
             sub_df.setTD(sub_td, sub_td_idx, self.tm_flags)
+
+    def findTD(self, td):
+        dfFound = super().findTD(td)
+        if dfFound is not None:
+            return dfFound
+        for sub_df in self.value:
+            dfFound = sub_df.findTD(td)
+            if dfFound is not None:
+                return dfFound
+        return None
 
     def initWithRSRCParse(self, bldata):
         self.value = []
@@ -1477,6 +1525,16 @@ class DataFillTypeDef(DataFill):
         for sub_df in self.value:
             sub_df.setTD(sub_td, -1, self.tm_flags)
 
+    def findTD(self, td):
+        dfFound = super().findTD(td)
+        if dfFound is not None:
+            return dfFound
+        for sub_df in self.value:
+            dfFound = sub_df.findTD(td)
+            if dfFound is not None:
+                return dfFound
+        return None
+
     def initWithRSRCParse(self, bldata):
         self.value = []
         # We expect exactly one client within TypeDef
@@ -1532,6 +1590,7 @@ class SpecialDSTMCluster(DataFillCluster):
         DataFill.setTD(self, td, idx, tm_flags)
         if len(self.value) < 1:
             return # If value list is not filled yet, no further work to do
+        from LVdatatype import TM_FLAGS
         skipNextEntry = ((self.tm_flags & TM_FLAGS.TMFBit9) != 0)
         cli_idx = 0
         for cli_bad_idx, td_idx, sub_td, td_flags in self.td.clientsEnumerate():
@@ -1547,6 +1606,7 @@ class SpecialDSTMCluster(DataFillCluster):
 
     def initWithRSRCParse(self, bldata):
         self.value = []
+        from LVdatatype import TM_FLAGS
         skipNextEntry = ((self.tm_flags & TM_FLAGS.TMFBit9) != 0)
         for cli_idx, td_idx, sub_td, td_flags in self.td.clientsEnumerate():
             if not self.isSpecialDSTMClusterElement(cli_idx, self.tm_flags):
