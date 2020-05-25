@@ -255,7 +255,10 @@ def getFpDCOTableAsList(RSRC, po, TM80_IndexShift=None, FpDCOTable_TypeID=None):
             fldName = field[0]
             fldType = field[1]
             fldVal = FpDCO_FieldList[idx].text
-            if re.match(r"c_u?int[0-9]+", fldType) or re.match(r"c_u?short[0-9]+", fldType) or re.match(r"c_u?long[0-9]+", fldType):
+            if re.match(r"c_u?int[0-9]+", fldType.__name__) or \
+               re.match(r"c_u?byte", fldType.__name__) or \
+               re.match(r"c_u?short", fldType.__name__) or \
+               re.match(r"c_u?long", fldType.__name__):
                 fldVal = int(fldVal,0)
             elif fldType in ("c_float","c_double","c_longdouble",):
                 fldVal = float(fldVal)
@@ -984,50 +987,126 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
     else:
         raise NotImplementedError("DTHP should've been already re-created at this point.")
 
-    # recover DCOs from TDs
+    # recover FP DCOs from a list within DFDS
+    TM80_IndexShift = None
+    TM80 = RSRC.find("./TM80/Section")
+    if TM80 is not None:
+        TM80_IndexShift = TM80.get("IndexShift")
+        if TM80_IndexShift is not None:
+            TM80_IndexShift = int(TM80_IndexShift, 0)
+
+    FpDCOList = getFpDCOTableAsList(RSRC, po, TM80_IndexShift=TM80_IndexShift)
+
+    # recover more data on FP DCOs from Heap TDs
+    # Heap Types first store a list of TypeDescs used in FP, then a list of TDs used in BD
+    # We need to map the first part to the DCOs we have. Connectors may be helpful here, as if they
+    # are set, then they store TypeID values for types associated to the DCOs.
     heapTypeMap = {htId+1:getConsolidatedTopType(RSRC, indexShift+htId, po) for htId in range(tdCount)}
 
-    usedTypeID = 0
-    for typeID, TypeDesc in heapTypeMap.items():
-        if usedTypeID >= typeID: continue
+    usedTypeID = 0 # Heap TypeID values start with 1, set it before the range
+    # Figure out Heap Types range for each DCO
+    for DCO in FpDCOList:
+        # We expect DCO type, DDO type, and then sub-types
+        DCO['dcoTypeID'] = None
+        DCO['ddoTypeID'] = None
+        DCO['subTypeIDs'] = []
+        dcoTypeID = usedTypeID + 1
+        ddoTypeID = dcoTypeID + 1
+        subTypeIDs = []
 
-        ddoTypeID = typeID + 1
-        if ddoTypeID not in heapTypeMap or heapTypeMap[ddoTypeID] != TypeDesc:
-            eprint("{:s}: Warning: Heap TypeDesc {} '{}' is followed by different type"\
-              .format(po.xml,typeID,TypeDesc.get("Type")))
-            ddoTypeID = None
+        if dcoTypeID not in heapTypeMap:
+            eprint("{:s}: Warning: Heap TypeDesc {} expected for DCO{} does not exist"\
+              .format(po.xml,dcoTypeID,DCO['dcoIndex']))
+            break
+        if ddoTypeID not in heapTypeMap:
+            eprint("{:s}: Warning: Heap TypeDesc {} expected for DCO{}.DDO does not exist"\
+              .format(po.xml,ddoTypeID,DCO['dcoIndex']))
+            break
+        dcoTypeDesc = heapTypeMap[dcoTypeID]
+        ddoTypeDesc = heapTypeMap[ddoTypeID]
+        if dcoTypeDesc != ddoTypeDesc:
+            eprint("{:s}: Warning: DCO and DDO types differ: '{}' vs '{}'"\
+              .format(po.xml,dcoTypeDesc.get("Type"),ddoTypeDesc.get("Type")))
+        # For complex types, get sub-types
+        subTypeID = ddoTypeID + 1
+        if dcoTypeDesc.get("Type") == "Cluster":
+            dcoTypeDesc_FieldList = list(filter(lambda f: f.tag is not ET.Comment, dcoTypeDesc.findall("./*")))
+            for dcoSubTypeDesc in dcoTypeDesc_FieldList:
+                if subTypeID not in heapTypeMap:
+                    eprint("{:s}: Warning: Heap TypeDesc {} expected for DCO{} syb-type does not exist"\
+                      .format(po.xml,subTypeID,DCO['dcoIndex']))
+                    break
+                subTypeDesc = heapTypeMap[subTypeID]
+                if subTypeDesc != dcoSubTypeDesc:
+                    eprint("{:s}: Warning: Heap TypeDesc {} expected for DCO{} has unexpected type: '{}' instead of '{}'"\
+                      .format(po.xml,subTypeID,DCO['dcoIndex'],subTypeDesc.get("Type"),dcoSubTypeDesc.get("Type")))
+                    continue
+                subTypeIDs.append(subTypeID)
+                subTypeID += 1
+        DCO['dcoTypeID'] = dcoTypeID
+        DCO['ddoTypeID'] = ddoTypeID
+        DCO['subTypeIDs'] = subTypeIDs
+        usedTypeID = ddoTypeID + len(subTypeIDs)
 
-        if TypeDesc.get("Type") == "Boolean":
-            print("{:s}: Associating TypeDesc {} with DCO of class '{}'"\
-              .format(po.xml,typeID,"stdBool"))
+    for DCO in FpDCOList:
+        dcoTypeDesc = None
+        if DCO['dcoTypeID'] is not None:
+            dcoTypeDesc = heapTypeMap[DCO['dcoTypeID']]
+        if dcoTypeDesc is None:
+            eprint("{:s}: Warning: DCO{} does not have dcoTypeID, not adding to FP"\
+              .format(po.xml,DCO['dcoIndex']))
+            continue
+
+        if dcoTypeDesc.get("Type") == "Boolean" and DCO['isIndicator'] == 0:
+            print("{:s}: Associating DCO{} TypeDesc '{}' with FpDCO of class '{}'"\
+              .format(po.xml,DCO['dcoIndex'],dcoTypeDesc.get("Type"),"stdBool"))
             ddoObjFlags_val = 1
-            labelText = TypeDesc.get("Label")
+            labelText = dcoTypeDesc.get("Label")
             if labelText is None: labelText = "Boolean"
             dco, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
-              aeTypeID=typeID, aeObjFlags=1, aeDdoClass="stdBool", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val,
+              aeTypeID=DCO['dcoTypeID'], aeObjFlags=1, aeDdoClass="stdBool", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val,
               aeBounds=[185,581,223,622], aeDdoTypeID=ddoTypeID, aeMouseWheelSupport=0, aeMinButSize=[17,17], \
-              valueType=TypeDesc.get("Type"))
+              valueType=dcoTypeDesc.get("Type"))
             checkOrCreateParts_stdBool(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
-        elif TypeDesc.get("Type").startswith("Num"):
-            print("{:s}: Associating TypeDesc {} with DCO of class '{}'"\
-              .format(po.xml,typeID,"stdNum"))
+        elif dcoTypeDesc.get("Type") == "Boolean" and DCO['isIndicator'] != 0:
+            print("{:s}: Associating DCO{} TypeDesc '{}' with FpDCO of class '{}'"\
+              .format(po.xml,DCO['dcoIndex'],dcoTypeDesc.get("Type"),"stdBool"))
             ddoObjFlags_val = 1
-            labelText = TypeDesc.get("Label")
-            if labelText is None: labelText = "Numeric"
-            stdNumMin, stdNumMax, stdNumInc = valueTypeGetDefaultRange(TypeDesc.get("Type"), po)
+            labelText = dcoTypeDesc.get("Label")
+            if labelText is None: labelText = "Boolean"
             dco, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
-              aeTypeID=typeID, aeObjFlags=393283, aeDdoClass="stdNum", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val, \
+              aeTypeID=DCO['dcoTypeID'], aeObjFlags=1, aeDdoClass="stdBool", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val,
+              aeBounds=[185,581,223,622], aeDdoTypeID=ddoTypeID, aeMouseWheelSupport=0, aeMinButSize=[17,17], \
+              valueType=dcoTypeDesc.get("Type"))
+            checkOrCreateParts_stdBool(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
+        elif dcoTypeDesc.get("Type").startswith("Num") and DCO['isIndicator'] == 0:
+            print("{:s}: Associating DCO{} TypeDesc '{}' with FpDCO {} of class '{}'"\
+              .format(po.xml,DCO['dcoIndex'],dcoTypeDesc.get("Type"),DCO['isIndicator'],"stdNum"))
+            ddoObjFlags_val = 1
+            labelText = dcoTypeDesc.get("Label")
+            if labelText is None: labelText = "Numeric"
+            stdNumMin, stdNumMax, stdNumInc = valueTypeGetDefaultRange(dcoTypeDesc.get("Type"), po)
+            dco, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
+              aeTypeID=DCO['dcoTypeID'], aeObjFlags=393283, aeDdoClass="stdNum", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val, \
               aeBounds=[185,581,223,622], aeDdoTypeID=ddoTypeID, aeMouseWheelSupport=2, aeMinButSize=None, \
-              valueType=TypeDesc.get("Type"), aeStdNumMin=stdNumMin, aeStdNumMax=stdNumMax, aeStdNumInc=stdNumInc)
+              valueType=dcoTypeDesc.get("Type"), aeStdNumMin=stdNumMin, aeStdNumMax=stdNumMax, aeStdNumInc=stdNumInc)
+            checkOrCreateParts_stdNum(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
+        elif dcoTypeDesc.get("Type").startswith("Num") and DCO['isIndicator'] != 0:
+            print("{:s}: Associating DCO{} TypeDesc '{}' with FpDCO {} of class '{}'"\
+              .format(po.xml,DCO['dcoIndex'],dcoTypeDesc.get("Type"),DCO['isIndicator'],"stdNum"))
+            ddoObjFlags_val = 1
+            labelText = dcoTypeDesc.get("Label")
+            if labelText is None: labelText = "Numeric"
+            stdNumMin, stdNumMax, stdNumInc = valueTypeGetDefaultRange(dcoTypeDesc.get("Type"), po)
+            dco, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
+              aeTypeID=DCO['dcoTypeID'], aeObjFlags=393283, aeDdoClass="stdNum", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val, \
+              aeBounds=[185,581,223,622], aeDdoTypeID=ddoTypeID, aeMouseWheelSupport=2, aeMinButSize=None, \
+              valueType=dcoTypeDesc.get("Type"), aeStdNumMin=stdNumMin, aeStdNumMax=stdNumMax, aeStdNumInc=stdNumInc)
             checkOrCreateParts_stdNum(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
         else:
             #TODO add more types
-            eprint("{:s}: Warning: Heap TypeDesc {} is not supported"\
-              .format(po.xml,typeID))
-        if ddoTypeID is not None:
-            usedTypeID = ddoTypeID
-        else:
-            usedTypeID = typeID
+            eprint("{:s}: Warning: Heap dcoTypeDesc '{}' {} is not supported"\
+              .format(po.xml,dcoTypeDesc.get("Type"),"indicator" if DCO['isIndicator'] != 0 else "control"))
 
     #TODO re-compute sizes and positions so parts do not overlap and fit the window
 
