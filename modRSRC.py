@@ -241,6 +241,28 @@ def getFpDCOTable(RSRC, po, TM80_IndexShift=None, FpDCOTable_TypeID=None):
     FpDCOTable = getDFDSRecord(RSRC, FpDCOTable_TypeID, po)
     return FpDCOTable
 
+def getFpDCOTableAsList(RSRC, po, TM80_IndexShift=None, FpDCOTable_TypeID=None):
+    """ Returns DCO Table from DataSpace, as list of Structs.
+    """
+    FpDCOTable = getFpDCOTable(RSRC, po, TM80_IndexShift=TM80_IndexShift, FpDCOTable_TypeID=FpDCOTable_TypeID)
+    FpDCOList = []
+    if FpDCOTable is None:
+        return FpDCOList
+    for FpDCO in FpDCOTable.findall("./RepeatedBlock/Cluster"):
+        DCO = dict()
+        FpDCO_FieldList = list(filter(lambda f: f.tag is not ET.Comment, FpDCO.findall("./*")))
+        for idx,field in enumerate(LVparts.DCO._fields_):
+            fldName = field[0]
+            fldType = field[1]
+            fldVal = FpDCO_FieldList[idx].text
+            if re.match(r"c_u?int[0-9]+", fldType) or re.match(r"c_u?short[0-9]+", fldType) or re.match(r"c_u?long[0-9]+", fldType):
+                fldVal = int(fldVal,0)
+            elif fldType in ("c_float","c_double","c_longdouble",):
+                fldVal = float(fldVal)
+            DCO[fldName] = fldVal
+        FpDCOList.append(DCO)
+    return FpDCOList
+
 def getFpDCOEntry(RSRC, dcoIndex, po, TM80_IndexShift=None, FpDCOTable_TypeID=None):
     """ Returns DCO entry from DataSpace.
     """
