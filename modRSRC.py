@@ -735,8 +735,83 @@ def checkOrCreateParts_MultiCosm(RSRC, partsList, parentObjFlags, fo, po):
       aeBounds=[0,0,17,17], aeImageResID=-404, aeFgColor=0x001E4B00, aeBgColor=0x001E4B00)
 
 
-def checkOrCreateParts_stdBool(RSRC, partsList, parentObjFlags, labelText, fo, po):
-    """ Checks content of partsList element of Boolean type
+def checkOrCreateParts_stdBool_control(RSRC, partsList, parentObjFlags, labelText, fo, po):
+    """ Checks content of partsList element of Boolean Control type
+    """
+    nameLabel = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="label", \
+      aePartID=PARTID.NAME_LABEL, aeObjFlags=1507655, aeMasterPart=PARTID.BOOLEAN_BUTTON, aeHowGrow=4096,
+      aeBounds=[0,5,15,55], aeImageResID=-9, aeFgColor=0x01000000, aeBgColor=0x01000000)
+    nameLabel_textRec = elemFindOrCreate(nameLabel, "textRec", fo, po)
+    attribGetOrSetDefault(nameLabel_textRec, "class", "textHair", fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "mode", fo, po), 17412, fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "text", fo, po), "\""+labelText+"\"", fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "bgColor", fo, po), "{:08X}".format(0x01000000), fo, po)
+
+    boolLight = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="bigMultiCosm", \
+      aePartID=PARTID.BOOLEAN_LIGHT, aeObjFlags=2354, aeMasterPart=PARTID.BOOLEAN_BUTTON, aeHowGrow=3840, \
+      aeBounds=[27,35,38,50], aeImageResID=None, aeFgColor=0x001E4B00, aeBgColor=0x001E4B00)
+    boolLight_table = elemFindOrCreate(boolLight, "table", fo, po)
+    attribGetOrSetDefault(boolLight_table, "elements", 0, fo, po)
+
+    elemCheckOrCreate_table_arrayElement(boolLight_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,11,15], aeImageResID=-406, aeFgColor=0x001E4B00, aeBgColor=0x001E4B00, parentPos=1)
+    elemCheckOrCreate_table_arrayElement(boolLight_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,11,15], aeImageResID=-406, aeFgColor=0x0064FF00, aeBgColor=0x0064FF00, parentPos=2)
+    elemCheckOrCreate_table_arrayElement(boolLight_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,11,15], aeImageResID=-406, aeFgColor=0x001E4B00, aeBgColor=0x001E4B00, parentPos=3)
+    elemCheckOrCreate_table_arrayElement(boolLight_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,11,15], aeImageResID=-406, aeFgColor=0x0064FF00, aeBgColor=0x0064FF00, parentPos=4)
+
+    boolButton = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="bigMultiCosm", \
+      aePartID=PARTID.BOOLEAN_BUTTON, aeObjFlags=2324, aeMasterPart=None, aeHowGrow=240, \
+      aeBounds=[22,5,43,55], aeImageResID=None, aeFgColor=0x00BCBCBC, aeBgColor=0x00BCBCBC)
+    boolButton_table = elemFindOrCreate(boolButton, "table", fo, po)
+    attribGetOrSetDefault(boolButton_table, "elements", 0, fo, po)
+
+    elemCheckOrCreate_table_arrayElement(boolButton_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,21,50], aeImageResID=-407, aeFgColor=0x00BCBCBC, aeBgColor=0x00BCBCBC, parentPos=1)
+    elemCheckOrCreate_table_arrayElement(boolButton_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,21,50], aeImageResID=-407, aeFgColor=0x00969696, aeBgColor=0x00969696, parentPos=2)
+    elemCheckOrCreate_table_arrayElement(boolButton_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,21,50], aeImageResID=-407, aeFgColor=0x00BCBCBC, aeBgColor=0x00BCBCBC, parentPos=3)
+    elemCheckOrCreate_table_arrayElement(boolButton_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,21,50], aeImageResID=-407, aeFgColor=0x00969696, aeBgColor=0x00969696, parentPos=4)
+
+    boolGlyph = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="bigMultiCosm", \
+      aePartID=PARTID.BOOLEAN_SHADOW, aeObjFlags=2359, aeMasterPart=PARTID.BOOLEAN_BUTTON, aeHowGrow=3840, \
+      aeBounds=[22,5,48,60], aeImageResID=None, aeFgColor=0x00B3B3B3, aeBgColor=0x00B3B3B3)
+    boolGlyph_table = elemFindOrCreate(boolGlyph, "table", fo, po)
+    attribGetOrSetDefault(boolGlyph_table, "elements", 0, fo, po)
+
+    elemCheckOrCreate_table_arrayElement(boolGlyph_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,26,55], aeImageResID=-444, aeFgColor=0x00B3B3B3, aeBgColor=0x00B3B3B3, parentPos=1)
+    elemCheckOrCreate_table_arrayElement(boolGlyph_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,26,55], aeImageResID=0, aeFgColor=0x00B3B3B3, aeBgColor=0x00B3B3B3, parentPos=2)
+    elemCheckOrCreate_table_arrayElement(boolGlyph_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,26,55], aeImageResID=-444, aeFgColor=0x00B3B3B3, aeBgColor=0x00B3B3B3, parentPos=3)
+    elemCheckOrCreate_table_arrayElement(boolGlyph_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,26,55], aeImageResID=0, aeFgColor=0x00B3B3B3, aeBgColor=0x00B3B3B3, parentPos=4)
+
+    boolDivot = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="bigMultiCosm", \
+      aePartID=PARTID.BOOLEAN_DIVOT, aeObjFlags=2359, aeMasterPart=PARTID.BOOLEAN_BUTTON, aeHowGrow=3840, \
+      aeBounds=[17,0,48,60], aeImageResID=None, aeFgColor=0x00B3B3B3, aeBgColor=0x00B3B3B3)
+    boolDivot_table = elemFindOrCreate(boolDivot, "table", fo, po)
+    attribGetOrSetDefault(boolDivot_table, "elements", 0, fo, po)
+
+    elemCheckOrCreate_table_arrayElement(boolDivot_table, fo, po, aeClass="SubCosm", aeObjFlags=None, \
+      aeBounds=[0,0,31,60], aeImageResID=-408, aeFgColor=0x00B3B3B3, aeBgColor=0x00B3B3B3, parentPos=1)
+
+    # ANNEX properties taken from empty VI file created in LV14
+    annexPart = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="annex", \
+      aePartID=PARTID.ANNEX)
+    elemTextGetOrSetDefault(elemFindOrCreate(annexPart, "refListLength", fo, po), 0, fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(annexPart, "hGrowNodeListLength", fo, po), 0, fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(annexPart, "rsrcID", fo, po), 21001, fo, po)
+
+    return boolButton
+
+def checkOrCreateParts_stdBool_indicator(RSRC, partsList, parentObjFlags, labelText, fo, po):
+    """ Checks content of partsList element of Boolean Indicator type
     """
     nameLabel = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="label", \
       aePartID=PARTID.NAME_LABEL, aeObjFlags=1507655, aeMasterPart=PARTID.BOOLEAN_BUTTON, aeHowGrow=4096,
@@ -1005,7 +1080,7 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
 
     usedTypeID = 0 # Heap TypeID values start with 1, set it before the range
     # Figure out Heap Types range for each DCO
-    for DCO in FpDCOList:
+    for DCO in reversed(FpDCOList):
         # We expect DCO type, DDO type, and then sub-types
         DCO['dcoTypeID'] = None
         DCO['ddoTypeID'] = None
@@ -1048,7 +1123,9 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
         DCO['subTypeIDs'] = subTypeIDs
         usedTypeID = ddoTypeID + len(subTypeIDs)
 
-    for DCO in FpDCOList:
+    pos = [0,0]
+    for DCO in reversed(FpDCOList):
+        typeCtlOrInd = "indicator" if DCO['isIndicator'] != 0 else "control"
         dcoTypeDesc = None
         if DCO['dcoTypeID'] is not None:
             dcoTypeDesc = heapTypeMap[DCO['dcoTypeID']]
@@ -1058,55 +1135,55 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
             continue
 
         if dcoTypeDesc.get("Type") == "Boolean" and DCO['isIndicator'] == 0:
-            print("{:s}: Associating DCO{} TypeDesc '{}' with FpDCO of class '{}'"\
-              .format(po.xml,DCO['dcoIndex'],dcoTypeDesc.get("Type"),"stdBool"))
+            print("{:s}: Associating DCO{} TypeDesc '{}' with FpDCO {} of class '{}'"\
+              .format(po.xml,DCO['dcoIndex'],dcoTypeDesc.get("Type"),typeCtlOrInd,"stdBool"))
             ddoObjFlags_val = 1
             labelText = dcoTypeDesc.get("Label")
             if labelText is None: labelText = "Boolean"
             dco, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
-              aeTypeID=DCO['dcoTypeID'], aeObjFlags=1, aeDdoClass="stdBool", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val,
-              aeBounds=[185,581,223,622], aeDdoTypeID=ddoTypeID, aeMouseWheelSupport=0, aeMinButSize=[17,17], \
+              aeTypeID=DCO['dcoTypeID'], aeObjFlags=66048, aeDdoClass="stdBool", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val,
+              aeBounds=[pos[0],pos[1],pos[0]+48,pos[1]+60], aeDdoTypeID=DCO['ddoTypeID'], aeMouseWheelSupport=0, aeMinButSize=[50,21], \
               valueType=dcoTypeDesc.get("Type"))
-            checkOrCreateParts_stdBool(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
+            checkOrCreateParts_stdBool_control(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
         elif dcoTypeDesc.get("Type") == "Boolean" and DCO['isIndicator'] != 0:
-            print("{:s}: Associating DCO{} TypeDesc '{}' with FpDCO of class '{}'"\
-              .format(po.xml,DCO['dcoIndex'],dcoTypeDesc.get("Type"),"stdBool"))
+            print("{:s}: Associating DCO{} TypeDesc '{}' with FpDCO {} of class '{}'"\
+              .format(po.xml,DCO['dcoIndex'],dcoTypeDesc.get("Type"),typeCtlOrInd,"stdBool"))
             ddoObjFlags_val = 1
             labelText = dcoTypeDesc.get("Label")
             if labelText is None: labelText = "Boolean"
             dco, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
               aeTypeID=DCO['dcoTypeID'], aeObjFlags=1, aeDdoClass="stdBool", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val,
-              aeBounds=[185,581,223,622], aeDdoTypeID=ddoTypeID, aeMouseWheelSupport=0, aeMinButSize=[17,17], \
+              aeBounds=[pos[0],pos[1],pos[0]+38,pos[1]+41], aeDdoTypeID=DCO['ddoTypeID'], aeMouseWheelSupport=0, aeMinButSize=[17,17], \
               valueType=dcoTypeDesc.get("Type"))
-            checkOrCreateParts_stdBool(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
+            checkOrCreateParts_stdBool_indicator(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
         elif dcoTypeDesc.get("Type").startswith("Num") and DCO['isIndicator'] == 0:
             print("{:s}: Associating DCO{} TypeDesc '{}' with FpDCO {} of class '{}'"\
-              .format(po.xml,DCO['dcoIndex'],dcoTypeDesc.get("Type"),DCO['isIndicator'],"stdNum"))
+              .format(po.xml,DCO['dcoIndex'],dcoTypeDesc.get("Type"),typeCtlOrInd,"stdNum"))
             ddoObjFlags_val = 1
             labelText = dcoTypeDesc.get("Label")
             if labelText is None: labelText = "Numeric"
             stdNumMin, stdNumMax, stdNumInc = valueTypeGetDefaultRange(dcoTypeDesc.get("Type"), po)
             dco, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
               aeTypeID=DCO['dcoTypeID'], aeObjFlags=393283, aeDdoClass="stdNum", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val, \
-              aeBounds=[185,581,223,622], aeDdoTypeID=ddoTypeID, aeMouseWheelSupport=2, aeMinButSize=None, \
+              aeBounds=[185,581,223,622], aeDdoTypeID=DCO['ddoTypeID'], aeMouseWheelSupport=2, aeMinButSize=None, \
               valueType=dcoTypeDesc.get("Type"), aeStdNumMin=stdNumMin, aeStdNumMax=stdNumMax, aeStdNumInc=stdNumInc)
             checkOrCreateParts_stdNum(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
         elif dcoTypeDesc.get("Type").startswith("Num") and DCO['isIndicator'] != 0:
             print("{:s}: Associating DCO{} TypeDesc '{}' with FpDCO {} of class '{}'"\
-              .format(po.xml,DCO['dcoIndex'],dcoTypeDesc.get("Type"),DCO['isIndicator'],"stdNum"))
+              .format(po.xml,DCO['dcoIndex'],dcoTypeDesc.get("Type"),typeCtlOrInd,"stdNum"))
             ddoObjFlags_val = 1
             labelText = dcoTypeDesc.get("Label")
             if labelText is None: labelText = "Numeric"
             stdNumMin, stdNumMax, stdNumInc = valueTypeGetDefaultRange(dcoTypeDesc.get("Type"), po)
             dco, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
               aeTypeID=DCO['dcoTypeID'], aeObjFlags=393283, aeDdoClass="stdNum", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val, \
-              aeBounds=[185,581,223,622], aeDdoTypeID=ddoTypeID, aeMouseWheelSupport=2, aeMinButSize=None, \
+              aeBounds=[185,581,223,622], aeDdoTypeID=DCO['ddoTypeID'], aeMouseWheelSupport=2, aeMinButSize=None, \
               valueType=dcoTypeDesc.get("Type"), aeStdNumMin=stdNumMin, aeStdNumMax=stdNumMax, aeStdNumInc=stdNumInc)
             checkOrCreateParts_stdNum(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
         else:
             #TODO add more types
             eprint("{:s}: Warning: Heap dcoTypeDesc '{}' {} is not supported"\
-              .format(po.xml,dcoTypeDesc.get("Type"),"indicator" if DCO['isIndicator'] != 0 else "control"))
+              .format(po.xml,dcoTypeDesc.get("Type"),typeCtlOrInd))
 
     #TODO re-compute sizes and positions so parts do not overlap and fit the window
 
