@@ -544,6 +544,8 @@ def elemCheckOrCreate_zPlaneList_arrayElement(parent, fo, po, aeClass="fPDCO", \
     attribGetOrSetDefault(ddo, "class", aeDdoClass, fo, po)
     attribGetOrSetDefault(ddo, "uid", 1, fo, po)
 
+    # Not having a "conNum" set seem to actually mean it's equal to 0, which
+    # means it is set. The value with the meaning of 'unset' is -1.
     if aeConNum is not None:
         conNum = elemFindOrCreate(arrayElement, "conNum", fo, po)
         elemTextGetOrSetDefault(conNum, aeConNum, fo, po)
@@ -1007,6 +1009,7 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
 
     root_conPane_cons = elemFindOrCreate(root_conPane, "cons", fo, po)
     attribGetOrSetDefault(root_conPane_cons, "elements", 0, fo, po)
+    # The rest of 'root/conPane' will be filled later, after UIDs are made unique
 
     # Now content of the 'root/paneHierarchy' element
 
@@ -1140,8 +1143,8 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
             ddoObjFlags_val = 1
             labelText = dcoTypeDesc.get("Label")
             if labelText is None: labelText = "Boolean"
-            dco, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
-              aeTypeID=DCO['dcoTypeID'], aeObjFlags=66048, aeDdoClass="stdBool", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val,
+            dco_elem, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
+              aeTypeID=DCO['dcoTypeID'], aeObjFlags=66048, aeDdoClass="stdBool", aeConNum=DCO['conNum'], aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val,
               aeBounds=[pos[0],pos[1],pos[0]+48,pos[1]+60], aeDdoTypeID=DCO['ddoTypeID'], aeMouseWheelSupport=0, aeMinButSize=[50,21], \
               valueType=dcoTypeDesc.get("Type"))
             checkOrCreateParts_stdBool_control(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
@@ -1151,8 +1154,8 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
             ddoObjFlags_val = 1
             labelText = dcoTypeDesc.get("Label")
             if labelText is None: labelText = "Boolean"
-            dco, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
-              aeTypeID=DCO['dcoTypeID'], aeObjFlags=1, aeDdoClass="stdBool", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val,
+            dco_elem, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
+              aeTypeID=DCO['dcoTypeID'], aeObjFlags=1, aeDdoClass="stdBool", aeConNum=DCO['conNum'], aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val,
               aeBounds=[pos[0],pos[1],pos[0]+38,pos[1]+41], aeDdoTypeID=DCO['ddoTypeID'], aeMouseWheelSupport=0, aeMinButSize=[17,17], \
               valueType=dcoTypeDesc.get("Type"))
             checkOrCreateParts_stdBool_indicator(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
@@ -1163,8 +1166,8 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
             labelText = dcoTypeDesc.get("Label")
             if labelText is None: labelText = "Numeric"
             stdNumMin, stdNumMax, stdNumInc = valueTypeGetDefaultRange(dcoTypeDesc.get("Type"), po)
-            dco, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
-              aeTypeID=DCO['dcoTypeID'], aeObjFlags=393283, aeDdoClass="stdNum", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val, \
+            dco_elem, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
+              aeTypeID=DCO['dcoTypeID'], aeObjFlags=393283, aeDdoClass="stdNum", aeConNum=DCO['conNum'], aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val, \
               aeBounds=[185,581,223,622], aeDdoTypeID=DCO['ddoTypeID'], aeMouseWheelSupport=2, aeMinButSize=None, \
               valueType=dcoTypeDesc.get("Type"), aeStdNumMin=stdNumMin, aeStdNumMax=stdNumMax, aeStdNumInc=stdNumInc)
             checkOrCreateParts_stdNum(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
@@ -1175,13 +1178,15 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
             labelText = dcoTypeDesc.get("Label")
             if labelText is None: labelText = "Numeric"
             stdNumMin, stdNumMax, stdNumInc = valueTypeGetDefaultRange(dcoTypeDesc.get("Type"), po)
-            dco, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
-              aeTypeID=DCO['dcoTypeID'], aeObjFlags=393283, aeDdoClass="stdNum", aeConNum=-1, aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val, \
+            dco_elem, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
+              aeTypeID=DCO['dcoTypeID'], aeObjFlags=393283, aeDdoClass="stdNum", aeConNum=DCO['conNum'], aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val, \
               aeBounds=[185,581,223,622], aeDdoTypeID=DCO['ddoTypeID'], aeMouseWheelSupport=2, aeMinButSize=None, \
               valueType=dcoTypeDesc.get("Type"), aeStdNumMin=stdNumMin, aeStdNumMax=stdNumMax, aeStdNumInc=stdNumInc)
             checkOrCreateParts_stdNum(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
         else:
             #TODO add more types
+            dco_elem = None
+            dco_partsList = None
             eprint("{:s}: Warning: Heap dcoTypeDesc '{}' {} is not supported"\
               .format(po.xml,dcoTypeDesc.get("Type"),typeCtlOrInd))
 
@@ -1774,9 +1779,47 @@ def makeUidsUnique(FPHP, BDHP, ver, fo, po):
         if ddoref is None:
             ddoref = ET.SubElement(ddoList, "SL__arrayElement")
             ddoref.set("uid",str(uid))
-    # Refilling of conPane - its content should correspond to connectors in VCTP pointed to by CONP
+    # Refilling of conPane - its content should correspond to connectors in VCTP pointed to by CONP, but this data
+    # is also a subset of what we have stored in 'root/paneHierarchy/zPlaneList' elements
     conPane_cons = FPHP.find("./SL__rootObject/root/conPane/cons")
-    #TODO refill conPane_cons
+    # Sort the zPlaneList elements on conNum
+    zPlaneList_conNums = {}
+    for elem in zPlaneList_elems:
+        conNum = elem.find("./conNum")
+        if conNum is not None:
+            conNum = conNum.text
+        if conNum is None:
+            conNum = 0
+        else:
+            conNum = int(conNum, 0)
+        zPlaneList_conNums[conNum] = elem
+    # Check the content to our sorted list
+    entryId = 0
+    prevConNum = -1
+    for conNum in sorted(zPlaneList_conNums.keys()):
+        zPlaneElem = zPlaneList_conNums[conNum]
+        if conNum < 0: continue
+
+        conUid = zPlaneElem.get("uid")
+        if conUid is not None:
+            conUid = int(conUid, 0)
+        if conUid is None:
+            conUid = 0
+
+        arrayElement = conPane_cons.find("./SL__arrayElement["+str(int(entryId+1))+"]")
+        if arrayElement is None:
+            arrayElement = ET.SubElement(conPane_cons, "SL__arrayElement")
+            fo[FUNC_OPTS.changed] = True
+        attribGetOrSetDefault(arrayElement, "class", "ConpaneConnection", fo, po)
+        if conNum != prevConNum+1:
+            attribGetOrSetDefault(arrayElement, "index", conNum, fo, po)
+
+        connectionDCO = elemFindOrCreateWithAttribsAndTags(arrayElement, "ConnectionDCO", \
+          ( ("uid", conUid,), ), [], fo, po)
+
+        prevConNum = conNum
+        entryId += 1
+
 
     return fo[FUNC_OPTS.changed]
 
