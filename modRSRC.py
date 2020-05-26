@@ -1005,6 +1005,7 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
     # Now content of the 'root/conPane' element
 
     root_conPane_conId = elemFindOrCreate(root_conPane, "conId", fo, po)
+    #TODO set proper conId
     elemTextGetOrSetDefault(root_conPane_conId, 4815, fo, po)
 
     root_conPane_cons = elemFindOrCreate(root_conPane, "cons", fo, po)
@@ -1140,46 +1141,50 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
         if dcoTypeDesc.get("Type") == "Boolean" and DCO['isIndicator'] == 0:
             print("{:s}: Associating DCO{} TypeDesc '{}' with FpDCO {} of class '{}'"\
               .format(po.xml,DCO['dcoIndex'],dcoTypeDesc.get("Type"),typeCtlOrInd,"stdBool"))
-            ddoObjFlags_val = 1
+            dcoObjFlags_val = 0x10200
+            ddoObjFlags_val = 0 # 0x1: user input disabled
             labelText = dcoTypeDesc.get("Label")
             if labelText is None: labelText = "Boolean"
             dco_elem, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
-              aeTypeID=DCO['dcoTypeID'], aeObjFlags=66048, aeDdoClass="stdBool", aeConNum=DCO['conNum'], aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val,
+              aeTypeID=DCO['dcoTypeID'], aeObjFlags=dcoObjFlags_val, aeDdoClass="stdBool", aeConNum=DCO['conNum'], aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val,
               aeBounds=[pos[0],pos[1],pos[0]+48,pos[1]+60], aeDdoTypeID=DCO['ddoTypeID'], aeMouseWheelSupport=0, aeMinButSize=[50,21], \
               valueType=dcoTypeDesc.get("Type"))
             checkOrCreateParts_stdBool_control(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
         elif dcoTypeDesc.get("Type") == "Boolean" and DCO['isIndicator'] != 0:
             print("{:s}: Associating DCO{} TypeDesc '{}' with FpDCO {} of class '{}'"\
               .format(po.xml,DCO['dcoIndex'],dcoTypeDesc.get("Type"),typeCtlOrInd,"stdBool"))
+            dcoObjFlags_val = 0x10200 | 0x01
             ddoObjFlags_val = 1
             labelText = dcoTypeDesc.get("Label")
             if labelText is None: labelText = "Boolean"
             dco_elem, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
-              aeTypeID=DCO['dcoTypeID'], aeObjFlags=1, aeDdoClass="stdBool", aeConNum=DCO['conNum'], aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val,
+              aeTypeID=DCO['dcoTypeID'], aeObjFlags=dcoObjFlags_val, aeDdoClass="stdBool", aeConNum=DCO['conNum'], aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val,
               aeBounds=[pos[0],pos[1],pos[0]+38,pos[1]+41], aeDdoTypeID=DCO['ddoTypeID'], aeMouseWheelSupport=0, aeMinButSize=[17,17], \
               valueType=dcoTypeDesc.get("Type"))
             checkOrCreateParts_stdBool_indicator(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
         elif dcoTypeDesc.get("Type").startswith("Num") and DCO['isIndicator'] == 0:
             print("{:s}: Associating DCO{} TypeDesc '{}' with FpDCO {} of class '{}'"\
               .format(po.xml,DCO['dcoIndex'],dcoTypeDesc.get("Type"),typeCtlOrInd,"stdNum"))
-            ddoObjFlags_val = 1
+            dcoObjFlags_val = 0x60043
+            ddoObjFlags_val = 0
             labelText = dcoTypeDesc.get("Label")
             if labelText is None: labelText = "Numeric"
             stdNumMin, stdNumMax, stdNumInc = valueTypeGetDefaultRange(dcoTypeDesc.get("Type"), po)
             dco_elem, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
-              aeTypeID=DCO['dcoTypeID'], aeObjFlags=393283, aeDdoClass="stdNum", aeConNum=DCO['conNum'], aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val, \
+              aeTypeID=DCO['dcoTypeID'], aeObjFlags=dcoObjFlags_val, aeDdoClass="stdNum", aeConNum=DCO['conNum'], aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val, \
               aeBounds=[185,581,223,622], aeDdoTypeID=DCO['ddoTypeID'], aeMouseWheelSupport=2, aeMinButSize=None, \
               valueType=dcoTypeDesc.get("Type"), aeStdNumMin=stdNumMin, aeStdNumMax=stdNumMax, aeStdNumInc=stdNumInc)
             checkOrCreateParts_stdNum(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
         elif dcoTypeDesc.get("Type").startswith("Num") and DCO['isIndicator'] != 0:
             print("{:s}: Associating DCO{} TypeDesc '{}' with FpDCO {} of class '{}'"\
               .format(po.xml,DCO['dcoIndex'],dcoTypeDesc.get("Type"),typeCtlOrInd,"stdNum"))
+            dcoObjFlags_val = 0x60043
             ddoObjFlags_val = 1
             labelText = dcoTypeDesc.get("Label")
             if labelText is None: labelText = "Numeric"
             stdNumMin, stdNumMax, stdNumInc = valueTypeGetDefaultRange(dcoTypeDesc.get("Type"), po)
             dco_elem, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
-              aeTypeID=DCO['dcoTypeID'], aeObjFlags=393283, aeDdoClass="stdNum", aeConNum=DCO['conNum'], aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val, \
+              aeTypeID=DCO['dcoTypeID'], aeObjFlags=dcoObjFlags_val, aeDdoClass="stdNum", aeConNum=DCO['conNum'], aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val, \
               aeBounds=[185,581,223,622], aeDdoTypeID=DCO['ddoTypeID'], aeMouseWheelSupport=2, aeMinButSize=None, \
               valueType=dcoTypeDesc.get("Type"), aeStdNumMin=stdNumMin, aeStdNumMax=stdNumMax, aeStdNumInc=stdNumInc)
             checkOrCreateParts_stdNum(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
@@ -1771,7 +1776,7 @@ def makeUidsUnique(FPHP, BDHP, ver, fo, po):
     zPlaneList_elems = FPHP.findall("./SL__rootObject/root/paneHierarchy/zPlaneList/SL__arrayElement[@class='fPDCO'][@uid]")
     # Refilling of ddoList - it should have entries for all DDOs
     ddoList = FPHP.find("./SL__rootObject/root/ddoList")
-    for ddo_elem in zPlaneList_elems:
+    for ddo_elem in reversed(zPlaneList_elems):
         uidStr = ddo_elem.get("uid")
         if representsInt(uidStr):
             uid = int(uidStr,0)
