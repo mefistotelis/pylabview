@@ -42,20 +42,25 @@ def representsInt(s):
     except TypeError:
         return False
 
-def representsList(s):
-    """ Checks if given string represents a comma separated list in brackets.
+def strToList(s):
+    """ Parses given string representing a comma separated list in brackets.
     """
     try: 
-        list_str = s.trim()
+        list_str = s.strip()
     except AttributeError:
-        return False
+        return None
     if list_str[0] != '(' or list_str[-1] != ')':
-        return False
+        return None
     list_str = list_str[1:-1].split(',')
     # We only need lists of integers
     for i in range(len(list_str)): 
-        list_str[i] = int(list_str[i].trim(), 0)
-    return True
+        list_str[i] = int(list_str[i].strip(), 0)
+    return list_str
+
+def representsList(s):
+    """ Checks if given string represents a comma separated list in brackets.
+    """
+    return strToList(s) is not None
 
 def attribValToStr(val):
     if isinstance(val, str):
@@ -79,6 +84,17 @@ def tagValToStr(val):
     else:
         strVal = "{}".format(val)
     return strVal
+
+def boundsOverlap(rect1, rect2):
+    """ Checks whether two rectangles overlap.
+
+    Rectangles are defined as (x1,y1,x2,y2,).
+    """
+    if rect1[0] > rect2[2] or rect1[2] < rect2[0]:
+        return False
+    if rect1[1] > rect2[3] or rect1[3] < rect2[1]:
+        return False
+    return True
 
 def elemFindOrCreate(parentElem, elemName, fo, po, pos=-1):
     elem = parentElem.find(elemName)
@@ -1195,8 +1211,49 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
             eprint("{:s}: Warning: Heap dcoTypeDesc '{}' {} is not supported"\
               .format(po.xml,dcoTypeDesc.get("Type"),typeCtlOrInd))
 
-    #TODO re-compute sizes and positions so parts do not overlap and fit the window
-
+    gridDelta = 16 # TODO get grid
+    windowWidth = 622 # TODO get width
+    # Re-compute positions of DCOs so they do not overlap and fit the window
+    zPlaneList_elems = paneHierarchy_zPlaneList.findall("./SL__arrayElement[@class='fPDCO'][@uid]")
+    i = 1
+    while i < len(zPlaneList_elems):
+        dco_elem = zPlaneList_elems[i]
+        bounds_elem = dco_elem.find("./ddo/bounds")
+        if bounds_elem is None:
+            i += 1
+            continue
+        eBounds = bounds_elem.text
+        if eBounds is not None:
+            eBounds = strToList(eBounds)
+        if eBounds is None:
+            eBounds = [0,0,16,16]
+            eprint("{:s}: Warning: Could not read bounds of FpDCO"\
+              .format(po.xml))
+        eMoved = False
+        for k in range(0,i):
+            overlap_elem = zPlaneList_elems[k]
+            oBounds = overlap_elem.find("./ddo/bounds")
+            if oBounds is not None:
+                oBounds = oBounds.text
+            if oBounds is not None:
+                oBounds = strToList(oBounds)
+            if oBounds is None:
+                oBounds = [0,0,16,16]
+            while boundsOverlap(eBounds, oBounds):
+                eMoved = True
+                eBounds[1] += gridDelta
+                eBounds[3] += gridDelta
+                if eBounds[3] >= windowWidth:
+                    eBounds[3] -= eBounds[0]
+                    eBounds[1] = 0
+                    eBounds[0] += gridDelta
+                    eBounds[2] += gridDelta
+                    if eBounds[3] >= windowWidth:
+                        break # Safety check for incredibly huge components (or small windows)
+        if eMoved:
+            elemTextSetValue(bounds_elem, eBounds, fo, po)
+            continue
+        i += 1
     return fo[FUNC_OPTS.changed]
 
 def LIvi_Fix(RSRC, LIvi, ver, fo, po):
@@ -1776,8 +1833,8 @@ def makeUidsUnique(FPHP, BDHP, ver, fo, po):
     zPlaneList_elems = FPHP.findall("./SL__rootObject/root/paneHierarchy/zPlaneList/SL__arrayElement[@class='fPDCO'][@uid]")
     # Refilling of ddoList - it should have entries for all DDOs
     ddoList = FPHP.find("./SL__rootObject/root/ddoList")
-    for ddo_elem in reversed(zPlaneList_elems):
-        uidStr = ddo_elem.get("uid")
+    for dco_elem in reversed(zPlaneList_elems):
+        uidStr = dco_elem.get("uid")
         if representsInt(uidStr):
             uid = int(uidStr,0)
         ddoref = ddoList.find("./SL__arrayElement[@uid='{}']".format(uid))
