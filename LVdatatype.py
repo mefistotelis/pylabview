@@ -343,6 +343,7 @@ class TDObject:
         # Dependencies to other types are either indexes in Consolidated List, or locally stored topTypeList
         self.topTypeList = None
         self.label = None
+        self.purpose = ""
         self.size = None
 
         if self.__doc__:
@@ -361,6 +362,9 @@ class TDObject:
         for clientTD in self.clients:
             if clientTD.index == -1:
                 clientTD.nested.setOwningList(self.topTypeList)
+
+    def setPurposeText(self, purpose):
+        self.purpose = purpose
 
     def initWithRSRC(self, bldata, obj_len):
         """ Early part of Type Descriptor loading from RSRC file

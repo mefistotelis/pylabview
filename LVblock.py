@@ -5077,11 +5077,13 @@ class VCTP(CompleteBlock):
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         for clientTD in section.content:
             if len(clientTD.nested.full_name) > 0:
-                comment_elem = ET.Comment(" FlatTypeID {:d}: {} "\
-                  .format(clientTD.nested.index, clientTD.nested.full_name))
+                commentDesc = clientTD.nested.full_name
             else:
-                comment_elem = ET.Comment(" FlatTypeID {:d}: {} "\
-                  .format(clientTD.nested.index,"Type Descriptor"))
+                commentDesc = "Type Descriptor"
+            if len(clientTD.nested.purpose) > 0:
+                commentDesc += "; " + clientTD.nested.purpose
+            comment_elem = ET.Comment(" FlatTypeID {:d}: {} "\
+              .format(clientTD.nested.index, commentDesc))
             section_elem.append(comment_elem)
             subelem = ET.SubElement(section_elem,"TypeDesc")
 
@@ -5180,6 +5182,7 @@ class VCTP(CompleteBlock):
                     break
         # Comment DSInit
         if tdDSInit is not None:
+            tdDSInit.setPurposeText("DSInit settings array")
             tdDSInit.setDataFillComments( {e.value: e.name for e in DSINIT} )
         # Find DCO
         tdDCO = None
@@ -5208,6 +5211,7 @@ class VCTP(CompleteBlock):
             break
         # Comment DCO
         if tdDCO is not None:
+            tdDCO.setPurposeText("Front Panel DCO definition")
             tdDCO.setDataFillComments( {i: e[0] for i,e in enumerate(DCO._fields_)} )
         # Find ProbeTable
         tdProbeTable = None
@@ -5223,6 +5227,7 @@ class VCTP(CompleteBlock):
             tdProbeTable = self.getTopType(probeTable_typeId, section_num=section_num)
         # Comment ProbeTable
         if tdProbeTable is not None:
+            tdProbeTable.setPurposeText("Table of Probe Points")
             dfComments = {}
             for i in range(tdProbeTable.getNumRepeats()//2):
                 dfComments[2*i+0] = "ProbePoint{}.Flags".format(i)
