@@ -91,9 +91,9 @@ def boundsOverlap(rect1, rect2):
     Rectangles are defined as (x1,y1,x2,y2,).
     """
     if rect1[0] > rect2[2] or rect1[2] < rect2[0]:
-        return False
+        return False # Outside in vertical axis
     if rect1[1] > rect2[3] or rect1[3] < rect2[1]:
-        return False
+        return False # Outside in horizonal axis
     return True
 
 def elemFindOrCreate(parentElem, elemName, fo, po, pos=-1):
@@ -1068,7 +1068,7 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
     elemTextGetOrSetDefault(paneHierarchy_image_ImageResID, 0, fo, po)
 
     # Now content of the 'root/paneHierarchy/partsList' element
-    checkOrCreateParts_Pane(RSRC, paneHierarchy_partsList, paneHierarchy_objFlags_val, "Pane", fo, po)
+    paneContent = checkOrCreateParts_Pane(RSRC, paneHierarchy_partsList, paneHierarchy_objFlags_val, "Pane", fo, po)
 
     # Now content of the 'root/paneHierarchy/zPlaneList' element
     DTHP_typeDescSlice = RSRC.find("./DTHP/Section/TypeDescSlice")
@@ -1211,8 +1211,23 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
             eprint("{:s}: Warning: Heap dcoTypeDesc '{}' {} is not supported"\
               .format(po.xml,dcoTypeDesc.get("Type"),typeCtlOrInd))
 
-    gridDelta = 16 # TODO get grid
-    windowWidth = 622 # TODO get width
+    # Get expected grid alignment
+    LVSR_parUnknown = RSRC.find("./LVSR/Section/Unknown")
+    if LVSR_parUnknown is not None:
+        gridDelta = LVSR_parUnknown.get("AlignGridFP")
+    if gridDelta is not None:
+        gridDelta = int(gridDelta,0)
+    if gridDelta is None or gridDelta < 4 or gridDelta > 256:
+        gridDelta = 12 # default value in case alignment from LVSR is suspicious
+    # Get window content bounds
+    paneContentBounds = paneContent.find("./bounds")
+    if paneContentBounds is not None:
+        paneContentBounds = paneContentBounds.text
+    if paneContentBounds is not None:
+        paneContentBounds = strToList(paneContentBounds)
+    if paneContentBounds is None:
+        paneContentBounds = [0,0,622,622]
+    windowWidth = paneContentBounds[3] - paneContentBounds[1]
     # Re-compute positions of DCOs so they do not overlap and fit the window
     zPlaneList_elems = paneHierarchy_zPlaneList.findall("./SL__arrayElement[@class='fPDCO'][@uid]")
     i = 1
