@@ -271,13 +271,15 @@ def getFpDCOTableAsList(RSRC, po, TM80_IndexShift=None, FpDCOTable_TypeID=None):
             fldName = field[0]
             fldType = field[1]
             fldVal = FpDCO_FieldList[idx].text
-            if re.match(r"c_u?int[0-9]+", fldType.__name__) or \
-               re.match(r"c_u?byte", fldType.__name__) or \
-               re.match(r"c_u?short", fldType.__name__) or \
-               re.match(r"c_u?long", fldType.__name__):
+            if re.match(r"^c_u?int[0-9]+(_[lb]e)?$", fldType.__name__) or \
+               re.match(r"^c_u?byte$", fldType.__name__) or \
+               re.match(r"^c_u?short(_[lb]e)?$", fldType.__name__) or \
+               re.match(r"^c_u?long(_[lb]e)?$", fldType.__name__):
                 fldVal = int(fldVal,0)
             elif fldType in ("c_float","c_double","c_longdouble",):
                 fldVal = float(fldVal)
+            elif re.match(r"^c_u?byte_Array_[0-9]+$", fldType.__name__):
+                fldVal = bytes.fromhex(fldVal)
             DCO[fldName] = fldVal
         FpDCOList.append(DCO)
     return FpDCOList
