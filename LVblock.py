@@ -5282,14 +5282,24 @@ class VCTP(CompleteBlock):
         # Comment SubVIPatch
         if tdSubVIPatch is not None:
             tdSubVIPatch.setPurposeText("SubVI Patch")
-        # Find SubVIPatch
+        # Find SubVIPatchTags
+        if TM is not None and dfDSInit is not None:
+            if len(dfDSInit.value) > DSINIT.subVIPatchTagsTMI:
+                subVIPatchTags_typeId = TM.getMinTypeId() + \
+                  (dfDSInit.value[DSINIT.subVIPatchTagsTMI].value & 0xFFFFFF)
+        if subVIPatchTags_typeId is not None:
+            tdSubVIPatchTags = self.getTopType(subVIPatchTags_typeId, section_num=section_num)
+        # Comment SubVIPatchTags
+        if tdSubVIPatchTags is not None:
+            tdSubVIPatchTags.setPurposeText("Table of SubVI Patch Tags")
+        # Find ConnectorsIdxTables
         if TM is not None and dfDSInit is not None:
             if len(dfDSInit.value) > DSINIT.localInputConnIdxTMI:
                 localInputConnIdx_typeId = TM.getMinTypeId() + \
                   (dfDSInit.value[DSINIT.localInputConnIdxTMI].value & 0xFFFFFF)
         if localInputConnIdx_typeId is not None:
             tdLocalInputConnIdx = self.getTopType(localInputConnIdx_typeId, section_num=section_num)
-        # Comment SubVIPatch
+        # Comment ConnectorsIdxTables
         if tdLocalInputConnIdx is not None:
             tdLocalInputConnIdx.setPurposeText("Tables of Connector Idx values (multiple consecutive tables)")
         pass
