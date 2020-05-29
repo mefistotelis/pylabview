@@ -628,58 +628,70 @@ def elemCheckOrCreate_zPlaneList_arrayElement(parent, fo, po, aeClass="fPDCO", \
 
     return arrayElement, partsList
 
+def getConnectorPortsCount(RSRC, ver, fo, po):
+    """ Returns amount of connector ports the RSRC uses.
+    """
+    # Get the value from connectors TypeDesc
+    VCTP = RSRC.find("./VCTP/Section")
+    if VCTP is not None:
+        TypeDesc = None
+        CONP_TypeDesc = RSRC.find("./CONP/Section/TypeDesc")
+        if CONP_TypeDesc is not None:
+            CONP_TypeID = CONP_TypeDesc.get("TypeID")
+            if CONP_TypeID is not None:
+                CONP_TypeID = int(CONP_TypeID, 0)
+            if CONP_TypeID is not None:
+                TypeDesc = getConsolidatedTopType(RSRC, CONP_TypeID, po)
+            if TypeDesc.get("Type") != "Function":
+                eprint("{:s}: CONP references incorrect TD entry".format(po.xml))
+                TypeDesc = None
+        #TODO We could also detect the type with connectors by finding "Function" TDs, without CONP
+        if TypeDesc is not None:
+            count = len(TypeDesc.findall("./TypeDesc"))
+        if count is not None:
+            if count >= 1 and count <= 28:
+                if (po.verbose > 1):
+                    print("{:s}: Getting connector ports count for \"conPane/cons\" from VCTP Function entries".format(po.xml))
+            else:
+                    count = None
+    # If failed, get the value from DSInit
+    if count is None:
+        count = getDSInitEntry(RSRC, DSINIT.nConnections, po)
+        if count is not None:
+            if count >= 1 and count <= 28:
+                if (po.verbose > 1):
+                    print("{:s}: Getting connector ports count for \"conPane/cons\" from DSInit Record".format(po.xml))
+            else:
+                    count = None
+    return count
+
+def getConnectorPortsFixedCount(RSRC, ver, fo, po):
+    """ Returns amount of connector ports the RSRC uses.
+
+    If the value is invalid, fixes it.
+    """
+    count = getConnectorPortsCount(RSRC, ver, fo, po)
+    if count is not None:
+        # Terminal patterns nly allow specific amounts of connectors
+        if count > 12 and count < 16: count = 16
+        if count > 16 and count < 20: count = 20
+        if count > 20 and count < 28: count = 28
+        if count >= 1 and count <= 28:
+            return count
+    return 12 # A default value if no real one found (4815 is the most popular pattern)
+
 def recountHeapElements(RSRC, Heap, ver, fo, po):
     """ Updates 'elements' attributes in the Heap tree
     """
     elems = Heap.findall(".//*[@elements]")
-    # The 'cons' tag does not store amount of elements inside
+    # The 'cons' tag does not store amount of elements inside, or rather - trivial entries are skipped
     cons_elem = Heap.find(".//conPane/cons")
     if cons_elem is not None:
         count = None
         if cons_elem in elems: elems.remove(cons_elem)
-        # Get the value from connectors
-        VCTP = RSRC.find("./VCTP/Section")
-        if VCTP is not None:
-            TypeDesc = None
-            CONP_TypeDesc = RSRC.find("./CONP/Section/TypeDesc")
-            if CONP_TypeDesc is not None:
-                CONP_TypeID = CONP_TypeDesc.get("TypeID")
-                if CONP_TypeID is not None:
-                    CONP_TypeID = int(CONP_TypeID, 0)
-                if CONP_TypeID is not None:
-                    TypeDesc = getConsolidatedTopType(RSRC, CONP_TypeID, po)
-                if TypeDesc.get("Type") != "Function":
-                    eprint("{:s}: CONP references incorrect TD entry".format(po.xml))
-                    TypeDesc = None
-            #TODO We could also detect the type with connectors by finding "Function" TDs, without CONP
-            if TypeDesc is not None:
-                count = len(TypeDesc.findall("./TypeDesc"))
-            if count is not None:
-                if count >= 1 and count <= 28:
-                    if (po.verbose > 1):
-                        print("{:s}: Getting connector ports count for \"conPane/cons\" from VCTP Function entries".format(po.xml))
-                else:
-                        count = None
-        # If failed, get the value from DSInit
-        if count is None:
-            count = getDSInitEntry(RSRC, DSINIT.nConnections, po)
-            if count is not None:
-                if count >= 1 and count <= 28:
-                    if (po.verbose > 1):
-                        print("{:s}: Getting connector ports count for \"conPane/cons\" from DSInit Record".format(po.xml))
-                else:
-                        count = None
-        count_str = None
-        if count is not None:
-            # Terminal patterns nly allow specific amounts of connectors
-            if count > 12 and count < 16: count = 16
-            if count > 16 and count < 20: count = 20
-            if count > 20 and count < 28: count = 28
-            if count >= 1 and count <= 28:
-                count_str = str(count)
-        if (count_str is None):
-            count_str = str(8) # A default value if no real one found
-        if (count_str is not None) and (cons_elem.get("elements") != count_str):
+        count = getConnectorPortsFixedCount(RSRC, ver, fo, po)
+        count_str = str(count)
+        if (cons_elem.get("elements") != count_str):
             cons_elem.set("elements", count_str)
     # For the rest = count the elements
     for elem in elems:
@@ -1091,8 +1103,26 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
     # Now content of the 'root/conPane' element
 
     root_conPane_conId = elemFindOrCreate(root_conPane, "conId", fo, po)
-    #TODO set proper conId
-    elemTextGetOrSetDefault(root_conPane_conId, 4815, fo, po)
+
+    conCount = getConnectorPortsFixedCount(RSRC, ver, fo, po)
+    #TODO we could set conId better by considering inputs vs outputs
+    if conCount <= 1: conId = 4800
+    elif conCount <= 2: conId = 4801
+    elif conCount <= 3: conId = 4803
+    elif conCount <= 4: conId = 4806
+    elif conCount <= 5: conId = 4807
+    elif conCount <= 6: conId = 4810
+    elif conCount <= 7: conId = 4811
+    elif conCount <= 8: conId = 4812
+    elif conCount <= 9: conId = 4813
+    elif conCount <= 10: conId = 4826
+    elif conCount <= 11: conId = 4829
+    elif conCount <= 12: conId = 4815
+    elif conCount <= 16: conId = 4833
+    elif conCount <= 20: conId = 4834
+    elif conCount <= 28: conId = 4835
+    else: conId = 4815 # Most widely used
+    elemTextGetOrSetDefault(root_conPane_conId, conId, fo, po)
 
     root_conPane_cons = elemFindOrCreate(root_conPane, "cons", fo, po)
     attribGetOrSetDefault(root_conPane_cons, "elements", 0, fo, po)
