@@ -2351,6 +2351,10 @@ class DFDS(CompleteBlock):
             if df.td is not None:
                 if df.td.label is not None:
                      commentText += df.td.label.decode(self.vi.textEncoding, errors="ignore")
+                if len(df.td.purpose) > 0:
+                    if len(commentText) > 0: commentText += "; "
+                    commentText += df.td.purpose
+
             if len(commentText) > 0:
                 comment_elem = ET.Comment(" {:s} ".format(commentText))
                 dftop_elem.append(comment_elem)
@@ -5186,6 +5190,7 @@ class VCTP(CompleteBlock):
             tdDSInit.setDataFillComments( {e.value: e.name for e in DSINIT} )
         # Find DCO
         tdDCO = None
+        tdDCOList = None
         for flatIdx in flatRange:
             clientTD = section.content[flatIdx]
             if clientTD.nested.fullType() != TD_FULL_TYPE.RepeatedBlock:
@@ -5208,11 +5213,14 @@ class VCTP(CompleteBlock):
             if not match:
                 continue
             tdDCO = td_clust
+            tdDCOList = clientTD.nested
             break
         # Comment DCO
         if tdDCO is not None:
             tdDCO.setPurposeText("Front Panel DCO definition")
             tdDCO.setDataFillComments( {i: e[0] for i,e in enumerate(DCO._fields_)} )
+        if tdDCOList is not None:
+            tdDCOList.setPurposeText("Table of Front Panel DCOs")
         # Find ProbeTable
         tdProbeTable = None
         DFDS = self.vi.get('DFDS')
@@ -5222,7 +5230,8 @@ class VCTP(CompleteBlock):
         probeTable_typeId = None
         if TM is not None and dfDSInit is not None:
             if len(dfDSInit.value) > DSINIT.probeTableTMI:
-                probeTable_typeId = TM.getMinTypeId() + dfDSInit.value[DSINIT.probeTableTMI].value
+                probeTable_typeId = TM.getMinTypeId() + \
+                 (dfDSInit.value[DSINIT.probeTableTMI].value & 0xFFFFFF)
         if probeTable_typeId is not None:
             tdProbeTable = self.getTopType(probeTable_typeId, section_num=section_num)
         # Comment ProbeTable
@@ -5233,6 +5242,56 @@ class VCTP(CompleteBlock):
                 dfComments[2*i+0] = "ProbePoint{}.Flags".format(i)
                 dfComments[2*i+1] = "ProbePoint{}.TMI".format(i)
             tdProbeTable.setDataFillComments( dfComments )
+        # Find HiliteIdxTable
+        if TM is not None and dfDSInit is not None:
+            if len(dfDSInit.value) > DSINIT.hiliteIdxTableTMI:
+                hiliteIdxTable_typeId = TM.getMinTypeId() + \
+                  (dfDSInit.value[DSINIT.hiliteIdxTableTMI].value & 0xFFFFFF)
+        if hiliteIdxTable_typeId is not None:
+            tdHiliteIdxTable = self.getTopType(hiliteIdxTable_typeId, section_num=section_num)
+        # Comment HiliteIdxTable
+        if tdHiliteIdxTable is not None:
+            tdHiliteIdxTable.setPurposeText("Table of Hilite Index values")
+        # Find ClumpQEAllocOffset
+        if TM is not None and dfDSInit is not None:
+            if len(dfDSInit.value) > DSINIT.clumpQEAllocTMI:
+                clumpQEAlloc_typeId = TM.getMinTypeId() + \
+                  (dfDSInit.value[DSINIT.clumpQEAllocTMI].value & 0xFFFFFF)
+        if clumpQEAlloc_typeId is not None:
+            tdClumpQEAlloc = self.getTopType(clumpQEAlloc_typeId, section_num=section_num)
+        # Comment ClumpQEAllocOffset
+        if tdClumpQEAlloc is not None:
+            tdClumpQEAlloc.setPurposeText("Clump QE Alloc")
+        # Find InternalHiliteTableHandleAndPtr
+        if TM is not None and dfDSInit is not None:
+            if len(dfDSInit.value) > DSINIT.internalHiliteTableHandleAndPtrTMI:
+                internalHiliteTableHandleAndPtr_typeId = TM.getMinTypeId() + \
+                  (dfDSInit.value[DSINIT.internalHiliteTableHandleAndPtrTMI].value & 0xFFFFFF)
+        if internalHiliteTableHandleAndPtr_typeId is not None:
+            tdInternalHiliteTableHandleAndPtr = self.getTopType(internalHiliteTableHandleAndPtr_typeId, section_num=section_num)
+        # Comment InternalHiliteTableHandleAndPtr
+        if tdInternalHiliteTableHandleAndPtr is not None:
+            tdInternalHiliteTableHandleAndPtr.setPurposeText("Internal Hilite Table Handle And Ptr")
+        # Find SubVIPatch
+        if TM is not None and dfDSInit is not None:
+            if len(dfDSInit.value) > DSINIT.subVIPatchTMI:
+                subVIPatch_typeId = TM.getMinTypeId() + \
+                  (dfDSInit.value[DSINIT.subVIPatchTMI].value & 0xFFFFFF)
+        if subVIPatch_typeId is not None:
+            tdSubVIPatch = self.getTopType(subVIPatch_typeId, section_num=section_num)
+        # Comment SubVIPatch
+        if tdSubVIPatch is not None:
+            tdSubVIPatch.setPurposeText("SubVI Patch")
+        # Find SubVIPatch
+        if TM is not None and dfDSInit is not None:
+            if len(dfDSInit.value) > DSINIT.localInputConnIdxTMI:
+                localInputConnIdx_typeId = TM.getMinTypeId() + \
+                  (dfDSInit.value[DSINIT.localInputConnIdxTMI].value & 0xFFFFFF)
+        if localInputConnIdx_typeId is not None:
+            tdLocalInputConnIdx = self.getTopType(localInputConnIdx_typeId, section_num=section_num)
+        # Comment SubVIPatch
+        if tdLocalInputConnIdx is not None:
+            tdLocalInputConnIdx.setPurposeText("Tables of Connector Idx values (multiple consecutive tables)")
         pass
 
     def getContent(self, section_num=None):
