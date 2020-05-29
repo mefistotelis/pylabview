@@ -5239,7 +5239,7 @@ class VCTP(CompleteBlock):
             tdProbeTable.setPurposeText("Table of Probe Points")
             dfComments = {}
             for i in range(tdProbeTable.getNumRepeats()//2):
-                dfComments[2*i+0] = "ProbePoint{}.Flags".format(i)
+                dfComments[2*i+0] = "ProbePoint{}.DSOffset".format(i)
                 dfComments[2*i+1] = "ProbePoint{}.TMI".format(i)
             tdProbeTable.setDataFillComments( dfComments )
         # Find HiliteIdxTable
