@@ -2115,6 +2115,9 @@ def main():
     parser.add_argument('-v', '--verbose', action='count', default=0,
             help="increases verbosity level; max level is set by -vvv")
 
+    parser.add_argument('--drop-section', action='append', type=str,
+            help="name a section to drop just after XML loading")
+
     subparser = parser.add_mutually_exclusive_group(required=True)
 
     subparser.add_argument('-f', '--fix', action='store_true',
@@ -2138,6 +2141,10 @@ def main():
             print("{}: Starting XML file parse for RSRC fix".format(po.xml))
         tree = ET.parse(po.xml, parser=ET.XMLParser(target=ET.CommentedTreeBuilder()))
         root = tree.getroot()
+        for blkIdent in po.drop_section:
+            sub_elem = root.find("./"+blkIdent)
+            if sub_elem is not None:
+                root.remove(sub_elem)
         parseSubXMLs(root, po)
 
         checkBlocksAvailable(root, po)
