@@ -220,9 +220,13 @@ def getDSInitRecord(RSRC, po):
     # Usually what we need will just be the first DFDS item. And even if not,
     # it's always first item with 51 ints inside. So instead of going though
     # type map and VCTP, we can localise the proper type directly.
-    DSI_candidates = DFDS.findall('./DataFill/RepeatedBlock/I32/../..')
+    DSI_candidates = []
+    DSI_candidates.extend( DFDS.findall('./DataFill/RepeatedBlock/I32/../..') )
+    DSI_candidates.extend( DFDS.findall('./DataFill/Cluster/RepeatedBlock/I32/../..') )
     for DSInit in DSI_candidates:
-        if len(DSInit.findall('./RepeatedBlock[1]/I32')) == 51:
+        NonCommentFields = list(filter(lambda f: f.tag is not ET.Comment, DSInit.findall("./RepeatedBlock[1]/*")))
+        # The element needs to have exactly 51 sub-elements, all Int32
+        if len(NonCommentFields) == 51 and len(DSInit.findall('./RepeatedBlock[1]/I32')) == 51:
             return DSInit
     # No matching type in DFDS
     return None
@@ -234,6 +238,8 @@ def getDSInitEntry(RSRC, entryId, po):
     if DSInit is None:
         return None
     entry_elem = DSInit.find("./RepeatedBlock[1]/I32["+str(int(entryId+1))+"]")
+    if entry_elem is None:
+        entry_elem = DSInit.find("./Cluster[1]/RepeatedBlock[1]/I32["+str(int(entryId+1))+"]")
     if entry_elem is None:
         return None
     return int(entry_elem.text,0)
