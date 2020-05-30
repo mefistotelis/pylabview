@@ -2409,6 +2409,79 @@ class GCDI(VarCodingBlock):
         self.default_block_coding = BLOCK_CODING.ZLIB
 
 
+class BFAL(CompleteBlock):
+    """ BFAL
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.content = []
+        return section
+
+    def setDefaultEncoding(self):
+        self.default_block_coding = BLOCK_CODING.NONE
+
+    def parseRSRCSectionData(self, section_num, bldata):
+        section = self.sections[section_num]
+
+        count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        section.content = []
+        for i in range(count):
+            entry = SimpleNamespace()
+            entry.field0 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            entry.field4 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            entry.field8 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            section.content.append(entry)
+
+    def prepareRSRCData(self, section_num):
+        section = self.sections[section_num]
+
+        data_buf = len(section.content).to_bytes(4, byteorder='big')
+        for entry in section.content:
+            data_buf += int(entry.field0).to_bytes(4, byteorder='big')
+            data_buf += int(entry.field4).to_bytes(4, byteorder='big')
+            data_buf += int(entry.field8).to_bytes(1, byteorder='big')
+        return data_buf
+
+    def expectedRSRCSize(self, section_num):
+        section = self.sections[section_num]
+        exp_whole_len = 0
+        exp_whole_len += 4 + 9 * len(section.content)
+        return exp_whole_len
+
+    def initWithXMLSectionData(self, section, section_elem):
+        section.content = []
+
+        if (self.po.verbose > 2):
+            print("{:s}: For Block {} section {:d}, reading inline XML data"\
+              .format(self.vi.src_fname,self.ident,snum))
+        for subelem in section_elem:
+            if (subelem.tag == "NameObject"):
+                pass # Items parsed somewhere else
+            elif (subelem.tag == "Entry"):
+                entry = SimpleNamespace()
+                entry.field0 = int(subelem.get("Field0"), 0)
+                entry.field4 = int(subelem.get("Field4"), 0)
+                entry.field8 = int(subelem.get("Field8"), 0)
+                section.content.append(entry)
+            else:
+                raise AttributeError("Section contains unexpected tag")
+        pass
+
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
+
+        for i, entry in enumerate(section.content):
+            subelem = ET.SubElement(section_elem,"Entry")
+
+            subelem.set("Field0", "{:d}".format(entry.field0))
+            subelem.set("Field4", "{:d}".format(entry.field4))
+            subelem.set("Field8", "{:d}".format(entry.field8))
+
+        if len(section.content) == 0:
+            comment_elem = ET.Comment("List is empty")
+            section_elem.append(comment_elem)
+        pass
+
+
 class CGRS(VarCodingBlock):
     """ Conglomerate Resource
 
