@@ -5316,60 +5316,72 @@ class VCTP(CompleteBlock):
                 dfComments[2*i+1] = "ProbePoint{}.TMI".format(i)
             tdProbeTable.setDataFillComments( dfComments )
         # Find HiliteIdxTable
+        hiliteIdxTable_typeId = None
         if TM is not None and dfDSInit is not None:
             if len(dfDSInit.value) > DSINIT.hiliteIdxTableTMI:
                 hiliteIdxTable_typeId = TM.getMinTypeId() + \
                   (dfDSInit.value[DSINIT.hiliteIdxTableTMI].value & 0xFFFFFF)
+        tdHiliteIdxTable = None
         if hiliteIdxTable_typeId is not None:
             tdHiliteIdxTable = self.getTopType(hiliteIdxTable_typeId, section_num=section_num)
         # Comment HiliteIdxTable
         if tdHiliteIdxTable is not None:
             tdHiliteIdxTable.setPurposeText("Table of Hilite Index values")
         # Find ClumpQEAllocOffset
+        clumpQEAlloc_typeId = None
         if TM is not None and dfDSInit is not None:
             if len(dfDSInit.value) > DSINIT.clumpQEAllocTMI:
                 clumpQEAlloc_typeId = TM.getMinTypeId() + \
                   (dfDSInit.value[DSINIT.clumpQEAllocTMI].value & 0xFFFFFF)
+        tdClumpQEAlloc = None
         if clumpQEAlloc_typeId is not None:
             tdClumpQEAlloc = self.getTopType(clumpQEAlloc_typeId, section_num=section_num)
         # Comment ClumpQEAllocOffset
         if tdClumpQEAlloc is not None:
             tdClumpQEAlloc.setPurposeText("Clump QE Alloc")
         # Find InternalHiliteTableHandleAndPtr
+        internalHiliteTableHandleAndPtr_typeId = None
         if TM is not None and dfDSInit is not None:
             if len(dfDSInit.value) > DSINIT.internalHiliteTableHandleAndPtrTMI:
                 internalHiliteTableHandleAndPtr_typeId = TM.getMinTypeId() + \
                   (dfDSInit.value[DSINIT.internalHiliteTableHandleAndPtrTMI].value & 0xFFFFFF)
+        tdInternalHiliteTableHandleAndPtr = None
         if internalHiliteTableHandleAndPtr_typeId is not None:
             tdInternalHiliteTableHandleAndPtr = self.getTopType(internalHiliteTableHandleAndPtr_typeId, section_num=section_num)
         # Comment InternalHiliteTableHandleAndPtr
         if tdInternalHiliteTableHandleAndPtr is not None:
             tdInternalHiliteTableHandleAndPtr.setPurposeText("Internal Hilite Table Handle And Ptr")
         # Find SubVIPatch
+        subVIPatch_typeId = None
         if TM is not None and dfDSInit is not None:
             if len(dfDSInit.value) > DSINIT.subVIPatchTMI:
                 subVIPatch_typeId = TM.getMinTypeId() + \
                   (dfDSInit.value[DSINIT.subVIPatchTMI].value & 0xFFFFFF)
+        tdSubVIPatch = None
         if subVIPatch_typeId is not None:
             tdSubVIPatch = self.getTopType(subVIPatch_typeId, section_num=section_num)
         # Comment SubVIPatch
         if tdSubVIPatch is not None:
             tdSubVIPatch.setPurposeText("SubVI Patch")
         # Find SubVIPatchTags
+        subVIPatchTags_typeId = None
         if TM is not None and dfDSInit is not None:
             if len(dfDSInit.value) > DSINIT.subVIPatchTagsTMI:
                 subVIPatchTags_typeId = TM.getMinTypeId() + \
                   (dfDSInit.value[DSINIT.subVIPatchTagsTMI].value & 0xFFFFFF)
+        tdSubVIPatchTags = None
         if subVIPatchTags_typeId is not None:
             tdSubVIPatchTags = self.getTopType(subVIPatchTags_typeId, section_num=section_num)
         # Comment SubVIPatchTags
         if tdSubVIPatchTags is not None:
             tdSubVIPatchTags.setPurposeText("Table of SubVI Patch Tags")
         # Find ConnectorsIdxTables
+        localInputConnIdx_typeId = None
         if TM is not None and dfDSInit is not None:
             if len(dfDSInit.value) > DSINIT.localInputConnIdxTMI:
                 localInputConnIdx_typeId = TM.getMinTypeId() + \
                   (dfDSInit.value[DSINIT.localInputConnIdxTMI].value & 0xFFFFFF)
+        tdLocalInputConnIdx = None
         if localInputConnIdx_typeId is not None:
             tdLocalInputConnIdx = self.getTopType(localInputConnIdx_typeId, section_num=section_num)
         # Comment ConnectorsIdxTables
