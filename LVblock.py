@@ -2427,9 +2427,9 @@ class BFAL(CompleteBlock):
         section.content = []
         for i in range(count):
             entry = SimpleNamespace()
-            entry.field0 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            entry.field4 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            entry.field8 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            entry.uid = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            entry.tmi = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            entry.flags = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
             section.content.append(entry)
 
     def prepareRSRCData(self, section_num):
@@ -2437,9 +2437,9 @@ class BFAL(CompleteBlock):
 
         data_buf = len(section.content).to_bytes(4, byteorder='big')
         for entry in section.content:
-            data_buf += int(entry.field0).to_bytes(4, byteorder='big')
-            data_buf += int(entry.field4).to_bytes(4, byteorder='big')
-            data_buf += int(entry.field8).to_bytes(1, byteorder='big')
+            data_buf += int(entry.uid).to_bytes(4, byteorder='big')
+            data_buf += int(entry.tmi).to_bytes(4, byteorder='big')
+            data_buf += int(entry.flags).to_bytes(1, byteorder='big')
         return data_buf
 
     def expectedRSRCSize(self, section_num):
@@ -2457,11 +2457,11 @@ class BFAL(CompleteBlock):
         for subelem in section_elem:
             if (subelem.tag == "NameObject"):
                 pass # Items parsed somewhere else
-            elif (subelem.tag == "Entry"):
+            elif (subelem.tag == "TypeMap"):
                 entry = SimpleNamespace()
-                entry.field0 = int(subelem.get("Field0"), 0)
-                entry.field4 = int(subelem.get("Field4"), 0)
-                entry.field8 = int(subelem.get("Field8"), 0)
+                entry.uid = int(subelem.get("uid"), 0)
+                entry.tmi = int(subelem.get("TMI"), 0)
+                entry.flags = int(subelem.get("Flags"), 0)
                 section.content.append(entry)
             else:
                 raise AttributeError("Section contains unexpected tag")
@@ -2470,11 +2470,11 @@ class BFAL(CompleteBlock):
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
 
         for i, entry in enumerate(section.content):
-            subelem = ET.SubElement(section_elem,"Entry")
+            subelem = ET.SubElement(section_elem,"TypeMap")
 
-            subelem.set("Field0", "{:d}".format(entry.field0))
-            subelem.set("Field4", "{:d}".format(entry.field4))
-            subelem.set("Field8", "{:d}".format(entry.field8))
+            subelem.set("uid", "{:d}".format(entry.uid))
+            subelem.set("TMI", "{:d}".format(entry.tmi))
+            subelem.set("Flags", "{:d}".format(entry.flags))
 
         if len(section.content) == 0:
             comment_elem = ET.Comment("List is empty")
