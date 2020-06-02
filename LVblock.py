@@ -3570,20 +3570,27 @@ class MNGI(PNGI):
         return section
 
 
-class ICON(ImageBlock):
-    """ Icon 32x32 1bpp
+class BMAP(ImageBlock):
+    """ Bitamap custom size 1bpp
     """
     def createSection(self):
         section = super().createSection()
         section.width = 32
         section.height = 32
         section.bpp = 1
+        # Padding, for some reason to 16 bits
+        section.padding_w = 16
         return section
 
-    def parseRSRCData(self, section_num, bldata):
+    def parseRSRCRawImage(self, section_num, bldata):
         section = self.sections[section_num]
 
-        icon = Image.new("P", (section.width, section.height))
+        padded_width = section.width
+        uneven_w = (section.width % section.padding_w)
+        if uneven_w != 0:
+            padded_width += section.padding_w - uneven_w
+
+        icon = Image.new("P", (padded_width, section.height))
         img_palette = [ 0 ] * (3*256)
         if section.bpp == 8:
             lv_color_palette = LABVIEW_COLOR_PALETTE_256
@@ -3596,17 +3603,17 @@ class ICON(ImageBlock):
             img_palette[3*i+1] = (rgb >>  8) & 0xFF
             img_palette[3*i+2] = (rgb >>  0) & 0xFF
         icon.putpalette(img_palette, rawmode='RGB')
-        img_data = bldata.read(int(section.width * section.height * section.bpp / 8))
+        img_data = bldata.read(int(padded_width * section.height * section.bpp / 8))
         if section.bpp == 8:
             pass
         elif section.bpp == 4:
-            img_data8 = bytearray(section.width * section.height)
+            img_data8 = bytearray(padded_width * section.height)
             for i, px in enumerate(img_data):
                 img_data8[2*i+0] = (px >> 4) & 0xF
                 img_data8[2*i+1] = (px >> 0) & 0xF
             img_data = img_data8
         elif section.bpp == 1:
-            img_data8 = bytearray(section.width * section.height)
+            img_data8 = bytearray(padded_width * section.height)
             for i, px in enumerate(img_data):
                 img_data8[8*i+0] = (px >> 7) & 0x1
                 img_data8[8*i+1] = (px >> 6) & 0x1
@@ -3621,15 +3628,23 @@ class ICON(ImageBlock):
             raise ValueError("Unsupported icon BPP")
 
         icon.putdata(img_data)
+        if padded_width != section.width:
+            icon = icon.crop((0, 0, section.width, section.height,))
         # Pixel-by-pixel method, for reference (slower than all-at-once)
         #for y in range(0, section.height):
         #    for x in range(0, section.width):
         #        icon.putpixel((x, y), bldata.read(1))
+        return icon
+
+    def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+
+        section.height = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        section.width = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        icon = self.parseRSRCRawImage(section_num, bldata)
         section.image = icon
 
-    def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
+    def prepareRawImage(self, section_num):
         section = self.sections[section_num]
 
         data_buf = bytes(section.image.getdata())
@@ -3655,6 +3670,45 @@ class ICON(ImageBlock):
 
         if len(data_buf) < data_len:
             data_buf += b'\0' * (data_len - len(data_buf))
+        return data_buf
+
+    def updateSectionData(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+
+        data_buf = b''
+        data_buf += int(section.height).to_bytes(4, byteorder='big', signed=False)
+        data_buf += int(section.width).to_bytes(4, byteorder='big', signed=False)
+        data_buf += self.prepareRawImage(section_num)
+
+        self.setData(data_buf, section_num=section_num)
+
+
+class ICON(BMAP):
+    """ Icon 32x32 1bpp
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.width = 32
+        section.height = 32
+        section.bpp = 1
+        section.padding_w = 1
+        return section
+
+    def parseRSRCData(self, section_num, bldata):
+        section = self.sections[section_num]
+
+        icon = self.parseRSRCRawImage(section_num, bldata)
+        section.image = icon
+
+    def updateSectionData(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+
+        data_buf = self.prepareRawImage(section_num)
+
         self.setData(data_buf, section_num=section_num)
 
 
