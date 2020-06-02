@@ -3789,6 +3789,17 @@ class icl8(ICON):
         return section
 
 
+class DSIM(Block):
+    """ Dynamic Size Image
+
+    Picture with size and BPP written in header, and with
+    some kind of simple compression.
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+
 class BDPW(Block):
     """ Block Diagram Password
     """
