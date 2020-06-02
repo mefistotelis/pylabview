@@ -39,7 +39,8 @@ class FILE_FMT_TYPE(enum.Enum):
     Xcontrol = 10
     UsrIfaceResrc = 11
     RFilesService = 12
-    VI = 13
+    RFilesOld = 13
+    VI = 14
 
 
 class RSRCHeader(RSRCStructure):
@@ -65,7 +66,7 @@ class RSRCHeader(RSRCStructure):
 
     def checkSanity(self):
         ret = True
-        if bytes(self.rsrc_id1) != b'RSRC\r\n':
+        if bytes(self.rsrc_id1) not in (b'RSRC\r\n', b'RSRC\0\0',):
             if (self.po.verbose > 0):
                 eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.rsrc,'id1',bytes(self.rsrc_id1)))
             ret = False
@@ -74,7 +75,11 @@ class RSRCHeader(RSRCStructure):
             if (self.po.verbose > 0):
                 eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.rsrc,'rsrc_type',bytes(self.rsrc_type)))
             ret = False
-        if bytes(self.rsrc_id4) != b'LBVW':
+        if bytes(self.rsrc_id4) == b'LBVW':
+            pass
+        elif self.ftype == FILE_FMT_TYPE.RFilesOld and bytes(self.rsrc_id4) == b'ResC':
+            pass
+        else:
             if (self.po.verbose > 0):
                 eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.rsrc,'id4',bytes(self.rsrc_id4)))
             ret = False
@@ -141,6 +146,7 @@ def getRsrcTypeForFileType(ftype):
         FILE_FMT_TYPE.LLB: b'LVAR',
         FILE_FMT_TYPE.MenuPalette: b'LMNU',
         FILE_FMT_TYPE.RFilesService: b'LVRS',
+        FILE_FMT_TYPE.RFilesOld: b'rsc ',
         FILE_FMT_TYPE.TemplateControl: b'sVCC',
         FILE_FMT_TYPE.TemplateVI: b'sVIN',
         FILE_FMT_TYPE.Xcontrol: b'LVXC',
