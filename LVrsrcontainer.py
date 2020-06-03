@@ -450,9 +450,13 @@ class VI():
         self.rsrc_headers = []
         rsrchead = RSRCHeader(self.po, fmtver=self.fmtver)
         rsrchead.rsrc_type = (c_ubyte * sizeof(rsrchead.rsrc_type)).from_buffer_copy(rsrc_type_id)
+        if self.fmtver <= 2 and self.ftype == FILE_FMT_TYPE.VI:
+            rsrchead.rsrc_id4 = (c_ubyte * sizeof(rsrchead.rsrc_id4)).from_buffer_copy(b'\0\0\0\0')
         self.rsrc_headers.append(rsrchead)
         rsrchead = RSRCHeader(self.po, fmtver=self.fmtver)
         rsrchead.rsrc_type = (c_ubyte * sizeof(rsrchead.rsrc_type)).from_buffer_copy(rsrc_type_id)
+        if self.fmtver <= 2 and self.ftype == FILE_FMT_TYPE.VI:
+            rsrchead.rsrc_id4 = (c_ubyte * sizeof(rsrchead.rsrc_id4)).from_buffer_copy(b'\0\0\0\0')
         self.rsrc_headers.append(rsrchead)
 
         self.binflsthead = BlockInfoListHeader(self.po)
