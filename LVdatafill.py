@@ -524,8 +524,14 @@ class DataFillArray(DataFill):
         # Multiply sizes of each dimension to get total number of items
         totItems = 1
         # TODO the amounts are in self.dimensions; maybe they need to be same as self.td.dimensions, unless dynamic size is used? print warning?
-        for dim in self.dimensions:
+        for i, dim in enumerate(self.dimensions):
+            if dim > self.po.array_data_limit:
+                    raise RuntimeError("Data type {} dimension {} claims size of {} fields, expected below {}"\
+                      .format(self.getXMLTagName(), i, dim, self.po.array_data_limit))
             totItems *= dim & 0x7fffffff
+        if (self.po.verbose > 1):
+            print("{:s}: {:s} {:d}: The array has {} dimensions, {} fields in total"\
+              .format(self.vi.src_fname, type(self).__name__, self.index, len(self.dimensions), totItems))
         self.value = []
         # We expect exactly one client within Array
         for cli_idx, td_idx, td_obj, td_flags in self.td.clientsEnumerate():
