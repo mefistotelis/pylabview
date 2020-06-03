@@ -701,7 +701,7 @@ class Block(object):
         block_fname = "{:s}.{:s}".format(fname_base,"bin")
         bldata = self.getData(section_num=snum)
         if (self.po.verbose > 1):
-            print("{}: Writing block {} section {} to '{}'".format(self.vi.src_fname,self.ident,snum,block_fname))
+            print("{}: Storing block {} section {:d} binary in '{}'".format(self.vi.src_fname,self.ident,snum,block_fname))
         with open(block_fname, "wb") as block_fh:
             block_fh.write(bldata.read())
 
@@ -1048,7 +1048,7 @@ class CompleteBlock(Block):
 
                 with open(block_fname, "wb") as block_fh:
                     if (self.po.verbose > 1):
-                        print("{}: Storing block {} section {} image in '{}'"\
+                        print("{}: Storing block {} section {:d} image in '{}'"\
                           .format(self.vi.src_fname,self.ident,section_num,block_fname))
                     self.exportImageSectionData(section_elem, block_fh, section_num, section, fname_base)
 
@@ -3321,7 +3321,7 @@ class LVSR(CompleteBlock):
 
             part_fname = "{:s}_{:s}.{:s}".format(fname_base,subelem.tag,"bin")
             if (self.po.verbose > 1):
-                print("{}: Writing block {} section {} part to '{}'".format(self.vi.src_fname,self.ident,snum,part_fname))
+                print("{}: Storing block {} section {:d} part in '{}'".format(self.vi.src_fname,self.ident,snum,part_fname))
             with open(part_fname, "wb") as part_fh:
                 part_fh.write(section.field90)
             subelem.set("Format", "bin")
@@ -5007,7 +5007,7 @@ class UCRF(VarCodingBlock):
         block_fname = "{:s}.{:s}".format(fname_base,fext)
         with open(block_fname, "wb") as block_fh:
             if (self.po.verbose > 1):
-                print("{}: Writing block {} section {} to '{}'".format(self.vi.src_fname,self.ident,snum,block_fname))
+                print("{}: Storing block {} section {:d} binary in '{}'".format(self.vi.src_fname,self.ident,snum,block_fname))
             block_fh.write(bldata.read())
 
         section_elem.set("Format", "bin")

@@ -40,12 +40,13 @@ class FILE_FMT_TYPE(enum.Enum):
     UsrIfaceResrc = 11
     RFilesService = 12
     RFilesOld = 13
-    VI = 14
+    Subroutine = 14
+    VI = 15
 
 
 class RSRCHeader(RSRCStructure):
     _fields_ = [('rsrc_id1', c_ubyte * 6),		#0
-                ('rsrc_id2', c_ushort),			#6
+                ('rsrc_fmtver', c_ushort),			#6
                 ('rsrc_type', c_ubyte * 4),		#8 4-byte identifier of file type
                 ('rsrc_id4', c_ubyte * 4),		#12
                 ('rsrc_info_offset', c_uint32),	#16 Offset from beginning of the file to RSRC header before the Info part
@@ -54,10 +55,13 @@ class RSRCHeader(RSRCStructure):
                 ('rsrc_data_size', c_uint32),	#28, sizeof is 32
     ]
 
-    def __init__(self, po):
+    def __init__(self, po, fmtver=3):
         self.po = po
-        self.rsrc_id1 = (c_ubyte * sizeof(self.rsrc_id1)).from_buffer_copy(b'RSRC\r\n')
-        self.rsrc_id2 = 3
+        self.rsrc_fmtver = fmtver
+        if fmtver >= 3:
+            self.rsrc_id1 = (c_ubyte * sizeof(self.rsrc_id1)).from_buffer_copy(b'RSRC\r\n')
+        else:
+            self.rsrc_id1 = (c_ubyte * sizeof(self.rsrc_id1)).from_buffer_copy(b'RSRC\0\0')
         self.rsrc_type = (c_ubyte * sizeof(self.rsrc_type)).from_buffer_copy(b'LVIN')
         self.rsrc_id4 = (c_ubyte * sizeof(self.rsrc_id4)).from_buffer_copy(b'LBVW')
         self.ftype = FILE_FMT_TYPE.NONE
@@ -66,7 +70,11 @@ class RSRCHeader(RSRCStructure):
 
     def checkSanity(self):
         ret = True
-        if bytes(self.rsrc_id1) not in (b'RSRC\r\n', b'RSRC\0\0',):
+        if bytes(self.rsrc_id1)  == b'RSRC\r\n':
+            pass
+        elif self.rsrc_fmtver <= 2 and bytes(self.rsrc_id1) == b'RSRC\0\0':
+            pass
+        else:
             if (self.po.verbose > 0):
                 eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.rsrc,'id1',bytes(self.rsrc_id1)))
             ret = False
@@ -78,6 +86,9 @@ class RSRCHeader(RSRCStructure):
         if bytes(self.rsrc_id4) == b'LBVW':
             pass
         elif self.ftype == FILE_FMT_TYPE.RFilesOld and bytes(self.rsrc_id4) == b'ResC':
+            pass
+        elif self.rsrc_fmtver <= 2 and bytes(self.rsrc_id4) == b'\0\0\0\0':
+            # VI format from LV2.5
             pass
         else:
             if (self.po.verbose > 0):
@@ -151,6 +162,7 @@ def getRsrcTypeForFileType(ftype):
         FILE_FMT_TYPE.TemplateVI: b'sVIN',
         FILE_FMT_TYPE.Xcontrol: b'LVXC',
         FILE_FMT_TYPE.UsrIfaceResrc: b'iUWl',
+        FILE_FMT_TYPE.Subroutine: b'LVSB',
         FILE_FMT_TYPE.VI: b'LVIN',
     }.get(ftype, b'')
     return file_type
@@ -182,6 +194,7 @@ def getFileExtByType(ftype):
         FILE_FMT_TYPE.TemplateVI: 'vit',
         FILE_FMT_TYPE.Xcontrol: 'xctl',
         FILE_FMT_TYPE.UsrIfaceResrc: 'uir',
+        FILE_FMT_TYPE.Subroutine: 'lsb',
         FILE_FMT_TYPE.VI: 'vi',
     }.get(ftype, 'rsrc')
     return fext
@@ -203,6 +216,7 @@ class VI():
         self.xml_root = None
         self.po = po
         self.rsrc_headers = []
+        self.fmtver = 3
         self.ftype = FILE_FMT_TYPE.NONE
         self.textEncoding = text_encoding
         self.blocks = None
@@ -254,7 +268,8 @@ class VI():
         """
         blkinf_rsrchead = self.rsrc_headers[-1]
         # We expect two rsrc_headers in the RSRC file
-        # File type should be identical in both headers
+        # Format version and file type should be identical in both headers
+        self.fmtver = blkinf_rsrchead.rsrc_fmtver
         self.ftype = blkinf_rsrchead.ftype
 
         # Set file position just after Block-Infos RSRC header
@@ -422,6 +437,8 @@ class VI():
         if self.xml_root.tag != 'RSRC':
             raise AttributeError("Root tag of the XML is not 'RSRC'")
 
+        fmtver_str = self.xml_root.get("FormatVersion")
+        self.fmtver = int(fmtver_str, 0)
         pretty_type_str = self.xml_root.get("Type")
         rsrc_type_id = getRsrcTypeFromPrettyStr(pretty_type_str)
         self.ftype = recognizeFileTypeFromRsrcType(rsrc_type_id)
@@ -431,10 +448,10 @@ class VI():
             self.textEncoding = encoding_str
 
         self.rsrc_headers = []
-        rsrchead = RSRCHeader(self.po)
+        rsrchead = RSRCHeader(self.po, fmtver=self.fmtver)
         rsrchead.rsrc_type = (c_ubyte * sizeof(rsrchead.rsrc_type)).from_buffer_copy(rsrc_type_id)
         self.rsrc_headers.append(rsrchead)
-        rsrchead = RSRCHeader(self.po)
+        rsrchead = RSRCHeader(self.po, fmtver=self.fmtver)
         rsrchead.rsrc_type = (c_ubyte * sizeof(rsrchead.rsrc_type)).from_buffer_copy(rsrc_type_id)
         self.rsrc_headers.append(rsrchead)
 
@@ -572,6 +589,7 @@ class VI():
         """
         ver = self.getFileVersion()
         elem = ET.Element('RSRC')
+        elem.set("FormatVersion", "{:d}".format(self.fmtver))
         rsrc_type_id = getRsrcTypeForFileType(self.ftype)
         elem.set("Type", rsrc_type_id.decode('ascii'))
         elem.set("Encoding", self.textEncoding)

@@ -11,7 +11,7 @@ set -x
 #7za x -o./lv06 ./lv060-vi.lib.7z
 #7za x -o./lv086 ./lv086-vi.lib.7z
 #7za x -o./lv14 ./lv140-vi.lib.7z
-SRC_LLB_DIRS='../lv06 ../lv07 ../lv14'
+SRC_LLB_DIRS='../lv025 ../lv06 ../lv07 ../lv10 ../lv14'
 
 mkdir -p ../test_out
 cd ../test_out
@@ -40,7 +40,8 @@ while IFS= read -r rsrc_fn; do
 
     # Re-extract - we can only compare extracted files
     (../readRSRC.py -vv -x --keep-names -i "${rsrc_out_fn}" -m "${xml_fn}") 2>&1 | tee -a log-vi_lib-llb-3reext.txt
-    sed -n 's/^.\+: Writing block b'\''.\+'\'' .* to '\''\([^'\'']\+\)'\''.*$/\1/p' "${log_fn}" | tee "${rsrc_base_fn}.lst"
+    # Note that some file names within LV LLBs contain characters like: ,'+=!
+    sed -n 's/^.\+: Storing block b'\''.\+'\'' .* in '\''\(.\+[.][a-z]{1,5}\)'\''.*$/\1/p' "${log_fn}" | tee "${rsrc_base_fn}.lst"
 
     echo "Comparing blocks of \"${rsrc_fn}\"" | tee -a log-vi_lib-llb-4cmp.txt
     while IFS= read -r block_fn; do
