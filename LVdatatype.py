@@ -420,9 +420,9 @@ class TDObject:
                 bin_fname = conn_elem.get("File")
             with open(bin_fname, "rb") as bin_fh:
                 data_buf = bin_fh.read()
-            data_head = int(len(data_buf)+4).to_bytes(2, byteorder='big')
-            data_head += int(self.oflags).to_bytes(1, byteorder='big')
-            data_head += int(self.otype).to_bytes(1, byteorder='big')
+            data_head = int(len(data_buf)+4).to_bytes(2, byteorder='big', signed=False)
+            data_head += int(self.oflags).to_bytes(1, byteorder='big', signed=False)
+            data_head += int(self.otype).to_bytes(1, byteorder='big', signed=False)
             self.setData(data_head+data_buf)
             self.parsed_data_updated = False
         else:
@@ -595,9 +595,9 @@ class TDObject:
         data_buf = self.prepareRSRCData(avoid_recompute=avoid_recompute)
         data_buf += self.prepareRSRCDataFinish()
 
-        data_head = int(len(data_buf)+4).to_bytes(2, byteorder='big')
-        data_head += int(self.oflags).to_bytes(1, byteorder='big')
-        data_head += int(self.otype).to_bytes(1, byteorder='big')
+        data_head = int(len(data_buf)+4).to_bytes(2, byteorder='big', signed=False)
+        data_head += int(self.oflags).to_bytes(1, byteorder='big', signed=False)
+        data_head += int(self.otype).to_bytes(1, byteorder='big', signed=False)
 
         self.setData(data_head+data_buf, incomplete=avoid_recompute)
 
@@ -890,7 +890,7 @@ class TDObjectNumber(TDObject):
 
     def prepareRSRCEnumAttr(self, avoid_recompute=False):
         data_buf = b''
-        data_buf += int(len(self.values)).to_bytes(2, byteorder='big')
+        data_buf += int(len(self.values)).to_bytes(2, byteorder='big', signed=False)
         for value in self.values:
             data_buf += preparePStr(value.label, 1, self.po)
         if len(data_buf) % 2 > 0:
@@ -900,10 +900,10 @@ class TDObjectNumber(TDObject):
 
     def prepareRSRCUnitsAttr(self, avoid_recompute=False):
         data_buf = b''
-        data_buf += int(len(self.values)).to_bytes(2, byteorder='big')
+        data_buf += int(len(self.values)).to_bytes(2, byteorder='big', signed=False)
         for i, value in enumerate(self.values):
-            data_buf += int(value.intval1).to_bytes(2, byteorder='big')
-            data_buf += int(value.intval2).to_bytes(2, byteorder='big')
+            data_buf += int(value.intval1).to_bytes(2, byteorder='big', signed=False)
+            data_buf += int(value.intval2).to_bytes(2, byteorder='big', signed=False)
             if (self.po.verbose > 2):
                 print("{:s}: TD {:d} type 0x{:02x} Units Attr {} are 0x{:02X} 0x{:02X}"\
                   .format(self.vi.src_fname,self.index,self.otype,i,value.intval1,value.intval2))
@@ -918,7 +918,7 @@ class TDObjectNumber(TDObject):
         if self.isPhys():
             data_buf += self.prepareRSRCUnitsAttr(avoid_recompute=avoid_recompute)
 
-        data_buf += int(self.prop1).to_bytes(1, byteorder='big')
+        data_buf += int(self.prop1).to_bytes(1, byteorder='big', signed=False)
         return data_buf
 
     def expectedRSRCSize(self):
@@ -1113,8 +1113,8 @@ class TDObjectTag(TDObject):
         else:
             ver = decodeVersion(0x09000000)
         data_buf = b''
-        data_buf += int(self.prop1).to_bytes(4, byteorder='big')
-        data_buf += int(self.tagType).to_bytes(2, byteorder='big')
+        data_buf += int(self.prop1).to_bytes(4, byteorder='big', signed=False)
+        data_buf += int(self.tagType).to_bytes(2, byteorder='big', signed=False)
 
         if isGreaterOrEqVersion(ver, 8,2,1) and \
           (isSmallerVersion(ver, 8,2,2) or isGreaterOrEqVersion(ver, 8,5,1)):
@@ -1122,7 +1122,7 @@ class TDObjectTag(TDObject):
 
         if (self.tagType == TAG_TYPE.UserDefined.value) and isGreaterOrEqVersion(ver, 8,1,1):
             strlen = len(self.ident)
-            data_buf += int(strlen).to_bytes(1, byteorder='big')
+            data_buf += int(strlen).to_bytes(1, byteorder='big', signed=False)
             data_buf += self.ident
             if ((strlen+1) % 2) > 0:
                 data_buf += b'\0' # padding
@@ -1253,7 +1253,7 @@ class TDObjectBlob(TDObject):
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
-        data_buf += int(self.prop1).to_bytes(4, byteorder='big')
+        data_buf += int(self.prop1).to_bytes(4, byteorder='big', signed=False)
         return data_buf
 
     def expectedRSRCSize(self):
@@ -1424,29 +1424,29 @@ class TDObjectFunction(TDObject):
         for clientTD in clients:
             data_buf += prepareVariableSizeFieldU2p2(clientTD.index)
         # end of MultiContainer part
-        data_buf += int(self.fflags).to_bytes(2, byteorder='big')
-        data_buf += int(self.pattern).to_bytes(2, byteorder='big')
+        data_buf += int(self.fflags).to_bytes(2, byteorder='big', signed=False)
+        data_buf += int(self.pattern).to_bytes(2, byteorder='big', signed=False)
 
         if isGreaterOrEqVersion(ver, 10,0,0,stage="alpha"):
             for client in clients:
-                data_buf += int(client.flags).to_bytes(4, byteorder='big')
+                data_buf += int(client.flags).to_bytes(4, byteorder='big', signed=False)
         else:
             for client in clients:
-                data_buf += int(client.flags).to_bytes(2, byteorder='big')
+                data_buf += int(client.flags).to_bytes(2, byteorder='big', signed=False)
 
         if isGreaterOrEqVersion(ver, 8,0,0,stage="beta"):
-            data_buf += int(self.hasThrall).to_bytes(2, byteorder='big')
+            data_buf += int(self.hasThrall).to_bytes(2, byteorder='big', signed=False)
             if self.hasThrall != 0:
                 for client in clients:
                     for k in client.thrallSources:
                         if isGreaterOrEqVersion(ver, 8,2,0,stage="beta"):
                             k = k + 1
-                        data_buf += int(k).to_bytes(1, byteorder='big')
+                        data_buf += int(k).to_bytes(1, byteorder='big', signed=False)
                     data_buf += int(0).to_bytes(1, byteorder='big')
 
         if (self.fflags & 0x0800) != 0:
-            data_buf += int(self.field6).to_bytes(4, byteorder='big')
-            data_buf += int(self.field7).to_bytes(4, byteorder='big')
+            data_buf += int(self.field6).to_bytes(4, byteorder='big', signed=False)
+            data_buf += int(self.field7).to_bytes(4, byteorder='big', signed=False)
         if spec_cli is not None:
             data_buf += prepareVariableSizeFieldU2p2(spec_cli.index)
 
@@ -1665,7 +1665,7 @@ class TDObjectTypeDef(TDObject):
         else:
             ver = decodeVersion(0x09000000)
         data_buf = b''
-        data_buf += int(self.flag1).to_bytes(4, byteorder='big')
+        data_buf += int(self.flag1).to_bytes(4, byteorder='big', signed=False)
         if isGreaterOrEqVersion(ver, 8,0,0,4):
             data_buf += prepareQualifiedName(self.labels, self.po)
         else:
@@ -1679,9 +1679,9 @@ class TDObjectTypeDef(TDObject):
             cli_data_buf += client.nested.prepareRSRCDataFinish()
 
             # size of nested TypeDesc is computed differently than in main TypeDesc
-            cli_data_head = int(len(cli_data_buf)+8).to_bytes(2, byteorder='big')
-            cli_data_head += int(client.nested.oflags).to_bytes(1, byteorder='big')
-            cli_data_head += int(client.nested.otype).to_bytes(1, byteorder='big')
+            cli_data_head = int(len(cli_data_buf)+8).to_bytes(2, byteorder='big', signed=False)
+            cli_data_head += int(client.nested.oflags).to_bytes(1, byteorder='big', signed=False)
+            cli_data_head += int(client.nested.otype).to_bytes(1, byteorder='big', signed=False)
 
             data_buf += cli_data_head + cli_data_buf
 
@@ -1834,16 +1834,16 @@ class TDObjectArray(TDObject):
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
-        data_buf += int(len(self.dimensions)).to_bytes(2, byteorder='big')
+        data_buf += int(len(self.dimensions)).to_bytes(2, byteorder='big', signed=False)
         for dim in self.dimensions:
             flags = (dim.flags << 24) | dim.fixedSize
-            data_buf += int(flags).to_bytes(4, byteorder='big')
+            data_buf += int(flags).to_bytes(4, byteorder='big', signed=False)
         if len(self.clients) != 1:
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} has unexpacted amount of clients; should have 1"\
                   .format(self.vi.src_fname,self.index,self.otype))
         for clientTD in self.clients:
-            data_buf += int(clientTD.index).to_bytes(2, byteorder='big')
+            data_buf += prepareVariableSizeFieldU2p2(clientTD.index)
         return data_buf
 
     def expectedRSRCSize(self):
@@ -1948,7 +1948,7 @@ class TDObjectBlock(TDObject):
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
-        data_buf += int(self.blkSize).to_bytes(4, byteorder='big')
+        data_buf += int(self.blkSize).to_bytes(4, byteorder='big', signed=False)
         return data_buf
 
     def expectedRSRCSize(self):
@@ -2025,7 +2025,7 @@ class TDObjectAlignedBlock(TDObjectBlock):
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
-        data_buf += int(self.blkSize).to_bytes(4, byteorder='big')
+        data_buf += int(self.blkSize).to_bytes(4, byteorder='big', signed=False)
         for clientTD in self.clients:
             data_buf += prepareVariableSizeFieldU2p2(clientTD.index)
             break # only one client is supported
@@ -2116,7 +2116,7 @@ class TDObjectRepeatedBlock(TDObject):
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
-        data_buf += int(self.numRepeats).to_bytes(4, byteorder='big')
+        data_buf += int(self.numRepeats).to_bytes(4, byteorder='big', signed=False)
         for clientTD in self.clients:
             data_buf += prepareVariableSizeFieldU2p2(clientTD.index)
             break # only one sub-type is supported
@@ -2249,7 +2249,7 @@ class TDObjectRef(TDObject):
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
-        data_buf += int(self.reftype).to_bytes(2, byteorder='big')
+        data_buf += int(self.reftype).to_bytes(2, byteorder='big', signed=False)
         if self.ref_obj is not None:
             data_buf += self.ref_obj.prepareRSRCData(avoid_recompute=avoid_recompute)
         return data_buf
@@ -2411,9 +2411,9 @@ class TDObjectCluster(TDObject):
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
-        data_buf += int(len(self.clients)).to_bytes(2, byteorder='big')
+        data_buf += int(len(self.clients)).to_bytes(2, byteorder='big', signed=False)
         for clientTD in self.clients:
-            data_buf += int(clientTD.index).to_bytes(2, byteorder='big')
+            data_buf += prepareVariableSizeFieldU2p2(clientTD.index)
         return data_buf
 
     def expectedRSRCSize(self):
@@ -2508,7 +2508,7 @@ class TDObjectMeasureData(TDObject):
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
-        data_buf += int(self.flavor).to_bytes(2, byteorder='big')
+        data_buf += int(self.flavor).to_bytes(2, byteorder='big', signed=False)
         return data_buf
 
     def expectedRSRCSize(self):
@@ -2621,18 +2621,18 @@ class TDObjectFixedPoint(TDObject):
           ((self.dataUnit & 0x07) << 8) | \
           ((self.allocOv & 0x01) << 11) | \
           ((self.leftovFlags & 0xF6) << 8)
-        data_buf += int(field1C).to_bytes(2, byteorder='big')
-        data_buf += int(self.field1E).to_bytes(2, byteorder='big')
-        data_buf += int(self.field20).to_bytes(4, byteorder='big')
+        data_buf += int(field1C).to_bytes(2, byteorder='big', signed=False)
+        data_buf += int(self.field1E).to_bytes(2, byteorder='big', signed=False)
+        data_buf += int(self.field20).to_bytes(4, byteorder='big', signed=False)
 
         for i, rang in enumerate(self.ranges):
             if self.rangeFormat == 0:
                 data_buf += struct.pack('>d', rang.value)
             elif self.rangeFormat == 1:
                 if (self.field1E > 0x40) or (self.dataVersion > 0):
-                    data_buf += int(rang.prop1).to_bytes(2, byteorder='big')
-                    data_buf += int(rang.prop2).to_bytes(2, byteorder='big')
-                    data_buf += int(rang.prop3).to_bytes(4, byteorder='big')
+                    data_buf += int(rang.prop1).to_bytes(2, byteorder='big', signed=False)
+                    data_buf += int(rang.prop2).to_bytes(2, byteorder='big', signed=False)
+                    data_buf += int(rang.prop3).to_bytes(4, byteorder='big', signed=True)
                     data_buf += struct.pack('>d', rang.value)
                 else:
                     data_buf += struct.pack('>d', rang.value)
