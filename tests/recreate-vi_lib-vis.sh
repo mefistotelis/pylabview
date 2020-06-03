@@ -6,7 +6,9 @@
 set -x
 #set -e
 
-SRC_VI_DIRS='../lv025 ./lv025 ../lv06 ./lv06 ../lv07 ./lv07 ../lv10 ./lv10 ../lv14 ./lv14'
+# Files from LV2 have no ordering of sections, so when the file from there is extracted an re-created,
+# it is usually different. For those old files, we'd have to compare extracted sections. So skipping here.
+SRC_VI_DIRS='../lv06 ./lv06 ../lv07 ./lv07 ../lv10 ./lv10 ../lv14 ./lv14'
 STORE_EXTRACTED_FILES=false
 
 mkdir -p ../test_out
