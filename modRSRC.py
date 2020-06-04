@@ -1648,6 +1648,16 @@ def DTHP_Fix(RSRC, DTHP, ver, fo, po):
                 if val_TMI is not None:
                     ProbePoint_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
                 heapRanges = intRangesExcludeOne(heapRanges, ProbePoint_TypeID)
+        # DTHP must not include TypeDesc values pointed to by BFAL
+        if TM80_IndexShift is not None:
+            for BFAL_TypeMap in RSRC.findall("./BFAL/Section/TypeMap"):
+                val_TMI = BFAL_TypeMap.get("TMI")
+                if val_TMI is not None:
+                    val_TMI = int(val_TMI, 0)
+                BFAL_TypeID = None
+                if val_TMI is not None:
+                    BFAL_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
+                heapRanges = intRangesExcludeOne(heapRanges, BFAL_TypeID)
         # DTHP must not include TypeDesc of type "Function"
         # IndexShift must be high enough or count must be small enough to keep
         # Function TDs outside.
