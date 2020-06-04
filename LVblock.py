@@ -2411,6 +2411,8 @@ class GCDI(VarCodingBlock):
 
 class BFAL(CompleteBlock):
     """ BFAL
+
+    Introduced somewhere between LV11 and LV14.
     """
     def createSection(self):
         section = super().createSection()

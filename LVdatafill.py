@@ -1008,7 +1008,9 @@ class DataFillBlock(DataFill):
         return exp_whole_len
 
     def initWithXML(self, df_elem):
-        self.value = bytes.fromhex(df_elem.text)
+        self.value = b''
+        if df_elem.text is not None: # Empty string may be None after parsing
+            self.value = bytes.fromhex(df_elem.text)
         pass
 
     def exportXML(self, df_elem, fname_base):
