@@ -2451,6 +2451,7 @@ class BFAL(CompleteBlock):
         return exp_whole_len
 
     def initWithXMLSectionData(self, section, section_elem):
+        snum = section.start.section_idx
         section.content = []
 
         if (self.po.verbose > 2):
@@ -2536,6 +2537,7 @@ class CPMp(CompleteBlock):
         return exp_whole_len
 
     def initWithXMLSectionData(self, section, section_elem):
+        snum = section.start.section_idx
         section.content = []
 
         section.field1 = int(section_elem.get("Field1"), 0)
