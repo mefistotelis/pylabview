@@ -3613,7 +3613,7 @@ class LinkObjCreOrDesRefToUDClassAPILink(LinkObjBase):
 
 
 class LinkObjDDOToUDClassAPILink(LinkObjBase):
-    """ DDO To UDClassAPI Link Object Ref
+    """ Data Display Object To UDClassAPI Link Object Ref
     """
     def __init__(self, *args):
         super().__init__(*args)

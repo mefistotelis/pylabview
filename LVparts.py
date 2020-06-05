@@ -202,7 +202,7 @@ class DSINIT(enum.IntEnum):
     probeTableOffset	= 4
     # Type Map Index which points to TypeDesc for Probe Table
     probeTableTMI	= 5
-    # Amount of DCO structures in the DCO Table pointed by two values below
+    # Amount of Data Controller Object structures in the DCO Table pointed by two values below
     # DCO Table is a RepeatedBlock with Clusters inside, each represening a DCO.
     nDCOs			= 6
     # Offset of the DCO Table within Invariant Data Space
@@ -270,7 +270,7 @@ class DSINIT(enum.IntEnum):
     enpdTdOffsetsDso	= 37
     # Type Map Index which points to TypeDesc for Enpd TD Offsets
     enpdTdOffsetsTMI	= 38
-    # Amount of DDO structures in the DDO Table pointed by two values below
+    # Amount of Data Display Object structures in the DDO Table pointed by two values below
     nDDOs				= 39
     # Offset of the DDO Table within Invariant Data Space
     spDDOTableOffset	= 40
@@ -299,7 +299,7 @@ def dsInitIdToEnum(dsInitId):
 
 
 class DCO(LVmisc.RSRCStructure):
-    """ DCO type as stored within DFDS block.
+    """ Data Controller Object type as stored within DFDS block.
 
     The definition of this struct is used to have
     names of elements, and to compare the types

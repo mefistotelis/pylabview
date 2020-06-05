@@ -140,7 +140,7 @@ class VI_EXEC_FLAGS(enum.Enum):
     CompilerBug =	1 << 19	# Compiler Bug
     TypeDefVI =		1 << 20	# VI is typedef
     StrictTypeDefVI = 1 << 21	# VI is strict typedef
-    BadDDO =		1 << 22	# Bad DDO
+    BadDDO =		1 << 22	# Bad Data Display Object (control or indicator)
     CtlChanged =	1 << 23	# Ctl-edit changed
     SaveParallel =	1 << 24	# Save parallel
     LibIssuesNoRun =	1 << 25	# library for this VI has some problem so VI is not runnable
