@@ -1130,7 +1130,7 @@ class SingleIntBlock(Block):
     def createSection(self):
         section = super().createSection()
         section.byteorder = 'big'
-        section.size = 4
+        section.entsize = 4
         section.base = 10
         section.signed = False
         section.value = None
@@ -1139,16 +1139,16 @@ class SingleIntBlock(Block):
     def parseRSRCData(self, section_num, bldata):
         section = self.sections[section_num]
 
-        section.value = int.from_bytes(bldata.read(section.size), byteorder=section.byteorder, signed=section.signed)
+        section.value = int.from_bytes(bldata.read(section.entsize), byteorder=section.byteorder, signed=section.signed)
 
     def updateSectionData(self, section_num=None):
         if section_num is None:
             section_num = self.active_section_num
         section = self.sections[section_num]
 
-        data_buf = int(section.value).to_bytes(section.size, byteorder=section.byteorder)
+        data_buf = int(section.value).to_bytes(section.entsize, byteorder=section.byteorder)
 
-        if (len(data_buf) != section.size):
+        if (len(data_buf) != section.entsize):
             raise RuntimeError("Block {} section {} generated binary data of invalid size"\
               .format(self.ident,section_num))
 
@@ -1201,7 +1201,7 @@ class MUID(SingleIntBlock):
     def createSection(self):
         section = super().createSection()
         section.byteorder = 'big'
-        section.size = 4
+        section.entsize = 4
         section.base = 10
         section.signed = False
         return section
@@ -1213,7 +1213,7 @@ class FPSE(SingleIntBlock):
     def createSection(self):
         section = super().createSection()
         section.byteorder = 'big'
-        section.size = 4
+        section.entsize = 4
         section.base = 10
         section.signed = False
         return section
@@ -1308,7 +1308,7 @@ class BDSE(SingleIntBlock):
     def createSection(self):
         section = super().createSection()
         section.byteorder = 'big'
-        section.size = 4
+        section.entsize = 4
         section.base = 10
         section.signed = False
         return section
@@ -1318,7 +1318,7 @@ class FLAG(SingleIntBlock):
     def createSection(self):
         section = super().createSection()
         section.byteorder = 'big'
-        section.size = 1
+        section.entsize = 1
         section.base = 16
         section.signed = False
         return section
