@@ -25,10 +25,11 @@ import LVdatafill
 
 
 class LVObject:
-    def __init__(self, vi, po):
+    def __init__(self, vi, blockref, po):
         """ Creates new object.
         """
         self.vi = vi
+        self.blockref = blockref
         self.po = po
 
     def parseRSRCData(self, bldata):
@@ -263,7 +264,7 @@ class LVVariant(LVObject):
             eprint("{:s}: Warning: {:s} {:d} sub-object {:d} type 0x{:02x} data size {:d} too small to be valid"\
               .format(self.vi.src_fname, type(self).__name__, self.index, len(self.clients2), obj_type, obj_len))
             obj_type = LVdatatype.TD_FULL_TYPE.Void
-        obj = LVdatatype.newTDObject(self.vi, -1, obj_flags, obj_type, self.po)
+        obj = LVdatatype.newTDObject(self.vi, self.blockref, -1, obj_flags, obj_type, self.po)
         clientTD = SimpleNamespace()
         clientTD.index = -1 # Nested clients have index -1
         clientTD.flags = 0 # Only Type Mapped entries have it non-zero
@@ -286,10 +287,10 @@ class LVVariant(LVObject):
             attrib.index = -1
             attrib.name = bldata.read(text_len)
             # And now - inception. LVVariant has attributes of type LVVariant. Hopefully won't loop forever.
-            attrib.nested = LVdatatype.newTDObject(self.vi, -1, 0, LVdatatype.TD_FULL_TYPE.LVVariant, self.po)
+            attrib.nested = LVdatatype.newTDObject(self.vi, self.blockref, -1, 0, LVdatatype.TD_FULL_TYPE.LVVariant, self.po)
             # Note that we won't parse the type itself, it is generic and not stored with the attributes; just use it to make data
             # We have type of the attribute, now read the value
-            attrib.value = LVdatafill.newDataFillObjectWithTD(self.vi, attrib.index, attrib.flags, attrib.nested, self.po)
+            attrib.value = LVdatafill.newDataFillObjectWithTD(self.vi, self.blockref, attrib.index, attrib.flags, attrib.nested, self.po)
             attrib.value.initWithRSRC(bldata)
             if (self.po.verbose > 2):
                 print("{:s}: {:s} {:d} attribute {}: {} {}"\
@@ -345,7 +346,7 @@ class LVVariant(LVObject):
                 VCTP = self.vi.get_or_raise('VCTP')
                 td = VCTP.getTopType(self.vartype2)
 
-            df = LVdatafill.newDataFillObjectWithTD(self.vi, -1, 0, td, self.po)
+            df = LVdatafill.newDataFillObjectWithTD(self.vi, self.blockref, -1, 0, td, self.po)
             self.datafill.append(df)
             df.initWithRSRC(bldata)
             pass
@@ -471,7 +472,7 @@ class LVVariant(LVObject):
                 obj_idx = int(subelem.get("Index"), 0)
                 obj_type = valFromEnumOrIntString(LVdatatype.TD_FULL_TYPE, subelem.get("Type"))
                 obj_flags = importXMLBitfields(LVdatatype.TYPEDESC_FLAGS, subelem)
-                obj = LVdatatype.newTDObject(self.vi, obj_idx, obj_flags, obj_type, self.po)
+                obj = LVdatatype.newTDObject(self.vi, self.blockref, obj_idx, obj_flags, obj_type, self.po)
                 # Grow the list if needed (the connectors may be in wrong order)
                 clientTD = SimpleNamespace()
                 clientTD.flags = 0
@@ -488,8 +489,8 @@ class LVVariant(LVObject):
                     attrib.index = -1
                     name_str = attr_elem.get("Name")
                     attrib.name = name_str.encode(encoding=self.vi.textEncoding)
-                    attrib.nested = LVdatatype.newTDObject(self.vi, -1, 0, LVdatatype.TD_FULL_TYPE.LVVariant, self.po)
-                    attrib.value = LVdatafill.newDataFillObjectWithTD(self.vi, attrib.index, attrib.flags, attrib.nested, self.po)
+                    attrib.nested = LVdatatype.newTDObject(self.vi, self.blockref, -1, 0, LVdatatype.TD_FULL_TYPE.LVVariant, self.po)
+                    attrib.value = LVdatafill.newDataFillObjectWithTD(self.vi, self.blockref, attrib.index, attrib.flags, attrib.nested, self.po)
                     attrib.value.initWithXML(attr_elem)
                     if (self.po.verbose > 2):
                         print("{:s}: {:s} {:d} attribute {}: {} {}"\
@@ -497,7 +498,7 @@ class LVVariant(LVObject):
                     self.attrs.append(attrib)
             elif (subelem.tag == "DataFill"):
                 for df_elem in subelem:
-                    df = LVdatafill.newDataFillObjectWithTag(self.vi, df_elem.tag, self.po)
+                    df = LVdatafill.newDataFillObjectWithTag(self.vi, self.blockref, df_elem.tag, self.po)
                     self.datafill.append(df)
                     df.initWithXML(df_elem)
             else:

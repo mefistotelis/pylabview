@@ -331,10 +331,11 @@ class LV_INTERNAL_MEAS_FLAVOR_NAMES(LVheap.ENUM_TAGS):
 
 class TDObject:
 
-    def __init__(self, vi, idx, obj_flags, obj_type, po):
+    def __init__(self, vi, blockref, idx, obj_flags, obj_type, po):
         """ Creates new Type Descriptor object, capable of handling generic TD data.
         """
         self.vi = vi
+        self.blockref = blockref
         self.po = po
         self.index = idx
         self.oflags = obj_flags
@@ -1094,7 +1095,7 @@ class TDObjectTag(TDObject):
         self.tagType = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         if isGreaterOrEqVersion(ver, 8,2,1) and \
           (isSmallerVersion(ver, 8,2,2) or isGreaterOrEqVersion(ver, 8,5,1)):
-            obj = LVclasses.LVVariant(0, self.vi, self.po)
+            obj = LVclasses.LVVariant(0, self.vi, self.blockref, self.po)
             self.variobj = obj
             obj.parseRSRCData(bldata)
 
@@ -1167,7 +1168,7 @@ class TDObjectTag(TDObject):
             for subelem in conn_elem:
                 if (subelem.tag == "LVVariant"):
                     i = int(subelem.get("Index"), 0)
-                    obj = LVclasses.LVVariant(i, self.vi, self.po)
+                    obj = LVclasses.LVVariant(i, self.vi, self.blockref, self.po)
                     obj.initWithXML(subelem)
                     self.variobj = obj
                 else:
@@ -1219,7 +1220,9 @@ class TDObjectTag(TDObject):
             ret = False
         if isGreaterOrEqVersion(ver, 8,2,1) and \
           (isSmallerVersion(ver, 8,2,2) or isGreaterOrEqVersion(ver, 8,5,1)):
-            if not self.variobj.checkSanity():
+            if self.variobj is None:
+                ret = False
+            elif not self.variobj.checkSanity():
                 ret = False
         else:
             if self.variobj is not None:
@@ -1621,7 +1624,7 @@ class TDObjectTypeDef(TDObject):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
         obj_type, obj_flags, obj_len = TDObject.parseRSRCDataHeader(bldata)
 
-        obj = newTDObject(self.vi, -1, obj_flags, obj_type, self.po)
+        obj = newTDObject(self.vi, self.blockref, -1, obj_flags, obj_type, self.po)
         bldata.seek(pos)
         obj.setOwningList(self.topTypeList)
         # The object length of this nested TypeDesc is 4 bytes larger than real thing.
@@ -1714,7 +1717,7 @@ class TDObjectTypeDef(TDObject):
         clientTD.flags = 0
         obj_type = valFromEnumOrIntString(TD_FULL_TYPE, conn_subelem.get("Type"))
         obj_flags = importXMLBitfields(TYPEDESC_FLAGS, conn_subelem)
-        obj = newTDObject(self.vi, clientTD.index, obj_flags, obj_type, self.po)
+        obj = newTDObject(self.vi, self.blockref, clientTD.index, obj_flags, obj_type, self.po)
         clientTD.nested = obj
         obj.initWithXML(conn_subelem)
         return clientTD
@@ -2238,7 +2241,7 @@ class TDObjectRef(TDObject):
         self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
 
         self.reftype = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        self.ref_obj = LVdatatyperef.newTDObjectRef(self.vi, self, self.reftype, self.po)
+        self.ref_obj = LVdatatyperef.newTDObjectRef(self.vi, self.blockref, self, self.reftype, self.po)
         if self.ref_obj is not None:
             if (self.po.verbose > 2):
                 print("{:s}: TD {:d} type 0x{:02x}, has ref_type=0x{:02X} class {:s}"\
@@ -2276,7 +2279,7 @@ class TDObjectRef(TDObject):
             self.initWithXMLInlineStart(conn_elem)
             self.reftype = valFromEnumOrIntString(REFNUM_TYPE, conn_elem.get("RefType"))
 
-            self.ref_obj = LVdatatyperef.newTDObjectRef(self.vi, self, self.reftype, self.po)
+            self.ref_obj = LVdatatyperef.newTDObjectRef(self.vi, self.blockref, self, self.reftype, self.po)
             if self.ref_obj is not None:
                 if (self.po.verbose > 2):
                     print("{:s}: TD {:d} type 0x{:02x}, has ref_type=0x{:02X} class {:s}"\
@@ -2300,7 +2303,7 @@ class TDObjectRef(TDObject):
                     self.items.append(item)
                 elif (subelem.tag == "LVVariant"):
                     i = int(subelem.get("Index"), 0)
-                    obj = LVclasses.LVVariant(i, self.vi, self.po)
+                    obj = LVclasses.LVVariant(i, self.vi, self.blockref, self.po)
                     # Grow the list if needed (the objects may be in wrong order)
                     if i >= len(self.objects):
                         self.objects.extend([None] * (i - len(self.objects) + 1))
@@ -2968,7 +2971,7 @@ def mdFlavorNameToEnum(flavName):
     return flavorEn
 
 
-def newErrorCluster(vi, idx, obj_flags, po):
+def newErrorCluster(vi, blockref, idx, obj_flags, po):
     """ Error information is transferred in a specific Cluster
     """
     # Content (fields) of the error cluster
@@ -2977,27 +2980,27 @@ def newErrorCluster(vi, idx, obj_flags, po):
     tdErrEnt = SimpleNamespace() # error status
     tdErrEnt.index = -1
     tdErrEnt.flags = 0
-    tdErrEnt.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.Boolean, po)
+    tdErrEnt.nested = newTDObject(vi, blockref, -1, 0, TD_FULL_TYPE.Boolean, po)
     tdList.append(tdErrEnt)
 
     tdErrEnt = SimpleNamespace() # error code
     tdErrEnt.index = -1
     tdErrEnt.flags = 0
-    tdErrEnt.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.NumInt32, po)
+    tdErrEnt.nested = newTDObject(vi, blockref, -1, 0, TD_FULL_TYPE.NumInt32, po)
     tdList.append(tdErrEnt)
 
     tdErrEnt = SimpleNamespace() # error source
     tdErrEnt.index = -1
     tdErrEnt.flags = 0
-    tdErrEnt.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.String, po)
+    tdErrEnt.nested = newTDObject(vi, blockref, -1, 0, TD_FULL_TYPE.String, po)
     tdList.append(tdErrEnt)
 
     # Prepare a cluster container for that list
-    tdCluster = newTDObject(vi, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
+    tdCluster = newTDObject(vi, blockref, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
     tdCluster.clients = tdList
     return tdCluster
 
-def newDigitalTableCluster(vi, idx, obj_flags, po):
+def newDigitalTableCluster(vi, blockref, idx, obj_flags, po):
     """ The DigitalTable is a Cluster with specific things inside
     """
     # make list of fields
@@ -3006,7 +3009,7 @@ def newDigitalTableCluster(vi, idx, obj_flags, po):
     tdDigTabEnt = SimpleNamespace() # DigitalTable transitions
     tdDigTabEnt.index = -1
     tdDigTabEnt.flags = 0
-    tdDigTabEnt.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.Array, po)
+    tdDigTabEnt.nested = newTDObject(vi, blockref, -1, 0, TD_FULL_TYPE.Array, po)
     tdDigTabEnt.nested.dimensions = [SimpleNamespace() for _ in range(1)]
     for dim in tdDigTabEnt.nested.dimensions:
         dim.flags = 0
@@ -3016,13 +3019,13 @@ def newDigitalTableCluster(vi, idx, obj_flags, po):
         cli_flags = 0
         client.index = -1
         client.flags = 0
-        client.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.NumUInt32, po)
+        client.nested = newTDObject(vi, blockref, -1, 0, TD_FULL_TYPE.NumUInt32, po)
     tdList.append(tdDigTabEnt)
 
     tdDigTabEnt = SimpleNamespace() # DigitalTable data
     tdDigTabEnt.index = -1
     tdDigTabEnt.flags = 0
-    tdDigTabEnt.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.Array, po)
+    tdDigTabEnt.nested = newTDObject(vi, blockref, -1, 0, TD_FULL_TYPE.Array, po)
     tdDigTabEnt.nested.dimensions = [SimpleNamespace() for _ in range(2)]
     for dim in tdDigTabEnt.nested.dimensions:
         dim.flags = 0
@@ -3032,16 +3035,16 @@ def newDigitalTableCluster(vi, idx, obj_flags, po):
         cli_flags = 0
         client.index = -1
         client.flags = 0
-        client.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.NumUInt8, po)
+        client.nested = newTDObject(vi, blockref, -1, 0, TD_FULL_TYPE.NumUInt8, po)
     tdList.append(tdDigTabEnt)
 
     # Prepare a cluster container for that list
-    tdCluster = newTDObject(vi, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
+    tdCluster = newTDObject(vi, blockref, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
     tdCluster.clients = tdList
     return tdCluster
 
 
-def newDigitalWaveformCluster(vi, idx, obj_flags, po):
+def newDigitalWaveformCluster(vi, blockref, idx, obj_flags, po):
     """ The DigitalWaveform is a Cluster with specific things inside
     """
     tdList = []
@@ -3049,38 +3052,38 @@ def newDigitalWaveformCluster(vi, idx, obj_flags, po):
     tdEntry.index = -1
     tdEntry.flags = 0
     # Use block of 16 bytes as Timestamp
-    tdEntry.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.Block, po)
+    tdEntry.nested = newTDObject(vi, blockref, -1, 0, TD_FULL_TYPE.Block, po)
     tdEntry.nested.blkSize = 16
     tdList.append(tdEntry)
     tdEntry = SimpleNamespace() # dt
     tdEntry.index = -1
     tdEntry.flags = 0
-    tdEntry.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.NumFloat64, po)
+    tdEntry.nested = newTDObject(vi, blockref, -1, 0, TD_FULL_TYPE.NumFloat64, po)
     tdList.append(tdEntry)
     tdEntry = SimpleNamespace() # Y
     tdEntry.index = -1
     tdEntry.flags = 0
     # The DigitalTable is a Cluster with specific things inside
-    tdEntry.nested = newDigitalTableCluster(vi, -1, 0, po)
+    tdEntry.nested = newDigitalTableCluster(vi, blockref, -1, 0, po)
     tdList.append(tdEntry)
     tdEntry = SimpleNamespace() # error
     tdEntry.index = -1
     tdEntry.flags = 0
-    tdEntry.nested = newErrorCluster(vi, -1, 0, po)
+    tdEntry.nested = newErrorCluster(vi, blockref, -1, 0, po)
     tdList.append(tdEntry)
     tdEntry = SimpleNamespace() # attributes
     tdEntry.index = -1
     tdEntry.flags = 0
-    tdEntry.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.LVVariant, po)
+    tdEntry.nested = newTDObject(vi, blockref, -1, 0, TD_FULL_TYPE.LVVariant, po)
     tdList.append(tdEntry)
 
     # Prepare a cluster container for that list
-    tdCluster = newTDObject(vi, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
+    tdCluster = newTDObject(vi, blockref, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
     tdCluster.clients = tdList
     return tdCluster
 
 
-def newAnalogWaveformCluster(vi, idx, obj_flags, tdInner, po):
+def newAnalogWaveformCluster(vi, blockref, idx, obj_flags, tdInner, po):
     """ The AnalogWaveform is a Cluster with specific things inside
     """
     tdList = []
@@ -3088,19 +3091,19 @@ def newAnalogWaveformCluster(vi, idx, obj_flags, tdInner, po):
     tdEntry.index = -1
     tdEntry.flags = 0
     # Use block of 16 bytes as Timestamp
-    tdEntry.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.Block, po)
+    tdEntry.nested = newTDObject(vi, blockref, -1, 0, TD_FULL_TYPE.Block, po)
     tdEntry.nested.blkSize = 16
     tdList.append(tdEntry)
     tdEntry = SimpleNamespace() # dt
     tdEntry.index = -1
     tdEntry.flags = 0
-    tdEntry.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.NumFloat64, po)
+    tdEntry.nested = newTDObject(vi, blockref, -1, 0, TD_FULL_TYPE.NumFloat64, po)
     tdList.append(tdEntry)
     tdEntry = SimpleNamespace() # Y
     tdEntry.index = -1
     tdEntry.flags = 0
     # The AnalogTable is a Cluster with specific things inside
-    tdEntry.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.Array, po)
+    tdEntry.nested = newTDObject(vi, blockref, -1, 0, TD_FULL_TYPE.Array, po)
     tdEntry.nested.dimensions = [SimpleNamespace() for _ in range(1)]
     for dim in tdEntry.nested.dimensions:
         dim.flags = 0
@@ -3115,21 +3118,21 @@ def newAnalogWaveformCluster(vi, idx, obj_flags, tdInner, po):
     tdEntry = SimpleNamespace() # error
     tdEntry.index = -1
     tdEntry.flags = 0
-    tdEntry.nested = newErrorCluster(vi, -1, 0, po)
+    tdEntry.nested = newErrorCluster(vi, blockref, -1, 0, po)
     tdList.append(tdEntry)
     tdEntry = SimpleNamespace() # attributes
     tdEntry.index = -1
     tdEntry.flags = 0
-    tdEntry.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.LVVariant, po)
+    tdEntry.nested = newTDObject(vi, blockref, -1, 0, TD_FULL_TYPE.LVVariant, po)
     tdList.append(tdEntry)
 
     # Prepare a cluster container for that list
-    tdCluster = newTDObject(vi, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
+    tdCluster = newTDObject(vi, blockref, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
     tdCluster.clients = tdList
     return tdCluster
 
 
-def newDynamicTableCluster(vi, idx, obj_flags, po):
+def newDynamicTableCluster(vi, blockref, idx, obj_flags, po):
     """ The DynamicTable is a Cluster with specific things inside
     """
     # make list of fields
@@ -3138,7 +3141,7 @@ def newDynamicTableCluster(vi, idx, obj_flags, po):
     tdTabEnt = SimpleNamespace()
     tdTabEnt.index = -1
     tdTabEnt.flags = 0
-    tdTabEnt.nested = newTDObject(vi, -1, 0, TD_FULL_TYPE.Array, po)
+    tdTabEnt.nested = newTDObject(vi, blockref, -1, 0, TD_FULL_TYPE.Array, po)
     tdTabEnt.nested.dimensions = [SimpleNamespace() for _ in range(1)]
     for dim in tdTabEnt.nested.dimensions:
         dim.flags = 0
@@ -3148,25 +3151,25 @@ def newDynamicTableCluster(vi, idx, obj_flags, po):
         client.index = -1
         client.flags = 0
         # data inside as for MEASURE_DATA_FLAVOR.Float64Waveform
-        tdInner = newTDObject(vi, -1, 0, TD_FULL_TYPE.NumFloat64, po)
-        client.nested = newAnalogWaveformCluster(vi, -1, 0, tdInner, po)
+        tdInner = newTDObject(vi, blockref, -1, 0, TD_FULL_TYPE.NumFloat64, po)
+        client.nested = newAnalogWaveformCluster(vi, blockref, -1, 0, tdInner, po)
     tdList.append(tdTabEnt)
 
     # Prepare a cluster container for that list
-    tdCluster = newTDObject(vi, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
+    tdCluster = newTDObject(vi, blockref, idx, obj_flags, TD_FULL_TYPE.Cluster, po)
     tdCluster.clients = tdList
     return tdCluster
 
-def newOldFloat64WaveformCluster(vi, idx, obj_flags, po):
+def newOldFloat64WaveformCluster(vi, blockref, idx, obj_flags, po):
     """ The OldFloat64 Waveform is a Cluster with specific things inside
     """
     #TODO this is not enough, some changes are required in the cluster
-    tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumFloat64, self.po)
-    tdCluster = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
+    tdInner = newTDObject(vi, blockref, -1, 0, TD_FULL_TYPE.NumFloat64, self.po)
+    tdCluster = newAnalogWaveformCluster(vi, blockref, -1, 0, tdInner, self.po)
     return tdCluster
 
 
-def parseTDSingleObject(vi, bldata, pos, clients, po):
+def parseTDSingleObject(vi, blockref, bldata, pos, clients, po):
     bldata.seek(pos)
     obj_type, obj_flags, obj_len = TDObject.parseRSRCDataHeader(bldata)
     obj_idx = -1
@@ -3177,7 +3180,7 @@ def parseTDSingleObject(vi, bldata, pos, clients, po):
         raise AttributeError("TD sub-object at 0x{:04x}, type 0x{:02x} flags 0x{:02x}, has length={:d} below minimum"\
           .format(pos, obj_type, obj_flags, obj_len))
         obj_type = TD_FULL_TYPE.Void
-    obj = newTDObject(vi, obj_idx, obj_flags, obj_type, po)
+    obj = newTDObject(vi, blockref, obj_idx, obj_flags, obj_type, po)
     clientTD = SimpleNamespace()
     clientTD.index = -1 # Nested clients have index -1
     clientTD.flags = 0 # Only Type Mapped entries have it non-zero
@@ -3188,7 +3191,7 @@ def parseTDSingleObject(vi, bldata, pos, clients, po):
     obj.initWithRSRC(bldata, obj_len)
     return obj.index, obj_len
 
-def parseTDObject(vi, bldata, ver, po, useConsolidatedTypes=False):
+def parseTDObject(vi, blockref, bldata, ver, po, useConsolidatedTypes=False):
     """ Reads TD object from RSRC file
     """
     clients = []
@@ -3208,7 +3211,7 @@ def parseTDObject(vi, bldata, ver, po, useConsolidatedTypes=False):
               .format(varcount))
         pos = bldata.tell()
         for i in range(varcount):
-            obj_idx, obj_len = parseTDSingleObject(vi, bldata, pos, clients, po)
+            obj_idx, obj_len = parseTDSingleObject(vi, blockref, bldata, pos, clients, po)
             pos += obj_len
         bldata.seek(pos)
         hasTopType = readVariableSizeFieldU2p2(bldata)
@@ -3239,7 +3242,7 @@ def prepareTDObject(vi, clients, topType, ver, po, useConsolidatedTypes=False, a
             data_buf += prepareVariableSizeFieldU2p2(topType)
     return data_buf
 
-def initWithXMLTDObject(vi, obj_elem, po):
+def initWithXMLTDObject(vi, blockref, obj_elem, po):
     clients = []
     topType = None
     topType_str = obj_elem.get("TopTypeID")
@@ -3250,7 +3253,7 @@ def initWithXMLTDObject(vi, obj_elem, po):
             obj_idx = -1
             obj_type = valFromEnumOrIntString(TD_FULL_TYPE, subelem.get("Type"))
             obj_flags = importXMLBitfields(TYPEDESC_FLAGS, subelem)
-            obj = newTDObject(vi, obj_idx, obj_flags, obj_type, po)
+            obj = newTDObject(vi, blockref, obj_idx, obj_flags, obj_type, po)
             clientTD = SimpleNamespace()
             clientTD.flags = 0
             clientTD.index = -1
@@ -3315,7 +3318,7 @@ def ctypeToFullTypeEnum(obj_ctype):
         return TD_FULL_TYPE.NumFloatExt
     return None
 
-def newTDObject(vi, idx, obj_flags, obj_type, po):
+def newTDObject(vi, blockref, idx, obj_flags, obj_type, po):
     """ Creates and returns new Type Descriptor object with given parameters
     """
     # Try types for which we have specific constructors
@@ -3365,5 +3368,5 @@ def newTDObject(vi, idx, obj_flags, obj_type, po):
             TD_MAIN_TYPE.Terminal: TDObject,
             TD_MAIN_TYPE.Void: TDObject, # With the way we get main_type, this condition is impossible
         }.get(obj_main_type, TDObject) # Void is the default type in case of no match
-    return ctor(vi, idx, obj_flags, obj_type, po)
+    return ctor(vi, blockref, idx, obj_flags, obj_type, po)
 

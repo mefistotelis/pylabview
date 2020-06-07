@@ -111,10 +111,11 @@ class RefnumBase:
 
     Provides methods to be overriden in inheriting classes.
     """
-    def __init__(self, vi, conn_obj, reftype, po):
+    def __init__(self, vi, blockref, conn_obj, reftype, po):
         """ Creates new Connector Reference object.
         """
         self.vi = vi
+        self.blockref = blockref
         self.po = po
         self.conn_obj = conn_obj
 
@@ -260,7 +261,7 @@ class RefnumBase_RC(RefnumBase):
         # The next thing to read here is LVVariant
         if isGreaterOrEqVersion(ver, 8,5,0,4) and \
           (isSmallerVersion(ver, 8,5,1,1) or isGreaterOrEqVersion(ver, 8,6,0,1)):
-            obj = LVclasses.LVVariant(len(self.conn_obj.objects), self.vi, self.po)
+            obj = LVclasses.LVVariant(len(self.conn_obj.objects), self.vi, self.blockref, self.po)
             self.conn_obj.objects.append(obj)
             obj.parseRSRCData(bldata)
         pass
@@ -1205,7 +1206,7 @@ def refnumNameToEnum(refnName):
     return refnumEn
 
 
-def newTDObjectRef(vi, conn_obj, reftype, po):
+def newTDObjectRef(vi, blockref, conn_obj, reftype, po):
     """ Calls proper constructor to create refnum connector object.
 
     If tjis function returns NULL for a specific reftype, then refnum connector
@@ -1244,4 +1245,4 @@ def newTDObjectRef(vi, conn_obj, reftype, po):
     }.get(reftype, None)
     if ctor is None:
         return None
-    return ctor(vi, conn_obj, reftype, po)
+    return ctor(vi, blockref, conn_obj, reftype, po)

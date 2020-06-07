@@ -216,9 +216,10 @@ class Block(object):
                   "{}[{},{}]".format("NameOfSection",pretty_ident,section.start.section_idx),) )
             section.name_obj = None
             if len(section.name_text) >= 12 and section.name_text[0:4] == b'PTH0':
+                blockref = (self.ident,snum,)
                 totlen = int.from_bytes(section.name_text[4:8], byteorder='big', signed=False)
                 if len(section.name_text) >= totlen + 4 + 4:
-                    section.name_obj = LVclasses.LVPath0(self.vi, self.po)
+                    section.name_obj = LVclasses.LVPath0(self.vi, blockref, self.po)
                     bldata = io.BytesIO(section.name_text)
                     section.name_obj.parseRSRCData(bldata)
 
@@ -282,8 +283,9 @@ class Block(object):
             self.sections[section.start.section_idx] = section
 
             for subelem in section_elem:
+                blockref = (self.ident,snum,)
                 if (subelem.tag == "NameObject"):
-                    section.name_obj = LVclasses.LVPath0(self.vi, self.po)
+                    section.name_obj = LVclasses.LVPath0(self.vi, blockref, self.po)
                     section.name_obj.initWithXML(subelem)
                     if section.name_text is not None:
                         eprint("{:s}: Warning: Block {} section {} has both 'Name' attrib and 'NameObject' tag."\
@@ -2025,6 +2027,7 @@ class LinkObjRefs(CompleteBlock):
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
         ver = self.vi.getFileVersion()
+        blockref = (self.ident,section.start.section_idx,)
         # nextLinkInfo: 1-root item, 2-list continues, 3-list end
         nextLinkInfo = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         if nextLinkInfo != 1:
@@ -2045,7 +2048,7 @@ class LinkObjRefs(CompleteBlock):
                 break
             ctnrstart = bldata.tell()
             lnkobj_ident = bldata.read(4)
-            client = LVlinkinfo.newLinkObject(self.vi, section.ident, lnkobj_ident, self.po)
+            client = LVlinkinfo.newLinkObject(self.vi, blockref, section.ident, lnkobj_ident, self.po)
             section.content.append(client)
             bldata.seek(ctnrstart)
             client.parseRSRCData(bldata)
@@ -2106,9 +2109,10 @@ class LinkObjRefs(CompleteBlock):
         unk2 = list_elem.get("Unk2")
         if unk2 is not None:
             section.unk2 = bytes.fromhex(unk2)
+        blockref = (self.ident,section.start.section_idx,)
         for subelem in list_elem:
             lnkobj_ident = getRsrcTypeFromPrettyStr(subelem.tag)
-            client = LVlinkinfo.newLinkObject(self.vi, section.ident, lnkobj_ident, self.po)
+            client = LVlinkinfo.newLinkObject(self.vi, blockref, section.ident, lnkobj_ident, self.po)
             section.content.append(client)
             client.initWithXML(subelem)
         pass
@@ -2224,6 +2228,7 @@ class DFDS(CompleteBlock):
             raise RuntimeError("No type map block to put default data into types")
         elif isGreaterOrEqVersion(ver, 8,0,0,1):
             TypeMap = TM.getTypeMap()
+            blockref = (self.ident,section.start.section_idx,)
             for tmEntry in TypeMap:
                 df = None
                 if (tmEntry.flags & TM_FLAGS.TMFBit3) != 0 or \
@@ -2233,7 +2238,7 @@ class DFDS(CompleteBlock):
                 if (tmEntry.flags & TM_FLAGS.TMFBit13) != 0 or \
                    (tmEntry.flags & TM_FLAGS.TMFBit0) != 0:
                     try:
-                        df = LVdatafill.newDataFillObjectWithTD(self.vi, tmEntry.index, tmEntry.flags, tmEntry.td, self.po)
+                        df = LVdatafill.newDataFillObjectWithTD(self.vi, blockref, tmEntry.index, tmEntry.flags, tmEntry.td, self.po)
                         section.content.append(df)
                         df.initWithRSRC(bldata)
                     except Exception as e:
@@ -2243,7 +2248,7 @@ class DFDS(CompleteBlock):
                 elif tmEntry.td.fullType() == TD_FULL_TYPE.Cluster and self.isSpecialDSTMCluster(tmEntry):
                     # This is Special DSTM Cluster
                     try:
-                        df = LVdatafill.newSpecialDSTMClusterWithTD(self.vi, tmEntry.index, tmEntry.flags, tmEntry.td, self.po)
+                        df = LVdatafill.newSpecialDSTMClusterWithTD(self.vi, blockref, tmEntry.index, tmEntry.flags, tmEntry.td, self.po)
                         section.content.append(df)
                         df.initWithRSRC(bldata)
                     except Exception as e:
@@ -2276,14 +2281,15 @@ class DFDS(CompleteBlock):
         return exp_whole_len
 
     def initWithXMLSectionDataFillTag(self, section, dftop_elem):
+        blockref = (self.ident,section.start.section_idx,)
         for subelem in dftop_elem:
             if (subelem.tag == "SpecialDSTMCluster"):
                 # Special condition for special cluster - its type is just Cluster
                 tdType = TD_FULL_TYPE.Cluster
-                df = LVdatafill.SpecialDSTMCluster(self.vi, tdType, None, self.po)
+                df = LVdatafill.SpecialDSTMCluster(self.vi, blockref, tdType, None, self.po)
             else:
                 # Normal processing for everything else
-                df = LVdatafill.newDataFillObjectWithTag(self.vi, subelem.tag, self.po)
+                df = LVdatafill.newDataFillObjectWithTag(self.vi, blockref, subelem.tag, self.po)
             df.initWithXML(subelem)
             section.content.append(df)
         pass
@@ -5125,6 +5131,7 @@ class VCTP(CompleteBlock):
         if (self.po.verbose > 2):
             print("{:s}: Block {} TypeDesc {:d}, at 0x{:04x}, type 0x{:02x} flags 0x{:02x} len {:d}"\
               .format(self.vi.src_fname, self.ident, len(section.content), pos, obj_type, obj_flags, obj_len))
+        blockref = (self.ident,section.start.section_idx,)
         # This block is typically compressed within RSRC file; add entries to RSRC map only if there is no compression
         if self.po.print_map == "RSRC" and self.default_block_coding == BLOCK_CODING.NONE and section.block_pos is not None \
           or self.po.print_map == "VCTP":
@@ -5144,7 +5151,7 @@ class VCTP(CompleteBlock):
             eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d} too small to be valid"\
               .format(self.vi.src_fname, len(section.content), obj_type, obj_len))
             obj_type = TD_FULL_TYPE.Void
-        obj = newTDObject(self.vi, len(section.content), obj_flags, obj_type, self.po)
+        obj = newTDObject(self.vi, blockref, len(section.content), obj_flags, obj_type, self.po)
 
         clientTD = SimpleNamespace()
         clientTD.index = -1 # Nested clients have index -1
@@ -5184,6 +5191,7 @@ class VCTP(CompleteBlock):
     def initWithXMLSectionData(self, section, section_elem):
         section.content = []
         section.topLevel = []
+        blockref = (self.ident,section.start.section_idx,)
         for subelem in section_elem:
             if (subelem.tag == "NameObject"):
                 pass # Items parsed somewhere else
@@ -5191,7 +5199,7 @@ class VCTP(CompleteBlock):
                 obj_idx = len(section.content)
                 obj_type = valFromEnumOrIntString(TD_FULL_TYPE, subelem.get("Type"))
                 obj_flags = importXMLBitfields(TYPEDESC_FLAGS, subelem)
-                obj = newTDObject(self.vi, obj_idx, obj_flags, obj_type, self.po)
+                obj = newTDObject(self.vi, blockref, obj_idx, obj_flags, obj_type, self.po)
                 clientTD = SimpleNamespace()
                 clientTD.index = -1 # Nested clients have index -1
                 clientTD.flags = 0 # Only Type Mapped entries have it non-zero
@@ -5785,13 +5793,14 @@ class VITS(CompleteBlock):
         if count > self.po.typedesc_list_limit:
             raise RuntimeError("Tag String list consists of {:d} tags, limit is {:d}"\
               .format(count,self.po.typedesc_list_limit))
+        blockref = (self.ident,section.start.section_idx,)
 
         for i in range(count):
             val = SimpleNamespace()
             val.name = readLStr(bldata, 1, self.po)
             if isSmallerVersion(ver, 6,5,0,2):
                 bldata.read(4)
-            val.obj = LVdatafill.newDataFillObject(self.vi, TD_FULL_TYPE.LVVariant, None, self.po)
+            val.obj = LVdatafill.newDataFillObject(self.vi, blockref, TD_FULL_TYPE.LVVariant, None, self.po)
             val.obj.useConsolidatedTypes = False
             val.obj.initWithRSRC(bldata)
             section.content.append(val)
@@ -5818,6 +5827,7 @@ class VITS(CompleteBlock):
         section.content = []
         section.endianness = 'big'
 
+        blockref = (self.ident,section.start.section_idx,)
         endianness = section_elem.get("Endianness")
         if endianness in ('little','big',):
             section.endianness = endianness
@@ -5828,7 +5838,7 @@ class VITS(CompleteBlock):
             val = SimpleNamespace()
             name_str = subelem.get("Name")
             val.name = name_str.encode(self.vi.textEncoding)
-            val.obj = LVdatafill.newDataFillObjectWithTag(self.vi, subelem.tag, self.po)
+            val.obj = LVdatafill.newDataFillObjectWithTag(self.vi, blockref, subelem.tag, self.po)
             val.obj.useConsolidatedTypes = False
             val.obj.initWithXML(subelem)
             section.content.append(val)

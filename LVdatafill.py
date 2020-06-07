@@ -27,10 +27,11 @@ import LVdatatyperef
 
 
 class DataFill:
-    def __init__(self, vi, tdType, tdSubType, po):
+    def __init__(self, vi, blockref, tdType, tdSubType, po):
         """ Creates new DataFill object, capable of handling generic data.
         """
         self.vi = vi
+        self.blockref = blockref
         self.po = po
         self.tdType = tdType
         self.tdSubType = tdSubType
@@ -421,9 +422,9 @@ class DataFillPath(DataFill):
         startPos = bldata.tell()
         clsident = bldata.read(4)
         if clsident == b'PTH0':
-            self.value = LVclasses.LVPath0(self.vi, self.po)
+            self.value = LVclasses.LVPath0(self.vi, self.blockref, self.po)
         elif clsident in (b'PTH1', b'PTH2',):
-            self.value = LVclasses.LVPath1(self.vi, self.po)
+            self.value = LVclasses.LVPath1(self.vi, self.blockref, self.po)
         else:
             raise RuntimeError("Data fill {} contains path data of unrecognized class {}"\
               .format(self.getXMLTagName(),clsident))
@@ -442,9 +443,9 @@ class DataFillPath(DataFill):
     def initWithXML(self, df_elem):
         clsident = df_elem.get("Ident")
         if clsident == 'PTH0':
-            self.value = LVclasses.LVPath0(self.vi, self.po)
+            self.value = LVclasses.LVPath0(self.vi, self.blockref, self.po)
         elif clsident in ('PTH1', 'PTH2',):
-            self.value = LVclasses.LVPath1(self.vi, self.po)
+            self.value = LVclasses.LVPath1(self.vi, self.blockref, self.po)
         else:
             raise RuntimeError("Data fill {} contains path data of unrecognized class {}"\
           .format(self.getXMLTagName(),clsident))
@@ -543,7 +544,7 @@ class DataFillArray(DataFill):
                   .format(self.getXMLTagName(), totItems, self.po.array_data_limit))
         for i in range(totItems):
             try:
-                sub_df = newDataFillObjectWithTD(self.vi, sub_td_idx, self.tm_flags, sub_td, self.po)
+                sub_df = newDataFillObjectWithTD(self.vi, self.blockref, sub_td_idx, self.tm_flags, sub_td, self.po)
                 self.value.append(sub_df)
                 sub_df.initWithRSRC(bldata)
             except Exception as e:
@@ -576,7 +577,7 @@ class DataFillArray(DataFill):
                 val = int(subelem.text, 0)
                 self.dimensions.append(val)
                 continue
-            sub_df = newDataFillObjectWithTag(self.vi, subelem.tag, self.po)
+            sub_df = newDataFillObjectWithTag(self.vi, self.blockref, subelem.tag, self.po)
             sub_df.initWithXML(subelem)
             self.value.append(sub_df)
         pass
@@ -645,7 +646,7 @@ class DataFillCluster(DataFill):
         self.value = []
         for cli_idx, td_idx, sub_td, td_flags in self.td.clientsEnumerate():
             try:
-                sub_df = newDataFillObjectWithTD(self.vi, td_idx, self.tm_flags, sub_td, self.po)
+                sub_df = newDataFillObjectWithTD(self.vi, self.blockref, td_idx, self.tm_flags, sub_td, self.po)
                 self.value.append(sub_df)
                 sub_df.initWithRSRC(bldata)
             except Exception as e:
@@ -670,7 +671,7 @@ class DataFillCluster(DataFill):
     def initWithXML(self, df_elem):
         self.value = []
         for i, subelem in enumerate(df_elem):
-            sub_df = newDataFillObjectWithTag(self.vi, subelem.tag, self.po)
+            sub_df = newDataFillObjectWithTag(self.vi, self.blockref, subelem.tag, self.po)
             sub_df.initWithXML(subelem)
             self.value.append(sub_df)
         pass
@@ -701,9 +702,9 @@ class DataFillLVVariant(DataFill):
     def initWithRSRCParse(self, bldata):
         ver = self.vi.getFileVersion()
         if isGreaterOrEqVersion(ver, 6,0,0,2):
-            self.value = LVclasses.LVVariant(0, self.vi, self.po, useConsolidatedTypes=self.useConsolidatedTypes, allowFillValue=True)
+            self.value = LVclasses.LVVariant(0, self.vi, self.blockref, self.po, useConsolidatedTypes=self.useConsolidatedTypes, allowFillValue=True)
         else:
-            self.value = LVclasses.OleVariant(0, self.vi, self.po)
+            self.value = LVclasses.OleVariant(0, self.vi, self.blockref, self.po)
         self.value.parseRSRCData(bldata)
 
     def prepareRSRCData(self, avoid_recompute=False):
@@ -717,9 +718,9 @@ class DataFillLVVariant(DataFill):
 
     def initWithXML(self, df_elem):
         if df_elem.tag == LVclasses.LVVariant.__name__:
-            self.value = LVclasses.LVVariant(0, self.vi, self.po, useConsolidatedTypes=self.useConsolidatedTypes, allowFillValue=True)
+            self.value = LVclasses.LVVariant(0, self.vi, self.blockref, self.po, useConsolidatedTypes=self.useConsolidatedTypes, allowFillValue=True)
         elif df_elem.tag == LVclasses.OleVariant.__name__:
-            self.value = LVclasses.OleVariant(0, self.vi, self.po)
+            self.value = LVclasses.OleVariant(0, self.vi, self.blockref, self.po)
         else:
             raise AttributeError("Class {} encountered unexpected tag '{}'".format(type(self).__name__, df_elem.tag))
         self.value.initWithXML(df_elem)
@@ -751,59 +752,59 @@ class DataFillMeasureData(DataFill):
               .format(enumOrIntToName(sub_td.dtFlavor())))
 
         if self.tdSubType in (MEASURE_DATA_FLAVOR.OldFloat64Waveform,):
-            self.containedTd = newOldFloat64WaveformCluster(self.vi, -1, 0, self.po)
+            self.containedTd = newOldFloat64WaveformCluster(self.vi, self.blockref, -1, 0, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Int16Waveform,):
-            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumInt16, self.po)
-            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
+            tdInner = newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.NumInt16, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, self.blockref, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Float64Waveform,):
-            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumFloat64, self.po)
-            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
+            tdInner = newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.NumFloat64, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, self.blockref, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Float32Waveform,):
-            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumFloat32, self.po)
-            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
+            tdInner = newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.NumFloat32, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, self.blockref, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.TimeStamp,):
             # Use block of 16 bytes as Timestamp
-            self.containedTd = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.Block, self.po)
+            self.containedTd = newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.Block, self.po)
             self.containedTd.blkSize = 16
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Digitaldata,):
-            self.containedTd = newDigitalTableCluster(self.vi, -1, 0, self.po)
+            self.containedTd = newDigitalTableCluster(self.vi, self.blockref, -1, 0, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.DigitalWaveform,):
-            self.containedTd = newDigitalWaveformCluster(self.vi, -1, 0, self.po)
+            self.containedTd = newDigitalWaveformCluster(self.vi, self.blockref, -1, 0, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Dynamicdata,):
-            self.containedTd = newDynamicTableCluster(self.vi, -1, 0, self.po)
+            self.containedTd = newDynamicTableCluster(self.vi, self.blockref, -1, 0, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.FloatExtWaveform,):
-            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumFloatExt, self.po)
-            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
+            tdInner = newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.NumFloatExt, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, self.blockref, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.UInt8Waveform,):
-            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumUInt8, self.po)
-            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
+            tdInner = newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.NumUInt8, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, self.blockref, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.UInt16Waveform,):
-            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumUInt16, self.po)
-            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
+            tdInner = newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.NumUInt16, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, self.blockref, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.UInt32Waveform,):
-            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumUInt32, self.po)
-            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
+            tdInner = newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.NumUInt32, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, self.blockref, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Int8Waveform,):
-            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumInt8, self.po)
-            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
+            tdInner = newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.NumInt8, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, self.blockref, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Int32Waveform,):
-            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumInt32, self.po)
-            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
+            tdInner = newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.NumInt32, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, self.blockref, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Complex64Waveform,):
-            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumComplex64, self.po)
-            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
+            tdInner = newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.NumComplex64, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, self.blockref, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Complex128Waveform,):
-            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumComplex128, self.po)
-            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
+            tdInner = newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.NumComplex128, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, self.blockref, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.ComplexExtWaveform,):
-            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumComplexExt, self.po)
-            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
+            tdInner = newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.NumComplexExt, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, self.blockref, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.Int64Waveform,):
-            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumInt64, self.po)
-            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
+            tdInner = newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.NumInt64, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, self.blockref, -1, 0, tdInner, self.po)
         elif self.tdSubType in (MEASURE_DATA_FLAVOR.UInt64Waveform,):
-            tdInner = newTDObject(self.vi, -1, 0, TD_FULL_TYPE.NumUInt64, self.po)
-            self.containedTd = newAnalogWaveformCluster(self.vi, -1, 0, tdInner, self.po)
+            tdInner = newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.NumUInt64, self.po)
+            self.containedTd = newAnalogWaveformCluster(self.vi, self.blockref, -1, 0, tdInner, self.po)
         else:
             raise NotImplementedError("MeasureData {} default value read failed due to unsupported flavor"\
               .format(self.getXMLTagName()))
@@ -834,7 +835,7 @@ class DataFillMeasureData(DataFill):
         self.initVersion()
         self.value = []
         try:
-            sub_df = newDataFillObjectWithTD(self.vi, -1, self.tm_flags, self.containedTd, self.po)
+            sub_df = newDataFillObjectWithTD(self.vi, self.blockref, -1, self.tm_flags, self.containedTd, self.po)
             self.value.append(sub_df)
             sub_df.initWithRSRC(bldata)
         except Exception as e:
@@ -860,7 +861,7 @@ class DataFillMeasureData(DataFill):
     def initWithXML(self, df_elem):
         self.value = []
         for i, subelem in enumerate(df_elem):
-            sub_df = newDataFillObjectWithTag(self.vi, subelem.tag, self.po)
+            sub_df = newDataFillObjectWithTag(self.vi, self.blockref, subelem.tag, self.po)
             sub_df.initWithXML(subelem)
             self.value.append(sub_df)
         pass
@@ -1054,7 +1055,7 @@ class DataFillRepeatedBlock(DataFill):
               .format(self.getXMLTagName(), self.td.numRepeats, self.po.array_data_limit))
         for i in range(self.td.numRepeats):
             try:
-                sub_df = newDataFillObjectWithTD(self.vi, sub_td_idx, self.tm_flags, sub_td, self.po)
+                sub_df = newDataFillObjectWithTD(self.vi, self.blockref, sub_td_idx, self.tm_flags, sub_td, self.po)
                 self.value.append(sub_df)
                 sub_df.initWithRSRC(bldata)
             except Exception as e:
@@ -1079,7 +1080,7 @@ class DataFillRepeatedBlock(DataFill):
     def initWithXML(self, df_elem):
         self.value = []
         for i, subelem in enumerate(df_elem):
-            sub_df = newDataFillObjectWithTag(self.vi, subelem.tag, self.po)
+            sub_df = newDataFillObjectWithTag(self.vi, self.blockref, subelem.tag, self.po)
             sub_df.initWithXML(subelem)
             self.value.append(sub_df)
         pass
@@ -1548,7 +1549,7 @@ class DataFillTypeDef(DataFill):
         # We expect exactly one client within TypeDef
         for cli_idx, td_idx, sub_td, td_flags in self.td.clientsEnumerate():
             try:
-                sub_df = newDataFillObjectWithTD(self.vi, -1, self.tm_flags, sub_td, self.po)
+                sub_df = newDataFillObjectWithTD(self.vi, self.blockref, -1, self.tm_flags, sub_td, self.po)
                 self.value.append(sub_df)
                 sub_df.initWithRSRC(bldata)
             except Exception as e:
@@ -1573,7 +1574,7 @@ class DataFillTypeDef(DataFill):
     def initWithXML(self, df_elem):
         self.value = []
         for i, subelem in enumerate(df_elem):
-            sub_df = newDataFillObjectWithTag(self.vi, subelem.tag, self.po)
+            sub_df = newDataFillObjectWithTag(self.vi, self.blockref, subelem.tag, self.po)
             sub_df.initWithXML(subelem)
             self.value.append(sub_df)
         pass
@@ -1623,7 +1624,7 @@ class SpecialDSTMCluster(DataFillCluster):
                 skipNextEntry = False
                 continue
             try:
-                sub_df = newDataFillObjectWithTD(self.vi, td_idx, self.tm_flags, sub_td, self.po)
+                sub_df = newDataFillObjectWithTD(self.vi, self.blockref, td_idx, self.tm_flags, sub_td, self.po)
                 self.value.append(sub_df)
                 sub_df.initWithRSRC(bldata)
             except Exception as e:
@@ -1639,17 +1640,17 @@ class SpecialDSTMCluster(DataFillCluster):
 
 
 
-def newSpecialDSTMClusterWithTD(vi, idx, tm_flags, td, po):
+def newSpecialDSTMClusterWithTD(vi, blockref, idx, tm_flags, td, po):
     """ Creates and returns new data fill object with given parameters
     """
     from LVdatatype import TD_FULL_TYPE
     tdType = td.fullType()
     tdSubType = None
-    df = SpecialDSTMCluster(vi, tdType, tdSubType, po)
+    df = SpecialDSTMCluster(vi, blockref, tdType, tdSubType, po)
     df.setTD(td, idx, tm_flags)
     return df
 
-def newDataFillRefnum(vi, tdType, tdSubType, po):
+def newDataFillRefnum(vi, blockref, tdType, tdSubType, po):
     """ Creates and returns new data fill object for refnum with given parameters
     """
     from LVdatatyperef import REFNUM_TYPE
@@ -1666,10 +1667,10 @@ def newDataFillRefnum(vi, tdType, tdSubType, po):
     if ctor is None:
         raise RuntimeError("Data type Refnum kind {}: No known way to read default data"\
           .format(enumOrIntToName(refType),str(e)))
-    return ctor(vi, tdType, tdSubType, po)
+    return ctor(vi, blockref, tdType, tdSubType, po)
 
 
-def newDataFillObject(vi, tdType, tdSubType, po):
+def newDataFillObject(vi, blockref, tdType, tdSubType, po):
     """ Creates and returns new data fill object with given parameters
     """
     from LVdatatype import TD_FULL_TYPE
@@ -1733,9 +1734,9 @@ def newDataFillObject(vi, tdType, tdSubType, po):
     if ctor is None:
         raise RuntimeError("Data type {}: No known way to read default data"\
           .format(enumOrIntToName(tdType),str(e)))
-    return ctor(vi, tdType, tdSubType, po)
+    return ctor(vi, blockref, tdType, tdSubType, po)
 
-def newDataFillObjectWithTD(vi, idx, tm_flags, td, po):
+def newDataFillObjectWithTD(vi, blockref, idx, tm_flags, td, po):
     """ Creates and returns new data fill object with given parameters
     """
     from LVdatatype import TD_FULL_TYPE
@@ -1746,11 +1747,11 @@ def newDataFillObjectWithTD(vi, idx, tm_flags, td, po):
         tdSubType = td.refType()
     else:
         tdSubType = None
-    df = newDataFillObject(vi, tdType, tdSubType, po)
+    df = newDataFillObject(vi, blockref, tdType, tdSubType, po)
     df.setTD(td, idx, tm_flags)
     return df
 
-def newDataFillObjectWithTag(vi, tagName, po):
+def newDataFillObjectWithTag(vi, blockref, tagName, po):
     """ Creates and returns new data fill object from given XML tag name
     """
     from LVdatatype import TD_FULL_TYPE, tdNameToEnum, mdFlavorNameToEnum
@@ -1764,5 +1765,5 @@ def newDataFillObjectWithTag(vi, tagName, po):
         tdSubType = refnumNameToEnum(tagName)
     else:
         tdSubType = None
-    df = newDataFillObject(vi, tdType, tdSubType, po)
+    df = newDataFillObject(vi, blockref, tdType, tdSubType, po)
     return df

@@ -31,10 +31,11 @@ class LinkObjBase:
 
     Provides methods to be overriden in inheriting classes.
     """
-    def __init__(self, vi, list_ident, ident, po):
+    def __init__(self, vi, blockref, list_ident, ident, po):
         """ Creates new link object.
         """
         self.vi = vi
+        self.blockref = blockref
         self.po = po
         self.ident = ident
         self.list_ident = list_ident
@@ -66,9 +67,9 @@ class LinkObjBase:
         startPos = bldata.tell()
         clsident = bldata.read(4)
         if clsident == b'PTH0':
-            pathRef = LVclasses.LVPath0(self.vi, self.po)
+            pathRef = LVclasses.LVPath0(self.vi, self.blockref, self.po)
         elif clsident in (b'PTH1', b'PTH2',):
-            pathRef = LVclasses.LVPath1(self.vi, self.po)
+            pathRef = LVclasses.LVPath1(self.vi, self.blockref, self.po)
         else:
             raise RuntimeError("{:s} {} contains path data of unrecognized class {}"\
           .format(type(self).__name__,self.ident,clsident))
@@ -82,9 +83,9 @@ class LinkObjBase:
         if clsident_str is not None:
             clsident = getRsrcTypeFromPrettyStr(clsident_str)
         if clsident == b'PTH0':
-            pathRef = LVclasses.LVPath0(self.vi, self.po)
+            pathRef = LVclasses.LVPath0(self.vi, self.blockref, self.po)
         elif clsident in (b'PTH1', b'PTH2',):
-            pathRef = LVclasses.LVPath1(self.vi, self.po)
+            pathRef = LVclasses.LVPath1(self.vi, self.blockref, self.po)
         else:
             raise RuntimeError("{:s} {} contains path data of unrecognized class {}"\
           .format(type(self).__name__,self.ident,clsident))
@@ -941,8 +942,8 @@ class LinkObjBase:
         pass
 
     def clearCCSymbolLinkRefInfo(self):
-        stringTd = LVdatatype.newTDObject(self.vi, -1, 0, TD_FULL_TYPE.String, self.po)
-        self.ccSymbolStrDf = LVdatafill.newDataFillObjectWithTD(self.vi, -1, 0, stringTd, self.po)
+        stringTd = LVdatatype.newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.String, self.po)
+        self.ccSymbolStrDf = LVdatafill.newDataFillObjectWithTD(self.vi, self.blockref, -1, 0, stringTd, self.po)
         self.ccSymbolLinkBool = 0
 
     def parseCCSymbolLinkRefInfo(self, bldata):
@@ -3765,7 +3766,7 @@ class LinkObjHeapToGInterface(LinkObjBase):
           .format(self.ident))
 
 
-def newLinkObject(vi, list_ident, ident, po):
+def newLinkObject(vi, blockref, list_ident, ident, po):
     """ Calls proper constructor to create link object.
     """
     if ident in (b'IVOV',):
@@ -3999,4 +4000,4 @@ def newLinkObject(vi, list_ident, ident, po):
     else:
         raise AttributeError("List {} contains unrecognized class {}".format(list_ident,ident))
 
-    return ctor(vi, list_ident, ident, po)
+    return ctor(vi, blockref, list_ident, ident, po)
