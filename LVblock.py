@@ -2218,25 +2218,40 @@ class DFDS(CompleteBlock):
           TM_FLAGS.TMFBit6 | \
           TM_FLAGS.TMFBit2)) != 0
 
-    def parseRSRCSectionData(self, section_num, bldata):
-        section = self.sections[section_num]
+    def getTypeMapWithDefltData(self):
         TM = self.vi.get_one_of('TM80', 'DSTM')
         ver = self.vi.getFileVersion()
 
-        section.content = []
         if TM is None:
             raise RuntimeError("No type map block to put default data into types")
         elif isGreaterOrEqVersion(ver, 8,0,0,1):
             TypeMap = TM.getTypeMap()
-            blockref = (self.ident,section.start.section_idx,)
             for tmEntry in TypeMap:
-                df = None
                 if (tmEntry.flags & TM_FLAGS.TMFBit3) != 0 or \
                    (tmEntry.flags & TM_FLAGS.TMFBit11) != 0 or \
                    (tmEntry.flags & TM_FLAGS.TMFBit10) != 0:
                     continue
                 if (tmEntry.flags & TM_FLAGS.TMFBit13) != 0 or \
                    (tmEntry.flags & TM_FLAGS.TMFBit0) != 0:
+                    yield tmEntry, 0
+                elif tmEntry.td.fullType() == TD_FULL_TYPE.Cluster and self.isSpecialDSTMCluster(tmEntry):
+                    # This is Special DSTM Cluster
+                    yield tmEntry, 1
+                else:
+                    # No default value for this TD
+                    pass
+        pass
+
+    def parseRSRCSectionData(self, section_num, bldata):
+        section = self.sections[section_num]
+        ver = self.vi.getFileVersion()
+
+        section.content = []
+        if isGreaterOrEqVersion(ver, 8,0,0,1):
+            blockref = (self.ident,section.start.section_idx,)
+            for tmEntry, defDataType in self.getTypeMapWithDefltData():
+                df = None
+                if defDataType == 0:
                     try:
                         df = LVdatafill.newDataFillObjectWithTD(self.vi, blockref, tmEntry.index, tmEntry.flags, tmEntry.td, self.po)
                         section.content.append(df)
@@ -2245,8 +2260,7 @@ class DFDS(CompleteBlock):
                         tdType = tmEntry.td.fullType()
                         raise RuntimeError("Data type {}: {}".format(enumOrIntToName(tdType), str(e)))
                     pass
-                elif tmEntry.td.fullType() == TD_FULL_TYPE.Cluster and self.isSpecialDSTMCluster(tmEntry):
-                    # This is Special DSTM Cluster
+                elif defDataType == 1:
                     try:
                         df = LVdatafill.newSpecialDSTMClusterWithTD(self.vi, blockref, tmEntry.index, tmEntry.flags, tmEntry.td, self.po)
                         section.content.append(df)
@@ -2254,9 +2268,6 @@ class DFDS(CompleteBlock):
                     except Exception as e:
                         tdType = tmEntry.td.fullType()
                         raise RuntimeError("Special DSTM {}: {}".format(enumOrIntToName(tdType), str(e)))
-                    pass
-                else:
-                    # No default value for this TD
                     pass
         else:
             raise NotImplementedError("No support for the LV7.1 default data format")
@@ -2309,31 +2320,13 @@ class DFDS(CompleteBlock):
     def initWithXMLLate(self):
         super().initWithXMLLate()
         ver = self.vi.getFileVersion()
-        TM = self.vi.get_one_of('TM80', 'DSTM')
-        if TM is None:
-            TypeMap = None
-        elif isGreaterOrEqVersion(ver, 8,0,0,1):
-            TypeMap = TM.getTypeMap()
-        else:
-            TypeMap = None
         for snum in self.sections:
             section = self.sections[snum]
             df_idx = 0
-            if TypeMap is not None and not section.parse_failed:
-                for tmEntry in TypeMap:
-                    dtHasFill = False
-                    if (tmEntry.flags & TM_FLAGS.TMFBit3) != 0 or \
-                       (tmEntry.flags & TM_FLAGS.TMFBit11) != 0 or \
-                       (tmEntry.flags & TM_FLAGS.TMFBit10) != 0:
-                        continue
-                    if (tmEntry.flags & TM_FLAGS.TMFBit13) != 0 or \
-                       (tmEntry.flags & TM_FLAGS.TMFBit0) != 0:
-                        dtHasFill = True
-                    elif tmEntry.td.fullType() == TD_FULL_TYPE.Cluster and self.isSpecialDSTMCluster(tmEntry):
-                        dtHasFill = True
-                    else:
-                        pass
-                    if dtHasFill:
+            if not section.parse_failed:
+                for tmEntry, defDataType in self.getTypeMapWithDefltData():
+                    df = None
+                    if defDataType in (0,1,):
                         if df_idx >= len(section.content):
                             raise AttributeError("Cannot apply Type Map to Default Fill; amounts of types exceed fills")
                         df = section.content[df_idx]
