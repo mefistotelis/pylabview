@@ -244,7 +244,7 @@ class VI():
             rsrchead = RSRCHeader(self.po)
             if fh.readinto(rsrchead) != sizeof(rsrchead):
                 raise EOFError("Could not read RSRC {:d} Header.".format(len(rsrc_headers)))
-            if self.po.file_map:
+            if self.po.print_map == "RSRC":
                 self.rsrc_map.append( (fh.tell(), sizeof(rsrchead), \
                   "{}[{}]".format(type(rsrchead).__name__,len(rsrc_headers)),) )
             if (self.po.verbose > 2):
@@ -279,7 +279,7 @@ class VI():
         binflsthead = BlockInfoListHeader(self.po)
         if fh.readinto(binflsthead) != sizeof(binflsthead):
             raise EOFError("Could not read BlockInfoList header.")
-        if self.po.file_map:
+        if self.po.print_map == "RSRC":
             self.rsrc_map.append( (fh.tell(), sizeof(binflsthead), \
               "{}".format(type(binflsthead).__name__),) )
         if (self.po.verbose > 2):
@@ -293,7 +293,7 @@ class VI():
         binfhead = BlockInfoHeader(self.po)
         if fh.readinto(binfhead) != sizeof(binfhead):
             raise EOFError("Could not read BlockInfo header.")
-        if self.po.file_map:
+        if self.po.print_map == "RSRC":
             self.rsrc_map.append( (fh.tell(), sizeof(binfhead),
               "{}".format(type(binfhead).__name__),) )
         if not binfhead.checkSanity():
@@ -309,7 +309,7 @@ class VI():
             block_head = LVblock.BlockHeader(self.po)
             if fh.readinto(block_head) != sizeof(block_head):
                 raise EOFError("Could not read BlockInfo header.")
-            if self.po.file_map:
+            if self.po.print_map == "RSRC":
                 pretty_ident = getPrettyStrFromRsrcType(block_head.ident)
                 self.rsrc_map.append( (fh.tell(), sizeof(block_head), \
                   "{}[{}]".format(type(block_head).__name__,pretty_ident),) )
@@ -322,7 +322,7 @@ class VI():
             #t['Offset'] = blkinf_rsrchead.rsrc_info_offset + binflsthead.blockinfo_offset + reader.readUInt32()
             block_headers.append(block_head)
 
-        if self.po.file_map:
+        if self.po.print_map == "RSRC":
             self.rsrc_map.append( (fh.tell(), sizeof(BlockInfoHeader)+tot_blockinfo_count*sizeof(LVblock.BlockHeader), \
               "BlockInfo",))
 

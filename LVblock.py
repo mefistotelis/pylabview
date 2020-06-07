@@ -162,7 +162,7 @@ class Block(object):
             self.vi.rsrc_headers[-1].rsrc_info_offset + \
             self.vi.binflsthead.blockinfo_offset + \
             self.header.offset
-        if self.po.file_map:
+        if self.po.print_map == "RSRC":
             pretty_ident = getPrettyStrFromRsrcType(self.ident)
 
         fh = self.vi.rsrc_fh
@@ -173,7 +173,7 @@ class Block(object):
             section = self.createSection()
             if fh.readinto(section.start) != sizeof(section.start):
                 raise EOFError("Could not read BlockSectionStart data")
-            if self.po.file_map:
+            if self.po.print_map == "RSRC":
                 self.vi.rsrc_map.append( (fh.tell(), sizeof(section.start), \
                   "{}[{},{}]".format(type(section.start).__name__,pretty_ident,section.start.section_idx),) )
             if (self.po.verbose > 2):
@@ -198,7 +198,7 @@ class Block(object):
         Can access some basic data from other sections.
         """
         fh = self.vi.rsrc_fh
-        if self.po.file_map:
+        if self.po.print_map == "RSRC":
             pretty_ident = getPrettyStrFromRsrcType(self.ident)
         # After BlockSectionStart list, there is Block Section Names list; only some sections have a name
         names_start = self.vi.getPositionOfBlockSectionNames()
@@ -211,7 +211,7 @@ class Block(object):
             fh.seek(names_start + section.start.name_offset)
             name_text_len = int.from_bytes(fh.read(1), byteorder='big', signed=False)
             section.name_text = fh.read(name_text_len)
-            if self.po.file_map:
+            if self.po.print_map == "RSRC":
                 self.vi.rsrc_map.append( (fh.tell(), 1+name_text_len, \
                   "{}[{},{}]".format("NameOfSection",pretty_ident,section.start.section_idx),) )
             section.name_obj = None
@@ -364,7 +364,7 @@ class Block(object):
         rsrc_data_size = self.vi.rsrc_headers[-1].rsrc_data_size
 
         fh = self.vi.rsrc_fh
-        if self.po.file_map:
+        if self.po.print_map == "RSRC":
             pretty_ident = getPrettyStrFromRsrcType(self.ident)
         for snum, section in sorted(self.sections.items()):
             if snum >= section_count: break
@@ -400,7 +400,7 @@ class Block(object):
                 data = fh.read(blksect.size)
                 section.raw_data = data
                 section.raw_data_updated = True
-                if self.po.file_map:
+                if self.po.print_map == "RSRC":
                     self.vi.rsrc_map.append( (fh.tell(), sizeof(blksect)+len(section.raw_data), \
                       "{}[{},{}]".format(type(blksect).__name__,pretty_ident,section.start.section_idx),) )
             # Set last size, padded to multiplicity of 4 bytes
@@ -5117,7 +5117,7 @@ class VCTP(CompleteBlock):
     def setDefaultEncoding(self):
         self.default_block_coding = BLOCK_CODING.ZLIB
 
-    def parseRSRCTypeDesc(self, section_num, bldata, pos):
+    def parseRSRCTypeDesc(self, section_num, bldata, td_idx, pos):
         section = self.sections[section_num]
 
         bldata.seek(pos)
@@ -5125,6 +5125,21 @@ class VCTP(CompleteBlock):
         if (self.po.verbose > 2):
             print("{:s}: Block {} TypeDesc {:d}, at 0x{:04x}, type 0x{:02x} flags 0x{:02x} len {:d}"\
               .format(self.vi.src_fname, self.ident, len(section.content), pos, obj_type, obj_flags, obj_len))
+        # This block is typically compressed within RSRC file; add entries to RSRC map only if there is no compression
+        if self.po.print_map == "RSRC" and self.default_block_coding == BLOCK_CODING.NONE and section.block_pos is not None \
+          or self.po.print_map == "VCTP":
+            pretty_ident = getPrettyStrFromRsrcType(self.ident)
+            if obj_type not in set(item.value for item in TD_FULL_TYPE):
+                obj_type_str = "Type_{}".format(obj_type)
+            else:
+                obj_type_str = TD_FULL_TYPE(obj_type).name
+            if self.po.print_map == "RSRC":
+                print_map_base = section.block_pos + sizeof(BlockSectionData)
+            else:
+                print_map_base = 0
+            head_end_pos = bldata.tell()
+            self.vi.rsrc_map.append( (print_map_base+bldata.tell(), head_end_pos-pos, \
+              "Block[{},{}].TypeDesc[{}].{}.Header".format(pretty_ident,section.start.section_idx,td_idx,obj_type_str),) )
         if obj_len < 4:
             eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d} too small to be valid"\
               .format(self.vi.src_fname, len(section.content), obj_type, obj_len))
@@ -5138,6 +5153,11 @@ class VCTP(CompleteBlock):
         section.content.append(clientTD)
         bldata.seek(pos)
         obj.initWithRSRC(bldata, obj_len) # No need to set topTypeList within VCTP
+        if self.po.print_map == "RSRC" and self.default_block_coding == BLOCK_CODING.NONE and section.block_pos is not None \
+          or self.po.print_map == "VCTP":
+            if bldata.tell() > head_end_pos:
+                self.vi.rsrc_map.append( (print_map_base+bldata.tell(), bldata.tell()-head_end_pos, \
+                  "Block[{},{}].TypeDesc[{}].{}.Properties".format(pretty_ident,section.start.section_idx,td_idx,obj_type_str),) )
         return obj.index, obj_len
 
     def parseRSRCSectionData(self, section_num, bldata):
@@ -5147,7 +5167,7 @@ class VCTP(CompleteBlock):
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         pos = bldata.tell()
         for i in range(count):
-            obj_idx, obj_len = self.parseRSRCTypeDesc(section_num, bldata, pos)
+            obj_idx, obj_len = self.parseRSRCTypeDesc(section_num, bldata, i, pos)
             pos += obj_len
         # After that, there is a list
         section.topLevel = []

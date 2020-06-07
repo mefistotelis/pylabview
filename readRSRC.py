@@ -54,8 +54,11 @@ def main():
             help="extract all connectors into raw binary files instead of pure XML" \
             " (works only with --extract command)")
 
-    parser.add_argument('--file-map', action='store_true',
-            help="print file map (offsets at which things are within the RSRC file)")
+    parser.add_argument('--print-map', choices=["RSRC","VCTP"],
+            help="print map for whole file (RSRC) or section (VCTP);" \
+            " the map contains offsets at which things are within the file;" \
+            " for sections which are compressed within RSRC file, specific" \
+            " offsets can only be assigned after dumping it to bin")
 
     parser.add_argument('--keep-names', action='store_true',
             help="extract files to names indicated by RSRC content" \
@@ -132,7 +135,7 @@ def main():
 
             root = vi.exportBinBlocksXMLTree()
 
-            if po.file_map:
+            if po.print_map is not None:
                 vi.printRSRCMap()
 
         if (po.verbose > 0):
@@ -157,7 +160,7 @@ def main():
 
             root = vi.exportXMLTree()
 
-            if po.file_map:
+            if po.print_map is not None:
                 vi.printRSRCMap()
 
         if (po.verbose > 0):
