@@ -2693,9 +2693,18 @@ class TDObjectFixedPoint(TDObject):
                     prop3 = subelem.get("Prop3")
                     if prop3 is not None:
                         rang.prop3 = int(prop3, 0)
-                    valstr = subelem.get("Value")
-                    if valstr is not None:
-                        rang.value = float(valstr)
+
+                    val = None
+                    if val is None and subelem.text is not None: # Get the value from hex sting in brackets
+                        hexParse = re.search(r'^.*\((0x[0-9A-Fa-f]+)\)$',subelem.text.strip())
+                        if hexParse is not None:
+                            tmpbt = int(hexParse.group(1),0).to_bytes(8, byteorder='big', signed=False)
+                            val = struct.unpack('>d', tmpbt)[0]
+                    if val is None and subelem.text is not None: # Get the value from formatted float
+                        hexParse = re.search(r'([0-9Ee.\+-]+|[\+-]?inf)',subelem.text.strip())
+                        if hexParse is not None:
+                            val = float(hexParse.group(1))
+                    rang.value = val
 
                     self.ranges.append(rang)
                 else:
@@ -2732,9 +2741,8 @@ class TDObjectFixedPoint(TDObject):
                     subelem.set("Prop1", "{:d}".format(rang.prop1))
                     subelem.set("Prop2", "{:d}".format(rang.prop2))
                     subelem.set("Prop3", "{:d}".format(rang.prop3))
-                    subelem.set("Value", "{:.17g}".format(rang.value))
-                else:
-                    subelem.set("Value", "{:.17g}".format(rang.value))
+                tmpbt = struct.pack('>d', rang.value)
+                subelem.text = "{:.17g} (0x{:016X})".format(rang.value, int.from_bytes(tmpbt, byteorder='big', signed=False))
             pass
 
         conn_elem.set("Format", "inline")
