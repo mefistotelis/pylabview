@@ -11,7 +11,14 @@ set -x
 #7za x -o./lv06 ./lv060-vi.lib.7z
 #7za x -o./lv086 ./lv086-vi.lib.7z
 #7za x -o./lv14 ./lv140-vi.lib.7z
-SRC_LLB_DIRS='../lv025 ../lv06 ../lv07 ../lv10 ../lv14'
+if [ $# -eq 0 ]; then
+    echo "No custom folders supplied - using default list"
+    SRC_LLB_DIRS="../lv025 ../lv06 ../lv07 ../lv10 ../lv14"
+else
+    echo "Custom folders set from parameter list"
+    SRC_LLB_DIRS="$@"
+fi
+
 
 mkdir -p ../test_out
 cd ../test_out

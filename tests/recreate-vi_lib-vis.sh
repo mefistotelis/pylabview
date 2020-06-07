@@ -8,7 +8,13 @@ set -x
 
 # Files from LV2 have no ordering of sections, so when the file from there is extracted an re-created,
 # it is usually different. For those old files, we'd have to compare extracted sections. So skipping here.
-SRC_VI_DIRS='../lv06 ./lv06 ../lv07 ./lv07 ../lv10 ./lv10 ../lv14 ./lv14'
+if [ $# -eq 0 ]; then
+    echo "No custom folders supplied - using default list"
+    SRC_VI_DIRS="../lv06 ./lv06 ../lv07 ./lv07 ../lv10 ./lv10 ../lv14 ./lv14"
+else
+    echo "Custom folders set from parameter list"
+    SRC_VI_DIRS="$@"
+fi
 STORE_EXTRACTED_FILES=false
 
 mkdir -p ../test_out
