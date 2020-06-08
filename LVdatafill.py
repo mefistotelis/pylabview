@@ -112,10 +112,28 @@ class DataFill:
         return tagName
 
     def initWithRSRC(self, bldata):
+        start_pos = bldata.tell()
         self.initWithRSRCParse(bldata)
+        # This block is typically compressed within RSRC file; add entries to RSRC map only if there is no compression
+        if self.po.print_map is not None:
+            block = self.vi.get_or_raise(self.blockref[0])
+            pretty_blk_ident = getPrettyStrFromRsrcType(block.ident)
+            container_pos = block.getDataPosInContainer(section_num=self.blockref[1])
+            if self.po.print_map == "RSRC" and self.default_block_coding == BLOCK_CODING.NONE and container_pos is not None \
+              or self.po.print_map == pretty_blk_ident:
+                tdType_str = enumOrIntToName(self.tdType)
+                if self.po.print_map == "RSRC":
+                    print_map_base = container_pos
+                else:
+                    print_map_base = 0
+                head_end_pos = bldata.tell()
+                self.vi.rsrc_map.append( (print_map_base+bldata.tell(), head_end_pos-start_pos, \
+                  "Block[{},{}].TypeDesc[{}].{}.Value".format(pretty_blk_ident,self.blockref[1],self.index,tdType_str),) )
+
+
         if (self.po.verbose > 2):
-            print("{:s}: {} offs after {}"\
-              .format(self.vi.src_fname,str(self),bldata.tell()))
+            print("{:s}: {} offs before {} after {}"\
+              .format(self.vi.src_fname,str(self),start_pos,bldata.tell()))
         pass
 
     def prepareRSRCData(self, avoid_recompute=False):

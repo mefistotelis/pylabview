@@ -808,6 +808,14 @@ class Block(object):
         """
         self.active_section_num = section_num
 
+    def getDataPosInContainer(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+        if section.block_pos is None:
+            return None
+        return section.block_pos + sizeof(BlockSectionData)
+
     def __getattr__(self, name):
         """ Access to active section properties
         """
@@ -5134,7 +5142,7 @@ class VCTP(CompleteBlock):
             else:
                 obj_type_str = TD_FULL_TYPE(obj_type).name
             if self.po.print_map == "RSRC":
-                print_map_base = section.block_pos + sizeof(BlockSectionData)
+                print_map_base = self.getDataPosInContainer(section_num=section_num)
             else:
                 print_map_base = 0
             head_end_pos = bldata.tell()
