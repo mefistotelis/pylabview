@@ -3014,7 +3014,7 @@ class LinkObjHeapToRCFileLink(LinkObjBase):
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         for i in range(count):
             tditem = SimpleNamespace()
-            tditem.clients, tditem.topType = LVdatatype.parseTDObject(self.vi, bldata, ver, self.po)
+            tditem.clients, tditem.topType = LVdatatype.parseTDObject(self.vi, self.blockref, bldata, ver, self.po)
             tditem.prop2 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             self.content.append(tditem)
 
