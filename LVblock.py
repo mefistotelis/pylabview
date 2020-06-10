@@ -109,6 +109,8 @@ class Section(object):
         self.raw_data_updated = False
         # Whether any properties have been updated and preparation of new RAW data is required
         self.parsed_data_updated = False
+        # Coding used to pre-process raw data of the section before sending it to parser
+        self.block_coding = BLOCK_CODING.NONE
         # Position of BlockSectionData for this section within RSRC file
         self.block_pos = None
         # Section name text bytes, from Info section
@@ -862,7 +864,6 @@ class CompleteBlock(Block):
     """
     def __init__(self, *args):
         super().__init__(*args)
-        self.default_block_coding = BLOCK_CODING.NONE
 
     def createSection(self):
         section = super().createSection()
@@ -870,8 +871,9 @@ class CompleteBlock(Block):
         section.storage_format = "inline"
         return section
 
-    def setDefaultEncoding(self):
-        self.default_block_coding = BLOCK_CODING.NONE
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
+        section.block_coding = BLOCK_CODING.NONE
 
     def parseRSRCSectionData(self, section_num, bldata):
         raise NotImplementedError("Parsing the block is not implemented")
@@ -900,7 +902,8 @@ class CompleteBlock(Block):
         pass
 
     def initWithRSRCLate(self):
-        self.setDefaultEncoding()
+        for snum in self.sections:
+            self.setDefaultEncoding(snum)
         super().initWithRSRCLate()
 
     def prepareRSRCData(self, section_num):
@@ -995,11 +998,12 @@ class CompleteBlock(Block):
         pass
 
     def initWithXMLLate(self):
-        currEncoding = self.default_block_coding
-        self.setDefaultEncoding()
-        if currEncoding != self.default_block_coding:
-            # This block changed its expected encoding; we may need to update raw data
-            for snum in self.sections:
+        for snum in self.sections:
+            section = self.sections[snum]
+            currEncoding = section.block_coding
+            self.setDefaultEncoding(snum)
+            if currEncoding != section.block_coding:
+                # This block changed its expected encoding; we may need to update raw data
                 if not self.hasRawData(section_num=snum):
                     continue
                 coded_data = self.getData(section_num=snum, use_coding=currEncoding)
@@ -1076,14 +1080,20 @@ class CompleteBlock(Block):
             return
 
     def getData(self, section_num=None, use_coding=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
         if use_coding is None:
-            use_coding = self.default_block_coding
+            use_coding = section.block_coding
         bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
     def setData(self, data_buf, section_num=None, use_coding=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
         if use_coding is None:
-            use_coding = self.default_block_coding
+            use_coding = section.block_coding
         super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
 
@@ -1094,25 +1104,27 @@ class VarCodingBlock(Block):
     """
     def __init__(self, *args):
         super().__init__(*args)
-        self.default_block_coding = BLOCK_CODING.NONE
 
-    def setDefaultEncoding(self):
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
         ver = self.vi.getFileVersion()
         if isGreaterOrEqVersion(ver, 6,0,0):
-            self.default_block_coding = BLOCK_CODING.ZLIB
+            section.block_coding = BLOCK_CODING.ZLIB
         else:
-            self.default_block_coding = BLOCK_CODING.NONE
+            section.block_coding = BLOCK_CODING.NONE
 
     def initWithRSRCLate(self):
-        self.setDefaultEncoding()
+        for snum in self.sections:
+            self.setDefaultEncoding(snum)
         super().initWithRSRCLate()
 
     def initWithXMLLate(self):
-        currEncoding = self.default_block_coding
-        self.setDefaultEncoding()
-        if currEncoding != self.default_block_coding:
-            # This block changed its expected encoding; we may need to update raw data
-            for snum in self.sections:
+        for snum in self.sections:
+            section = self.sections[snum]
+            currEncoding = section.block_coding
+            self.setDefaultEncoding(snum)
+            if currEncoding != section.block_coding:
+                # This block changed its expected encoding; we may need to update raw data
                 if not self.hasRawData(section_num=snum):
                     continue
                 coded_data = self.getData(section_num=snum, use_coding=currEncoding)
@@ -1121,14 +1133,20 @@ class VarCodingBlock(Block):
         super().initWithXMLLate()
 
     def getData(self, section_num=None, use_coding=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
         if use_coding is None:
-            use_coding = self.default_block_coding
+            use_coding = section.block_coding
         bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
     def setData(self, data_buf, section_num=None, use_coding=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
         if use_coding is None:
-            use_coding = self.default_block_coding
+            use_coding = section.block_coding
         super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
 
@@ -1476,8 +1494,9 @@ class SingleStringBlock(CompleteBlock):
         section.eoln = '\r\n'
         return section
 
-    def setDefaultEncoding(self):
-        self.default_block_coding = BLOCK_CODING.NONE
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
+        section.block_coding = BLOCK_CODING.NONE
 
     @staticmethod
     def isBinaryString(content):
@@ -2212,13 +2231,14 @@ class DFDS(CompleteBlock):
         section.content = []
         return section
 
-    def setDefaultEncoding(self):
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
         ver = self.vi.getFileVersion()
         # Verified uncompressed in LV7.1.0, ZLIB compressed in LV8.6
         if isGreaterOrEqVersion(ver, 8,0,0):
-            self.default_block_coding = BLOCK_CODING.ZLIB
+            section.block_coding = BLOCK_CODING.ZLIB
         else:
-            self.default_block_coding = BLOCK_CODING.NONE
+            section.block_coding = BLOCK_CODING.NONE
 
     def isSpecialDSTMCluster(self, tmEntry):
         return (tmEntry.flags & (TM_FLAGS.TMFBit4 | \
@@ -2412,8 +2432,9 @@ class GCDI(VarCodingBlock):
         section = super().createSection()
         return section
 
-    def setDefaultEncoding(self):
-        self.default_block_coding = BLOCK_CODING.ZLIB
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
+        section.block_coding = BLOCK_CODING.ZLIB
 
 
 class BFAL(CompleteBlock):
@@ -2426,8 +2447,9 @@ class BFAL(CompleteBlock):
         section.content = []
         return section
 
-    def setDefaultEncoding(self):
-        self.default_block_coding = BLOCK_CODING.NONE
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
+        section.block_coding = BLOCK_CODING.NONE
 
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
@@ -2501,8 +2523,9 @@ class CGRS(VarCodingBlock):
         section = super().createSection()
         return section
 
-    def setDefaultEncoding(self):
-        self.default_block_coding = BLOCK_CODING.ZLIB
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
+        section.block_coding = BLOCK_CODING.ZLIB
 
 
 class CPMp(CompleteBlock):
@@ -2514,8 +2537,9 @@ class CPMp(CompleteBlock):
         section.field1 = 0
         return section
 
-    def setDefaultEncoding(self):
-        self.default_block_coding = BLOCK_CODING.NONE
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
+        section.block_coding = BLOCK_CODING.NONE
 
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
@@ -2824,13 +2848,14 @@ class DSTM(VarCodingBlock):
         section.content = []
         return section
 
-    def setDefaultEncoding(self):
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
         ver = self.vi.getFileVersion()
         # Verified uncompressed in LV7.1.0, compressed in LV8.6
         if isGreaterOrEqVersion(ver, 8,0,0):
-            self.default_block_coding = BLOCK_CODING.ZLIB
+            section.block_coding = BLOCK_CODING.ZLIB
         else:
-            self.default_block_coding = BLOCK_CODING.NONE
+            section.block_coding = BLOCK_CODING.NONE
 
     def getMinTypeId(self, section_num=None):
         """ Returns minimal TypeID mapped in this section
@@ -2859,12 +2884,13 @@ class TM80(VarCodingBlock):
         section.content = []
         return section
 
-    def setDefaultEncoding(self):
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
         ver = self.vi.getFileVersion()
         if isGreaterOrEqVersion(ver, 10,0,0):
-            self.default_block_coding = BLOCK_CODING.ZLIB
+            section.block_coding = BLOCK_CODING.ZLIB
         else:
-            self.default_block_coding = BLOCK_CODING.NONE
+            section.block_coding = BLOCK_CODING.NONE
 
     def parseRSRCData(self, section_num, bldata):
         section = self.sections[section_num]
@@ -3482,8 +3508,9 @@ class ImageBlock(CompleteBlock):
         section.image = None
         return section
 
-    def setDefaultEncoding(self):
-        self.default_block_coding = BLOCK_CODING.NONE
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
+        section.block_coding = BLOCK_CODING.NONE
 
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
@@ -4170,8 +4197,9 @@ class LIBN(CompleteBlock):
         section.content = None
         return section
 
-    def setDefaultEncoding(self):
-        self.default_block_coding = BLOCK_CODING.NONE
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
+        section.block_coding = BLOCK_CODING.NONE
 
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
@@ -4247,9 +4275,27 @@ class LVzp(VarCodingBlock):
         section = super().createSection()
         return section
 
-    def setDefaultEncoding(self):
-        self.default_block_coding = BLOCK_CODING.XOR
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
+        section.block_coding = BLOCK_CODING.XOR
 
+
+class DATA(VarCodingBlock):
+    """ Data block, content depends on file type
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
+        if self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.PackedProjLib:
+            if section_num == 0:
+                section.block_coding = BLOCK_CODING.ZLIB
+            else:
+                section.block_coding = BLOCK_CODING.NONE
+        else:
+            section.block_coding = BLOCK_CODING.NONE
 
 class PRT(CompleteBlock):
     """ Print settings
@@ -4511,8 +4557,9 @@ class HeapVerP(CompleteBlock):
         section.content = None
         return section
 
-    def setDefaultEncoding(self):
-        self.default_block_coding = BLOCK_CODING.NONE
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
+        section.block_coding = BLOCK_CODING.NONE
 
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
@@ -4541,8 +4588,9 @@ class HeapVerb(CompleteBlock):
         section.objects = []
         return section
 
-    def setDefaultEncoding(self):
-        self.default_block_coding = BLOCK_CODING.ZLIB
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
+        section.block_coding = BLOCK_CODING.ZLIB
 
     def getTopClassEn(self, section, obj_idx):
         """ Return classId of top object with class
@@ -4731,8 +4779,9 @@ class HeapVerc(CompleteBlock):
         section.content = None
         return section
 
-    def setDefaultEncoding(self):
-        self.default_block_coding = BLOCK_CODING.ZLIB
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
+        section.block_coding = BLOCK_CODING.ZLIB
 
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
@@ -4828,8 +4877,9 @@ class RTSG(CompleteBlock):
         section.content = []
         return section
 
-    def setDefaultEncoding(self):
-        self.default_block_coding = BLOCK_CODING.NONE
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
+        section.block_coding = BLOCK_CODING.NONE
 
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
@@ -4880,8 +4930,9 @@ class GCPR(CompleteBlock):
         section.content = []
         return section
 
-    def setDefaultEncoding(self):
-        self.default_block_coding = BLOCK_CODING.NONE
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
+        section.block_coding = BLOCK_CODING.NONE
 
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
@@ -4994,8 +5045,9 @@ class UCRF(VarCodingBlock):
         section = super().createSection()
         return section
 
-    def setDefaultEncoding(self):
-        self.default_block_coding = BLOCK_CODING.NONE
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
+        section.block_coding = BLOCK_CODING.NONE
 
     def exportXMLSection(self, section_elem, snum, section, fname_base):
         fext = "rsrc"
@@ -5074,8 +5126,9 @@ class CPRF(UCRF):
         section = super().createSection()
         return section
 
-    def setDefaultEncoding(self):
-        self.default_block_coding = BLOCK_CODING.COMP
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
+        section.block_coding = BLOCK_CODING.COMP
 
 
 class ZCRF(UCRF):
@@ -5087,8 +5140,9 @@ class ZCRF(UCRF):
         section = super().createSection()
         return section
 
-    def setDefaultEncoding(self):
-        self.default_block_coding = BLOCK_CODING.ZLIB
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
+        section.block_coding = BLOCK_CODING.ZLIB
 
 
 class DLG3(UCRF):
@@ -5100,8 +5154,9 @@ class DLG3(UCRF):
         section = super().createSection()
         return section
 
-    def setDefaultEncoding(self):
-        self.default_block_coding = BLOCK_CODING.NONE
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
+        section.block_coding = BLOCK_CODING.NONE
 
 
 class VCTP(CompleteBlock):
@@ -5121,8 +5176,9 @@ class VCTP(CompleteBlock):
         section.topLevel = []
         return section
 
-    def setDefaultEncoding(self):
-        self.default_block_coding = BLOCK_CODING.ZLIB
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
+        section.block_coding = BLOCK_CODING.ZLIB
 
     def parseRSRCTypeDesc(self, section_num, bldata, td_idx, pos):
         section = self.sections[section_num]
@@ -5134,7 +5190,7 @@ class VCTP(CompleteBlock):
               .format(self.vi.src_fname, self.ident, len(section.content), pos, obj_type, obj_flags, obj_len))
         blockref = (self.ident,section.start.section_idx,)
         # This block is typically compressed within RSRC file; add entries to RSRC map only if there is no compression
-        if self.po.print_map == "RSRC" and self.default_block_coding == BLOCK_CODING.NONE and section.block_pos is not None \
+        if self.po.print_map == "RSRC" and section.block_coding == BLOCK_CODING.NONE and section.block_pos is not None \
           or self.po.print_map == "VCTP":
             pretty_ident = getPrettyStrFromRsrcType(self.ident)
             if obj_type not in set(item.value for item in TD_FULL_TYPE):
@@ -5161,7 +5217,7 @@ class VCTP(CompleteBlock):
         section.content.append(clientTD)
         bldata.seek(pos)
         obj.initWithRSRC(bldata, obj_len) # No need to set topTypeList within VCTP
-        if self.po.print_map == "RSRC" and self.default_block_coding == BLOCK_CODING.NONE and section.block_pos is not None \
+        if self.po.print_map == "RSRC" and section.block_coding == BLOCK_CODING.NONE and section.block_pos is not None \
           or self.po.print_map == "VCTP":
             if bldata.tell() > head_end_pos:
                 self.vi.rsrc_map.append( (print_map_base+bldata.tell(), bldata.tell()-head_end_pos, \
@@ -5576,13 +5632,14 @@ class VICD(CompleteBlock):
         section.endProp5 = 0
         return section
 
-    def setDefaultEncoding(self):
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
         ver = self.vi.getFileVersion()
         # verified NONE in 5.1, ZLIB in 8.6
         if isGreaterOrEqVersion(ver, 8,0,0,3):
-            self.default_block_coding = BLOCK_CODING.ZLIB
+            section.block_coding = BLOCK_CODING.ZLIB
         else:
-            self.default_block_coding = BLOCK_CODING.NONE
+            section.block_coding = BLOCK_CODING.NONE
 
     @staticmethod
     def addMapEntry(section, fh, eSize, eName, eKind):
