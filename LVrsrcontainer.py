@@ -32,16 +32,17 @@ class FILE_FMT_TYPE(enum.Enum):
     ClassLib = 3
     Project = 4
     Library = 5
-    LLB = 6
-    MenuPalette = 7
-    TemplateControl = 8
-    TemplateVI = 9
-    Xcontrol = 10
-    UsrIfaceResrc = 11
-    RFilesService = 12
-    RFilesOld = 13
-    Subroutine = 14
-    VI = 15
+    PackedProjLib = 6
+    LLB = 7
+    MenuPalette = 8
+    TemplateControl = 9
+    TemplateVI = 10
+    Xcontrol = 11
+    UsrIfaceResrc = 12
+    RFilesService = 13
+    RFilesOld = 14
+    Subroutine = 15
+    VI = 16
 
 
 class RSRCHeader(RSRCStructure):
@@ -154,6 +155,7 @@ def getRsrcTypeForFileType(ftype):
         FILE_FMT_TYPE.ClassLib: b'CLIB',
         FILE_FMT_TYPE.Project: b'LVPJ',
         FILE_FMT_TYPE.Library: b'LIBR',
+        FILE_FMT_TYPE.PackedProjLib: b'LIBP',
         FILE_FMT_TYPE.LLB: b'LVAR',
         FILE_FMT_TYPE.MenuPalette: b'LMNU',
         FILE_FMT_TYPE.RFilesService: b'LVRS',
@@ -187,6 +189,7 @@ def getFileExtByType(ftype):
         FILE_FMT_TYPE.DLog: 'dlog',
         FILE_FMT_TYPE.ClassLib: 'lvclass',
         FILE_FMT_TYPE.Project: 'lvproj',
+        FILE_FMT_TYPE.PackedProjLib: 'lvlibp',
         FILE_FMT_TYPE.Library: 'lvlib',
         FILE_FMT_TYPE.LLB: 'llb',
         FILE_FMT_TYPE.MenuPalette: 'mnu',
@@ -250,7 +253,7 @@ class VI():
             if (self.po.verbose > 2):
                 print(rsrchead)
             if not rsrchead.checkSanity():
-                raise IOError("RSRC {:d} Header sanity check failed.",format(len(rsrc_headers)))
+                raise IOError("RSRC {:d} Header sanity check failed.".format(len(rsrc_headers)))
             # The last header has offset equal to its start
             if rsrchead.rsrc_info_offset >= curr_rsrc_pos:
                 next_rsrc_pos = rsrchead.rsrc_info_offset

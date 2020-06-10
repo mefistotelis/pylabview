@@ -3040,7 +3040,7 @@ class LinkObjHeapToRCFileLink(LinkObjBase):
                 pass # These tags are parsed elswhere
             elif subelem.tag in ("FileLinkTDList",):
                 tditem = SimpleNamespace()
-                tditem.clients, tditem.topType = LVdatatype.initWithXMLTDObject(self.vi, subelem, self.po)
+                tditem.clients, tditem.topType = LVdatatype.initWithXMLTDObject(self.vi, self.blockref, subelem, self.po)
                 tditem.prop2 = int(subelem.get("FileLinkProp2"), 0)
                 self.content.append(tditem)
                 pass
