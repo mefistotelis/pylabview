@@ -5158,26 +5158,14 @@ class DLG3(UCRF):
         section.block_coding = BLOCK_CODING.NONE
 
 
-class VCTP(CompleteBlock):
-    """ VI Consolidated Data Types
-
-    All data types used by the .VI and the data types of the .VI itself are stored
-    in this block.
-
-    The VCTP contains bottom-up objects. This means that objects can inherit
-    from previous defined objects. So to define a cluster they first define
-    every element and then add a cluster-object with a index-table containing
-    all previously defined elements used by the cluster.
+class TypeDescListBase(CompleteBlock):
+    """ Base block for Type Descriptors list
     """
     def createSection(self):
         section = super().createSection()
         section.content = []
         section.topLevel = []
         return section
-
-    def setDefaultEncoding(self, section_num):
-        section = self.sections[section_num]
-        section.block_coding = BLOCK_CODING.ZLIB
 
     def parseRSRCTypeDesc(self, section_num, bldata, td_idx, pos):
         section = self.sections[section_num]
@@ -5223,16 +5211,17 @@ class VCTP(CompleteBlock):
                   "Block[{},{}].TypeDesc[{}].{}.Properties".format(pretty_ident,section.start.section_idx,td_idx,obj_type_str),) )
         return obj.index, obj_len
 
-    def parseRSRCSectionData(self, section_num, bldata):
-        section = self.sections[section_num]
+    def parseRSRCTypeDescList(self, section_num, section, bldata):
         section.content = []
-        # First we have count of TDs, and then the TypeDescs themselves
+        # We have count of TDs, and then the TypeDescs themselves
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         pos = bldata.tell()
         for i in range(count):
             obj_idx, obj_len = self.parseRSRCTypeDesc(section_num, bldata, i, pos)
             pos += obj_len
-        # After that, there is a list
+        pass
+
+    def parseRSRCTopTypesList(self, section_num, section, bldata):
         section.topLevel = []
         count = readVariableSizeFieldU2p2(bldata)
         for i in range(count):
@@ -5240,71 +5229,67 @@ class VCTP(CompleteBlock):
             section.topLevel.append(val)
         pass
 
-    def expectedRSRCSize(self, section_num):
-        exp_whole_len = None
-        return exp_whole_len
-
-    def initWithXMLSectionData(self, section, section_elem):
-        section.content = []
-        section.topLevel = []
+    def initWithXMLTypeDesc(self, section, td_elem):
+        obj_idx = len(section.content)
+        obj_type = valFromEnumOrIntString(TD_FULL_TYPE, td_elem.get("Type"))
+        obj_flags = importXMLBitfields(TYPEDESC_FLAGS, td_elem)
         blockref = (self.ident,section.start.section_idx,)
-        for subelem in section_elem:
-            if (subelem.tag == "NameObject"):
-                pass # Items parsed somewhere else
-            elif (subelem.tag == "TypeDesc"):
-                obj_idx = len(section.content)
-                obj_type = valFromEnumOrIntString(TD_FULL_TYPE, subelem.get("Type"))
-                obj_flags = importXMLBitfields(TYPEDESC_FLAGS, subelem)
-                obj = newTDObject(self.vi, blockref, obj_idx, obj_flags, obj_type, self.po)
-                clientTD = SimpleNamespace()
-                clientTD.index = -1 # Nested clients have index -1
-                clientTD.flags = 0 # Only Type Mapped entries have it non-zero
-                clientTD.nested = obj
-                section.content.append(clientTD)
-                # Set TypeDesc data based on XML properties
-                obj.initWithXML(subelem)
-            elif (subelem.tag == "TopLevel"):
-                for subtlelem in subelem:
-                    if (subtlelem.tag == "TypeDesc"):
-                        i = int(subtlelem.get("Index"), 0) - 1
-                        val = int(subtlelem.get("FlatTypeID"), 0)
-                        # Grow the list if needed (the labels may be in wrong order)
-                        if i >= len(self.topLevel):
-                            self.topLevel.extend([None] * (i - len(self.topLevel) + 1))
-                        self.topLevel[i] = val
-                    else:
-                        raise AttributeError("TopLevel within Section contains unexpected tag")
+        obj = newTDObject(self.vi, blockref, obj_idx, obj_flags, obj_type, self.po)
+        clientTD = SimpleNamespace()
+        clientTD.index = -1 # Nested clients have index -1
+        clientTD.flags = 0 # Only Type Mapped entries have it non-zero
+        clientTD.nested = obj
+        section.content.append(clientTD)
+        # Set TypeDesc data based on XML properties
+        obj.initWithXML(td_elem)
+
+    def initWithXMLTopType(self, section, tlist_elem):
+        for subtlelem in tlist_elem:
+            if (subtlelem.tag == "TypeDesc"):
+                i = int(subtlelem.get("Index"), 0) - 1
+                val = int(subtlelem.get("FlatTypeID"), 0)
+                # Grow the list if needed (the labels may be in wrong order)
+                if i >= len(self.topLevel):
+                    self.topLevel.extend([None] * (i - len(self.topLevel) + 1))
+                self.topLevel[i] = val
             else:
-                raise AttributeError("Section contains unexpected tag")
+                raise AttributeError("TopLevel within Section contains unexpected tag")
         pass
 
-    def initWithXMLLate(self):
-        super().initWithXMLLate()
+    def initWithXMLTypeDescLate(self):
         for snum in self.sections:
             section = self.sections[snum]
             for clientTD in section.content:
                 clientTD.nested.initWithXMLLate()
         pass
 
-    def prepareRSRCData(self, section_num):
-        section = self.sections[section_num]
-
+    def updateAllInTypeDescList(self, section, section_num):
         for clientTD in section.content:
             if not clientTD.nested.raw_data_updated:
                 clientTD.nested.updateData()
+        pass
 
+    def parseAllInTypeDescList(self, section, section_num):
+        for clientTD in section.content:
+            clientTD.nested.parseData()
+        pass
+
+    def prepareRSRCTypeDescList(self, section, section_num):
         data_buf = b''
         data_buf += len(section.content).to_bytes(4, byteorder='big')
         for i, clientTD in enumerate(section.content):
             bldata = clientTD.nested.getData()
             data_buf += bldata.read()
+        return data_buf
 
+    def prepareRSRCTopTypesList(self, section, section_num):
+        data_buf = b''
         data_buf += int(len(section.topLevel)).to_bytes(2, byteorder='big')
         for i, val in enumerate(section.topLevel):
             data_buf += int(val).to_bytes(2, byteorder='big')
         return data_buf
 
-    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
+    def exportXMLTypeDescList(self, section_elem, section_num, section, fname_base):
         for clientTD in section.content:
             if len(clientTD.nested.full_name) > 0:
                 commentDesc = clientTD.nested.full_name
@@ -5325,7 +5310,9 @@ class VCTP(CompleteBlock):
             else:
                 TDObject.exportXML(clientTD.nested, subelem, fname_base)
                 TDObject.exportXMLFinish(clientTD.nested, subelem)
+        pass
 
+    def exportXMLTopTypesList(self, section_elem, section_num, section, fname_base):
         toplstelem = ET.SubElement(section_elem,"TopLevel")
         comment_elem = ET.Comment(" When Consolidated Type is referred to in other blocks, the TypeID is Index from this list ")
         toplstelem.append(comment_elem)
@@ -5337,28 +5324,7 @@ class VCTP(CompleteBlock):
             subelem.set("FlatTypeID", "{:d}".format(val))
         pass
 
-    def parseData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-
-        # Besides the normal parsing, also parse sub-objects
-        needParse = self.needParseData(section_num=section_num)
-        Block.parseData(self, section_num=section_num)
-        if needParse:
-            for clientTD in section.content:
-                clientTD.nested.parseData()
-
-    def integrateData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        self.commentSpecialTypes(section_num)
-
-    def checkSanity(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-
+    def checkTypeDescListSanity(self, section, section_num):
         ret = True
         for clientTD in section.content:
             if not clientTD.nested.checkSanity():
@@ -5593,6 +5559,90 @@ class VCTP(CompleteBlock):
             return None
         clientTD = section.content[flatIdx]
         return clientTD.nested
+
+
+class VCTP(TypeDescListBase):
+    """ VI Consolidated Data Types
+
+    All data types used by the .VI and the data types of the .VI itself are stored
+    in this block.
+
+    The VCTP contains bottom-up objects. This means that objects can inherit
+    from previous defined objects. So to define a cluster they first define
+    every element and then add a cluster-object with a index-table containing
+    all previously defined elements used by the cluster.
+    """
+    def setDefaultEncoding(self, section_num):
+        section = self.sections[section_num]
+        section.block_coding = BLOCK_CODING.ZLIB
+
+    def parseRSRCSectionData(self, section_num, bldata):
+        section = self.sections[section_num]
+        # First we have flat list of TypeDescs
+        self.parseRSRCTypeDescList(section_num, section, bldata)
+        # After that, there is a list of Top Level TD indexes
+        self.parseRSRCTopTypesList(section_num, section, bldata)
+
+    def expectedRSRCSize(self, section_num):
+        exp_whole_len = None
+        return exp_whole_len
+
+    def initWithXMLSectionData(self, section, section_elem):
+        section.content = []
+        section.topLevel = []
+        blockref = (self.ident,section.start.section_idx,)
+        for subelem in section_elem:
+            if (subelem.tag == "NameObject"):
+                pass # Items parsed somewhere else
+            elif (subelem.tag == "TypeDesc"):
+                self.initWithXMLTypeDesc(section, subelem)
+            elif (subelem.tag == "TopLevel"):
+                self.initWithXMLTopType(section, subelem)
+            else:
+                raise AttributeError("Section contains unexpected tag")
+        pass
+
+    def initWithXMLLate(self):
+        super().initWithXMLLate()
+        self.initWithXMLTypeDescLate()
+        pass
+
+    def prepareRSRCData(self, section_num):
+        section = self.sections[section_num]
+
+        self.updateAllInTypeDescList(section, section_num)
+        data_buf = b''
+        data_buf += self.prepareRSRCTypeDescList(section, section_num)
+        data_buf += self.prepareRSRCTopTypesList(section, section_num)
+        return data_buf
+
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
+        self.exportXMLTypeDescList(section_elem, section_num, section, fname_base)
+        self.exportXMLTopTypesList(section_elem, section_num, section, fname_base)
+
+    def parseData(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+
+        # Besides the normal parsing, also parse sub-objects
+        needTDParse = self.needParseData(section_num=section_num)
+        Block.parseData(self, section_num=section_num)
+        if needTDParse:
+            self.parseAllInTypeDescList(section, section_num)
+
+    def integrateData(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        self.commentSpecialTypes(section_num)
+
+    def checkSanity(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+
+        ret = self.checkTypeDescListSanity(section, section_num)
+        return ret
 
 
 class VICD(CompleteBlock):
