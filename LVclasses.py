@@ -253,7 +253,7 @@ class LVVariant(LVObject):
         self.vartype2 = 0
         self.index = index
 
-    def parseRSRCTypeDef(self, bldata, pos):
+    def parseRSRCTypeDef(self, bldata, obj_idx, pos):
         bldata.seek(pos)
         obj_type, obj_flags, obj_len = LVdatatype.TDObject.parseRSRCDataHeader(bldata)
         if (self.po.verbose > 2):
@@ -264,7 +264,7 @@ class LVVariant(LVObject):
             eprint("{:s}: Warning: {:s} {:d} sub-object {:d} type 0x{:02x} data size {:d} too small to be valid"\
               .format(self.vi.src_fname, type(self).__name__, self.index, len(self.clients2), obj_type, obj_len))
             obj_type = LVdatatype.TD_FULL_TYPE.Void
-        obj = LVdatatype.newTDObject(self.vi, self.blockref, -1, obj_flags, obj_type, self.po)
+        obj = LVdatatype.newTDObject(self.vi, self.blockref, obj_idx, obj_flags, obj_type, self.po)
         clientTD = SimpleNamespace()
         clientTD.index = -1 # Nested clients have index -1
         clientTD.flags = 0 # Only Type Mapped entries have it non-zero
@@ -321,7 +321,7 @@ class LVVariant(LVObject):
                   .format(type(self).__name__, self.index, varver, varcount))
             pos = bldata.tell()
             for i in range(varcount):
-                obj_idx, obj_len = self.parseRSRCTypeDef(bldata, pos)
+                obj_idx, obj_len = self.parseRSRCTypeDef(bldata, i, pos)
                 pos += obj_len
                 if obj_len < 4:
                     eprint("{:s}: Warning: {:s} {:d} data size too small for all clients"\
