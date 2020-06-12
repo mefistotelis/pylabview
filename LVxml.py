@@ -218,10 +218,9 @@ def unescape_cdata_custom_chars(text, ccList):
     """
     try:
         if True:
+            import string
             for i in ccList:
-                import string
                 text = text.replace("&#x{:02X};".format(i), chr(i))
-        #if "#x" in text: print("".join(text[-5:]))#print("".join(filter(lambda x: x in string.printable, text)))#!!!!!!!!!!!!!
         return text
     except (TypeError, AttributeError):
         #ET._raise_serialization_error(text)
