@@ -2324,8 +2324,7 @@ class DFDS(CompleteBlock):
         for subelem in dftop_elem:
             if (subelem.tag == "SpecialDSTMCluster"):
                 # Special condition for special cluster - its type is just Cluster
-                tdType = TD_FULL_TYPE.Cluster
-                df = LVdatafill.SpecialDSTMCluster(self.vi, blockref, tdType, None, self.po)
+                df = LVdatafill.newSpecialDSTMClusterWithTag(self.vi, blockref, subelem.tag, self.po)
             else:
                 # Normal processing for everything else
                 df = LVdatafill.newDataFillObjectWithTag(self.vi, blockref, subelem.tag, self.po)

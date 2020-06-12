@@ -1618,26 +1618,7 @@ class SpecialDSTMCluster(DataFillCluster):
     def getXMLTagName(self):
         return "SpecialDSTMCluster"
 
-    def setTD(self, td, idx, tm_flags = 0):
-        DataFill.setTD(self, td, idx, tm_flags)
-        if len(self.value) < 1:
-            return # If value list is not filled yet, no further work to do
-        from LVdatatype import TM_FLAGS
-        skipNextEntry = ((self.tm_flags & TM_FLAGS.TMFBit9) != 0)
-        cli_idx = 0
-        for cli_bad_idx, td_idx, sub_td, td_flags in self.td.clientsEnumerate():
-            if not self.isSpecialDSTMClusterElement(cli_idx, self.tm_flags):
-                continue
-            if skipNextEntry:
-                skipNextEntry = False
-                continue
-            sub_df = self.value[cli_idx]
-            cli_idx += 1
-            sub_df.setTD(sub_td, td_idx, self.tm_flags)
-        pass
-
-    def initWithRSRCParse(self, bldata):
-        self.value = []
+    def tdClientsWithDefltDataEnumerate(self):
         from LVdatatype import TM_FLAGS
         skipNextEntry = ((self.tm_flags & TM_FLAGS.TMFBit9) != 0)
         for cli_idx, td_idx, sub_td, td_flags in self.td.clientsEnumerate():
@@ -1646,6 +1627,25 @@ class SpecialDSTMCluster(DataFillCluster):
             if skipNextEntry:
                 skipNextEntry = False
                 continue
+            yield cli_idx, td_idx, sub_td, td_flags
+        pass
+
+    def setTD(self, td, idx, tm_flags = 0):
+        DataFill.setTD(self, td, idx, tm_flags)
+        if len(self.value) < 1:
+            return # If value list is not filled yet, no further work to do
+        val_idx = 0
+        for cli_idx, td_idx, sub_td, td_flags in self.tdClientsWithDefltDataEnumerate():
+            if val_idx >= len(self.value):
+                raise AttributeError("Class {} values list is too short for TD {}".format(type(self).__name__,type(td).__name__))
+            sub_df = self.value[val_idx]
+            sub_df.setTD(sub_td, td_idx, self.tm_flags)
+            val_idx += 1
+        pass
+
+    def initWithRSRCParse(self, bldata):
+        self.value = []
+        for cli_idx, td_idx, sub_td, td_flags in self.tdClientsWithDefltDataEnumerate():
             try:
                 sub_df = newDataFillObjectWithTD(self.vi, self.blockref, td_idx, self.tm_flags, sub_td, self.po)
                 self.value.append(sub_df)
@@ -1671,6 +1671,15 @@ def newSpecialDSTMClusterWithTD(vi, blockref, idx, tm_flags, td, po):
     tdSubType = None
     df = SpecialDSTMCluster(vi, blockref, tdType, tdSubType, po)
     df.setTD(td, idx, tm_flags)
+    return df
+
+def newSpecialDSTMClusterWithTag(vi, blockref, tagName, po):
+    """ Creates and returns new data fill object from given XML tag name
+    """
+    from LVdatatype import TD_FULL_TYPE
+    tdType = TD_FULL_TYPE.Cluster
+    tdSubType = None
+    df = SpecialDSTMCluster(vi, blockref, tdType, tdSubType, po)
     return df
 
 def newDataFillRefnum(vi, blockref, tdType, tdSubType, po):
