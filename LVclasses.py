@@ -346,6 +346,8 @@ class LVVariant(LVObject):
                 VCTP = self.vi.get_or_raise('VCTP')
                 td = VCTP.getTopType(self.vartype2)
 
+            if td is None:
+                raise AttributeError("LVVariant has no linked TD  but is supposed to have DataFill")
             df = LVdatafill.newDataFillObjectWithTD(self.vi, self.blockref, -1, 0, td, self.po)
             self.datafill.append(df)
             df.initWithRSRC(bldata)

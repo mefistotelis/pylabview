@@ -1223,7 +1223,8 @@ class DataFillIORefnum(DataFill):
         elif storedAs == "Int":
             self.value = int(df_elem.text, 0)
         else:
-            raise AttributeError("Class {} encountered unexpected StoredAs value '{}'".format(type(self).__name__, storedAs))
+            raise AttributeError("Class {} encountered unexpected StoredAs value '{}'"\
+              .format(type(self).__name__, storedAs))
         pass
 
     def exportXML(self, df_elem, fname_base):
@@ -1283,7 +1284,8 @@ class DataFillUDTagRefnum(DataFill):
 
     def prepareDict(self):
         d = super().prepareDict()
-        d.update( { 'usrdef1': self.usrdef1, 'usrdef2': self.usrdef2, 'usrdef3': self.usrdef3, 'usrdef4': self.usrdef4 } )
+        d.update( { 'usrdef1': self.usrdef1, 'usrdef2': self.usrdef2,
+          'usrdef3': self.usrdef3, 'usrdef4': self.usrdef4 } )
         return d
 
     def initWithRSRCParse(self, bldata):
@@ -1440,7 +1442,8 @@ class DataFillUDClassInst(DataFill):
                     val = b''
                 self.value.append(val)
             else:
-                raise AttributeError("Class {} encountered unexpected tag '{}'".format(type(self).__name__, subelem.tag))
+                raise AttributeError("Class {} encountered unexpected tag '{}'"\
+                  .format(type(self).__name__, subelem.tag))
         pass
 
     def exportXML(self, df_elem, fname_base):
