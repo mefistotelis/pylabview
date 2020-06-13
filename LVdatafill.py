@@ -550,8 +550,8 @@ class DataFillArray(DataFill):
         # TODO the amounts are in self.dimensions; maybe they need to be same as self.td.dimensions, unless dynamic size is used? print warning?
         for i, dim in enumerate(self.dimensions):
             if dim > self.po.array_data_limit:
-                    raise RuntimeError("Data type {} dimension {} claims size of {} fields, expected below {}"\
-                      .format(self.getXMLTagName(), i, dim, self.po.array_data_limit))
+                raise RuntimeError("Fill for TD {} dimension {} claims size of {} fields, expected below {}"\
+                  .format(self.getXMLTagName(), i, dim, self.po.array_data_limit))
             totItems *= dim & 0x7fffffff
         if (self.po.verbose > 1):
             print("{:s}: {:s} {:d}: The array has {} dimensions, {} fields in total"\
@@ -559,8 +559,8 @@ class DataFillArray(DataFill):
         self.value = []
         # We expect exactly one client within Array
         for cli_idx, td_idx, td_obj, td_flags in self.td.clientsEnumerate():
-                sub_td = td_obj
-                sub_td_idx = td_idx
+            sub_td = td_obj
+            sub_td_idx = td_idx
         #if sub_td.fullType() in (TD_FULL_TYPE.Boolean,) and isSmallerVersion(ver, 4,5,0,1): # TODO expecting special case, never seen it though
         clientsLimit = self.po.array_data_limit
         block = self.vi.get(self.blockref[0])
@@ -569,15 +569,15 @@ class DataFillArray(DataFill):
             if section is not None:
                 clientsLimit = min(clientsLimit, section.last_plain_data_size) # we don't know the zise of single client fill, so assume 1 byte
         if totItems > clientsLimit:
-                raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
-                  .format(self.getXMLTagName(), totItems, clientsLimit))
+                raise RuntimeError("Fill for TD {} claims to contain {} fields, expected below {}; pos within block 0x{:x}"\
+                  .format(self.getXMLTagName(), totItems, clientsLimit, bldata.tell()))
         for i in range(totItems):
             try:
                 sub_df = newDataFillObjectWithTD(self.vi, self.blockref, sub_td_idx, self.tm_flags, sub_td, self.po)
                 self.value.append(sub_df)
                 sub_df.initWithRSRC(bldata)
             except Exception as e:
-                raise RuntimeError("Data type {}: {}".format(enumOrIntToName(sub_td.fullType()), str(e)))
+                raise RuntimeError("Fill for TD {}: {}".format(enumOrIntToName(sub_td.fullType()), str(e)))
         pass
 
     def prepareRSRCData(self, avoid_recompute=False):
