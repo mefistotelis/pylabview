@@ -1839,6 +1839,10 @@ class STR(SingleStringBlock):
         ver = self.vi.getFileVersion()
         return (self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.LLB) or isSmallerVersion(ver, 8,0,0)
 
+    def isSingleLVVariant(self):
+        ver = self.vi.getFileVersion()
+        return (self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.VI) and isGreaterOrEqVersion(ver, 8,0,0)
+
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
         section.eoln = '\r\n'
@@ -1846,6 +1850,12 @@ class STR(SingleStringBlock):
 
         if self.isSingleShortString():
             super().parseRSRCSectionData(section_num, bldata)
+        elif self.isSingleLVVariant():
+            blockref = (self.ident,section_num,)
+            obj = LVclasses.LVVariant(0, self.vi, blockref, self.po, useConsolidatedTypes=False, allowFillValue=True)
+            section.content.append(obj)
+            obj.parseRSRCData(bldata)
+            raise NotImplementedError("No support for parsing LVVariant STR data") # re-created binary is currently different than source
         else: # File format is unknown
             raise NotImplementedError("No support for parsing the STR data")
         pass
@@ -1855,9 +1865,58 @@ class STR(SingleStringBlock):
         data_buf  = b''
         if self.isSingleShortString():
             data_buf += super().prepareRSRCData(section_num)
+        elif self.isSingleLVVariant():
+            for obj in section.content: # We expect one object in the list
+                data_buf += obj.prepareRSRCData()
         else: # File format is unknown
             raise NotImplementedError("No support for preparing data for the STR data")
         return data_buf
+
+    def expectedRSRCSize(self, section_num):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+
+        if self.isSingleShortString():
+            exp_whole_len += super().expectedRSRCSize(section_num)
+        elif self.isSingleLVVariant():
+            exp_whole_len = 0
+            for obj in section.content: # We expect one object in the list
+                exp_whole_len += obj.expectedRSRCSize()
+        return exp_whole_len
+
+    def initWithXMLSectionData(self, section, section_elem):
+        section.eoln = '\r\n'
+        section.content = []
+
+        for i, subelem in enumerate(section_elem):
+            if (subelem.tag == "NameObject"):
+                pass # Items parsed somewhere else
+            elif (subelem.tag == "String"):
+                chunks, eoln = self.initWithXMLSingleString(subelem, self.vi.textEncoding)
+                if eoln is not None:
+                    section.eoln = eoln
+                section.content.extend(chunks)
+            elif (subelem.tag == "LVVariant"):
+                blockref = (self.ident,section.start.section_idx,)
+                obj = LVclasses.LVVariant(0, self.vi, blockref, self.po, useConsolidatedTypes=False, allowFillValue=True)
+                section.content.append(obj)
+                obj.initWithXML(subelem)
+            else:
+                raise AttributeError("Section contains unexpected tag")
+        pass
+
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
+        if self.isSingleShortString():
+            string_elem = ET.SubElement(section_elem,"String")
+            self.exportXMLSingleString(section.content, section.eoln, self.vi.textEncoding, string_elem)
+        elif self.isSingleLVVariant():
+            obj_elem = ET.SubElement(section_elem,"LVObject")
+            for obj in section.content: # We expect one object in the list
+                obj.exportXML(obj_elem, fname_base)
+        else: # File format is unknown
+            raise NotImplementedError("No support for XML export of the STR data")
+        pass
 
 
 class StringListBlock(SingleStringBlock):

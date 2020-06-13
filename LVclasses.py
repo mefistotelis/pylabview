@@ -291,6 +291,7 @@ class LVVariant(LVObject):
             # Note that we won't parse the type itself, it is generic and not stored with the attributes; just use it to make data
             # We have type of the attribute, now read the value
             attrib.value = LVdatafill.newDataFillObjectWithTD(self.vi, self.blockref, attrib.index, attrib.flags, attrib.nested, self.po)
+            attrib.value.useConsolidatedTypes = self.useConsolidatedTypes
             attrib.value.initWithRSRC(bldata)
             if (self.po.verbose > 2):
                 print("{:s}: {:s} {:d} attribute {}: {} {}"\
