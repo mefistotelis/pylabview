@@ -562,9 +562,15 @@ class DataFillArray(DataFill):
                 sub_td = td_obj
                 sub_td_idx = td_idx
         #if sub_td.fullType() in (TD_FULL_TYPE.Boolean,) and isSmallerVersion(ver, 4,5,0,1): # TODO expecting special case, never seen it though
-        if totItems > self.po.array_data_limit:
+        clientsLimit = self.po.array_data_limit
+        block = self.vi.get(self.blockref[0])
+        if block is not None:
+            section = block.sections[self.blockref[1]]
+            if section is not None:
+                clientsLimit = min(clientsLimit, section.last_plain_data_size) # we don't know the zise of single client fill, so assume 1 byte
+        if totItems > clientsLimit:
                 raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
-                  .format(self.getXMLTagName(), totItems, self.po.array_data_limit))
+                  .format(self.getXMLTagName(), totItems, clientsLimit))
         for i in range(totItems):
             try:
                 sub_df = newDataFillObjectWithTD(self.vi, self.blockref, sub_td_idx, self.tm_flags, sub_td, self.po)

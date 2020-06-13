@@ -109,6 +109,9 @@ class Section(object):
         self.raw_data_updated = False
         # Whether any properties have been updated and preparation of new RAW data is required
         self.parsed_data_updated = False
+        # Size of plain data (decompressed raw data) of this sectin, the last time it was computed
+        # Re-computation takes place during getData() calls and setSizeFromExpectedSizes() calls
+        self.last_plain_data_size = None
         # Coding used to pre-process raw data of the section before sending it to parser
         self.block_coding = BLOCK_CODING.NONE
         # Position of BlockSectionData for this section within RSRC file
@@ -346,7 +349,8 @@ class Block(object):
         """
         expSize = 0
         for snum, section in self.sections.items():
-            sectSize += self.expectedRSRCSize(section_num=snum)
+            section.last_plain_data_size = self.expectedRSRCSize(section_num=snum)
+            sectSize += section.last_plain_data_size
             expSize += sectSize
         self.size = expSize
         if (self.po.verbose > 1):
@@ -582,7 +586,7 @@ class Block(object):
         raw_data_section = self.getRawData(section_num)
         data = io.BytesIO(raw_data_section)
         if use_coding == BLOCK_CODING.NONE:
-            pass
+            usize = len(raw_data_section)
         elif use_coding == BLOCK_CODING.COMP:
             size = len(raw_data_section) - 4
             if size < 2:
@@ -610,9 +614,12 @@ class Block(object):
             data = io.BytesIO(zlib.decompress(data.read(size)))
         elif use_coding == BLOCK_CODING.XOR:
             size = len(raw_data_section)
+            usize = size
             data = io.BytesIO(crypto_xor8320_decrypt(data.read(size)))
         else:
             raise ValueError("Unsupported compression type")
+        section = self.sections[section_num]
+        section.last_plain_data_size = usize
         return data
 
     def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
