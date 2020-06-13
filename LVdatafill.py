@@ -1412,7 +1412,7 @@ class DataFillUDClassInst(DataFill):
         exp_whole_len = 0
         exp_whole_len += 4
         if True:
-            str_len += 1 + len(self.libName)
+            str_len = 1 + len(self.libName)
             uneven_len = str_len % 4
             if uneven_len > 0:
                 str_len += 4 - uneven_len
