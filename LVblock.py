@@ -1906,6 +1906,14 @@ class STR(SingleStringBlock):
                 raise AttributeError("Section contains unexpected tag")
         pass
 
+    def initWithXMLLate(self):
+        for snum in self.sections:
+            section = self.sections[snum]
+            for obj in section.content: # We expect one object in the list
+                if isinstance(obj, (LVclasses.LVObject, LVdatafill.DataFill,)):
+                    obj.initWithXMLLate()
+        super().initWithXMLLate()
+
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         if self.isSingleShortString():
             string_elem = ET.SubElement(section_elem,"String")

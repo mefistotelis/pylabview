@@ -494,6 +494,7 @@ class LVVariant(LVObject):
                     attrib.name = name_str.encode(encoding=self.vi.textEncoding)
                     attrib.nested = LVdatatype.newTDObject(self.vi, self.blockref, -1, 0, LVdatatype.TD_FULL_TYPE.LVVariant, self.po)
                     attrib.value = LVdatafill.newDataFillObjectWithTD(self.vi, self.blockref, attrib.index, attrib.flags, attrib.nested, self.po)
+                    attrib.value.useConsolidatedTypes = self.useConsolidatedTypes
                     attrib.value.initWithXML(attr_elem)
                     if (self.po.verbose > 2):
                         print("{:s}: {:s} {:d} attribute {}: {} {}"\
