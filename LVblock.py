@@ -1855,7 +1855,6 @@ class STR(SingleStringBlock):
             obj = LVclasses.LVVariant(0, self.vi, blockref, self.po, useConsolidatedTypes=False, allowFillValue=True)
             section.content.append(obj)
             obj.parseRSRCData(bldata)
-            raise NotImplementedError("No support for parsing LVVariant STR data") # re-created binary is currently different than source
         else: # File format is unknown
             raise NotImplementedError("No support for parsing the STR data")
         pass
