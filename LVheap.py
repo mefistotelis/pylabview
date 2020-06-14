@@ -21,6 +21,7 @@ from types import SimpleNamespace
 from ctypes import *
 
 import LVdatatype
+import LVdatafill
 import LVmisc
 from LVmisc import eprint
 import LVxml as ET
@@ -2096,55 +2097,6 @@ class HeapNodeTDDataFill(HeapNode):
             raise AttributeError("Tag '{}' of Class '{}' could not generate TypeDesc type={} dependent content"\
               .format(self.tagEn.name, parentTopClassEn(self.parent).name,tdType))
 
-    @staticmethod
-    def prepareXMLContentDirect(val, tdType):
-        text = None
-        from LVdatatype import TD_FULL_TYPE
-        if tdType in (TD_FULL_TYPE.NumInt8,TD_FULL_TYPE.NumInt16,TD_FULL_TYPE.NumInt32,TD_FULL_TYPE.NumInt64,):
-            text = "{:d}".format(val)
-        elif tdType in (TD_FULL_TYPE.NumUInt8,TD_FULL_TYPE.UnitUInt8,TD_FULL_TYPE.NumUInt16,TD_FULL_TYPE.UnitUInt16,\
-          TD_FULL_TYPE.NumUInt32,TD_FULL_TYPE.UnitUInt32,TD_FULL_TYPE.NumUInt64,):
-            text = "{:d}".format(val)
-        elif tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
-            tmpbt = struct.pack('>f', val)
-            text = "{:g} (0x{:08X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
-        elif tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
-            tmpbt = struct.pack('>d', val)
-            text = "{:g} (0x{:016X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
-        elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
-            tmpbt = LVmisc.prepareQuadFloat(val)
-            text = "{:g} (0x{:032X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
-        return text
-
-    @staticmethod
-    def parseXMLContentDirect(text, tdType):
-        val = None
-        from LVdatatype import TD_FULL_TYPE
-        if tdType in (TD_FULL_TYPE.NumInt8,TD_FULL_TYPE.NumInt16,TD_FULL_TYPE.NumInt32,TD_FULL_TYPE.NumInt64,):
-            val = int(text.strip(),0)
-        elif tdType in (TD_FULL_TYPE.NumUInt8,TD_FULL_TYPE.UnitUInt8,TD_FULL_TYPE.NumUInt16,TD_FULL_TYPE.UnitUInt16,\
-          TD_FULL_TYPE.NumUInt32,TD_FULL_TYPE.UnitUInt32,TD_FULL_TYPE.NumUInt64,):
-            val = int(text.strip(),0)
-        elif tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,\
-          TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
-            if val is None: # Get the value from hex sting in brackets
-                hexParse = re.search(r'^.*\((0x[0-9A-Fa-f]+)\)$',text.strip())
-                if hexParse is not None:
-                    if tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
-                        tmpbt = int(hexParse.group(1),0).to_bytes(4, byteorder='big', signed=False)
-                        val = struct.unpack('>f', tmpbt)[0]
-                    elif tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
-                        tmpbt = int(hexParse.group(1),0).to_bytes(8, byteorder='big', signed=False)
-                        val = struct.unpack('>d', tmpbt)[0]
-                    elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
-                        tmpbt = int(hexParse.group(1),0).to_bytes(16, byteorder='big', signed=False)
-                        val = LVmisc.readQuadFloat(BytesIO(tmpbt))
-            if val is None: # Get the value from formatted float
-                hexParse = re.search(r'([0-9Ee.\+-]+|[\+-]?inf)',text)
-                if hexParse is not None:
-                    val = float(hexParse.group(1))
-        return val
-
     def prepareContentXML(self, fname_base):
         if self.format == "hex" or self.scopeInfo == NODE_SCOPE.TagClose:
             return HeapNode.prepareContentXML(self, fname_base)
@@ -2153,7 +2105,7 @@ class HeapNodeTDDataFill(HeapNode):
         ret = False
         tdType = self.td.fullType()
         from LVdatatype import TD_FULL_TYPE
-        tmpText = HeapNodeTDDataFill.prepareXMLContentDirect(self.value, tdType)
+        tmpText = LVdatatype.numericToStringUnequivocal(self.value, tdType)
         if tmpText is not None:
             text = tmpText
             ret = True
@@ -2189,7 +2141,7 @@ class HeapNodeTDDataFill(HeapNode):
         val = None
         tdType = self.td.fullType()
         from LVdatatype import TD_FULL_TYPE
-        val = HeapNodeTDDataFill.parseXMLContentDirect(text, tdType)
+        val = LVdatatype.stringUnequivocalToNumeric(text, tdType)
         if val is not None:
             ret = True
         elif tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,\
@@ -2284,17 +2236,17 @@ class HeapNodeTDDataFillLeaf(HeapNode):
         tdType = self.parent.td.fullType()
         from LVdatatype import TD_FULL_TYPE
         if tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
-            tmpText = HeapNodeTDDataFill.prepareXMLContentDirect(self.value, TD_FULL_TYPE.NumFloat32)
+            tmpText = LVdatatype.numericToStringUnequivocal(self.value, TD_FULL_TYPE.NumFloat32)
             if tmpText is not None:
                 text = tmpText
                 ret = True
         elif tdType in (TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,):
-            tmpText = HeapNodeTDDataFill.prepareXMLContentDirect(self.value, TD_FULL_TYPE.NumFloat64)
+            tmpText = LVdatatype.numericToStringUnequivocal(self.value, TD_FULL_TYPE.NumFloat64)
             if tmpText is not None:
                 text = tmpText
                 ret = True
         elif tdType in (TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
-            tmpText = HeapNodeTDDataFill.prepareXMLContentDirect(self.value, TD_FULL_TYPE.NumFloatExt)
+            tmpText = LVdatatype.numericToStringUnequivocal(self.value, TD_FULL_TYPE.NumFloatExt)
             if tmpText is not None:
                 text = tmpText
                 ret = True
@@ -2325,11 +2277,11 @@ class HeapNodeTDDataFillLeaf(HeapNode):
             tdType = self.parent.td.fullType()
             from LVdatatype import TD_FULL_TYPE
             if tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
-                val = HeapNodeTDDataFill.parseXMLContentDirect(text, TD_FULL_TYPE.NumFloat32)
+                val = LVdatatype.stringUnequivocalToNumeric(text, TD_FULL_TYPE.NumFloat32)
             elif tdType in (TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,):
-                val = HeapNodeTDDataFill.parseXMLContentDirect(text, TD_FULL_TYPE.NumFloat64)
+                val = LVdatatype.stringUnequivocalToNumeric(text, TD_FULL_TYPE.NumFloat64)
             elif tdType in (TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
-                val = HeapNodeTDDataFill.parseXMLContentDirect(text, TD_FULL_TYPE.NumFloatExt)
+                val = LVdatatype.stringUnequivocalToNumeric(text, TD_FULL_TYPE.NumFloatExt)
             else:
                 raise RuntimeError("Class {} used for unexpected type {}"\
                   .format(type(self).__name__, tdType))

@@ -13,6 +13,7 @@
 
 import enum
 import struct
+import math
 
 from hashlib import md5
 from io import BytesIO
@@ -294,12 +295,15 @@ class DataFillFloat(DataFill):
         return exp_whole_len
 
     def initWithXML(self, df_elem):
-        self.value = float(df_elem.text)
+        self.value = LVdatatype.stringUnequivocalToNumeric(df_elem.text, self.tdType)
         pass
 
     def exportXML(self, df_elem, fname_base):
         # Precision of 128-bit float is circa 71 digits
-        df_elem.text = "{:.71g}".format(self.value)
+        if math.isnan(self.value):
+            df_elem.text = LVdatatype.numericToStringUnequivocal(self.value, self.tdType)
+        else:
+            df_elem.text = LVdatatype.numericToStringSimple(self.value, self.tdType)
         pass
 
 
@@ -1669,7 +1673,6 @@ class SpecialDSTMCluster(DataFillCluster):
         for sub_df in self.value:
             data_buf += sub_df.prepareRSRCData(avoid_recompute=avoid_recompute)
         return data_buf
-
 
 
 def newSpecialDSTMClusterWithTD(vi, blockref, idx, tm_flags, td, po):

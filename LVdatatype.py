@@ -2697,17 +2697,7 @@ class TDObjectFixedPoint(TDObject):
                     if prop3 is not None:
                         rang.prop3 = int(prop3, 0)
 
-                    val = None
-                    if val is None and subelem.text is not None: # Get the value from hex sting in brackets
-                        hexParse = re.search(r'^.*\((0x[0-9A-Fa-f]+)\)$',subelem.text.strip())
-                        if hexParse is not None:
-                            tmpbt = int(hexParse.group(1),0).to_bytes(8, byteorder='big', signed=False)
-                            val = struct.unpack('>d', tmpbt)[0]
-                    if val is None and subelem.text is not None: # Get the value from formatted float
-                        hexParse = re.search(r'([0-9Ee.\+-]+|[\+-]?inf)',subelem.text.strip())
-                        if hexParse is not None:
-                            val = float(hexParse.group(1))
-                    rang.value = val
+                    rang.value = stringUnequivocalToNumeric(subelem.text, TD_FULL_TYPE.NumFloat64)
 
                     self.ranges.append(rang)
                 else:
@@ -2744,8 +2734,7 @@ class TDObjectFixedPoint(TDObject):
                     subelem.set("Prop1", "{:d}".format(rang.prop1))
                     subelem.set("Prop2", "{:d}".format(rang.prop2))
                     subelem.set("Prop3", "{:d}".format(rang.prop3))
-                tmpbt = struct.pack('>d', rang.value)
-                subelem.text = "{:.17g} (0x{:016X})".format(rang.value, int.from_bytes(tmpbt, byteorder='big', signed=False))
+                subelem.text = numericToStringUnequivocal(rang.value, TD_FULL_TYPE.NumFloat64)
             pass
 
         conn_elem.set("Format", "inline")
@@ -3317,6 +3306,81 @@ def ctypeToFullTypeEnum(obj_ctype):
     elif obj_ctype.__name__ in ("c_longdouble",):
         return TD_FULL_TYPE.NumFloatExt
     return None
+
+def numericToStringSimple(val, tdType):
+    """ Converts numeric value to a string in a simple manner
+
+    Values are sored with enough decimal places to cover precision of each type.
+    """
+    text = None
+    from LVdatatype import TD_FULL_TYPE
+    if tdType in (TD_FULL_TYPE.NumInt8,TD_FULL_TYPE.NumInt16,TD_FULL_TYPE.NumInt32,TD_FULL_TYPE.NumInt64,):
+        text = "{:d}".format(val)
+    elif tdType in (TD_FULL_TYPE.NumUInt8,TD_FULL_TYPE.UnitUInt8,TD_FULL_TYPE.NumUInt16,TD_FULL_TYPE.UnitUInt16,\
+      TD_FULL_TYPE.NumUInt32,TD_FULL_TYPE.UnitUInt32,TD_FULL_TYPE.NumUInt64,):
+        text = "{:d}".format(val)
+    elif tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
+        text = "{:g}".format(val)
+    elif tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
+        text = "{:g}".format(val)
+    elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
+        text = "{:g}".format(val)
+    return text
+
+def numericToStringUnequivocal(val, tdType):
+    """ Converts numeric value to a string in an unequivocal manner
+
+    This is achieved by simply addirn direct hex representation after a float. That is the only way
+    to handle _all_ values, including different NaNs.
+    Integers are simpler - the formatted value is unequivocal already.
+    """
+    text = None
+    from LVdatatype import TD_FULL_TYPE
+    if tdType in (TD_FULL_TYPE.NumInt8,TD_FULL_TYPE.NumInt16,TD_FULL_TYPE.NumInt32,TD_FULL_TYPE.NumInt64,):
+        text = "{:d}".format(val)
+    elif tdType in (TD_FULL_TYPE.NumUInt8,TD_FULL_TYPE.UnitUInt8,TD_FULL_TYPE.NumUInt16,TD_FULL_TYPE.UnitUInt16,\
+      TD_FULL_TYPE.NumUInt32,TD_FULL_TYPE.UnitUInt32,TD_FULL_TYPE.NumUInt64,):
+        text = "{:d}".format(val)
+    elif tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
+        tmpbt = struct.pack('>f', val)
+        text = "{:g} (0x{:08X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
+    elif tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
+        tmpbt = struct.pack('>d', val)
+        text = "{:g} (0x{:016X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
+    elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
+        tmpbt = LVmisc.prepareQuadFloat(val)
+        text = "{:g} (0x{:032X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
+    return text
+
+def stringUnequivocalToNumeric(text, tdType):
+    """ Converts a string (including unequivocal one) back to numeric value
+    """
+    val = None
+    from LVdatatype import TD_FULL_TYPE
+    if tdType in (TD_FULL_TYPE.NumInt8,TD_FULL_TYPE.NumInt16,TD_FULL_TYPE.NumInt32,TD_FULL_TYPE.NumInt64,):
+        val = int(text.strip(),0)
+    elif tdType in (TD_FULL_TYPE.NumUInt8,TD_FULL_TYPE.UnitUInt8,TD_FULL_TYPE.NumUInt16,TD_FULL_TYPE.UnitUInt16,\
+      TD_FULL_TYPE.NumUInt32,TD_FULL_TYPE.UnitUInt32,TD_FULL_TYPE.NumUInt64,):
+        val = int(text.strip(),0)
+    elif tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,\
+      TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
+        if val is None: # Get the value from hex sting in brackets
+            hexParse = re.search(r'^.*\((0x[0-9A-Fa-f]+)\)$',text.strip())
+            if hexParse is not None:
+                if tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
+                    tmpbt = int(hexParse.group(1),0).to_bytes(4, byteorder='big', signed=False)
+                    val = struct.unpack('>f', tmpbt)[0]
+                elif tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
+                    tmpbt = int(hexParse.group(1),0).to_bytes(8, byteorder='big', signed=False)
+                    val = struct.unpack('>d', tmpbt)[0]
+                elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
+                    tmpbt = int(hexParse.group(1),0).to_bytes(16, byteorder='big', signed=False)
+                    val = LVmisc.readQuadFloat(BytesIO(tmpbt))
+        if val is None: # Get the value from formatted float
+            hexParse = re.search(r'([0-9Ee.\+-]+|[\+-]?inf)',text)
+            if hexParse is not None:
+                val = float(hexParse.group(1))
+    return val
 
 def newTDObject(vi, blockref, idx, obj_flags, obj_type, po):
     """ Creates and returns new Type Descriptor object with given parameters
