@@ -1387,31 +1387,58 @@ class DataFillUDClassInst(DataFill):
     """
     def __init__(self, *args):
         super().__init__(*args)
-        self.value = []
         self.libName = b''
+        self.value = []
+        self.datlist = []
 
     def initWithRSRCParse(self, bldata):
+        ver = self.vi.getFileVersion()
+        self.libName = b''
         self.value = []
+        self.datlist = []
+
         numLevels = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        self.libName = bldata.read(strlen)
-        if (bldata.tell() % 4) > 0:
-            bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
+
+        self.libName = readPStr(bldata, 4, self.po)
+
         if numLevels > self.po.typedesc_list_limit:
             raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
               .format(self.getXMLTagName(), numLevels, self.po.typedesc_list_limit))
+
+        numDLevels = numLevels
         for i in range(numLevels):
-            datalen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            libVersion = bldata.read(datalen)
+            # now read LVLibraryVersionTD instances; that type is defined in 'tdtable.tdr'
+            # Basically it's a Cluster of 4x uint16
+            libVersion = {}
+            libVersion['major'] = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            libVersion['minor'] = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            libVersion['bugfix']   = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            libVersion['build'] = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
             self.value.append(libVersion)
+            if numLevels == 1 and libVersion['major'] == 0 and libVersion['minor'] == 0 and \
+                    libVersion['bugfix'] == 0 and libVersion['build'] == 0:
+                numDLevels = 0
+
+        for i in range(numDLevels):
+            datalen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            libData = bldata.read(datalen)
+            self.datlist.append(libData)
+        pass
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
         data_buf += len(self.value).to_bytes(4, byteorder='big', signed=False)
         data_buf += preparePStr(self.libName, 4, self.po)
+
         for libVersion in self.value:
-            data_buf += len(libVersion).to_bytes(4, byteorder='big', signed=False)
-            data_buf += libVersion
+            data_buf += int(libVersion['major']).to_bytes(2, byteorder='big', signed=False)
+            data_buf += int(libVersion['minor']).to_bytes(2, byteorder='big', signed=False)
+            data_buf += int(libVersion['bugfix']).to_bytes(2, byteorder='big', signed=False)
+            data_buf += int(libVersion['build']).to_bytes(2, byteorder='big', signed=False)
+
+        for libData in self.datlist:
+            data_buf += len(libData).to_bytes(4, byteorder='big', signed=False)
+            data_buf += libData
         return data_buf
 
     def expectedRSRCSize(self):
@@ -1424,12 +1451,16 @@ class DataFillUDClassInst(DataFill):
                 str_len += 4 - uneven_len
             exp_whole_len += str_len
         for libVersion in self.value:
-            exp_whole_len += 4 + len(libVersion)
+            exp_whole_len += 2 * 4
+        for libData in self.datlist:
+            exp_whole_len += 4 + len(libData)
         return exp_whole_len
 
     def initWithXML(self, df_elem):
-        self.value = []
         self.libName = b''
+        self.value = []
+        self.datlist = []
+
         for i, subelem in enumerate(df_elem):
             if subelem.tag == "LibName":
                 if subelem.text is not None: # Empty string may be None after parsing
@@ -1440,11 +1471,17 @@ class DataFillUDClassInst(DataFill):
                 self.libName = val
             elif subelem.tag == "LibVersion":
                 if subelem.text is not None: # Empty string may be None after parsing
-                    val_text = ET.unescape_safe_store_element_text(subelem.text)
-                    val = val_text.encode(self.vi.textEncoding)
+                    libVersion = simpleVersionFromString(subelem.text)
                 else:
-                    val = b''
-                self.value.append(val)
+                    libVersion = simpleVersionFromString("0.0.0.0")
+                self.value.append(libVersion)
+            elif subelem.tag == "LibData":
+                if subelem.text is not None: # Empty string may be None after parsing
+                    val_text = ET.unescape_safe_store_element_text(subelem.text)
+                    libData = val_text.encode(self.vi.textEncoding)
+                else:
+                    libData = b''
+                self.datlist.append(libData)
             else:
                 raise AttributeError("Class {} encountered unexpected tag '{}'"\
                   .format(type(self).__name__, subelem.tag))
@@ -1457,8 +1494,12 @@ class DataFillUDClassInst(DataFill):
             ET.safe_store_element_text(subelem, elemText)
         for i, libVersion in enumerate(self.value):
             subelem = ET.SubElement(df_elem, "LibVersion")
-            elemText = libVersion.decode(self.vi.textEncoding)
-            ET.safe_store_element_text(subelem, elemText)
+            elemText = simpleVersionToString(libVersion)
+            subelem.text = elemText
+        for i, libData in enumerate(self.datlist):
+            subelem = ET.SubElement(df_elem, "LibVersion")
+            elemText = libData.decode(self.vi.textEncoding)
+            subelem.text = elemText
         pass
 
 

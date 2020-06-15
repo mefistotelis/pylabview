@@ -168,6 +168,19 @@ def encodeVersion(ver):
     vcode |= ((ver['build'] % 10) & 0x0F) << 0
     return vcode
 
+def simpleVersionFromString(vstr):
+    ver = {}
+    vints = [int(s) for s in vstr.split('.')]
+    if len(vints) != 4: return None
+    for i,key in enumerate(('major', 'minor', 'bugfix', 'build',)):
+        ver[key] = vints[i]
+    return ver
+
+def simpleVersionToString(ver):
+    vstr = ""
+    vints = [ver[key] for key in ('major', 'minor', 'bugfix', 'build',)]
+    return '.'.join(str(val) for val in vints)
+
 def isGreaterOrEqVersion(ver, major, minor = None, bugfix = None, stage = None):
     """ Returns whether the version is higher or equal to given one
     """
