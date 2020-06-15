@@ -3377,7 +3377,7 @@ def stringUnequivocalToNumeric(text, tdType):
                     tmpbt = int(hexParse.group(1),0).to_bytes(16, byteorder='big', signed=False)
                     val = LVmisc.readQuadFloat(BytesIO(tmpbt))
         if val is None: # Get the value from formatted float
-            hexParse = re.search(r'([0-9Ee.\+-]+|[\+-]?inf)',text)
+            hexParse = re.search(r'([\+-]?[0-9.]+([Ee][\+-]?[0-9]+)?|[\+-]?inf)',text)
             if hexParse is not None:
                 val = float(hexParse.group(1))
     return val
