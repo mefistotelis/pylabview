@@ -299,7 +299,6 @@ class DataFillFloat(DataFill):
         pass
 
     def exportXML(self, df_elem, fname_base):
-        # Precision of 128-bit float is circa 71 digits
         if math.isnan(self.value):
             df_elem.text = LVdatatype.numericToStringUnequivocal(self.value, self.tdType)
         else:
@@ -311,6 +310,23 @@ class DataFillComplex(DataFill):
     def __init__(self, *args):
         super().__init__(*args)
         self.value = (None,None,)
+
+    def getComponentType(self):
+        from LVdatatype import TD_FULL_TYPE
+        tdcType = None
+        if self.tdType in (TD_FULL_TYPE.NumComplex64,):
+            tdcType = TD_FULL_TYPE.NumFloat32
+        if self.tdType in (TD_FULL_TYPE.UnitComplex64,):
+            tdcType = TD_FULL_TYPE.UnitFloat32
+        elif self.tdType in (TD_FULL_TYPE.NumComplex128,):
+            tdcType = TD_FULL_TYPE.NumFloat64
+        elif self.tdType in (TD_FULL_TYPE.UnitComplex128,):
+            tdcType = TD_FULL_TYPE.UnitFloat64
+        elif self.tdType in (TD_FULL_TYPE.NumComplexExt,):
+            tdcType = TD_FULL_TYPE.NumFloatExt
+        elif self.tdType in (TD_FULL_TYPE.UnitComplexExt,):
+            tdcType = TD_FULL_TYPE.UnitFloatExt
+        return tdcType
 
     def initWithRSRCParse(self, bldata):
         from LVdatatype import TD_FULL_TYPE
@@ -353,16 +369,21 @@ class DataFillComplex(DataFill):
         return exp_whole_len
 
     def initWithXML(self, df_elem):
-        valRe = float(df_elem.find('real').text)
-        valIm = float(df_elem.find('imag').text)
+        tdcType = self.getComponentType()
+        valRe = LVdatatype.stringUnequivocalToNumeric(df_elem.find('real').text, tdcType)
+        valIm = LVdatatype.stringUnequivocalToNumeric(df_elem.find('imaginary').text, tdcType)
         self.value = (valRe,valIm,)
         pass
 
     def exportXML(self, df_elem, fname_base):
-        tags = ('real', 'imag',)
+        tags = ('real', 'imaginary',)
         for i, val in enumerate(self.value):
             subelem = ET.SubElement(df_elem, tags[i])
-            subelem.text = "{:.71g}".format(val)
+            tdcType = self.getComponentType()
+            if math.isnan(val):
+                df_elem.text = LVdatatype.numericToStringUnequivocal(val, tdcType)
+            else:
+                df_elem.text = LVdatatype.numericToStringSimple(val, tdcType)
         pass
 
 

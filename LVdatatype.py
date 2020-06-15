@@ -2727,8 +2727,7 @@ class TDObjectFixedPoint(TDObject):
             subelem = ET.SubElement(conn_elem,"Range")
 
             if self.rangeFormat == 0:
-                # 64-bit float has 17 digit precision
-                subelem.set("Value", "{:.17g}".format(rang.value))
+                subelem.text = numericToStringUnequivocal(rang.value, TD_FULL_TYPE.NumFloat64)
             elif self.rangeFormat == 1:
                 if (self.field1E > 0x40) or (self.dataVersion > 0):
                     subelem.set("Prop1", "{:d}".format(rang.prop1))
@@ -3322,9 +3321,9 @@ def numericToStringSimple(val, tdType):
     elif tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
         text = "{:g}".format(val)
     elif tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
-        text = "{:g}".format(val)
+        text = "{:.17g}".format(val)
     elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
-        text = "{:g}".format(val)
+        text = "{:.71g}".format(val)
     return text
 
 def numericToStringUnequivocal(val, tdType):
@@ -3345,11 +3344,13 @@ def numericToStringUnequivocal(val, tdType):
         tmpbt = struct.pack('>f', val)
         text = "{:g} (0x{:08X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
     elif tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
+        # 64-bit float has 17 digit precision
         tmpbt = struct.pack('>d', val)
-        text = "{:g} (0x{:016X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
+        text = "{:.17g} (0x{:016X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
     elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
+        # Precision of 128-bit float is circa 71 digits
         tmpbt = LVmisc.prepareQuadFloat(val)
-        text = "{:g} (0x{:032X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
+        text = "{:.71g} (0x{:032X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
     return text
 
 def stringUnequivocalToNumeric(text, tdType):
