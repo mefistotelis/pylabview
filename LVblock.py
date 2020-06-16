@@ -151,6 +151,29 @@ class Block(object):
         section = Section(self.vi, self.po)
         return section
 
+    def appendPrintMapEntry(self, section, relative_end_pos, entry_len, entry_align, sub_name):
+        """ Adds entry to file map or block map, for a chunk of data within specific section
+
+        Entries for data outside of section data should not call this function; it is only for
+        the data stored within block sections. It was introduced to limit copying of the same block
+        for each such entry, especially because there's quite a lot of such entries.
+        """
+        section_num = section.start.section_idx
+        if self.po.print_map == "RSRC" and section.block_coding == BLOCK_CODING.NONE \
+          or self.po.print_map == type(self).__name__:
+            pretty_ident = getPrettyStrFromRsrcType(self.ident)
+            if self.po.print_map == "RSRC":
+                print_map_base = self.getDataPosInContainer(section_num=section_num)
+            else:
+                print_map_base = 0
+            entry_full_len = entry_len
+            if entry_len % entry_align > 0:
+                entry_full_len += entry_align - (entry_len % entry_align)
+            if print_map_base is not None:
+                self.vi.rsrc_map.append( (print_map_base+relative_end_pos, entry_full_len, \
+                  "Block[{},{}].{}".format(pretty_ident,section_num,sub_name),) )
+        pass
+
     def initWithRSRCEarly(self, header):
         """ Early part of block loading from RSRC file
 
@@ -2130,13 +2153,17 @@ class LinkObjRefs(CompleteBlock):
         blockref = (self.ident,section.start.section_idx,)
         # nextLinkInfo: 1-root item, 2-list continues, 3-list end
         nextLinkInfo = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        self.appendPrintMapEntry(section, bldata.tell(), 2, 1, "LinkObject[{}].NextLinkInfo".format(0))
         if nextLinkInfo != 1:
-            raise AttributeError("List of LinkObjects incorrectly tarted with {}".format(nextLinkInfo))
+            raise AttributeError("List of LinkObjects incorrectly started with {}".format(nextLinkInfo))
         section.ident = bldata.read(4)
+        self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "LinkObject[{}].Ident".format(0))
         if isSmallerVersion(ver, 14,0,0,3):
             section.unk1 = readPStr(bldata, 2, self.po)
+            self.appendPrintMapEntry(section, bldata.tell(), 1+len(section.unk1), 2, "LinkObject[{}].Unk1".format(0))
             wordlen = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
             section.unk2 = bldata.read(2 * wordlen)
+            self.appendPrintMapEntry(section, bldata.tell(), 2+len(section.unk2), 2, "LinkObject[{}].Unk2".format(0))
         else:
             section.unk1 = b''
             section.unk2 = b''
@@ -2144,14 +2171,17 @@ class LinkObjRefs(CompleteBlock):
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         while True:
             nextLinkInfo = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            self.appendPrintMapEntry(section, bldata.tell(), 2, 1, "LinkObject[{}].NextLinkInfo".format(len(section.content)+1))
             if nextLinkInfo != 2:
                 break
             ctnrstart = bldata.tell()
             lnkobj_ident = bldata.read(4)
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "LinkObject[{}].Ident".format(len(section.content)+1))
             client = LVlinkinfo.newLinkObject(self.vi, blockref, section.ident, lnkobj_ident, self.po)
             section.content.append(client)
             bldata.seek(ctnrstart)
             client.parseRSRCData(bldata)
+            self.appendPrintMapEntry(section, bldata.tell(), bldata.tell()-ctnrstart, 1, "LinkObject[{}].Content".format(len(section.content)+1))
         if nextLinkInfo != 3:
             if len(section.content) > 0:
                 client = section.content[-1]
@@ -5250,8 +5280,8 @@ class TypeDescListBase(CompleteBlock):
               .format(self.vi.src_fname, self.ident, len(section.content), pos, obj_type, obj_flags, obj_len))
         blockref = (self.ident,section.start.section_idx,)
         # This block is typically compressed within RSRC file; add entries to RSRC map only if there is no compression
-        if self.po.print_map == "RSRC" and section.block_coding == BLOCK_CODING.NONE and section.block_pos is not None \
-          or self.po.print_map == "VCTP":
+        if self.po.print_map == "RSRC" and section.block_coding == BLOCK_CODING.NONE \
+          or self.po.print_map == type(self).__name__:
             pretty_ident = getPrettyStrFromRsrcType(self.ident)
             if obj_type not in set(item.value for item in TD_FULL_TYPE):
                 obj_type_str = "Type_{}".format(obj_type)
@@ -5261,9 +5291,10 @@ class TypeDescListBase(CompleteBlock):
                 print_map_base = self.getDataPosInContainer(section_num=section_num)
             else:
                 print_map_base = 0
-            head_end_pos = bldata.tell()
-            self.vi.rsrc_map.append( (print_map_base+bldata.tell(), head_end_pos-pos, \
-              "Block[{},{}].TypeDesc[{}].{}.Header".format(pretty_ident,section.start.section_idx,td_idx,obj_type_str),) )
+            if print_map_base is not None:
+                head_end_pos = bldata.tell()
+                self.vi.rsrc_map.append( (print_map_base+bldata.tell(), head_end_pos-pos, \
+                  "Block[{},{}].TypeDesc[{}].{}.Header".format(pretty_ident,section.start.section_idx,td_idx,obj_type_str),) )
         if obj_len < 4:
             eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d} too small to be valid"\
               .format(self.vi.src_fname, len(section.content), obj_type, obj_len))
@@ -5277,9 +5308,10 @@ class TypeDescListBase(CompleteBlock):
         section.content.append(clientTD)
         bldata.seek(pos)
         obj.initWithRSRC(bldata, obj_len) # No need to set topTypeList within VCTP
-        if self.po.print_map == "RSRC" and section.block_coding == BLOCK_CODING.NONE and section.block_pos is not None \
-          or self.po.print_map == "VCTP":
-            if bldata.tell() > head_end_pos:
+        if self.po.print_map == "RSRC" and section.block_coding == BLOCK_CODING.NONE \
+          or self.po.print_map == type(self).__name__:
+            # we have print_map_base set already in the previous mapping add
+            if print_map_base is not None and bldata.tell() > head_end_pos:
                 self.vi.rsrc_map.append( (print_map_base+bldata.tell(), bldata.tell()-head_end_pos, \
                   "Block[{},{}].TypeDesc[{}].{}.Properties".format(pretty_ident,section.start.section_idx,td_idx,obj_type_str),) )
         return obj.index, obj_len

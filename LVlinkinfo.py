@@ -64,7 +64,7 @@ class LinkObjBase:
         return data_buf
 
     def parsePathRef(self, bldata):
-        startPos = bldata.tell()
+        start_pos = bldata.tell()
         clsident = bldata.read(4)
         if clsident == b'PTH0':
             pathRef = LVclasses.LVPath0(self.vi, self.blockref, self.po)
@@ -73,7 +73,7 @@ class LinkObjBase:
         else:
             raise RuntimeError("{:s} {} contains path data of unrecognized class {}"\
           .format(type(self).__name__,self.ident,clsident))
-        bldata.seek(startPos)
+        bldata.seek(start_pos)
         pathRef.parseRSRCData(bldata)
         return pathRef
 
@@ -125,18 +125,24 @@ class LinkObjBase:
         if (bldata.tell() % 4) > 0:
             bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
 
+        start_pos = bldata.tell()
         self.linkSaveQualName = readQualifiedName(bldata, self.po)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "BasicLinkSaveInfo.QualName")
 
         if (bldata.tell() % 2) > 0:
             bldata.read(2 - (bldata.tell() % 2)) # Padding bytes
 
+        start_pos = bldata.tell()
         self.linkSavePathRef = self.parsePathRef(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "BasicLinkSaveInfo.PathRef")
 
         if isGreaterOrEqVersion(ver, 8,5,0,1):
             if isGreaterOrEqVersion(ver, 8,6,0,1):
                 self.linkSaveFlag = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                self.appendPrintMapEntry(bldata.tell(), 4, 1, "BasicLinkSaveInfo.Flag")
             else:
                 self.linkSaveFlag = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+                self.appendPrintMapEntry(bldata.tell(), 1, 1, "BasicLinkSaveInfo.Flag")
         pass
 
     def prepareBasicLinkSaveInfo(self, start_offs):
@@ -206,6 +212,7 @@ class LinkObjBase:
         flagBt = 0xff
         if isGreaterOrEqVersion(ver, 14,0,0,3):
             flagBt = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            self.appendPrintMapEntry(bldata.tell(), 1, 1, "VILinkRefInfo.FlagBt")
         if flagBt != 0xff:
             self.viLinkFieldA = flagBt & 1
             self.viLinkLibVersion = (flagBt >> 1) & 0x1F
@@ -213,14 +220,19 @@ class LinkObjBase:
         else:
             if isGreaterOrEqVersion(ver, 8,0,0,3):
                 self.viLinkField4 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                self.appendPrintMapEntry(bldata.tell(), 4, 1, "VILinkRefInfo.Field4")
                 self.viLinkLibVersion = int.from_bytes(bldata.read(8), byteorder='big', signed=False)
+                self.appendPrintMapEntry(bldata.tell(), 8, 1, "VILinkRefInfo.LibVersion")
             else:
                 self.viLinkField4 = 1
                 self.viLinkLibVersion = 0
             if isGreaterOrEqVersion(ver, 6,0,0,1):
                 self.viLinkFieldB = bldata.read(4)
+                self.appendPrintMapEntry(bldata.tell(), 4, 1, "VILinkRefInfo.FieldB")
                 self.viLinkFieldC = bldata.read(4)
+                self.appendPrintMapEntry(bldata.tell(), 4, 1, "VILinkRefInfo.FieldC")
                 self.viLinkFieldD = int.from_bytes(bldata.read(4), byteorder='big', signed=True)
+                self.appendPrintMapEntry(bldata.tell(), 4, 1, "VILinkRefInfo.FieldD")
         pass
 
     def prepareVILinkRefInfo(self, start_offs):
@@ -298,21 +310,29 @@ class LinkObjBase:
         if isGreaterOrEqVersion(ver, 8,0,0,1):
             self.parseBasicLinkSaveInfo(bldata)
 
+            start_pos = bldata.tell()
             clientTD = SimpleNamespace()
             clientTD.index = readVariableSizeFieldU2p2(bldata)
             clientTD.flags = 0 # Only Type Mapped entries have it non-zero
             self.typedLinkTD = clientTD
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "TypedLinkSaveInfo.TD_TypeID")
 
             self.parseVILinkRefInfo(bldata)
 
             if isGreaterOrEqVersion(ver, 12,0,0,3):
                 self.typedLinkFlags = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+                self.appendPrintMapEntry(bldata.tell(), 4, 1, "TypedLinkSaveInfo.Flags")
         else:
             ver = self.vi.getFileVersion()
             # We cannot use parseBasicLinkSaveInfo(), but lets try keeping variables similar
 
+            start_pos = bldata.tell()
             self.linkSaveQualName = [ readPStr(bldata, 2, self.po) ]
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "TypedLinkSaveInfo.QualName")
+
+            start_pos = bldata.tell()
             self.typedLinkOffsetList = self.parseLinkOffsetList(bldata)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "TypedLinkSaveInfo.OffsetList")
 
             # TD was stored directly before consolidated list was introduced
             obj_pos = bldata.tell()
@@ -320,6 +340,9 @@ class LinkObjBase:
             if (self.po.verbose > 2):
                 print("{:s}: Block {} LinkObj {} TypeDesc at 0x{:04x}, type 0x{:02x} flags 0x{:02x} len {:d}"\
                   .format(self.vi.src_fname, self.blockref[0], self.ident, obj_pos, obj_type, obj_flags, obj_len))
+            # Some unusual operations are required on the size in order to get real size
+            if obj_len > 0:
+                obj_len = 2 * (obj_len + 1)
 
             bldata.seek(obj_pos)
             clientTD = SimpleNamespace()
@@ -328,8 +351,11 @@ class LinkObjBase:
             clientTD.nested_data = bldata.read(obj_len)
             clientTD.flags = 0 # Only Type Mapped entries have it non-zero
             self.typedLinkTD = clientTD
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-obj_pos, 1, "TypedLinkSaveInfo.TD")
 
+            start_pos = bldata.tell()
             self.linkSavePathRef = self.parsePathRef(bldata)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "BasicLinkSaveInfo.PathRef")
 
             self.parseVILinkRefInfo(bldata)
         pass
@@ -1219,6 +1245,15 @@ class LinkObjBase:
             subelem = ET.SubElement(lnkobj_elem,"VILSPathRef")
             self.viLSPathRef.exportXML(subelem, fname_base)
         pass
+
+    def appendPrintMapEntry(self, relative_end_pos, entry_len, entry_align, sub_name):
+        """ Add file map or section map entry for this object.
+        """
+        if self.po.print_map is None: return
+        block = self.vi.get_or_raise(self.blockref[0])
+        section = block.getSection(section_num=self.blockref[1])
+        block.appendPrintMapEntry(section, relative_end_pos, entry_len, entry_align, \
+          "LinkObject[{}].{}".format(self.ident,sub_name))
 
     def parseRSRCData(self, bldata):
         """ Parses binary data chunk from RSRC file.

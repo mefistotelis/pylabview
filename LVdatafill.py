@@ -112,31 +112,25 @@ class DataFill:
             tagName = tdEnToName(self.tdType)
         return tagName
 
-    def prepareMapEntry(self, relative_end_pos, entry_len):
+    def appendPrintMapEntry(self, relative_end_pos, entry_len, entry_align=1, sub_name=None):
         """ Add file map or section map entry for this object.
 
         The DFDS block is typically compressed within RSRC file.
-        This adds entries to RSRC map only if there is no compression.
+        This adds entries to RSRC map only if there is no compression;
+        otherwise only DFDS map is available.
         """
+        if self.po.print_map is None: return
         block = self.vi.get_or_raise(self.blockref[0])
-        pretty_blk_ident = getPrettyStrFromRsrcType(block.ident)
-        container_pos = block.getDataPosInContainer(section_num=self.blockref[1])
-        if self.po.print_map == "RSRC" and self.default_block_coding == BLOCK_CODING.NONE and container_pos is not None \
-          or self.po.print_map == pretty_blk_ident:
-            tdType_str = enumOrIntToName(self.tdType)
-            if self.po.print_map == "RSRC":
-                print_map_base = container_pos
-            else:
-                print_map_base = 0
-            self.vi.rsrc_map.append( (print_map_base+relative_end_pos, entry_len, \
-              "Block[{},{}].TypeDesc[{}].{}.Value".format(pretty_blk_ident,self.blockref[1],self.index,tdType_str),) )
-        pass
+        section = block.getSection(section_num=self.blockref[1])
+        tdType_str = enumOrIntToName(self.tdType)
+        if sub_name is None: sub_name = "Value"
+        block.appendPrintMapEntry(section, relative_end_pos, entry_len, entry_align, \
+          "TypeDesc[{}].{}.{}".format(self.index,tdType_str,sub_name))
 
     def initWithRSRC(self, bldata):
         start_pos = bldata.tell()
         self.initWithRSRCParse(bldata)
-        if self.po.print_map is not None:
-            self.prepareMapEntry(bldata.tell(), bldata.tell()-start_pos)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos)
         if (self.po.verbose > 2):
             print("{:s}: {} offs before {} after {}"\
               .format(self.vi.src_fname,str(self),start_pos,bldata.tell()))
