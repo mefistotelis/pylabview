@@ -217,9 +217,10 @@ class LinkObjBase:
             else:
                 self.viLinkField4 = 1
                 self.viLinkLibVersion = 0
-            self.viLinkFieldB = bldata.read(4)
-            self.viLinkFieldC = bldata.read(4)
-            self.viLinkFieldD = int.from_bytes(bldata.read(4), byteorder='big', signed=True)
+            if isGreaterOrEqVersion(ver, 6,0,0,1):
+                self.viLinkFieldB = bldata.read(4)
+                self.viLinkFieldC = bldata.read(4)
+                self.viLinkFieldD = int.from_bytes(bldata.read(4), byteorder='big', signed=True)
         pass
 
     def prepareVILinkRefInfo(self, start_offs):
@@ -240,9 +241,10 @@ class LinkObjBase:
             if isGreaterOrEqVersion(ver, 8,0,0,3):
                 data_buf += int(self.viLinkField4).to_bytes(4, byteorder='big', signed=False)
                 data_buf += int(self.viLinkLibVersion).to_bytes(8, byteorder='big', signed=False)
-            data_buf += self.viLinkFieldB[:4]
-            data_buf += self.viLinkFieldC[:4]
-            data_buf += int(self.viLinkFieldD).to_bytes(4, byteorder='big', signed=True)
+            if isGreaterOrEqVersion(ver, 6,0,0,1):
+                data_buf += self.viLinkFieldB[:4]
+                data_buf += self.viLinkFieldC[:4]
+                data_buf += int(self.viLinkFieldD).to_bytes(4, byteorder='big', signed=True)
         return data_buf
 
     def initWithXMLVILinkRefInfo(self, lnkobj_elem):
@@ -286,6 +288,8 @@ class LinkObjBase:
         self.clearVILinkRefInfo()
         self.typedLinkFlags = 0
         self.typedLinkTD = None
+        # Properties used only for LV7 and older
+        self.typedLinkOffsetList = []
 
     def parseTypedLinkSaveInfo(self, bldata):
         ver = self.vi.getFileVersion()
@@ -304,8 +308,30 @@ class LinkObjBase:
             if isGreaterOrEqVersion(ver, 12,0,0,3):
                 self.typedLinkFlags = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         else:
-            raise NotImplementedError("LinkObj {} TypedLinkSaveInfo parse for LV7 not implemented"\
-              .format(self.ident))
+            ver = self.vi.getFileVersion()
+            # We cannot use parseBasicLinkSaveInfo(), but lets try keeping variables similar
+
+            self.linkSaveQualName = [ readPStr(bldata, 2, self.po) ]
+            self.typedLinkOffsetList = self.parseLinkOffsetList(bldata)
+
+            # TD was stored directly before consolidated list was introduced
+            obj_pos = bldata.tell()
+            obj_type, obj_flags, obj_len = TDObject.parseRSRCDataHeader(bldata)
+            if (self.po.verbose > 2):
+                print("{:s}: Block {} LinkObj {} TypeDesc at 0x{:04x}, type 0x{:02x} flags 0x{:02x} len {:d}"\
+                  .format(self.vi.src_fname, self.blockref[0], self.ident, obj_pos, obj_type, obj_flags, obj_len))
+
+            bldata.seek(obj_pos)
+            clientTD = SimpleNamespace()
+            clientTD.index = -1
+            clientTD.nested = None # TODO parse the TD and store there, remove the unparsed data
+            clientTD.nested_data = bldata.read(obj_len)
+            clientTD.flags = 0 # Only Type Mapped entries have it non-zero
+            self.typedLinkTD = clientTD
+
+            self.linkSavePathRef = self.parsePathRef(bldata)
+
+            self.parseVILinkRefInfo(bldata)
         pass
 
     def prepareTypedLinkSaveInfo(self, start_offs):
@@ -323,8 +349,21 @@ class LinkObjBase:
             if isGreaterOrEqVersion(ver, 12,0,0,3):
                 data_buf +=  int(self.typedLinkFlags).to_bytes(4, byteorder='big', signed=False)
         else:
-            raise NotImplementedError("LinkObj {} TypedLinkSaveInfo binary preparation for LV7 not implemented"\
-              .format(self.ident))
+            # We expect only one name in the list
+            for qualName in self.linkSaveQualName:
+                data_buf += preparePStr(qualName, 2, self.po)
+
+            data_buf += self.prepareLinkOffsetList(self.typedLinkOffsetList, start_offs+len(data_buf))
+
+            clientTD = self.typedLinkTD
+            if clientTD.index == -1:
+                data_buf += clientTD.nested_data
+            else:
+                raise AttributeError("TypedLinkSaveInfo refers to TD via index, but we are using LV7 format; there was no VCTP in LV7")
+
+            data_buf += self.linkSavePathRef.prepareRSRCData()
+
+            data_buf += self.prepareVILinkRefInfo(start_offs+len(data_buf))
         return data_buf
 
     def initWithXMLTypedLinkSaveInfo(self, lnkobj_elem):
@@ -341,6 +380,8 @@ class LinkObjBase:
                 clientTD.index = int(subelem.get("TypeID"), 0)
                 clientTD.flags = 0 # Only Type Mapped entries have it non-zero
                 self.typedLinkTD = clientTD
+            elif (subelem.tag == "TypedLinkOffsetList"):
+                self.typedLinkOffsetList = self.initWithXMLLinkOffsetList(subelem)
             else:
                 pass # No exception here - parent may define more tags
 
@@ -349,6 +390,7 @@ class LinkObjBase:
             self.typedLinkFlags = int(typedLinkFlags, 0)
 
     def exportXMLTypedLinkSaveInfo(self, lnkobj_elem, fname_base):
+        ver = self.vi.getFileVersion()
 
         self.exportXMLBasicLinkSaveInfo(lnkobj_elem, fname_base)
         self.exportXMLVILinkRefInfo(lnkobj_elem, fname_base)
@@ -357,6 +399,10 @@ class LinkObjBase:
             clientTD = self.typedLinkTD
             subelem = ET.SubElement(lnkobj_elem, "TypeDesc")
             subelem.set("TypeID", "{:d}".format(clientTD.index))
+
+        if isSmallerVersion(ver, 8,0,0,1):
+            subelem = ET.SubElement(lnkobj_elem, "TypedLinkOffsetList")
+            self.exportXMLLinkOffsetList(self.typedLinkOffsetList, subelem)
 
         lnkobj_elem.set("TypedLinkFlags", "{:d}".format(self.typedLinkFlags))
 
@@ -1685,7 +1731,7 @@ class LinkObjVIToMSLink(LinkObjBase):
 
 
 class LinkObjTypeDefToCCLink(LinkObjBase):
-    """ TypeDef To CC Link Object Ref
+    """ TypeDef To CustCtl Link Object Ref
     """
     def __init__(self, *args):
         super().__init__(*args)
@@ -2382,7 +2428,7 @@ class LinkObjVIToPolyLink(LinkObjBase):
 
 
 class LinkObjVIToCCLink(LinkObjBase):
-    """ VI To CC Link Object Ref
+    """ VI To CustCtl Link Object Ref
     """
     def __init__(self, *args):
         super().__init__(*args)
