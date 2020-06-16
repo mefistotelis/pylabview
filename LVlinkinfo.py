@@ -308,7 +308,9 @@ class LinkObjBase:
         self.clearTypedLinkSaveInfo()
 
         if isGreaterOrEqVersion(ver, 8,0,0,1):
+            start_pos = bldata.tell()
             self.parseBasicLinkSaveInfo(bldata)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "TypedLinkSaveInfo.BasicLinkSaveInfo")
 
             start_pos = bldata.tell()
             clientTD = SimpleNamespace()
@@ -323,7 +325,6 @@ class LinkObjBase:
                 self.typedLinkFlags = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
                 self.appendPrintMapEntry(bldata.tell(), 4, 1, "TypedLinkSaveInfo.Flags")
         else:
-            ver = self.vi.getFileVersion()
             # We cannot use parseBasicLinkSaveInfo(), but lets try keeping variables similar
 
             start_pos = bldata.tell()
@@ -340,22 +341,26 @@ class LinkObjBase:
             if (self.po.verbose > 2):
                 print("{:s}: Block {} LinkObj {} TypeDesc at 0x{:04x}, type 0x{:02x} flags 0x{:02x} len {:d}"\
                   .format(self.vi.src_fname, self.blockref[0], self.ident, obj_pos, obj_type, obj_flags, obj_len))
-            # Some unusual operations are required on the size in order to get real size
+            # Some unusual operations are required on the size in order to get real size; zero means no TD at all
             if obj_len > 0:
                 obj_len = 2 * (obj_len + 1)
 
-            bldata.seek(obj_pos)
-            clientTD = SimpleNamespace()
-            clientTD.index = -1
-            clientTD.nested = None # TODO parse the TD and store there, remove the unparsed data
-            clientTD.nested_data = bldata.read(obj_len)
-            clientTD.flags = 0 # Only Type Mapped entries have it non-zero
-            self.typedLinkTD = clientTD
+                bldata.seek(obj_pos)
+                clientTD = SimpleNamespace()
+                clientTD.index = -1
+                clientTD.nested = None # TODO parse the TD and store there, remove the unparsed data
+                clientTD.nested_data = bldata.read(obj_len)
+                clientTD.flags = 0 # Only Type Mapped entries have it non-zero
+                self.typedLinkTD = clientTD
+            else:
+                bldata.seek(obj_pos+2)
             self.appendPrintMapEntry(bldata.tell(), bldata.tell()-obj_pos, 1, "TypedLinkSaveInfo.TD")
 
             start_pos = bldata.tell()
             self.linkSavePathRef = self.parsePathRef(bldata)
             self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "BasicLinkSaveInfo.PathRef")
+            if (bldata.tell() % 2) > 0:
+                bldata.read(2 - (bldata.tell() % 2)) # Padding bytes
 
             self.parseVILinkRefInfo(bldata)
         pass
@@ -382,10 +387,12 @@ class LinkObjBase:
             data_buf += self.prepareLinkOffsetList(self.typedLinkOffsetList, start_offs+len(data_buf))
 
             clientTD = self.typedLinkTD
-            if clientTD.index == -1:
+            if clientTD is None:
+                data_buf += int(0).to_bytes(2, byteorder='big', signed=False)
+            elif clientTD.index == -1:
                 data_buf += clientTD.nested_data
             else:
-                raise AttributeError("TypedLinkSaveInfo refers to TD via index, but we are using LV7 format; there was no VCTP in LV7")
+                raise AttributeError("TypedLinkSaveInfo refers to TD via index, but we are using LV7 format with no VCTP")
 
             data_buf += self.linkSavePathRef.prepareRSRCData()
 
@@ -402,10 +409,14 @@ class LinkObjBase:
             if subelem.tag in ("LinkSaveQualName","LinkSavePathRef",):
                 pass # These tags are parsed elswhere
             elif (subelem.tag == "TypeDesc"):
-                clientTD = SimpleNamespace()
-                clientTD.index = int(subelem.get("TypeID"), 0)
-                clientTD.flags = 0 # Only Type Mapped entries have it non-zero
-                self.typedLinkTD = clientTD
+                tmpVal = subelem.get("TypeID")
+                if tmpVal is not None:
+                    clientTD = SimpleNamespace()
+                    clientTD.index = int(tmpVal, 0)
+                    clientTD.flags = 0 # Only Type Mapped entries have it non-zero
+                    if clientTD.index == -1:
+                        clientTD.nested_data = subelem.text.encode(self.vi.textEncoding)
+                    self.typedLinkTD = clientTD
             elif (subelem.tag == "TypedLinkOffsetList"):
                 self.typedLinkOffsetList = self.initWithXMLLinkOffsetList(subelem)
             else:
@@ -421,10 +432,16 @@ class LinkObjBase:
         self.exportXMLBasicLinkSaveInfo(lnkobj_elem, fname_base)
         self.exportXMLVILinkRefInfo(lnkobj_elem, fname_base)
 
-        if True:
-            clientTD = self.typedLinkTD
+        clientTD = self.typedLinkTD
+        if clientTD is None:
+            subelem = ET.SubElement(lnkobj_elem, "TypeDesc")
+        elif clientTD.index > 0:
             subelem = ET.SubElement(lnkobj_elem, "TypeDesc")
             subelem.set("TypeID", "{:d}".format(clientTD.index))
+        else:
+            subelem = ET.SubElement(lnkobj_elem, "TypeDesc")
+            subelem.set("TypeID", "{:d}".format(clientTD.index))
+            subelem.text = clientTD.nested_data.decode(self.vi.textEncoding)
 
         if isSmallerVersion(ver, 8,0,0,1):
             subelem = ET.SubElement(lnkobj_elem, "TypedLinkOffsetList")
@@ -434,12 +451,14 @@ class LinkObjBase:
 
     def parseLinkOffsetList(self, bldata):
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.appendPrintMapEntry(bldata.tell(), 4, 1, "LinkOffsetList.Count")
         if count > self.po.typedesc_list_limit:
             raise RuntimeError("{:s} {} Offset List length {} exceeds limit"\
               .format(type(self).__name__, self.ident, count))
         offsetList = []
         for i in range(count):
             offs = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            self.appendPrintMapEntry(bldata.tell(), 4, 1, "LinkOffsetList.Offset[{}]".format(i))
             offsetList.append(offs)
         return offsetList
 
@@ -474,10 +493,14 @@ class LinkObjBase:
         ver = self.vi.getFileVersion()
         self.clearOffsetLinkSaveInfo()
 
+        start_pos = bldata.tell()
         self.parseTypedLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "OffsetLinkSaveInfo.TypedLinkSaveInfo")
 
         if isGreaterOrEqVersion(ver, 8,2,0,3):
+            start_pos = bldata.tell()
             self.offsetList = self.parseLinkOffsetList(bldata)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "OffsetLinkSaveInfo.OffsetList")
         pass
 
     def prepareOffsetLinkSaveInfo(self, start_offs):
@@ -514,10 +537,14 @@ class LinkObjBase:
         ver = self.vi.getFileVersion()
         self.clearHeapToVILinkSaveInfo()
 
+        start_pos = bldata.tell()
         self.parseOffsetLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "HeapToVILinkSaveInfo.OffsetLinkSaveInfo")
 
         if isGreaterOrEqVersion(ver, 8,2,0,3):
+            start_pos = bldata.tell()
             self.viLSPathRef = self.parsePathRef(bldata)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "HeapToVILinkSaveInfo.PathRef")
 
         if (self.po.verbose > 2):
             print("{:s} {} content: {} {} {}"\
@@ -567,22 +594,29 @@ class LinkObjBase:
 
         if isGreaterOrEqVersion(ver, 8,0,0,1):
             self.apiLinkLibVersion = int.from_bytes(bldata.read(8), byteorder='big', signed=False)
+            self.appendPrintMapEntry(bldata.tell(), 8, 1, "UDClassAPILinkCache.LibVersion")
         else:
             self.apiLinkLibVersion = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            self.appendPrintMapEntry(bldata.tell(), 4, 1, "UDClassAPILinkCache.LibVersion")
 
         if isSmallerVersion(ver, 8,0,0,4):
             bldata.read(4)
+            self.appendPrintMapEntry(bldata.tell(), 4, 1, "UDClassAPILinkCache.Padding")
 
         self.apiLinkIsInternal = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        self.appendPrintMapEntry(bldata.tell(), 1, 1, "UDClassAPILinkCache.IsInternal")
         if isGreaterOrEqVersion(ver, 8,1,0,2):
             self.apiLinkBool2 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            self.appendPrintMapEntry(bldata.tell(), 1, 1, "UDClassAPILinkCache.Bool2")
 
         if isGreaterOrEqVersion(ver, 9,0,0,2):
             self.apiLinkCallParentNodes = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            self.appendPrintMapEntry(bldata.tell(), 1, 1, "UDClassAPILinkCache.CallParentNodes")
         else:
             self.apiLinkCallParentNodes = 0
 
         self.apiLinkContent = readLStr(bldata, 1, self.po)
+        self.appendPrintMapEntry(bldata.tell(), 4+len(self.apiLinkContent), 1, "UDClassAPILinkCache.Content")
 
     def prepareUDClassAPILinkCache(self, start_offs):
         ver = self.vi.getFileVersion()
@@ -649,10 +683,17 @@ class LinkObjBase:
         ver = self.vi.getFileVersion()
 
         if isGreaterOrEqVersion(ver, 8,0,0,3):
+            start_pos = bldata.tell()
             self.parseBasicLinkSaveInfo(bldata)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "UDClassHeapAPISaveInfo.BasicLinkSaveInfo")
+
+            start_pos = bldata.tell()
             self.parseUDClassAPILinkCache(bldata)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "UDClassHeapAPISaveInfo.UDClassAPILinkCache")
         else:
+            start_pos = bldata.tell()
             self.parseBasicLinkSaveInfo(bldata)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "UDClassHeapAPISaveInfo.BasicLinkSaveInfo")
             self.apiLinkLibVersion = 0
             self.apiLinkIsInternal = 0
             self.apiLinkBool2 = 1
@@ -661,7 +702,9 @@ class LinkObjBase:
             bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
 
         # Not sure if that list is OffsetList, but has the same structure
+        start_pos = bldata.tell()
         self.apiLinkCacheList = self.parseLinkOffsetList(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "UDClassHeapAPISaveInfo.CacheList")
 
         if (self.po.verbose > 2):
             print("{:s} {} content: {} {} {}"\
@@ -723,8 +766,14 @@ class LinkObjBase:
 
     def parseUDClassVIAPISaveInfo(self, bldata):
         self.clearUDClassVIAPISaveInfo()
+
+        start_pos = bldata.tell()
         self.parseBasicLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "UDClassVIAPISaveInfo.BasicLinkSaveInfo")
+
+        start_pos = bldata.tell()
         self.parseUDClassAPILinkCache(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "UDClassVIAPISaveInfo.UDClassAPILinkCache")
 
     def prepareUDClassVIAPISaveInfo(self, start_offs):
         data_buf = b''
@@ -758,10 +807,15 @@ class LinkObjBase:
     def parseGILinkInfo(self, bldata):
         self.clearGILinkInfo()
         self.giLinkProp1 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        self.appendPrintMapEntry(bldata.tell(), 2, 1, "GILinkInfo.Prop1")
         self.giLinkProp2 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        self.appendPrintMapEntry(bldata.tell(), 2, 1, "GILinkInfo.Prop2")
         self.giLinkProp3 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        self.appendPrintMapEntry(bldata.tell(), 2, 1, "GILinkInfo.Prop3")
         self.giLinkProp4 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        self.appendPrintMapEntry(bldata.tell(), 2, 1, "GILinkInfo.Prop4")
         self.giLinkProp5 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.appendPrintMapEntry(bldata.tell(), 4, 1, "GILinkInfo.Prop5")
 
     def prepareGILinkInfo(self, start_offs):
         data_buf = b''
@@ -797,11 +851,17 @@ class LinkObjBase:
         ver = self.vi.getFileVersion()
 
         if isGreaterOrEqVersion(ver, 8,0,0,2):
+            start_pos = bldata.tell()
             self.parseBasicLinkSaveInfo(bldata)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "GILinkSaveInfo.BasicLinkSaveInfo")
         else:
+            start_pos = bldata.tell()
             self.parseOffsetLinkSaveInfo(bldata)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "GILinkSaveInfo.OffsetLinkSaveInfo")
 
+        start_pos = bldata.tell()
         self.parseGILinkInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "GILinkSaveInfo.GILinkInfo")
 
         if (self.po.verbose > 2):
             print("{:s} {} content: {} {} {}"\
@@ -865,15 +925,28 @@ class LinkObjBase:
         self.clearExtFuncLinkSaveInfo()
 
         if isGreaterOrEqVersion(ver, 8,0,0,3):
+            start_pos = bldata.tell()
             self.parseBasicLinkSaveInfo(bldata)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "ExtFuncLinkSaveInfo.BasicLinkSaveInfo")
+
+            start_pos = bldata.tell()
             self.offsetList = self.parseLinkOffsetList(bldata) # reuse property from OffsetLinkSaveInfo
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "ExtFuncLinkSaveInfo.LinkOffsetList")
+
             self.extFuncStr = readPStr(bldata, 2, self.po)
+            self.appendPrintMapEntry(bldata.tell(), 1+len(self.extFuncStr), 2, "ExtFuncLinkSaveInfo.Str")
             self.extFuncProp3 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            self.appendPrintMapEntry(bldata.tell(), 1, 2, "ExtFuncLinkSaveInfo.Prop3")
             self.extFuncProp4 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+            self.appendPrintMapEntry(bldata.tell(), 1, 2, "ExtFuncLinkSaveInfo.Prop4")
             if isGreaterOrEqVersion(ver, 11,0,0,3):
+                start_pos = bldata.tell()
                 self.extFuncProp6 = self.parseBool(bldata)
+                self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "ExtFuncLinkSaveInfo.Prop6")
         else:
+            start_pos = bldata.tell()
             self.parseOffsetLinkSaveInfo(bldata)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "ExtFuncLinkSaveInfo.OffsetLinkSaveInfo")
 
         if (self.po.verbose > 2):
             print("{:s} {} content: {} {} {}"\
@@ -968,8 +1041,14 @@ class LinkObjBase:
     def parseAXLinkSaveInfo(self, bldata):
         self.clearAXLinkSaveInfo()
 
+        start_pos = bldata.tell()
         self.parseOffsetLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "AXLinkSaveInfo.OffsetLinkSaveInfo")
+
         self.axLinkStr = bldata.read(40)
+        self.appendPrintMapEntry(bldata.tell(), 40, 1, \
+          "AXLinkSaveInfo.Str")
 
         if (self.po.verbose > 2):
             print("{:s} {} content: {} {} {}"\
@@ -1021,8 +1100,13 @@ class LinkObjBase:
     def parseCCSymbolLinkRefInfo(self, bldata):
         self.clearCCSymbolLinkRefInfo()
 
+        start_pos = bldata.tell()
         self.ccSymbolStrDf.initWithRSRC(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "CCSymbolLinkRefInfo.StrDf")
+
+        start_pos = bldata.tell()
         self.ccSymbolLinkBool = self.parseBool(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "CCSymbolLinkRefInfo.Bool")
 
         #raise NotImplementedError("LinkObj {} parsing not fully implemented"\
         #  .format(self.ident))
@@ -1072,12 +1156,23 @@ class LinkObjBase:
     def parseHeapToFileSaveInfo(self, bldata):
         self.clearHeapToFileSaveInfo()
 
+        start_pos = bldata.tell()
         self.parseBasicLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "HeapToFileSaveInfo.BasicLinkSaveInfo")
+
+        start_pos = bldata.tell()
         self.fileSaveStr = readLStr(bldata, 1, self.po)
         if (bldata.tell() % 4) > 0:
             bldata.read(4 - (bldata.tell() % 4)) # Padding bytes
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "HeapToFileSaveInfo.Str")
+
         self.fileSaveProp3 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.appendPrintMapEntry(bldata.tell(), 4, 1, "HeapToFileSaveInfo.Prop3")
+
+        start_pos = bldata.tell()
         self.offsetList = self.parseLinkOffsetList(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "HeapToFileSaveInfo.OffsetList")
 
         if (self.po.verbose > 2):
             print("{:s} {} content: {} {} {}"\
@@ -1138,12 +1233,17 @@ class LinkObjBase:
         self.clearDNHeapLinkSaveInfo()
 
         if isGreaterOrEqVersion(ver, 8,5,0,1):
+            start_pos = bldata.tell()
             self.parseOffsetLinkSaveInfo(bldata)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+              "DNHeapLinkSaveInfo.OffsetLinkSaveInfo")
 
             if isGreaterOrEqVersion(ver, 10,0,0,1):
                 if (bldata.tell() % 2) > 0:
                     bldata.read(2 - (bldata.tell() % 2)) # Padding bytes
+                start_pos = bldata.tell()
                 self.viLSPathRef = self.parsePathRef(bldata)
+                self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, "DNHeapLinkSaveInfo.PathRef")
 
         else:
             raise NotImplementedError("Unsupported DNHeapLinkSaveInfo read in ver=0x{:06X} older than LV8.5"\
@@ -1196,12 +1296,18 @@ class LinkObjBase:
         self.clearDNVILinkSaveInfo()
 
         if isGreaterOrEqVersion(ver, 8,5,0,1):
+            start_pos = bldata.tell()
             self.parseBasicLinkSaveInfo(bldata)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+              "DNVILinkSaveInfo.BasicLinkSaveInfo")
 
             if isGreaterOrEqVersion(ver, 10,0,0,1):
                 if (bldata.tell() % 2) > 0:
                     bldata.read(2 - (bldata.tell() % 2)) # Padding bytes
+                start_pos = bldata.tell()
                 self.viLSPathRef = self.parsePathRef(bldata)
+                self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+                  "DNVILinkSaveInfo.PathRef")
 
         else:
             raise NotImplementedError("Unsupported DNVILinkSaveInfo read in ver=0x{:06X} older than LV8.5"\
@@ -1323,7 +1429,11 @@ class LinkObjInstanceVIToOwnerVI(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseBasicLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.BasicLinkSaveInfo".format(type(self).__name__))
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         data_buf = b''
@@ -1348,7 +1458,11 @@ class LinkObjHeapToAssembly(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseDNHeapLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.DNHeapLinkSaveInfo".format(type(self).__name__))
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         data_buf = b''
@@ -1373,7 +1487,11 @@ class LinkObjVIToAssembly(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseDNVILinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.DNVILinkSaveInfo".format(type(self).__name__))
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         data_buf = b''
@@ -1428,9 +1546,20 @@ class LinkObjVIToCCSymbolLink(LinkObjBase):
         self.ccSymbolStr = b''
 
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseBasicLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.BasicLinkSaveInfo".format(type(self).__name__))
+
         self.ccSymbolStr = readLStr(bldata, 1, self.po)
+        self.appendPrintMapEntry(bldata.tell(), 4+len(self.ccSymbolStr), 1, \
+          "{}.Str".format(type(self).__name__))
+
+        start_pos = bldata.tell()
         self.parseCCSymbolLinkRefInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.CCSymbolLinkRefInfo".format(type(self).__name__))
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         data_buf = b''
@@ -1486,9 +1615,18 @@ class LinkObjVIToFileLink(LinkObjBase):
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
         self.fileLinkContent = b''
+
+        start_pos = bldata.tell()
         self.parseBasicLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.BasicLinkSaveInfo".format(type(self).__name__))
+
         self.fileLinkContent = readLStr(bldata, 4, self.po)
+        self.appendPrintMapEntry(bldata.tell(), 4+len(self.fileLinkContent), 4, \
+          "{}.Content".format(type(self).__name__))
+
         self.fileLinkProp1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.appendPrintMapEntry(bldata.tell(), 4, 1, "{}.Prop1".format(type(self).__name__))
         pass
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -1609,8 +1747,15 @@ class LinkObjInstantiationVIToGenVI(LinkObjBase):
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
         self.genViGUID = b''
+
+        start_pos = bldata.tell()
         self.parseBasicLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.BasicLinkSaveInfo".format(type(self).__name__))
+
         self.genViGUID = bldata.read(36)
+        self.appendPrintMapEntry(bldata.tell(), 36, 1, \
+          "{}.GUID".format(type(self).__name__))
         pass
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -1672,10 +1817,23 @@ class LinkObjVIToLibraryDataLink(LinkObjBase):
         self.libDataContent = b''
         self.libDataLinkProp2 = 0
         self.libDataLinkVarDF = None
+
+        start_pos = bldata.tell()
         self.parseBasicLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.BasicLinkSaveInfo".format(type(self).__name__))
+
         self.libDataContent = readLStr(bldata, 4, self.po)
+        self.appendPrintMapEntry(bldata.tell(), 4+len(self.libDataContent), 4, \
+          "{}.Content".format(type(self).__name__))
+
         #TODO Read content of LVVariant to self.libDataLinkVarDF
+
+        start_pos = bldata.tell()
         self.libDataLinkProp2 = self.parseBool(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.Prop2".format(type(self).__name__))
+
         raise NotImplementedError("LinkObj {} parsing not fully implemented"\
           .format(self.ident))
         pass
@@ -1729,9 +1887,20 @@ class LinkObjVIToMSLink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseBasicLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.BasicLinkSaveInfo".format(type(self).__name__))
+
         self.msLinkProp1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.appendPrintMapEntry(bldata.tell(), 4, 1, "{}.Prop1".format(type(self).__name__))
+
+        start_pos = bldata.tell()
         self.msLinkQualName = readQualifiedName(bldata, self.po)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.QualName".format(type(self).__name__))
+
         #TODO Path and the rest after - parse
         raise NotImplementedError("LinkObj {} parsing not fully implemented"\
           .format(self.ident))
@@ -1775,7 +1944,11 @@ class LinkObjTypeDefToCCLink(LinkObjBase):
     def parseRSRCData(self, bldata):
         self.clearHeapToVILinkSaveInfo()
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseHeapToVILinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.HeapToVILinkSaveInfo".format(type(self).__name__))
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         data_buf = b''
@@ -1806,10 +1979,17 @@ class LinkObjHeapToXCtlInterface(LinkObjBase):
         self.clearGILinkInfo()
 
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseOffsetLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.OffsetLinkSaveInfo".format(type(self).__name__))
 
         if isGreaterOrEqVersion(ver, 8,6,0,2):
+            start_pos = bldata.tell()
             self.parseGILinkInfo(bldata)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+              "{}.GILinkInfo".format(type(self).__name__))
         pass
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -1850,10 +2030,17 @@ class LinkObjXCtlToXInterface(LinkObjBase):
         self.clearGILinkInfo()
 
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseOffsetLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.OffsetLinkSaveInfo".format(type(self).__name__))
 
         if isGreaterOrEqVersion(ver, 8,6,0,2):
+            start_pos = bldata.tell()
             self.parseGILinkInfo(bldata)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+              "{}.GILinkInfo".format(type(self).__name__))
         pass
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -1889,7 +2076,11 @@ class LinkObjVIToXCtlInterface(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseGILinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.GILinkSaveInfo".format(type(self).__name__))
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         data_buf = b''
@@ -1914,7 +2105,11 @@ class LinkObjVIToXNodeInterface(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseGILinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.GILinkSaveInfo".format(type(self).__name__))
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         data_buf = b''
@@ -1963,7 +2158,11 @@ class LinkObjActiveXVIToTypeLib(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseAXLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.AXLinkSaveInfo".format(type(self).__name__))
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         data_buf = b''
@@ -1988,7 +2187,11 @@ class LinkObjVIToLib(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseBasicLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.BasicLinkSaveInfo".format(type(self).__name__))
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         data_buf = b''
@@ -2012,7 +2215,11 @@ class LinkObjUDClassDDOToUDClassAPILink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseUDClassHeapAPISaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.UDClassHeapAPISaveInfo".format(type(self).__name__))
         pass
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -2037,7 +2244,11 @@ class LinkObjDDODefaultDataToUDClassAPILink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseUDClassHeapAPISaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.UDClassHeapAPISaveInfo".format(type(self).__name__))
         pass
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -2062,7 +2273,11 @@ class LinkObjHeapObjToUDClassAPILink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseUDClassHeapAPISaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.UDClassHeapAPISaveInfo".format(type(self).__name__))
         pass
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -2087,7 +2302,11 @@ class LinkObjVIToUDClassAPILink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseUDClassVIAPISaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.UDClassVIAPISaveInfo".format(type(self).__name__))
         pass
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -2202,10 +2421,17 @@ class LinkObjDSToDSLink(LinkObjBase):
         self.dsOffsetList = []
 
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseOffsetLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.OffsetLinkSaveInfo".format(type(self).__name__))
 
         if isGreaterOrEqVersion(ver, 8,6,0,2):
+            start_pos = bldata.tell()
             self.dsOffsetList = self.parseLinkOffsetList(bldata)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+              "{}.OffsetList".format(type(self).__name__))
         pass
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -2254,7 +2480,11 @@ class LinkObjDSToExtFuncLink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseExtFuncLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.ExtFuncLinkSaveInfo".format(type(self).__name__))
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         data_buf = b''
@@ -2317,7 +2547,11 @@ class LinkObjDSToStaticVILink(LinkObjBase):
         ver = self.vi.getFileVersion()
         self.clearOffsetLinkSaveInfo()
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseOffsetLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.OffsetLinkSaveInfo".format(type(self).__name__))
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         ver = self.vi.getFileVersion()
@@ -2349,11 +2583,22 @@ class LinkObjVIToStdVILink(LinkObjBase):
         self.stdViGUID = b''
 
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseTypedLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.TypedLinkSaveInfo".format(type(self).__name__))
+
         if isGreaterOrEqVersion(ver, 10,0,0,2):
+            start_pos = bldata.tell()
             hasGUID = self.parseBool(bldata)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+              "{}.HasGUID".format(type(self).__name__))
+
             if hasGUID != 0:
                 self.stdViGUID = bldata.read(36)
+                self.appendPrintMapEntry(bldata.tell(), 36, 1, \
+                  "{}.GUID".format(type(self).__name__))
         pass
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -2405,7 +2650,11 @@ class LinkObjVIToProgRetLink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseTypedLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.TypedLinkSaveInfo".format(type(self).__name__))
         pass
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -2438,7 +2687,11 @@ class LinkObjVIToPolyLink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseTypedLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.TypedLinkSaveInfo".format(type(self).__name__))
         pass
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -2471,7 +2724,11 @@ class LinkObjVIToCCLink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseTypedLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.TypedLinkSaveInfo".format(type(self).__name__))
         pass
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -2505,8 +2762,15 @@ class LinkObjVIToStaticVILink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseTypedLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.TypedLinkSaveInfo".format(type(self).__name__))
+
         self.viLinkProp2 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.appendPrintMapEntry(bldata.tell(), 4, 1, \
+          "{}.Prop2".format(type(self).__name__))
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         data_buf = b''
@@ -2544,7 +2808,11 @@ class LinkObjVIToAdaptiveVILink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseTypedLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.TypedLinkSaveInfo".format(type(self).__name__))
         pass
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -2583,9 +2851,20 @@ class LinkObjHeapToCCSymbolLink(LinkObjBase):
         self.ccSymbolStr = b''
 
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseOffsetLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.OffsetLinkSaveInfo".format(type(self).__name__))
+
         self.ccSymbolStr = readLStr(bldata, 1, self.po)
+        self.appendPrintMapEntry(bldata.tell(), 4+len(self.ccSymbolStr), 1, \
+          "{}.Str".format(type(self).__name__))
+
+        start_pos = bldata.tell()
         self.parseCCSymbolLinkRefInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.CCSymbolLinkRefInfo".format(type(self).__name__))
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         data_buf = b''
@@ -2645,12 +2924,20 @@ class LinkObjIUseToVILink(LinkObjBase):
         self.ident = bldata.read(4)
 
         if isGreaterOrEqVersion(ver, 8,2,0,3):
+            start_pos = bldata.tell()
             self.parseHeapToVILinkSaveInfo(bldata)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+              "{}.HeapToVILinkSaveInfo".format(type(self).__name__))
         else:
+            start_pos = bldata.tell()
             self.parseOffsetLinkSaveInfo(bldata)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+              "{}.OffsetLinkSaveInfo".format(type(self).__name__))
 
         if isGreaterOrEqVersion(ver, 8,0,0,1):
             self.iuseStr = readPStr(bldata, 2, self.po)
+            self.appendPrintMapEntry(bldata.tell(), 1+len(self.iuseStr), 2, \
+              "{}.Str".format(type(self).__name__))
         pass
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -2714,7 +3001,11 @@ class LinkObjPIUseToPolyLink(LinkObjBase):
         self.clearHeapToVILinkSaveInfo()
 
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseHeapToVILinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.HeapToVILinkSaveInfo".format(type(self).__name__))
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         data_buf = b''
@@ -2742,13 +3033,20 @@ class LinkObjNonVINonHeapToTypedefLink(LinkObjBase):
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
         self.typedLinkTD = None
+
+        start_pos = bldata.tell()
         self.parseBasicLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.BasicLinkSaveInfo".format(type(self).__name__))
 
         if True:
+            start_pos = bldata.tell()
             clientTD = SimpleNamespace()
             clientTD.index = readVariableSizeFieldU2p2(bldata)
             clientTD.flags = 0 # Only Type Mapped entries have it non-zero
             self.typedLinkTD = clientTD
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+              "{}.TD".format(type(self).__name__))
         pass
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -2797,10 +3095,22 @@ class LinkObjCCSymbolLink(LinkObjBase):
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
         self.symbolLinkContent = b''
+
+        start_pos = bldata.tell()
         self.parseBasicLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.BasicLinkSaveInfo".format(type(self).__name__))
+
         self.symbolLinkContent = readLStr(bldata, 1, self.po)
+        self.appendPrintMapEntry(bldata.tell(), 4+len(self.symbolLinkContent), 1, \
+          "{}.Content".format(type(self).__name__))
+
         #TODO read StringTD
+        start_pos = bldata.tell()
         self.symbolLinkProp2 = self.parseBool(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.Prop2".format(type(self).__name__))
+
         raise NotImplementedError("LinkObj {} parsing not fully implemented"\
           .format(self.ident))
         pass
@@ -2887,7 +3197,11 @@ class LinkObjHeapToFileLink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseHeapToFileSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.HeapToFileSaveInfo".format(type(self).__name__))
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         data_buf = b''
@@ -2912,7 +3226,11 @@ class LinkObjHeapToFileNoWarnLink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseHeapToFileSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.HeapToFileSaveInfo".format(type(self).__name__))
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         data_buf = b''
@@ -2973,7 +3291,11 @@ class LinkObjNodeToEFLink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseExtFuncLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.ExtFuncLinkSaveInfo".format(type(self).__name__))
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         data_buf = b''
@@ -3023,7 +3345,11 @@ class LinkObjStaticVIRefToVILink(LinkObjBase):
     def parseRSRCData(self, bldata):
         self.clearHeapToVILinkSaveInfo()
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseHeapToVILinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.HeapToVILinkSaveInfo".format(type(self).__name__))
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         data_buf = b''
@@ -3090,14 +3416,22 @@ class LinkObjHeapToRCFileLink(LinkObjBase):
         self.content = []
 
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseHeapToFileSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.HeapToFileSaveInfo".format(type(self).__name__))
 
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.appendPrintMapEntry(bldata.tell(), 4, 1, "{}.Count".format(type(self).__name__))
         for i in range(count):
+            start_pos = bldata.tell()
             tditem = SimpleNamespace()
             tditem.clients, tditem.topType = LVdatatype.parseTDObject(self.vi, self.blockref, bldata, ver, self.po)
             tditem.prop2 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             self.content.append(tditem)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+              "{}.TD[{}]".format(type(self).__name__,i))
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         ver = self.vi.getFileVersion()
@@ -3231,7 +3565,11 @@ class LinkObjFBoxLineToInstantnVILink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseHeapToVILinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.HeapToVILinkSaveInfo".format(type(self).__name__))
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         data_buf = b''
@@ -3436,7 +3774,11 @@ class LinkObjXNodeToExtFuncLink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseExtFuncLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.ExtFuncLinkSaveInfo".format(type(self).__name__))
         # TODO I'm pretty sure some kind of string read is missing here..
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -3462,7 +3804,11 @@ class LinkObjXNodeToVILink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseHeapToVILinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.HeapToVILinkSaveInfo".format(type(self).__name__))
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         data_buf = b''
@@ -3487,7 +3833,11 @@ class LinkObjActiveXBDToTypeLib(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseAXLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.AXLinkSaveInfo".format(type(self).__name__))
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
         data_buf = b''
@@ -3529,10 +3879,17 @@ class LinkObjXNodeToXInterface(LinkObjBase):
         self.clearGILinkInfo()
 
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseOffsetLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.OffsetLinkSaveInfo".format(type(self).__name__))
 
         if isGreaterOrEqVersion(ver, 8,6,0,2):
+            start_pos = bldata.tell()
             self.parseGILinkInfo(bldata)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+              "{}.GILinkInfo".format(type(self).__name__))
         pass
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -3627,7 +3984,11 @@ class LinkObjDynInfoToUDClassAPILink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseUDClassHeapAPISaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.UDClassHeapAPISaveInfo".format(type(self).__name__))
         pass
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -3652,7 +4013,11 @@ class LinkObjPropNodeItemToUDClassAPILink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseUDClassHeapAPISaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.UDClassHeapAPISaveInfo".format(type(self).__name__))
         pass
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -3677,7 +4042,11 @@ class LinkObjCreOrDesRefToUDClassAPILink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseUDClassHeapAPISaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.UDClassHeapAPISaveInfo".format(type(self).__name__))
         pass
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -3702,7 +4071,11 @@ class LinkObjDDOToUDClassAPILink(LinkObjBase):
 
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseUDClassHeapAPISaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.UDClassHeapAPISaveInfo".format(type(self).__name__))
         pass
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):
@@ -3805,10 +4178,17 @@ class LinkObjHeapToXNodeInterface(LinkObjBase):
         self.clearGILinkInfo()
 
         self.ident = bldata.read(4)
+
+        start_pos = bldata.tell()
         self.parseOffsetLinkSaveInfo(bldata)
+        self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+          "{}.OffsetLinkSaveInfo".format(type(self).__name__))
 
         if isGreaterOrEqVersion(ver, 8,6,0,2):
+            start_pos = bldata.tell()
             self.parseGILinkInfo(bldata)
+            self.appendPrintMapEntry(bldata.tell(), bldata.tell()-start_pos, 1, \
+              "{}.GILinkInfo".format(type(self).__name__))
         pass
 
     def prepareRSRCData(self, start_offs=0, avoid_recompute=False):

@@ -2181,7 +2181,7 @@ class LinkObjRefs(CompleteBlock):
             section.content.append(client)
             bldata.seek(ctnrstart)
             client.parseRSRCData(bldata)
-            self.appendPrintMapEntry(section, bldata.tell(), bldata.tell()-ctnrstart, 1, "LinkObject[{}].Content".format(len(section.content)+1))
+            self.appendPrintMapEntry(section, bldata.tell(), bldata.tell()-ctnrstart, 1, "LinkObject[{}].Content".format(len(section.content)))
         if nextLinkInfo != 3:
             if len(section.content) > 0:
                 client = section.content[-1]
