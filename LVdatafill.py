@@ -1512,7 +1512,7 @@ class DataFillUDClassInst(DataFill):
             elemText = simpleVersionToString(libVersion)
             subelem.text = elemText
         for i, libData in enumerate(self.datlist):
-            subelem = ET.SubElement(df_elem, "LibVersion")
+            subelem = ET.SubElement(df_elem, "LibData")
             elemText = libData.decode(self.vi.textEncoding)
             subelem.text = elemText
         pass
