@@ -29,27 +29,6 @@ echo | tee log-vi_lib-vi-3cmp.txt
 # Find supported files, other than LLBs. We have a separate script for the LLBs.
 find ${SRC_VI_DIRS} -type f -iname '*.vi' -o -iname '*.ctl' -o -iname '*.vit' -o -iname '*.mnu' -o -iname '*.ctt' -o -iname '*.uir' -o -iname '*.lsb' | tee log-vi_lib-vi-0list.txt
 
-# Remove LV6 files which generate irrelevant differences due to random padding
-sed -i -n '/lv06\/vi[.]lib\/\(Demo Scope\|GMath\/Conjugate Gradient nD\|GMath\/Eval X-Y-Z[\(]a,t1,t2[\)]\|GMath\/Nonlinear System Solver\)[.]vi/!p' log-vi_lib-vi-0list.txt
-sed -i -n '/lv06\/vi[.]lib\/\(GMath\/ODE Cash Karp 5th Order\|GMath\/ODE Runge Kutta 4th Order\|GMath\/Parse Formula Node\|GMath\/String to Tree Inner Part\)[.]vi/!p' log-vi_lib-vi-0list.txt
-sed -i -n '/lv06\/vi[.]lib\/\(Measure\/Averaged DC-RMS\|Measure\/Basic Averaged DC-RMS\|Measure\/Basic Function Generator\|Measure\/Create Continuous Mask\)[.]vi/!p' log-vi_lib-vi-0list.txt
-sed -i -n '/lv06\/vi[.]lib\/\(Measure\/Create Segmented Mask using Formula\|Measure\/Create Segmented Mask\|Measure\/Cross Spectrum [\(]Mag-Phase[\)]\)[.]vi/!p' log-vi_lib-vi-0list.txt
-sed -i -n '/lv06\/vi[.]lib\/\(Measure\/Cross Spectrum [\(]Real-Im[\)]\|Measure\/Design IIR filter\|Measure\/Design N FIR filters\|Measure\/Design N IIR filters\)[.]vi/!p' log-vi_lib-vi-0list.txt
-sed -i -n '/lv06\/vi[.]lib\/\(Measure\/Extract Single Tone Information from Hann Spectrum\|Measure\/FFT Power Spectral Density\|Measure\/FFT Power Spectrum\)[.]vi/!p' log-vi_lib-vi-0list.txt
-sed -i -n '/lv06\/vi[.]lib\/\(Measure\/FFT Spectrum [\(]Mag-Phase[\)]\|Measure\/FFT Spectrum [\(]Real-Im[\)]\|Measure\/FIR Filter by N Specs for N Chan\)[.]vi/!p' log-vi_lib-vi-0list.txt
-sed -i -n '/lv06\/vi[.]lib\/\(Measure\/FIR Filter for N Chan\|Measure\/Frequency Response Function [\(]Mag-Phase[\)]\|Measure\/Frequency Response Function [\(]Real-Im[\)]\)[.]vi/!p' log-vi_lib-vi-0list.txt
-sed -i -n '/lv06\/vi[.]lib\/\(Measure\/Harmonic Distortion Analyzer\|Measure\/Implement IIR Cascade Filter for N Chan\|Measure\/Implement IIR Cascade Filter for N Specs and N Chan\)[.]vi/!p' log-vi_lib-vi-0list.txt
-sed -i -n '/lv06\/vi[.]lib\/\(Measure\/Implement IIR Direct Filter for N Chan\|Measure\/Limit Testing for Cluster\|Measure\/Limit Testing\|Measure\/ma_Compute Order [&] Cutoffs\)[.]vi/!p' log-vi_lib-vi-0list.txt
-sed -i -n '/lv06\/vi[.]lib\/\(Measure\/ma_Design FIR Coeff\|Measure\/Multitone Generator\|Measure\/SINAD Analyzer\|Measure\/Trigger Detection for N Channel\)[.]vi/!p' log-vi_lib-vi-0list.txt
-sed -i -n '/lv06\/vi[.]lib\/\(picture\/Calc Axis Attributes\|picture\/Draw Axes\|picture\/Draw Cartesian Axes\|picture\/Draw Standard Smith Grid\|picture\/Draw XY Data\|picture\/Plot XY\)[.]vi/!p' log-vi_lib-vi-0list.txt
-sed -i -n '/lv06\/vi[.]lib\/\(platform\/Compile DLL Stub\|platform\/DataSocket Status\|platform\/Notifier Core\|platform\/Wait On ActiveX Event From Multiple\|registry\/Create Registry Key\)[.]vi/!p' log-vi_lib-vi-0list.txt
-sed -i -n '/lv06\/vi[.]lib\/\(registry\/Enum Registry Values\|registry\/Open Registry Key\|registry\/Read Registry Value STR\|sound\/Snd Write Wave File\)[.]vi/!p' log-vi_lib-vi-0list.txt
-sed -i -n '/lv06\/vi[.]lib\/\(utility\/All Librarian VIs\|utility\/All the eggs\|utility\/Append Control Image to Report\|utility\/Append Front Panel Image to Report\)[.]vi/!p' log-vi_lib-vi-0list.txt
-sed -i -n '/lv06\/vi[.]lib\/\(utility\/Append List to Report\|utility\/Append Text Table to Report\|utility\/Config Data Modify\|utility\/Config Data Registry\|utility\/Easy Text Report\)[.]vi/!p' log-vi_lib-vi-0list.txt
-sed -i -n '/lv06\/vi[.]lib\/\(utility\/General Error Handler\|utility\/HTML Report Labeled Numeric Table\|utility\/HTML Report Labeled String Table\|utility\/Image in Header or Footer\)[.]vi/!p' log-vi_lib-vi-0list.txt
-sed -i -n '/lv06\/vi[.]lib\/\(utility\/Instrument Control Master\|utility\/Open-Create-Replace File\|utility\/Print By Name Master\|utility\/threadconfig\)[.]vi/!p' log-vi_lib-vi-0list.txt
-sed -i -n '/lv06\/vi[.]lib\/\(utility\/Version Control CIN\|Waveform\/Export Waveforms To Spreadsheet File [\(]1D[\)]\|Waveform\/Export Waveforms To Spreadsheet File [\(]2D[\)]\)[.]vi/!p' log-vi_lib-vi-0list.txt
-sed -i -n '/lv06\/vi[.]lib\/\(Waveform\/Open Create Replace WDT Array Dlog File\|Waveform\/Read WDT Array Dlog File[\+]\|Waveform\/Search Waveform\|Waveform\/Write WDT Array Dlog File[\+]\)[.]vi/!p' log-vi_lib-vi-0list.txt
 # Remove files which generate irrelevant differences due to different order inside
 sed -i -n '/lv07\/user[.]lib\/\(dir\)[.]mnu/!p' log-vi_lib-vi-0list.txt
 
@@ -97,10 +76,15 @@ while IFS= read -r rsrc_fn; do
     fi
 
     (../readRSRC.py -vv -c -m "${rsrc_out_dir}/${xml_fn}" -i "${rsrc_out_fn}") 2>&1 | tee -a log-vi_lib-vi-2creat.txt
-    if [[ "${rsrc_fn}" == *'/FFT Power Spectrum.vi' ]] || \
+    if [[ "${rsrc_fn}" == *'/lv06/'* ]] || \
+       [[ "${rsrc_fn}" == *'/lv07/'* ]] || \
+       false; then
+        # Old LV versions have random values at padding; ignore differences where non-zero value was replaced by zero
+        (cmp -l "${rsrc_fn}" "${rsrc_out_fn}") 2>&1 | grep -v '^[ ]*[0-9]\+[ ]\+[0-7]\+[ ]\+0$' | head -n 64 | tee -a log-vi_lib-vi-3cmp.txt
+    elif [[ "${rsrc_fn}" == *'/FFT Power Spectrum.vi' ]] || \
        false; then
         # For some specific files, ignore EOLN conversion inconsistencies
-        (cmp -l "${rsrc_fn}" "${rsrc_out_fn}") 2>&1 | head -n 64 | grep -v '^[0-9]\+[ ]\+15[ ]\+12$' | tee -a log-vi_lib-vi-3cmp.txt
+        (cmp -l "${rsrc_fn}" "${rsrc_out_fn}") 2>&1 | grep -v '^[ ]*[0-9]\+[ ]\+15[ ]\+12$' | head -n 64 | tee -a log-vi_lib-vi-3cmp.txt
     else
         (cmp -l "${rsrc_fn}" "${rsrc_out_fn}") 2>&1 | head -n 64 | tee -a log-vi_lib-vi-3cmp.txt
     fi
