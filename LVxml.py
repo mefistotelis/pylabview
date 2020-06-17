@@ -240,6 +240,18 @@ def unescape_cdata_control_chars(text):
     ccList = ( i for i in range(0,32) if i not in (ord("\n"), ord("\t"),) )
     return unescape_cdata_custom_chars(text, ccList)
 
+def escape_attribute_control_chars(text):
+    """ escape control characters
+    """
+    ccList = ( i for i in range(0,32) if i not in (ord("\t"),) )
+    return escape_cdata_custom_chars(text, ccList)
+
+def unescape_attribute_control_chars(text):
+    """ un-escape control characters
+    """
+    ccList = ( i for i in range(0,32) if i not in (ord("\t"),) )
+    return unescape_cdata_custom_chars(text, ccList)
+
 def CDATA(text=None):
     """
     A CDATA element factory function that uses the function itself as the tag
@@ -277,6 +289,32 @@ def _escape_cdata(text):
         ET._raise_serialization_error(text)
     return ET._original_escape_cdata(text)
 ET._escape_cdata = _escape_cdata
+
+# Escaping attributes really also requires changes in parsing, which aren't really possible
+# as ElementTree uses native XML parser library; that library interprets the HTML entity numbers
+# and fails the parsing because it receives characters which cannot be stored in XML
+# we could workaround it though, by using escaping into something else than HTML entity numbers
+ET._original_escape_attrib = ET._escape_attrib
+
+def _escape_attrib(text):
+    # escape character data
+    try:
+        # Copied from _original_escape_attrib
+        if "&" in text:
+            text = text.replace("&", "&amp;")
+        if "<" in text:
+            text = text.replace("<", "&lt;")
+        if ">" in text:
+            text = text.replace(">", "&gt;")
+        if "\"" in text:
+            text = text.replace("\"", "&quot;")
+        # Additionally, change control chars to entity numbers
+        if any(chr(c) in text for c in [c for c in range(0,32) if c not in (ord("\t"),)]):
+            return escape_attribute_control_chars(text)
+    except (TypeError, AttributeError):
+        ET._raise_serialization_error(text)
+    return text #ET._original_escape_attrib(text)
+ET._escape_attrib = _escape_attrib
 
 def pretty_element_tree_heap(elem, level=0):
     """ Pretty ElementTree for LV Heap XML data.
