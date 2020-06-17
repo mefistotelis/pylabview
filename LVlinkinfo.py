@@ -438,7 +438,7 @@ class LinkObjBase:
         clientTD = self.typedLinkTD
         if clientTD is None:
             subelem = ET.SubElement(lnkobj_elem, "TypeDesc")
-        elif clientTD.index > 0:
+        elif clientTD.index >= 0:
             subelem = ET.SubElement(lnkobj_elem, "TypeDesc")
             subelem.set("TypeID", "{:d}".format(clientTD.index))
         else:
@@ -3456,7 +3456,7 @@ class LinkObjHeapToRCFileLink(LinkObjBase):
         for subelem in lnkobj_elem:
             if subelem.tag in ("LinkOffsetList", "FileSaveStr","LinkSaveQualName","LinkSavePathRef",):
                 pass # These tags are parsed elswhere
-            elif subelem.tag in ("FileLinkTDList",):
+            elif subelem.tag == "FileLinkTDList":
                 tditem = SimpleNamespace()
                 tditem.clients, tditem.topType = LVdatatype.initWithXMLTDObject(self.vi, self.blockref, subelem, self.po)
                 tditem.prop2 = int(subelem.get("FileLinkProp2"), 0)
