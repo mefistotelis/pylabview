@@ -31,6 +31,7 @@ find ${SRC_VI_DIRS} -type f -iname '*.vi' -o -iname '*.ctl' -o -iname '*.vit' -o
 
 # Remove files which generate irrelevant differences due to different order inside
 sed -i -n '/lv07\/user[.]lib\/\(dir\)[.]mnu/!p' log-vi_lib-vi-0list.txt
+sed -i -n '/lv10\/menus\/Categories\/[^\/]\+\/\(dir\)[.]mnu/!p' log-vi_lib-vi-0list.txt
 
 while IFS= read -r rsrc_fn; do
     rsrc_out_fn=$(basename "${rsrc_fn}")
