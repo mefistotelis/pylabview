@@ -375,9 +375,9 @@ class DataFillComplex(DataFill):
             subelem = ET.SubElement(df_elem, tags[i])
             tdcType = self.getComponentType()
             if math.isnan(val):
-                df_elem.text = LVdatatype.numericToStringUnequivocal(val, tdcType)
+                subelem.text = LVdatatype.numericToStringUnequivocal(val, tdcType)
             else:
-                df_elem.text = LVdatatype.numericToStringSimple(val, tdcType)
+                subelem.text = LVdatatype.numericToStringSimple(val, tdcType)
         pass
 
 
