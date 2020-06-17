@@ -3314,6 +3314,8 @@ def numericToStringSimple(val, tdType):
     """ Converts numeric value to a string in a simple manner
 
     Values are sored with enough decimal places to cover precision of each type.
+    The precision must be high enough to mind where the switch to scientific notation
+    takes place.
     """
     text = None
     from LVdatatype import TD_FULL_TYPE
@@ -3323,17 +3325,17 @@ def numericToStringSimple(val, tdType):
       TD_FULL_TYPE.NumUInt32,TD_FULL_TYPE.UnitUInt32,TD_FULL_TYPE.NumUInt64,):
         text = "{:d}".format(val)
     elif tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
-        text = "{:g}".format(val)
+        text = "{:.9g}".format(val)
     elif tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
         text = "{:.17g}".format(val)
     elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
-        text = "{:.37g}".format(val)
+        text = "{:.39g}".format(val)
     return text
 
 def numericToStringUnequivocal(val, tdType):
     """ Converts numeric value to a string in an unequivocal manner
 
-    This is achieved by simply addirn direct hex representation after a float. That is the only way
+    This is achieved by simply concatenating direct hex representation after a float. That is the only way
     to handle _all_ values, including different NaNs.
     Integers are simpler - the formatted value is unequivocal already.
     """
@@ -3345,16 +3347,17 @@ def numericToStringUnequivocal(val, tdType):
       TD_FULL_TYPE.NumUInt32,TD_FULL_TYPE.UnitUInt32,TD_FULL_TYPE.NumUInt64,):
         text = "{:d}".format(val)
     elif tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
+        # 32-bit float has 8 digit precision; adding one digit for the scientific notation margin
         tmpbt = struct.pack('>f', val)
-        text = "{:g} (0x{:08X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
+        text = "{:.9g} (0x{:08X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
     elif tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
         # 64-bit float has 17 digit precision
         tmpbt = struct.pack('>d', val)
         text = "{:.17g} (0x{:016X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
     elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
-        # Precision of 128-bit float is 36 digits, plus one partial
+        # Precision of 128-bit float is 36 digits, plus few for partial and for sci notation margin
         tmpbt = LVmisc.prepareQuadFloat(val)
-        text = "{:.37g} (0x{:032X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
+        text = "{:.39g} (0x{:032X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
     return text
 
 def stringUnequivocalToNumeric(text, tdType):
@@ -3393,7 +3396,8 @@ def stringUnequivocalToNumeric(text, tdType):
             elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
                 from decimal import Decimal, localcontext
                 with localcontext() as ctx:
-                    ctx.prec = 37  # quad float has up to 36 digits precision, plus one partial
+                    # quad float has up to 36 digits precision, plus partial and sci notation switch margin
+                    ctx.prec = 39 
                     val = Decimal(hexParse.group(1))
     return val
 

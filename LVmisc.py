@@ -421,7 +421,8 @@ def readQuadFloat(bldata):
     significand = (asint & ((1 << 112) - 1)) | (1 << 112)
     from decimal import Decimal, localcontext
     with localcontext() as ctx:
-        ctx.prec = 37  # quad float has up to 36 digits precision, plus one partial
+        # quad float has up to 36 digits precision, plus few for partial and sci notation margin
+        ctx.prec = 39
         val = Decimal(sign) * Decimal(significand) * Decimal(2) ** (exponent - 112)
     return val
 
@@ -474,7 +475,8 @@ def prepareQuadFloat(val):
     """
     from decimal import Decimal, localcontext
     with localcontext() as ctx:
-        ctx.prec = 37  # quad float has up to 36 digits precision, plus one partial
+        # quad float has up to 36 digits precision, plus few for partial and sci notation margin
+        ctx.prec = 39
         mantissa, exponent = frexpQuadFloat(val)
         sign = -1 if mantissa < 0 else 1
         # Properly handle exponent on zero value
