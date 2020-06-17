@@ -3323,7 +3323,7 @@ def numericToStringSimple(val, tdType):
     elif tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
         text = "{:.17g}".format(val)
     elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
-        text = "{:.71g}".format(val)
+        text = "{:.37g}".format(val)
     return text
 
 def numericToStringUnequivocal(val, tdType):
@@ -3348,9 +3348,9 @@ def numericToStringUnequivocal(val, tdType):
         tmpbt = struct.pack('>d', val)
         text = "{:.17g} (0x{:016X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
     elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
-        # Precision of 128-bit float is circa 71 digits
+        # Precision of 128-bit float is 36 digits, plus one partial
         tmpbt = LVmisc.prepareQuadFloat(val)
-        text = "{:.71g} (0x{:032X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
+        text = "{:.37g} (0x{:032X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
     return text
 
 def stringUnequivocalToNumeric(text, tdType):
@@ -3367,20 +3367,30 @@ def stringUnequivocalToNumeric(text, tdType):
       TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
         if val is None: # Get the value from hex sting in brackets
             hexParse = re.search(r'^.*\((0x[0-9A-Fa-f]+)\)$',text.strip())
-            if hexParse is not None:
-                if tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
-                    tmpbt = int(hexParse.group(1),0).to_bytes(4, byteorder='big', signed=False)
-                    val = struct.unpack('>f', tmpbt)[0]
-                elif tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
-                    tmpbt = int(hexParse.group(1),0).to_bytes(8, byteorder='big', signed=False)
-                    val = struct.unpack('>d', tmpbt)[0]
-                elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
-                    tmpbt = int(hexParse.group(1),0).to_bytes(16, byteorder='big', signed=False)
-                    val = LVmisc.readQuadFloat(BytesIO(tmpbt))
+            if hexParse is None:
+                pass
+            elif tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
+                tmpbt = int(hexParse.group(1),0).to_bytes(4, byteorder='big', signed=False)
+                val = struct.unpack('>f', tmpbt)[0]
+            elif tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
+                tmpbt = int(hexParse.group(1),0).to_bytes(8, byteorder='big', signed=False)
+                val = struct.unpack('>d', tmpbt)[0]
+            elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
+                tmpbt = int(hexParse.group(1),0).to_bytes(16, byteorder='big', signed=False)
+                val = LVmisc.readQuadFloat(BytesIO(tmpbt))
         if val is None: # Get the value from formatted float
             hexParse = re.search(r'([\+-]?[0-9.]+([Ee][\+-]?[0-9]+)?|[\+-]?inf)',text)
-            if hexParse is not None:
+            if hexParse is None:
+                pass
+            elif tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
                 val = float(hexParse.group(1))
+            elif tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
+                val = float(hexParse.group(1))
+            elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
+                from decimal import Decimal, localcontext
+                with localcontext() as ctx:
+                    ctx.prec = 37  # quad float has up to 36 digits precision, plus one partial
+                    val = Decimal(hexParse.group(1))
     return val
 
 def newTDObject(vi, blockref, idx, obj_flags, obj_type, po):
