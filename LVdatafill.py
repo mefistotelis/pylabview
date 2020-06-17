@@ -1224,7 +1224,7 @@ class DataFillIORefnum(DataFill):
         exp_whole_len = 0
         if isGreaterOrEqVersion(ver, 6,0,0):
             if self.isRefnumTag(self.td):
-                data_buf += 4 + len(self.value)
+                exp_whole_len += 4 + len(self.value)
             else:
                 exp_whole_len += 4
         else:
