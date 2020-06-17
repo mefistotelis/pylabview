@@ -1158,15 +1158,17 @@ class TDObjectTag(TDObject):
 
             self.initWithXMLInlineStart(conn_elem)
 
+            self.ident = None
+            self.variobj = None
             self.prop1 = int(conn_elem.get("Prop1"), 0)
             self.tagType = valFromEnumOrIntString(TAG_TYPE, conn_elem.get("TagType"))
-            identStr = conn_elem.get("Ident")
-            if identStr is not None:
-                self.ident = identStr.encode(self.vi.textEncoding)
-            self.variobj = None
 
             for subelem in conn_elem:
-                if (subelem.tag == "LVVariant"):
+                if (subelem.tag == "Ident"):
+                    identStr = subelem.text
+                    if identStr is not None:
+                        self.ident = identStr.encode(self.vi.textEncoding)
+                elif (subelem.tag == "LVVariant"):
                     i = int(subelem.get("Index"), 0)
                     obj = LVclasses.LVVariant(i, self.vi, self.blockref, self.po)
                     obj.initWithXML(subelem)
@@ -1192,8 +1194,10 @@ class TDObjectTag(TDObject):
 
         conn_elem.set("Prop1", "0x{:X}".format(self.prop1))
         conn_elem.set("TagType", stringFromValEnumOrInt(TAG_TYPE, self.tagType))
+
         if self.ident is not None:
-            conn_elem.set("Ident", self.ident.decode(self.vi.textEncoding))
+            subelem = ET.SubElement(conn_elem,"Ident")
+            subelem.text = self.ident.decode(self.vi.textEncoding)
 
         if self.variobj is not None:
             obj = self.variobj
