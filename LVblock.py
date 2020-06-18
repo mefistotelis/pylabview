@@ -4447,8 +4447,8 @@ class PRT(CompleteBlock):
         section.field90 = b''
         # The size is 128 bytes for LV7.0 and older, and LV 14.0 and newer; but for some
         # versions between, there are additional 24 bytes in this block, zero-filled
-        if isGreaterOrEqVersion(ver, 10,0,0,4) and isSmallerVersion(ver, 11,0,0):
-            bldata.read(24)
+        if isGreaterOrEqVersion(ver, 10,0,0,4):
+            section.field90 = bldata.read(24)
 
     def prepareRSRCData(self, section_num):
         ver = self.vi.getFileVersion()
@@ -4487,8 +4487,8 @@ class PRT(CompleteBlock):
         data_buf += int(section.field84).to_bytes(4, byteorder='big', signed=False)
         data_buf += int(section.field88).to_bytes(4, byteorder='big', signed=False)
         data_buf += int(section.field8C).to_bytes(4, byteorder='big', signed=False)
-        if isGreaterOrEqVersion(ver, 10,0,0,4) and isSmallerVersion(ver, 11,0,0):
-            data_buf += ( b'\0' * 24 )
+        if isGreaterOrEqVersion(ver, 10,0,0,4):
+            data_buf += section.field90
         return data_buf
 
     def initWithXMLSectionData(self, section, section_elem):
@@ -4567,6 +4567,10 @@ class PRT(CompleteBlock):
                 tmp = subelem.get("Field8C")
                 section.field8C = int(tmp, 0)
                 tmp = subelem.get("Field8C")
+            elif (subelem.tag == "Field90"):
+                tmp = subelem.text
+                if tmp is not None:
+                    section.field90 = bytes.fromhex(tmp)
             else:
                 raise AttributeError("Section contains unexpected tag")
         pass
@@ -4607,6 +4611,9 @@ class PRT(CompleteBlock):
         subelem.set("Field84", "{:d}".format(section.field84))
         subelem.set("Field88", "{:d}".format(section.field88))
         subelem.set("Field8C", "{:d}".format(section.field8C))
+        if len(section.field90) > 0:
+            subelem = ET.SubElement(section_elem,"Field90")
+            subelem.text = section.field90.hex()
         pass
 
 
