@@ -2325,6 +2325,28 @@ class LIvi(LinkObjRefs):
         return section
 
 
+class CLId(LinkObjRefs):
+    """ Compiled LinkObj Refs for Data Space
+
+    it is really a LIds section, renamed for compiled libraries.
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.ident = b'VIDS'
+        return section
+
+
+class CLIv(LinkObjRefs):
+    """ Compiled LinkObj Refs for VI
+
+    it is really a LIvi section, renamed for compiled libraries.
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.ident = b'LVIN'
+        return section
+
+
 class DFDS(CompleteBlock):
     """ Default Fill of Data Space
     """
