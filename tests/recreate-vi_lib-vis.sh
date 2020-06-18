@@ -77,8 +77,11 @@ while IFS= read -r rsrc_fn; do
     fi
 
     (../readRSRC.py -vv -c -m "${rsrc_out_dir}/${xml_fn}" -i "${rsrc_out_fn}") 2>&1 | tee -a log-vi_lib-vi-2creat.txt
-    if [[ "${rsrc_fn}" == *'/lv06/'* ]] || \
-       [[ "${rsrc_fn}" == *'/lv07/'* ]] || \
+
+    # Get version of LabVIEW from the XML file
+    rsrc_lvver = $(grep -A30 '^[ \t]*<vers>$' 'Newton_P(x0) & P'\''(x0).xml' | grep -B30 '^[ \t]*</vers>$' | sed -n 's/^[ \t]*<Version[ \t]\+.*Major="\([0-9]\+\)".*Minor="\([0-9]\+\)".*$/\1.\2/p' | head -n 1)
+    if [[ "${rsrc_lvver}" == '6.'* ]] || \
+       [[ "${rsrc_lvver}" == '7.'* ]] || \
        false; then
         # Old LV versions have random values at padding; ignore differences where non-zero value was replaced by zero
         (cmp -l "${rsrc_fn}" "${rsrc_out_fn}") 2>&1 | grep -v '^[ ]*[0-9]\+[ ]\+[0-7]\+[ ]\+0$' | head -n 64 | tee -a log-vi_lib-vi-3cmp.txt
