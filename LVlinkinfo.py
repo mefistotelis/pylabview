@@ -578,8 +578,9 @@ class LinkObjBase:
     def exportXMLHeapToVILinkSaveInfo(self, lnkobj_elem, fname_base):
         self.exportXMLOffsetLinkSaveInfo(lnkobj_elem, fname_base)
 
-        subelem = ET.SubElement(lnkobj_elem,"VILSPathRef")
-        self.viLSPathRef.exportXML(subelem, fname_base)
+        if self.viLSPathRef is not None:
+            subelem = ET.SubElement(lnkobj_elem,"VILSPathRef")
+            self.viLSPathRef.exportXML(subelem, fname_base)
 
     def clearUDClassAPILinkCache(self):
         self.apiLinkLibVersion = 0
