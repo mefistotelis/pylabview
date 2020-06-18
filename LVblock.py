@@ -919,9 +919,11 @@ class CompleteBlock(Block):
             self.parseRSRCSectionData(section_num, bldata)
         except Exception as e:
             section.parse_failed = True
+            if (self.po.verbose > 2):
+                import sys, traceback
+                traceback.print_exc(file=sys.stdout)
             eprint("{:s}: Warning: Block {} section {} parse exception: {}."\
                 .format(self.vi.src_fname,self.ident,section_num,str(e)))
-            #raise # useful for debug
         if bldata.tell() < totlen:
             section.parse_failed = True
             eprint("{:s}: Warning: Block {} section {} size is {} and does not match parsed size {}"\
@@ -955,9 +957,11 @@ class CompleteBlock(Block):
             data_buf = self.prepareRSRCData(section_num)
         except Exception as e:
             section.parse_failed = True
+            if (self.po.verbose > 2):
+                import sys, traceback
+                traceback.print_exc(file=sys.stdout)
             eprint("{:s}: Warning: Block {} section {} binary prepare exception: {}."\
                 .format(self.vi.src_fname,self.ident,section_num,str(e)))
-            #raise # useful for debug
 
         # Do not re-create raw data if parsing failed and we still have the original
         if section.parse_failed:
@@ -1103,9 +1107,11 @@ class CompleteBlock(Block):
             else:
                 raise NotImplementedError("Unknown block storage format")
         except Exception as e:
+            if (self.po.verbose > 2):
+                import sys, traceback
+                traceback.print_exc(file=sys.stdout)
             eprint("{:s}: Warning: Block {} section {} XML export exception: {}."\
                 .format(self.vi.src_fname,self.ident,section_num,str(e)))
-            #raise # useful for debug
             Block.exportXMLSection(self, section_elem, section_num, section, fname_base)
             return
 
