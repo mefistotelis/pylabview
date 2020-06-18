@@ -19,7 +19,6 @@ from types import SimpleNamespace
 from ctypes import *
 
 from LVmisc import *
-from LVblock import *
 
 
 class VI_TYPE(enum.Enum):

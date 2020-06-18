@@ -19,7 +19,7 @@ from types import SimpleNamespace
 from ctypes import *
 
 from LVmisc import *
-from LVblock import *
+import LVxml as ET
 import LVclasses
 import LVheap
 import LVdatatype

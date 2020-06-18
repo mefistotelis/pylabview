@@ -21,7 +21,7 @@ from types import SimpleNamespace
 from ctypes import *
 
 from LVmisc import *
-from LVblock import *
+import LVxml as ET
 import LVclasses
 import LVheap
 import LVdatatyperef
@@ -3356,7 +3356,7 @@ def numericToStringUnequivocal(val, tdType):
         text = "{:.17g} (0x{:016X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
     elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
         # Precision of 128-bit float is 36 digits, plus few for partial and for sci notation margin
-        tmpbt = LVmisc.prepareQuadFloat(val)
+        tmpbt = prepareQuadFloat(val)
         text = "{:.39g} (0x{:032X})".format(val, int.from_bytes(tmpbt, byteorder='big', signed=False))
     return text
 
@@ -3384,7 +3384,7 @@ def stringUnequivocalToNumeric(text, tdType):
                 val = struct.unpack('>d', tmpbt)[0]
             elif tdType in (TD_FULL_TYPE.NumFloatExt,TD_FULL_TYPE.UnitFloatExt,):
                 tmpbt = int(hexParse.group(1),0).to_bytes(16, byteorder='big', signed=False)
-                val = LVmisc.readQuadFloat(BytesIO(tmpbt))
+                val = readQuadFloat(BytesIO(tmpbt))
         if val is None: # Get the value from formatted float
             hexParse = re.search(r'([\+-]?[0-9.]+([Ee][\+-]?[0-9]+)?|[\+-]?inf)',text)
             if hexParse is None:
