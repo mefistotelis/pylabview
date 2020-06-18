@@ -5298,21 +5298,12 @@ class TypeDescListBase(CompleteBlock):
               .format(self.vi.src_fname, self.ident, len(section.content), pos, obj_type, obj_flags, obj_len))
         blockref = (self.ident,section.start.section_idx,)
         # This block is typically compressed within RSRC file; add entries to RSRC map only if there is no compression
-        if self.po.print_map == "RSRC" and section.block_coding == BLOCK_CODING.NONE \
-          or self.po.print_map == type(self).__name__:
-            pretty_ident = getPrettyStrFromRsrcType(self.ident)
+        if self.po.print_map is not None:
             if obj_type not in set(item.value for item in TD_FULL_TYPE):
                 obj_type_str = "Type_{}".format(obj_type)
             else:
                 obj_type_str = TD_FULL_TYPE(obj_type).name
-            if self.po.print_map == "RSRC":
-                print_map_base = self.getDataPosInContainer(section_num=section_num)
-            else:
-                print_map_base = 0
-            if print_map_base is not None:
-                head_end_pos = bldata.tell()
-                self.vi.rsrc_map.append( (print_map_base+bldata.tell(), head_end_pos-pos, \
-                  "Block[{},{}].TypeDesc[{}].{}.Header".format(pretty_ident,section.start.section_idx,td_idx,obj_type_str),) )
+            self.appendPrintMapEntry(section, bldata.tell(), bldata.tell()-pos, 1, "TypeDesc[{}].{}.Header".format(td_idx,obj_type_str))
         if obj_len < 4:
             eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d} too small to be valid"\
               .format(self.vi.src_fname, len(section.content), obj_type, obj_len))
@@ -5326,29 +5317,32 @@ class TypeDescListBase(CompleteBlock):
         section.content.append(clientTD)
         bldata.seek(pos)
         obj.initWithRSRC(bldata, obj_len) # No need to set topTypeList within VCTP
-        if self.po.print_map == "RSRC" and section.block_coding == BLOCK_CODING.NONE \
-          or self.po.print_map == type(self).__name__:
-            # we have print_map_base set already in the previous mapping add
-            if print_map_base is not None and bldata.tell() > head_end_pos:
-                self.vi.rsrc_map.append( (print_map_base+bldata.tell(), bldata.tell()-head_end_pos, \
-                  "Block[{},{}].TypeDesc[{}].{}.Properties".format(pretty_ident,section.start.section_idx,td_idx,obj_type_str),) )
+        if self.po.print_map is not None:
+            # we have obj_type_str set already in the previous mapping add
+            self.appendPrintMapEntry(section, bldata.tell(), bldata.tell()-pos-4, 1, "TypeDesc[{}].{}.Properties".format(td_idx,obj_type_str))
         return obj.index, obj_len
 
     def parseRSRCTypeDescList(self, section_num, section, bldata):
         section.content = []
         # We have count of TDs, and then the TypeDescs themselves
         count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "TypeDescListCount")
         pos = bldata.tell()
         for i in range(count):
             obj_idx, obj_len = self.parseRSRCTypeDesc(section_num, bldata, i, pos)
+            self.appendPrintMapEntry(section, bldata.tell(), obj_len, 1, "TypeDesc[{}]".format(i))
             pos += obj_len
         pass
 
     def parseRSRCTopTypesList(self, section_num, section, bldata):
         section.topLevel = []
+        obj_pos = bldata.tell()
         count = readVariableSizeFieldU2p2(bldata)
+        self.appendPrintMapEntry(section, bldata.tell(), bldata.tell()-obj_pos, 1, "TopTypesListCount")
         for i in range(count):
+            obj_pos = bldata.tell()
             val = readVariableSizeFieldU2p2(bldata)
+            self.appendPrintMapEntry(section, bldata.tell(), bldata.tell()-obj_pos, 1, "TypeDesc[{}].Index".format(i))
             section.topLevel.append(val)
         pass
 
@@ -6020,6 +6014,7 @@ class VITS(CompleteBlock):
             if (count & 0xFFFF0000) != 0:
                 count = int.from_bytes(count.to_bytes(4, byteorder=section.endianness), byteorder='little', signed=False)
                 section.endianness = 'little'
+        self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "TagCount")
         if count > self.po.typedesc_list_limit:
             raise RuntimeError("Tag String list consists of {:d} tags, limit is {:d}"\
               .format(count,self.po.typedesc_list_limit))
@@ -6028,11 +6023,14 @@ class VITS(CompleteBlock):
         for i in range(count):
             val = SimpleNamespace()
             val.name = readLStr(bldata, 1, self.po)
+            self.appendPrintMapEntry(section, bldata.tell(), 4+len(val.name), 1, "TagObject[{}].Name".format(len(section.content)))
             if isSmallerVersion(ver, 6,5,0,2):
                 bldata.read(4)
+            obj_pos = bldata.tell()
             val.obj = LVdatafill.newDataFillObject(self.vi, blockref, TD_FULL_TYPE.LVVariant, None, self.po)
             val.obj.useConsolidatedTypes = False
             val.obj.initWithRSRC(bldata)
+            self.appendPrintMapEntry(section, bldata.tell(), bldata.tell()-obj_pos, 1, "TagObject[{}].Content".format(len(section.content)))
             section.content.append(val)
         pass
 
