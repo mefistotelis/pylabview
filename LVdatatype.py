@@ -330,6 +330,8 @@ class LV_INTERNAL_MEAS_FLAVOR_NAMES(LVheap.ENUM_TAGS):
 
 
 class TDObject:
+    """ Base class for any Type Descriptor
+    """
 
     def __init__(self, vi, blockref, idx, obj_flags, obj_type, po):
         """ Creates new Type Descriptor object, capable of handling generic TD data.
@@ -340,7 +342,6 @@ class TDObject:
         self.index = idx
         self.oflags = obj_flags
         self.otype = obj_type
-        self.clients = []
         # Dependencies to other types are either indexes in Consolidated List, or locally stored topTypeList
         self.topTypeList = None
         self.label = None
@@ -359,10 +360,9 @@ class TDObject:
         self.parsed_data_updated = False
 
     def setOwningList(self, typeList=None):
+        """ Sets a list of TDs which owns this TD.
+        """
         self.topTypeList = typeList
-        for clientTD in self.clients:
-            if clientTD.index == -1:
-                clientTD.nested.setOwningList(self.topTypeList)
 
     def setPurposeText(self, purpose):
         self.purpose = purpose
@@ -376,39 +376,39 @@ class TDObject:
         self.raw_data = bldata.read(obj_len)
         self.raw_data_updated = True
 
-    def initWithXMLInlineStart(self, conn_elem):
+    def initWithXMLInlineStart(self, td_elem):
         """ Early part of Type Descriptor loading from XML file using Inline formats
 
         That is simply a common part used in all overloaded initWithXML(),
         separated only to avoid code duplication.
         """
         self.label = None
-        label_text = conn_elem.get("Label")
+        label_text = td_elem.get("Label")
         if label_text is not None:
             self.label = label_text.encode(self.vi.textEncoding)
         self.parsed_data_updated = True
 
-    def initWithXML(self, conn_elem):
+    def initWithXML(self, td_elem):
         """ Early part of Type Descriptor loading from XML file
 
         At the point it is executed, other sections are inaccessible.
         To be overriden by child classes which want to load more properties from XML.
         """
-        fmt = conn_elem.get("Format")
+        fmt = td_elem.get("Format")
         # TODO the inline block belongs to inheriting classes, not here - move
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
                 print("{:s}: For TypeDesc {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
-            self.initWithXMLInlineStart(conn_elem)
+            self.initWithXMLInlineStart(td_elem)
 
             self.updateData(avoid_recompute=True)
 
         elif fmt == "bin":# Format="bin" - the content is stored separately as raw binary data
             if (self.po.verbose > 2):
                 print("{:s}: For TypeDesc {}, reading BIN file '{}'"\
-                  .format(self.vi.src_fname,self.index,conn_elem.get("File")))
+                  .format(self.vi.src_fname,self.index,td_elem.get("File")))
             # If there is label in binary data, set our label property to non-None value
             self.label = None
             if (self.oflags & TYPEDESC_FLAGS.HasLabel.value) != 0:
@@ -416,9 +416,9 @@ class TDObject:
 
             bin_path = os.path.dirname(self.vi.src_fname)
             if len(bin_path) > 0:
-                bin_fname = bin_path + '/' + conn_elem.get("File")
+                bin_fname = bin_path + '/' + td_elem.get("File")
             else:
-                bin_fname = conn_elem.get("File")
+                bin_fname = td_elem.get("File")
             with open(bin_fname, "rb") as bin_fh:
                 data_buf = bin_fh.read()
             data_head = int(len(data_buf)+4).to_bytes(2, byteorder='big', signed=False)
@@ -523,11 +523,6 @@ class TDObject:
                 self.parseRSRCData(bldata)
             elif self.vi.dataSource == "xml":
                 self.parseXMLData()
-            for i, clientTD in enumerate(self.clients):
-                if clientTD.index != -1: # this is how we mark nested client
-                    continue
-                td = clientTD.nested
-                td.parseData()
         pass
 
     def needParseData(self):
@@ -577,6 +572,14 @@ class TDObject:
 
         return data_buf
 
+    def expectedRSRCLabelSize(self):
+        if self.label is None:
+            return 0
+        label_len = 1 + len(self.label)
+        if label_len % 2 > 0: # Include padding
+            label_len += 2 - (label_len % 2)
+        return label_len
+
     def expectedRSRCSize(self):
         """ Returns expected RAW data size of this Type Descriptor.
 
@@ -602,13 +605,13 @@ class TDObject:
 
         self.setData(data_head+data_buf, incomplete=avoid_recompute)
 
-    def exportXML(self, conn_elem, fname_base):
+    def exportXML(self, td_elem, fname_base):
         self.parseData()
 
         # TODO the inline block belongs to inheriting classes, not here - move
         if self.size <= 4:
             # Type Descriptor stores no additional data
-            conn_elem.set("Format", "inline")
+            td_elem.set("Format", "inline")
         else:
             if self.index >= 0:
                 part_fname = "{:s}_{:04d}.{:s}".format(fname_base,self.index,"bin")
@@ -622,26 +625,26 @@ class TDObject:
             with open(part_fname, "wb") as part_fh:
                 part_fh.write(bldata.read())
 
-            conn_elem.set("Format", "bin")
-            conn_elem.set("File", os.path.basename(part_fname))
+            td_elem.set("Format", "bin")
+            td_elem.set("File", os.path.basename(part_fname))
 
-    def exportXMLFinish(self, conn_elem):
+    def exportXMLFinish(self, td_elem):
         # Now fat chunk of code for handling Type Descriptor label
         if self.label is not None:
             self.oflags |= TYPEDESC_FLAGS.HasLabel.value
         else:
             self.oflags &= ~TYPEDESC_FLAGS.HasLabel.value
         # While exporting flags and label, mind the export format set by exportXML()
-        if conn_elem.get("Format") == "bin":
+        if td_elem.get("Format") == "bin":
             # For binary format, export only HasLabel flag instead of the actual label; label is in binary data
-            exportXMLBitfields(TYPEDESC_FLAGS, conn_elem, self.oflags)
+            exportXMLBitfields(TYPEDESC_FLAGS, td_elem, self.oflags)
         else:
             # For parsed formats, export "Label" property, and get rid of the flag; existence of the "Label" acts as flag
-            exportXMLBitfields(TYPEDESC_FLAGS, conn_elem, self.oflags, \
+            exportXMLBitfields(TYPEDESC_FLAGS, td_elem, self.oflags, \
               skip_mask=TYPEDESC_FLAGS.HasLabel.value)
             if self.label is not None:
                 label_text = self.label.decode(self.vi.textEncoding)
-                conn_elem.set("Label", "{:s}".format(label_text))
+                td_elem.set("Label", "{:s}".format(label_text))
         pass
 
     def getData(self):
@@ -656,6 +659,12 @@ class TDObject:
 
     def checkSanity(self):
         ret = True
+        exp_whole_len = self.expectedRSRCSize()
+        if (exp_whole_len is not None) and (len(self.raw_data) != exp_whole_len):
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
+            ret = False
         return ret
 
     def mainType(self):
@@ -692,6 +701,112 @@ class TDObject:
           (self.fullType() == TD_FULL_TYPE.Path));
 
     def hasClients(self):
+        return False
+
+    def clientsEnumerate(self):
+        """ Gives enumeration of client TDs.
+
+        To be overloaded in classes for specific TypeDesc types if they
+        store sub-TDs.
+        """
+        return []
+
+    def getClientTypeDescsByType(self):
+        """ Gives client TDs put into buckets depending on type.
+
+        To be overloaded in classes for specific TypeDesc types if they
+        store sub-TDs.
+        """
+        out_lists = { 'number': [], 'path': [], 'string': [], 'compound': [], 'other': [] }
+        return out_lists
+
+    def __repr__(self):
+        d = self.__dict__.copy()
+        del d['vi']
+        del d['po']
+        del d['parsed_data_updated']
+        del d['raw_data_updated']
+        del d['raw_data']
+        if d['topTypeList'] is not None:
+            d['topTypeList'] = "PRESENT"
+        del d['size']
+        from pprint import pformat
+        return type(self).__name__ + pformat(d, indent=0, compact=True, width=512)
+
+
+class TDObjectContainer(TDObject):
+    """ Base class for Type Descriptor which contains sub-TDs
+
+    Client TDs can be either nested or indexed. Nested - are stored directly within the
+    Container TD, just after container definition. Indexed - are stored in Owning List,
+    at given index.
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.clients = []
+
+    def parseData(self):
+        """ Parse data of specific section and place it as Type Descriptor properties
+        """
+        needParse = self.needParseData()
+        super().parseData()
+        if needParse:
+            for i, clientTD in enumerate(self.clients):
+                if clientTD.index != -1: # this is how we mark nested client
+                    continue
+                td = clientTD.nested
+                td.parseData()
+        pass
+
+    def checkSanity(self):
+        ret = True
+        # Get Type List for checking non-nested clientTDs
+        typeList = None
+        if self.topTypeList is not None:
+            typeList = self.topTypeList
+        else:
+            VCTP = self.vi.get('VCTP')
+            if VCTP is not None:
+                typeList = VCTP.getContent()
+        for i, clientTD in enumerate(self.clients):
+            if clientTD.index == -1: # Special case this is how we mark nested client
+                if clientTD.nested is None:
+                    if (self.po.verbose > 1):
+                        eprint("{:s}: Warning: TypeDesc {:d} nested sub-type {:d} does not exist"\
+                          .format(self.vi.src_fname,self.index,i))
+                    ret = False
+                elif not clientTD.nested.checkSanity():
+                    if (self.po.verbose > 1):
+                        eprint("{:s}: Warning: TypeDesc {:d} nested sub-type {:d} failed sanity test"\
+                          .format(self.vi.src_fname,self.index,i))
+                    ret = False
+                pass
+            else:
+                if clientTD.index < 0:
+                    if (self.po.verbose > 1):
+                        eprint("{:s}: Warning: TypeDesc {:d} sub-type {:d} references negative TD {:d}"\
+                          .format(self.vi.src_fname,self.index,i,clientTD.index))
+                    ret = False
+                if typeList is not None:
+                    if clientTD.index >= len(typeList):
+                        if (self.po.verbose > 1):
+                            eprint("{:s}: Warning: TypeDesc {:d} sub-type {:d} references outranged TD {:d}"\
+                              .format(self.vi.src_fname,self.index,i,clientTD.index))
+                        ret = False
+                pass
+        if not super().checkSanity():
+            ret = False
+        return ret
+
+    def setOwningList(self, typeList=None):
+        """ Sets a list of TDs which owns this TD and all sub-TDs.
+        """
+        super().setOwningList(typeList)
+        for clientTD in self.clients:
+            if clientTD.index == -1:
+                clientTD.nested.setOwningList(self.topTypeList)
+
+    def hasClients(self):
         return (len(self.clients) > 0)
 
     def clientsEnumerate(self):
@@ -712,29 +827,29 @@ class TDObject:
     def getClientTypeDescsByType(self):
         self.parseData() # Make sure the block is parsed
         out_lists = { 'number': [], 'path': [], 'string': [], 'compound': [], 'other': [] }
-        for cli_idx, conn_idx, conn_obj, conn_flags in self.clientsEnumerate():
+        for cli_idx, td_idx, td_obj, td_flags in self.clientsEnumerate():
             # We will need a list of clients, so might as well parse the Type Descriptor now
-            conn_obj.parseData()
-            if not conn_obj.checkSanity():
+            td_obj.parseData()
+            if not td_obj.checkSanity():
                 if (self.po.verbose > 0):
                     eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} sanity check failed!"\
-                      .format(self.vi.src_fname,conn_obj.index,conn_obj.otype))
+                      .format(self.vi.src_fname,td_obj.index,td_obj.otype))
             # Add Type Descriptor of this Terminal to list
-            if conn_obj.isNumber():
-                out_lists['number'].append(conn_obj)
-            elif conn_obj.isPath():
-                out_lists['path'].append(conn_obj)
-            elif conn_obj.isString():
-                out_lists['string'].append(conn_obj)
-            elif conn_obj.hasClients():
-                out_lists['compound'].append(conn_obj)
+            if td_obj.isNumber():
+                out_lists['number'].append(td_obj)
+            elif td_obj.isPath():
+                out_lists['path'].append(td_obj)
+            elif td_obj.isString():
+                out_lists['string'].append(td_obj)
+            elif td_obj.hasClients():
+                out_lists['compound'].append(td_obj)
             else:
-                out_lists['other'].append(conn_obj)
+                out_lists['other'].append(td_obj)
             if (self.po.verbose > 2):
                 keys = list(out_lists)
                 print("enumerating: {}.{} idx={} flags={:09x} type={} TypeDescs: {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d} {:s}={:d}"\
-                      .format(self.index, cli_idx, conn_idx,  conn_flags,\
-                        conn_obj.fullType().name if isinstance(conn_obj.fullType(), enum.IntEnum) else conn_obj.fullType(),\
+                      .format(self.index, cli_idx, td_idx,  td_flags,\
+                        td_obj.fullType().name if isinstance(td_obj.fullType(), enum.IntEnum) else td_obj.fullType(),\
                         keys[0],len(out_lists[keys[0]]),\
                         keys[1],len(out_lists[keys[1]]),\
                         keys[2],len(out_lists[keys[2]]),\
@@ -742,24 +857,82 @@ class TDObject:
                         keys[4],len(out_lists[keys[4]]),\
                       ))
             # Add sub-TD terminals within this TD
-            if conn_obj.hasClients():
-                sub_lists = conn_obj.getClientTypeDescsByType()
+            if td_obj.hasClients():
+                sub_lists = td_obj.getClientTypeDescsByType()
                 for k in out_lists:
                     out_lists[k].extend(sub_lists[k])
         return out_lists
 
-    def __repr__(self):
-        d = self.__dict__.copy()
-        del d['vi']
-        del d['po']
-        del d['parsed_data_updated']
-        del d['raw_data_updated']
-        del d['raw_data']
-        if d['topTypeList'] is not None:
-            d['topTypeList'] = "PRESENT"
-        del d['size']
-        from pprint import pformat
-        return type(self).__name__ + pformat(d, indent=0, compact=True, width=512)
+    def parseRSRCNestedTD(self, bldata, tm_flags=0):
+        """ Parse RSRC data of a nested Type Descriptor stored within master TD
+
+        This if for parsing client TD which is not in main list of TypeDesc, instead
+        being stored directly after main TD. Index -1 is assigned to the TD
+        as indication that it is nested and not stored in any consolidated list.
+        """
+        pos = bldata.tell()
+        # Fields oflags,otype are set at constructor, but no harm in setting them again
+        obj_type, obj_flags, obj_len = TDObject.parseRSRCDataHeader(bldata)
+
+        obj = newTDObject(self.vi, self.blockref, -1, obj_flags, obj_type, self.po)
+        bldata.seek(pos)
+        obj.setOwningList(self.topTypeList)
+        # The object length of this nested TypeDesc is 4 bytes larger than real thing.
+        # Not everyone is aiming for consistency.
+        obj.initWithRSRC(bldata, obj_len-4)
+        clientTD = SimpleNamespace()
+        clientTD.index = obj.index # Nested clients have index -1
+        clientTD.flags = tm_flags
+        clientTD.nested = obj
+        return clientTD, obj_len
+
+    def parseRSRCIndexedTD(self, bldata, tm_flags=0):
+        clientTD = SimpleNamespace()
+        clientTD.index = readVariableSizeFieldU2p2(bldata)
+        clientTD.flags = tm_flags
+        obj_len = ( 2 if (clientTD.index <= 0x7fff) else 4 )
+        return clientTD, obj_len
+
+    def prepareRSRCNestedTD(self, clientTD, avoid_recompute=False):
+        data_buf = clientTD.nested.prepareRSRCData(avoid_recompute=avoid_recompute)
+        data_buf += clientTD.nested.prepareRSRCDataFinish()
+
+        # size of nested TypeDesc is computed differently than in main TypeDesc
+        data_head = int(len(data_buf)+8).to_bytes(2, byteorder='big', signed=False)
+        data_head += int(clientTD.nested.oflags).to_bytes(1, byteorder='big', signed=False)
+        data_head += int(clientTD.nested.otype).to_bytes(1, byteorder='big', signed=False)
+
+        return data_head + data_buf
+
+    def prepareRSRCIndexedTD(self, clientTD, avoid_recompute=False):
+        return prepareVariableSizeFieldU2p2(clientTD.index)
+
+    def initWithXMLNestedTD(self, td_subelem):
+        clientTD = SimpleNamespace()
+        clientTD.index = -1
+        clientTD.flags = 0
+        obj_type = valFromEnumOrIntString(TD_FULL_TYPE, td_subelem.get("Type"))
+        obj_flags = importXMLBitfields(TYPEDESC_FLAGS, td_subelem)
+        obj = newTDObject(self.vi, self.blockref, clientTD.index, obj_flags, obj_type, self.po)
+        clientTD.nested = obj
+        obj.initWithXML(td_subelem)
+        return clientTD
+
+    def initWithXMLIndexedTD(self, td_subelem):
+        clientTD = SimpleNamespace()
+        clientTD.index = int(td_subelem.get("TypeID"), 0)
+        clientTD.flags = int(td_subelem.get("Flags"), 0)
+        return clientTD
+
+    def exportXMLNestedTD(self, clientTD, td_subelem, cli_fname):
+        td_subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(TD_FULL_TYPE, clientTD.nested.otype)))
+        td_subelem.set("Nested", "True")
+        clientTD.nested.exportXML(td_subelem, cli_fname)
+        clientTD.nested.exportXMLFinish(td_subelem)
+
+    def exportXMLIndexedTD(self, clientTD, td_subelem, cli_fname):
+        td_subelem.set("TypeID", str(clientTD.index))
+        td_subelem.set("Flags", "0x{:04X}".format(clientTD.flags))
 
 
 class TDObjectVoid(TDObject):
@@ -780,41 +953,31 @@ class TDObjectVoid(TDObject):
 
     def expectedRSRCSize(self):
         exp_whole_len = 4
-        if self.label is not None:
-            label_len = 1 + len(self.label)
-            if label_len % 2 > 0: # Include padding
-                label_len += 2 - (label_len % 2)
-            exp_whole_len += label_len
+        exp_whole_len += self.expectedRSRCLabelSize()
         return exp_whole_len
 
-    def initWithXML(self, conn_elem):
-        fmt = conn_elem.get("Format")
+    def initWithXML(self, td_elem):
+        fmt = td_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
                 print("{:s}: For TypeDesc {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
-            self.initWithXMLInlineStart(conn_elem)
+            self.initWithXMLInlineStart(td_elem)
 
             self.updateData(avoid_recompute=True)
 
         else:
-            TDObject.initWithXML(self, conn_elem)
+            TDObject.initWithXML(self, td_elem)
         pass
 
-    def exportXML(self, conn_elem, fname_base):
+    def exportXML(self, td_elem, fname_base):
         self.parseData()
         # Type Descriptor stores no additional data
-        conn_elem.set("Format", "inline")
+        td_elem.set("Format", "inline")
 
     def checkSanity(self):
-        ret = True
-        exp_whole_len = self.expectedRSRCSize()
-        if len(self.raw_data) != exp_whole_len:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
-                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
-            ret = False
+        ret = super().checkSanity()
         return ret
 
 
@@ -931,15 +1094,11 @@ class TDObjectNumber(TDObject):
         if self.isPhys():
             exp_whole_len = 2 + (2+2) * len(self.values)
         exp_whole_len += 1
-        if self.label is not None:
-            label_len = 1 + len(self.label)
-            if label_len % 2 > 0: # Include padding
-                label_len += 2 - (label_len % 2)
-            exp_whole_len += label_len
+        exp_whole_len += self.expectedRSRCLabelSize()
         return exp_whole_len
 
-    def initWithXMLEnumAttr(self, conn_elem):
-        for subelem in conn_elem:
+    def initWithXMLEnumAttr(self, td_elem):
+        for subelem in td_elem:
             if (subelem.tag == "Value"):
                 value = SimpleNamespace()
                 label_str = subelem.get("EnumLabel")
@@ -952,8 +1111,8 @@ class TDObjectNumber(TDObject):
                   .format(subelem.tag))
         pass
 
-    def initWithXMLUnitsAttr(self, conn_elem):
-        for subelem in conn_elem:
+    def initWithXMLUnitsAttr(self, td_elem):
+        for subelem in td_elem:
             if (subelem.tag == "Value"):
                 value = SimpleNamespace()
                 value.intval1 = int(subelem.get("UnitVal1"), 0)
@@ -968,56 +1127,56 @@ class TDObjectNumber(TDObject):
                   .format(subelem.tag))
         pass
 
-    def initWithXML(self, conn_elem):
-        fmt = conn_elem.get("Format")
+    def initWithXML(self, td_elem):
+        fmt = td_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
                 print("{:s}: For TypeDesc {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
-            self.initWithXMLInlineStart(conn_elem)
-            self.prop1 = int(conn_elem.get("Prop1"), 0)
+            self.initWithXMLInlineStart(td_elem)
+            self.prop1 = int(td_elem.get("Prop1"), 0)
             self.padding1 = b''
             self.values = []
 
             if self.isEnum():
-                self.initWithXMLEnumAttr(conn_elem)
+                self.initWithXMLEnumAttr(td_elem)
             if self.isPhys():
-                self.initWithXMLUnitsAttr(conn_elem)
+                self.initWithXMLUnitsAttr(td_elem)
 
             self.updateData(avoid_recompute=True)
 
         else:
-            TDObject.initWithXML(self, conn_elem)
+            TDObject.initWithXML(self, td_elem)
         pass
 
-    def exportXMLEnumAttr(self, conn_elem, fname_base):
+    def exportXMLEnumAttr(self, td_elem, fname_base):
         for i, value in enumerate(self.values):
-            subelem = ET.SubElement(conn_elem,"Value")
+            subelem = ET.SubElement(td_elem,"Value")
 
             label_str = value.label.decode(self.vi.textEncoding)
             subelem.set("EnumLabel", label_str)
         pass
 
-    def exportXMLUnitsAttr(self, conn_elem, fname_base):
+    def exportXMLUnitsAttr(self, td_elem, fname_base):
         for i, value in enumerate(self.values):
-            subelem = ET.SubElement(conn_elem,"Value")
+            subelem = ET.SubElement(td_elem,"Value")
 
             subelem.set("UnitVal1", "{:d}".format(value.intval1))
             subelem.set("UnitVal2", "{:d}".format(value.intval2))
         pass
 
-    def exportXML(self, conn_elem, fname_base):
+    def exportXML(self, td_elem, fname_base):
         self.parseData()
-        conn_elem.set("Prop1", "{:d}".format(self.prop1))
+        td_elem.set("Prop1", "{:d}".format(self.prop1))
         if self.isEnum():
-            self.exportXMLEnumAttr(conn_elem, fname_base)
+            self.exportXMLEnumAttr(td_elem, fname_base)
         if self.isPhys():
-            self.exportXMLUnitsAttr(conn_elem, fname_base)
-        conn_elem.set("Format", "inline")
+            self.exportXMLUnitsAttr(td_elem, fname_base)
+        td_elem.set("Format", "inline")
 
     def checkSanity(self):
-        ret = True
+        ret = super().checkSanity()
         if (self.prop1 & ~1) != 0: # 0 or 1
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02X} property1 {:d}, expected 1 bit value"\
@@ -1033,12 +1192,6 @@ class TDObjectNumber(TDObject):
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02X} padding1 {}, expected zeros"\
                   .format(self.vi.src_fname,self.index,self.otype,self.padding1))
-            ret = False
-        exp_whole_len = self.expectedRSRCSize()
-        if len(self.raw_data) != exp_whole_len:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02X} data size {:d}, expected {:d}"\
-                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
 
@@ -1142,28 +1295,24 @@ class TDObjectTag(TDObject):
             if ((strlen+1) % 2) > 0:
                 strlen += 1
             exp_whole_len += 1+strlen
-        if self.label is not None:
-            label_len = 1 + len(self.label)
-            if label_len % 2 > 0: # Include padding
-                label_len += 2 - (label_len % 2)
-            exp_whole_len += label_len
+        exp_whole_len += self.expectedRSRCLabelSize()
         return exp_whole_len
 
-    def initWithXML(self, conn_elem):
-        fmt = conn_elem.get("Format")
+    def initWithXML(self, td_elem):
+        fmt = td_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
                 print("{:s}: For TypeDesc {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
-            self.initWithXMLInlineStart(conn_elem)
+            self.initWithXMLInlineStart(td_elem)
 
             self.ident = None
             self.variobj = None
-            self.prop1 = int(conn_elem.get("Prop1"), 0)
-            self.tagType = valFromEnumOrIntString(TAG_TYPE, conn_elem.get("TagType"))
+            self.prop1 = int(td_elem.get("Prop1"), 0)
+            self.tagType = valFromEnumOrIntString(TAG_TYPE, td_elem.get("TagType"))
 
-            for subelem in conn_elem:
+            for subelem in td_elem:
                 if (subelem.tag == "Ident"):
                     identStr = subelem.text
                     if identStr is not None:
@@ -1180,7 +1329,7 @@ class TDObjectTag(TDObject):
             self.updateData(avoid_recompute=True)
 
         else:
-            TDObject.initWithXML(self, conn_elem)
+            TDObject.initWithXML(self, td_elem)
         pass
 
     def initWithXMLLate(self):
@@ -1189,20 +1338,20 @@ class TDObjectTag(TDObject):
             self.variobj.initWithXMLLate()
         pass
 
-    def exportXML(self, conn_elem, fname_base):
+    def exportXML(self, td_elem, fname_base):
         self.parseData()
 
-        conn_elem.set("Prop1", "0x{:X}".format(self.prop1))
-        conn_elem.set("TagType", stringFromValEnumOrInt(TAG_TYPE, self.tagType))
+        td_elem.set("Prop1", "0x{:X}".format(self.prop1))
+        td_elem.set("TagType", stringFromValEnumOrInt(TAG_TYPE, self.tagType))
 
         if self.ident is not None:
-            subelem = ET.SubElement(conn_elem,"Ident")
+            subelem = ET.SubElement(td_elem,"Ident")
             subelem.text = self.ident.decode(self.vi.textEncoding)
 
         if self.variobj is not None:
             obj = self.variobj
             i = 0
-            subelem = ET.SubElement(conn_elem,"LVObject") # Export function from the object may overwrite the tag
+            subelem = ET.SubElement(td_elem,"LVObject") # Export function from the object may overwrite the tag
 
             subelem.set("Index", "{:d}".format(i))
 
@@ -1212,11 +1361,11 @@ class TDObjectTag(TDObject):
                 part_fname = "{:s}_lvo{:02d}".format(fname_base,i)
             obj.exportXML(subelem, part_fname)
 
-        conn_elem.set("Format", "inline")
+        td_elem.set("Format", "inline")
 
     def checkSanity(self):
         ver = self.vi.getFileVersion()
-        ret = True
+        ret = super().checkSanity()
         if self.prop1 != 0xFFFFFFFF:
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}"\
@@ -1234,12 +1383,6 @@ class TDObjectTag(TDObject):
                     eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} Variant object present, but LV version with no support"\
                       .format(self.vi.src_fname,self.index,self.otype))
                 ret = False
-        exp_whole_len = self.expectedRSRCSize()
-        if len(self.raw_data) != exp_whole_len:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
-                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
-            ret = False
         return ret
 
 
@@ -1266,48 +1409,38 @@ class TDObjectBlob(TDObject):
     def expectedRSRCSize(self):
         exp_whole_len = 4
         exp_whole_len += 4
-        if self.label is not None:
-            label_len = 1 + len(self.label)
-            if label_len % 2 > 0: # Include padding
-                label_len += 2 - (label_len % 2)
-            exp_whole_len += label_len
+        exp_whole_len += self.expectedRSRCLabelSize()
         return exp_whole_len
 
-    def initWithXML(self, conn_elem):
-        fmt = conn_elem.get("Format")
+    def initWithXML(self, td_elem):
+        fmt = td_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
                 print("{:s}: For TypeDesc {:d} type 0x{:02x}, reading inline XML data"\
                   .format(self.vi.src_fname,self.index,self.otype))
 
-            self.initWithXMLInlineStart(conn_elem)
-            self.prop1 = int(conn_elem.get("Prop1"), 0)
+            self.initWithXMLInlineStart(td_elem)
+            self.prop1 = int(td_elem.get("Prop1"), 0)
 
             self.updateData(avoid_recompute=True)
 
         else:
-            TDObject.initWithXML(self, conn_elem)
+            TDObject.initWithXML(self, td_elem)
         pass
 
-    def exportXML(self, conn_elem, fname_base):
+    def exportXML(self, td_elem, fname_base):
         self.parseData()
-        conn_elem.set("Prop1", "0x{:X}".format(self.prop1))
-        conn_elem.set("Format", "inline")
+        td_elem.set("Prop1", "0x{:X}".format(self.prop1))
+        td_elem.set("Format", "inline")
 
     def checkSanity(self):
-        ret = True
+        ret = super().checkSanity()
         if self.otype not in (TD_FULL_TYPE.PolyVI, TD_FULL_TYPE.Block,):
             if self.prop1 != 0xFFFFFFFF:
                 if (self.po.verbose > 1):
                     eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} property1 0x{:x}, expected 0x{:x}"\
                       .format(self.vi.src_fname,self.index,self.otype,self.prop1,0xFFFFFFFF))
                 ret = False
-        exp_whole_len = self.expectedRSRCSize()
-        if len(self.raw_data) != exp_whole_len:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
-                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
-            ret = False
         return ret
 
 
@@ -1348,7 +1481,7 @@ class TDObjectPolyVI(TDObjectBlob):
     pass
 
 
-class TDObjectFunction(TDObject):
+class TDObjectFunction(TDObjectContainer):
     """ Type Descriptor with Function data
     """
     def __init__(self, *args):
@@ -1488,11 +1621,7 @@ class TDObjectFunction(TDObject):
         if spec_cli is not None:
             exp_whole_len += 2 if spec_cli.index <= 0x7FFF else 4
 
-        if self.label is not None:
-            label_len = 1 + len(self.label)
-            if label_len % 2 > 0: # Include padding
-                label_len += 2 - (label_len % 2)
-            exp_whole_len += label_len
+        exp_whole_len += self.expectedRSRCLabelSize()
         return exp_whole_len
 
     def initWithXML(self, conn_elem):
@@ -1553,15 +1682,15 @@ class TDObjectFunction(TDObject):
         if self.field7 != 0:
             conn_elem.set("Field7", "0x{:X}".format(self.field7))
 
-        for i, client in enumerate(self.clients):
+        for i, clientTD in enumerate(self.clients):
             subelem = ET.SubElement(conn_elem,"TypeDesc")
 
-            subelem.set("TypeID", str(client.index))
-            subelem.set("Flags", "0x{:04X}".format(client.flags))
+            cli_fname = "{:s}_cli{:02d}".format(fname_base,i)
+            self.exportXMLIndexedTD(clientTD, subelem, cli_fname)
 
-            if len(client.thrallSources) > 0:
+            if len(clientTD.thrallSources) > 0:
                 strlist = ""
-                for k, val in enumerate(client.thrallSources):
+                for k, val in enumerate(clientTD.thrallSources):
                     strlist += " {:3d}".format(val)
 
                 sub_subelem = ET.SubElement(subelem,"ThrallSources")
@@ -1570,44 +1699,16 @@ class TDObjectFunction(TDObject):
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
-        ret = True
+        ret = super().checkSanity()
         if (len(self.clients) > 125):
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} clients count {:d}, expected below {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.clients),125+1))
             ret = False
-        typeList = None
-        if self.topTypeList is not None:
-            typeList = self.topTypeList
-        else:
-            VCTP = self.vi.get('VCTP')
-            if VCTP is not None:
-                typeList = VCTP.getContent()
-        if typeList is not None:
-            for i, client in enumerate(self.clients):
-                if client.index == -1: # Special case this is how we mark nested client
-                    if client.nested is None:
-                        if (self.po.verbose > 1):
-                            eprint("{:s}: Warning: TypeDesc {:d} nested sub-type {:d} does not exist"\
-                              .format(self.vi.src_fname,self.index,i))
-                        ret = False
-                else:
-                    if client.index >= len(typeList):
-                        if (self.po.verbose > 1):
-                            eprint("{:s}: Warning: TypeDesc {:d} sub-type {:d} references outranged TD {:d}"\
-                              .format(self.vi.src_fname,self.index,i,client.index))
-                        ret = False
-                pass
-        exp_whole_len = self.expectedRSRCSize()
-        if len(self.raw_data) != exp_whole_len:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
-                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
-            ret = False
         return ret
 
 
-class TDObjectTypeDef(TDObject):
+class TDObjectTypeDef(TDObjectContainer):
     """ Type Descriptor which stores type definition
 
     TypeDescs of this type have a special support in LabView code, where type data
@@ -1617,24 +1718,6 @@ class TDObjectTypeDef(TDObject):
         super().__init__(*args)
         self.flag1 = 0
         self.labels = []
-
-    def parseRSRCNestedTD(self, bldata, pos):
-        """ Parse RSRC data of a Type Descriptor which is not in main list of TypeDesc
-
-        This is a variant of VCTP.parseRSRCTypeDesc() which assigns index -1 and
-        does not store the connector in any list.
-        """
-        bldata.seek(pos)
-        # Fields oflags,otype are set at constructor, but no harm in setting them again
-        obj_type, obj_flags, obj_len = TDObject.parseRSRCDataHeader(bldata)
-
-        obj = newTDObject(self.vi, self.blockref, -1, obj_flags, obj_type, self.po)
-        bldata.seek(pos)
-        obj.setOwningList(self.topTypeList)
-        # The object length of this nested TypeDesc is 4 bytes larger than real thing.
-        # Not everyone is aiming for consistency.
-        obj.initWithRSRC(bldata, obj_len-4)
-        return obj, obj_len
 
     def parseRSRCData(self, bldata):
         ver = self.vi.getFileVersion()
@@ -1650,21 +1733,14 @@ class TDObjectTypeDef(TDObject):
             self.labels[0] = readPStr(bldata, 2, self.po)
 
         # The underlying object is stored here directly, not as index in VCTP list
-        pos = bldata.tell()
         self.clients = [ ]
         # In "Vi Explorer" code, the length value of this object is treated differently
         # (decreased by 4); not sure if this is correct and an issue here
         if True:
-            cli, cli_len = self.parseRSRCNestedTD(bldata, pos)
-            cli_flags = 0
-            clientTD = SimpleNamespace()
-            clientTD.index = cli.index # Nested clients have index -1
-            clientTD.flags = cli_flags
-            clientTD.nested = cli
+            clientTD, cli_len = self.parseRSRCNestedTD(bldata)
             self.clients.append(clientTD)
             clientTD.nested.setOwningList(self.topTypeList)
-            self.parseRSRCDataFinish(bldata)
-        pass
+        self.parseRSRCDataFinish(bldata)
 
     def prepareRSRCData(self, avoid_recompute=False):
         if not avoid_recompute:
@@ -1681,16 +1757,11 @@ class TDObjectTypeDef(TDObject):
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} has unexpacted amount of clients; should have 1"\
                   .format(self.vi.src_fname,self.index,self.otype))
-        for client in self.clients:
-            cli_data_buf = client.nested.prepareRSRCData(avoid_recompute=avoid_recompute)
-            cli_data_buf += client.nested.prepareRSRCDataFinish()
-
-            # size of nested TypeDesc is computed differently than in main TypeDesc
-            cli_data_head = int(len(cli_data_buf)+8).to_bytes(2, byteorder='big', signed=False)
-            cli_data_head += int(client.nested.oflags).to_bytes(1, byteorder='big', signed=False)
-            cli_data_head += int(client.nested.otype).to_bytes(1, byteorder='big', signed=False)
-
-            data_buf += cli_data_head + cli_data_buf
+        for clientTD in self.clients:
+            if clientTD.index == -1:
+                data_buf += self.prepareRSRCNestedTD(clientTD, avoid_recompute=avoid_recompute)
+            else:
+                data_buf += prepareVariableSizeFieldU2p2(clientTD.index)
 
         return data_buf
 
@@ -1705,26 +1776,14 @@ class TDObjectTypeDef(TDObject):
             exp_whole_len += sum((1+len(s)) for s in self.labels)
             if exp_whole_len % 2 > 0: # Include padding
                 exp_whole_len += 2 - (exp_whole_len % 2)
-        for client in self.clients:
-            # nested expected size already includes header size
-            exp_whole_len += client.nested.expectedRSRCSize()
-        if self.label is not None:
-            label_len = 1 + len(self.label)
-            if label_len % 2 > 0: # Include padding
-                label_len += 2 - (label_len % 2)
-            exp_whole_len += label_len
+        for clientTD in self.clients:
+            if clientTD.index == -1:
+                # nested expected size already includes header size
+                exp_whole_len += clientTD.nested.expectedRSRCSize()
+            else:
+                exp_whole_len += ( 2 if (clientTD.index <= 0x7fff) else 4 )
+        exp_whole_len += self.expectedRSRCLabelSize()
         return exp_whole_len
-
-    def initWithXMLNestedTD(self, conn_subelem):
-        clientTD = SimpleNamespace()
-        clientTD.index = -1
-        clientTD.flags = 0
-        obj_type = valFromEnumOrIntString(TD_FULL_TYPE, conn_subelem.get("Type"))
-        obj_flags = importXMLBitfields(TYPEDESC_FLAGS, conn_subelem)
-        obj = newTDObject(self.vi, self.blockref, clientTD.index, obj_flags, obj_type, self.po)
-        clientTD.nested = obj
-        obj.initWithXML(conn_subelem)
-        return clientTD
 
     def initWithXML(self, conn_elem):
         fmt = conn_elem.get("Format")
@@ -1771,14 +1830,11 @@ class TDObjectTypeDef(TDObject):
         for i, clientTD in enumerate(self.clients):
             subelem = ET.SubElement(conn_elem,"TypeDesc")
 
-            subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(TD_FULL_TYPE, clientTD.nested.otype)))
-            subelem.set("Nested", "True")
             if self.index >= 0:
                 part_fname = "{:s}_{:04d}_cli{:02d}".format(fname_base,self.index,i)
             else:
                 part_fname = "{:s}_cli{:02d}".format(fname_base,i)
-            clientTD.nested.exportXML(subelem, part_fname)
-            clientTD.nested.exportXMLFinish(subelem)
+            self.exportXMLNestedTD(clientTD, subelem, part_fname)
 
         for i, label in enumerate(self.labels):
             subelem = ET.SubElement(conn_elem,"Label")
@@ -1789,7 +1845,7 @@ class TDObjectTypeDef(TDObject):
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
-        ret = True
+        ret = super().checkSanity()
         if (len(self.clients) != 1):
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} clients count {:d}, expected {:d}"\
@@ -1802,16 +1858,10 @@ class TDObjectTypeDef(TDObject):
                       .format(self.vi.src_fname,i))
                 ret = False
             pass
-        exp_whole_len = self.expectedRSRCSize()
-        if len(self.raw_data) != exp_whole_len:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
-                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
-            ret = False
         return ret
 
 
-class TDObjectArray(TDObject):
+class TDObjectArray(TDObjectContainer):
     """ Type Descriptor with Multidimentional Array data
     """
     def __init__(self, *args):
@@ -1858,11 +1908,7 @@ class TDObjectArray(TDObject):
         exp_whole_len += 2 + 4 * len(self.dimensions)
         for clientTD in self.clients:
             exp_whole_len += ( 2 if (clientTD.index <= 0x7fff) else 4 )
-        if self.label is not None:
-            label_len = 1 + len(self.label)
-            if label_len % 2 > 0: # Include padding
-                label_len += 2 - (label_len % 2)
-            exp_whole_len += label_len
+        exp_whole_len += self.expectedRSRCLabelSize()
         return exp_whole_len
 
     def initWithXML(self, conn_elem):
@@ -1909,13 +1955,13 @@ class TDObjectArray(TDObject):
         for i, clientTD in enumerate(self.clients):
             subelem = ET.SubElement(conn_elem,"TypeDesc")
 
-            subelem.set("TypeID", str(clientTD.index))
-            subelem.set("Flags", "0x{:04X}".format(clientTD.flags))
+            cli_fname = "{:s}_cli{:02d}".format(fname_base,i)
+            self.exportXMLIndexedTD(clientTD, subelem, cli_fname)
 
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
-        ret = True
+        ret = super().checkSanity()
         if len(self.dimensions) > 64:
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} has {} dimensions, expected below {}"\
@@ -1926,19 +1972,10 @@ class TDObjectArray(TDObject):
                 eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} has {} clients, expected exactly {}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.clients),1))
             ret = False
-        for clientTD in self.clients:
-            if self.index == -1: # Are we a nested TypeDesc
-                pass
-            elif clientTD.index >= self.index:
-                if (self.po.verbose > 1):
-                    eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} sub-type {:d} is reference to higher index"\
-                      .format(self.vi.src_fname,self.index,self.otype,clientTD.index))
-                ret = False
-            pass
         return ret
 
 
-class TDObjectBlock(TDObject):
+class TDObjectBlock(TDObjectContainer):
     """ Type Descriptor with Block based data
     """
     def __init__(self, *args):
@@ -1961,11 +1998,7 @@ class TDObjectBlock(TDObject):
     def expectedRSRCSize(self):
         exp_whole_len = 4
         exp_whole_len += self.expectedRSRCDataSize()
-        if self.label is not None:
-            label_len = 1 + len(self.label)
-            if label_len % 2 > 0: # Include padding
-                label_len += 2 - (label_len % 2)
-            exp_whole_len += label_len
+        exp_whole_len += self.expectedRSRCLabelSize()
         return exp_whole_len
 
     def expectedRSRCDataSize(self):
@@ -1998,13 +2031,7 @@ class TDObjectBlock(TDObject):
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
-        ret = True
-        exp_whole_len = self.expectedRSRCSize()
-        if len(self.raw_data) != exp_whole_len:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
-                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
-            ret = False
+        ret = super().checkSanity()
         return ret
 
 
@@ -2064,41 +2091,20 @@ class TDObjectAlignedBlock(TDObjectBlock):
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
         conn_elem.set("BlockSize", "0x{:X}".format(self.blkSize))
-        for clientTD in self.clients:
+        for i, clientTD in enumerate(self.clients):
             subelem = ET.SubElement(conn_elem,"TypeDesc")
 
-            subelem.set("TypeID", str(clientTD.index))
-            subelem.set("Flags", "0x{:04X}".format(clientTD.flags))
+            cli_fname = "{:s}_cli{:02d}".format(fname_base,i)
+            self.exportXMLIndexedTD(clientTD, subelem, cli_fname)
+
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
         ret = super().checkSanity()
-        typeList = None
-        if self.topTypeList is not None:
-            typeList = self.topTypeList
-        else:
-            VCTP = self.vi.get('VCTP')
-            if VCTP is not None:
-                typeList = VCTP.getContent()
-        if typeList is not None:
-            for i, clientTD in enumerate(self.clients):
-                if clientTD.index == -1: # This is how we mark nested client
-                    if clientTD.nested is None:
-                        if (self.po.verbose > 1):
-                            eprint("{:s}: Warning: TypeDesc {:d} nested sub-type {:d} does not exist"\
-                              .format(self.vi.src_fname,self.index,i))
-                        ret = False
-                else:
-                    if clientTD.index >= len(typeList):
-                        if (self.po.verbose > 1):
-                            eprint("{:s}: Warning: TypeDesc {:d} sub-type {:d} references outranged TD {:d}"\
-                              .format(self.vi.src_fname,self.index,i,clientTD.index))
-                        ret = False
-                pass
         return ret
 
 
-class TDObjectRepeatedBlock(TDObject):
+class TDObjectRepeatedBlock(TDObjectContainer):
     """ Type Descriptor with data consisting of repeated Block
     """
     def __init__(self, *args):
@@ -2135,11 +2141,7 @@ class TDObjectRepeatedBlock(TDObject):
         for clientTD in self.clients:
             exp_whole_len += ( 2 if (clientTD.index <= 0x7fff) else 4 )
             break # only one sub-type is valid
-        if self.label is not None:
-            label_len = 1 + len(self.label)
-            if label_len % 2 > 0: # Include padding
-                label_len += 2 - (label_len % 2)
-            exp_whole_len += label_len
+        exp_whole_len += self.expectedRSRCLabelSize()
         return exp_whole_len
 
     def initWithXMLInlineData(self, conn_elem):
@@ -2176,43 +2178,16 @@ class TDObjectRepeatedBlock(TDObject):
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
         conn_elem.set("NumRepeats", "{:d}".format(self.numRepeats))
-        for clientTD in self.clients:
+        for i, clientTD in enumerate(self.clients):
             subelem = ET.SubElement(conn_elem,"TypeDesc")
 
-            subelem.set("TypeID", str(clientTD.index))
-            subelem.set("Flags", "0x{:04X}".format(clientTD.flags))
+            cli_fname = "{:s}_cli{:02d}".format(fname_base,i)
+            self.exportXMLIndexedTD(clientTD, subelem, cli_fname)
+
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
         ret = super().checkSanity()
-        typeList = None
-        if self.topTypeList is not None:
-            typeList = self.topTypeList
-        else:
-            VCTP = self.vi.get('VCTP')
-            if VCTP is not None:
-                typeList = VCTP.getContent()
-        if typeList is not None:
-            for i, clientTD in enumerate(self.clients):
-                if clientTD.index == -1: # This is how we mark nested client
-                    if clientTD.nested is None:
-                        if (self.po.verbose > 1):
-                            eprint("{:s}: Warning: TypeDesc {:d} nested sub-type {:d} does not exist"\
-                              .format(self.vi.src_fname,self.index,i))
-                        ret = False
-                else:
-                    if clientTD.index >= len(typeList):
-                        if (self.po.verbose > 1):
-                            eprint("{:s}: Warning: TypeDesc {:d} sub-type {:d} references outranged TD {:d}"\
-                              .format(self.vi.src_fname,self.index,i,clientTD.index))
-                        ret = False
-                pass
-        exp_whole_len = self.expectedRSRCSize()
-        if len(self.raw_data) != exp_whole_len:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
-                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
-            ret = False
         return ret
 
     def setDataFillComments(self, dfComments):
@@ -2225,7 +2200,7 @@ class TDObjectRepeatedBlock(TDObject):
         return self.numRepeats
 
 
-class TDObjectRef(TDObject):
+class TDObjectRef(TDObjectContainer):
     """ Type Descriptor with Reference data
     """
     def __init__(self, *args):
@@ -2266,11 +2241,7 @@ class TDObjectRef(TDObject):
         exp_whole_len += 2
         if self.ref_obj is not None:
             exp_whole_len += self.ref_obj.expectedRSRCSize()
-        if self.label is not None:
-            label_len = 1 + len(self.label)
-            if label_len % 2 > 0: # Include padding
-                label_len += 2 - (label_len % 2)
-            exp_whole_len += label_len
+        exp_whole_len += self.expectedRSRCLabelSize()
         return exp_whole_len
 
     def initWithXML(self, conn_elem):
@@ -2342,8 +2313,8 @@ class TDObjectRef(TDObject):
         for i, clientTD in enumerate(self.clients):
             subelem = ET.SubElement(conn_elem,"TypeDesc")
 
-            subelem.set("TypeID", str(clientTD.index))
-            subelem.set("Flags", "0x{:04X}".format(clientTD.flags))
+            cli_fname = "{:s}_cli{:02d}".format(fname_base,i)
+            self.exportXMLIndexedTD(clientTD, subelem, cli_fname)
 
             if self.ref_obj is not None:
                 self.ref_obj.exportXMLClient(clientTD, subelem, fname_base)
@@ -2374,18 +2345,7 @@ class TDObjectRef(TDObject):
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
-        ret = True
-        if self.ref_obj is not None:
-            if not self.ref_obj.checkSanity():
-                ret = False
-        for clientTD in self.clients:
-            if self.index == -1: # Are we a nested TypeDesc
-                pass
-            elif clientTD.index >= self.index:
-                if (self.po.verbose > 1):
-                    eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} reftype {:d} sub-type {:d} is reference to higher index"\
-                      .format(self.vi.src_fname,self.index,self.otype,self.reftype,clientTD.index))
-                ret = False
+        ret = super().checkSanity()
         return ret
 
     def refType(self):
@@ -2394,7 +2354,7 @@ class TDObjectRef(TDObject):
         return REFNUM_TYPE(self.reftype)
 
 
-class TDObjectCluster(TDObject):
+class TDObjectCluster(TDObjectContainer):
     """ Type Descriptor which Clusters together other TDs into a struct
     """
     def __init__(self, *args):
@@ -2426,11 +2386,7 @@ class TDObjectCluster(TDObject):
     def expectedRSRCSize(self):
         exp_whole_len = 4
         exp_whole_len += 2 + 2 * len(self.clients)
-        if self.label is not None:
-            label_len = 1 + len(self.label)
-            if label_len % 2 > 0: # Include padding
-                label_len += 2 - (label_len % 2)
-            exp_whole_len += label_len
+        exp_whole_len += self.expectedRSRCLabelSize()
         return exp_whole_len
 
     def initWithXML(self, conn_elem):
@@ -2470,25 +2426,20 @@ class TDObjectCluster(TDObject):
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
 
-        for i, client in enumerate(self.clients):
+        for i, clientTD in enumerate(self.clients):
             subelem = ET.SubElement(conn_elem,"TypeDesc")
 
-            subelem.set("TypeID", str(client.index))
+            cli_fname = "{:s}_cli{:02d}".format(fname_base,i)
+            self.exportXMLIndexedTD(clientTD, subelem, cli_fname)
 
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
-        ret = True
+        ret = super().checkSanity()
         if len(self.clients) > 500:
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} has {:d} clients, expected below {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.clients),500+1))
-            ret = False
-        exp_whole_len = self.expectedRSRCSize()
-        if len(self.raw_data) != exp_whole_len:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
-                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
 
@@ -2521,11 +2472,7 @@ class TDObjectMeasureData(TDObject):
     def expectedRSRCSize(self):
         exp_whole_len = 4
         exp_whole_len += 2
-        if self.label is not None:
-            label_len = 1 + len(self.label)
-            if label_len % 2 > 0: # Include padding
-                label_len += 2 - (label_len % 2)
-            exp_whole_len += label_len
+        exp_whole_len += self.expectedRSRCLabelSize()
         return exp_whole_len
 
     def initWithXML(self, conn_elem):
@@ -2550,17 +2497,11 @@ class TDObjectMeasureData(TDObject):
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
-        ret = True
+        ret = super().checkSanity()
         if self.flavor > 127: # Not sure how many cluster formats are there
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} flavor {:d}, expected below {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,self.flavor,127+1))
-            ret = False
-        exp_whole_len = self.expectedRSRCSize()
-        if len(self.raw_data) != exp_whole_len:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
-                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
 
@@ -2656,11 +2597,7 @@ class TDObjectFixedPoint(TDObject):
                 exp_whole_len += (2+2+4+8) * len(self.ranges)
             else:
                 exp_whole_len += 8 * len(self.ranges)
-        if self.label is not None:
-            label_len = 1 + len(self.label)
-            if label_len % 2 > 0: # Include padding
-                label_len += 2 - (label_len % 2)
-            exp_whole_len += label_len
+        exp_whole_len += self.expectedRSRCLabelSize()
         return exp_whole_len
 
     def initWithXML(self, conn_elem):
@@ -2743,26 +2680,14 @@ class TDObjectFixedPoint(TDObject):
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
-        ret = True
-        if len(self.clients) > 500:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} has {:d} clients, expected below {:d}"\
-                  .format(self.vi.src_fname,self.index,self.otype,len(self.clients),500+1))
-            ret = False
-        exp_whole_len = self.expectedRSRCSize()
-        if len(self.raw_data) != exp_whole_len:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
-                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
-            ret = False
+        ret = super().checkSanity()
         return ret
 
-class TDObjectSingleContainer(TDObject):
+class TDObjectSingleContainer(TDObjectContainer):
     """ Type Descriptor which is container for one child TD
     """
     def __init__(self, *args):
         super().__init__(*args)
-        self.prop1 = 0
         self.clients = []
 
     def parseRSRCData(self, bldata):
@@ -2792,11 +2717,7 @@ class TDObjectSingleContainer(TDObject):
         for client in self.clients:
             exp_whole_len += ( 2 if (client.index <= 0x7fff) else 4 )
             break # only one sub-type is valid
-        if self.label is not None:
-            label_len = 1 + len(self.label)
-            if label_len % 2 > 0: # Include padding
-                label_len += 2 - (label_len % 2)
-            exp_whole_len += label_len
+        exp_whole_len += self.expectedRSRCLabelSize()
         return exp_whole_len
 
     def initWithXML(self, conn_elem):
@@ -2835,48 +2756,20 @@ class TDObjectSingleContainer(TDObject):
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
 
-        for i, client in enumerate(self.clients):
+        for i, clientTD in enumerate(self.clients):
             subelem = ET.SubElement(conn_elem,"TypeDesc")
 
-            subelem.set("TypeID", str(client.index))
-            subelem.set("Flags", "0x{:04X}".format(client.flags))
+            cli_fname = "{:s}_cli{:02d}".format(fname_base,i)
+            self.exportXMLIndexedTD(clientTD, subelem, cli_fname)
 
         conn_elem.set("Format", "inline")
 
     def checkSanity(self):
-        ret = True
+        ret = super().checkSanity()
         if (len(self.clients) != 1):
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} clients count {:d}, expected exactly {:d}"\
                   .format(self.vi.src_fname,self.index,self.otype,len(self.clients),1))
-            ret = False
-        typeList = None
-        if self.topTypeList is not None:
-            typeList = self.topTypeList
-        else:
-            VCTP = self.vi.get('VCTP')
-            if VCTP is not None:
-                typeList = VCTP.getContent()
-        if typeList is not None:
-            for i, client in enumerate(self.clients):
-                if client.index == -1: # This is how we mark nested client
-                    if client.nested is None:
-                        if (self.po.verbose > 1):
-                            eprint("{:s}: Warning: TypeDesc {:d} nested sub-type {:d} does not exist"\
-                              .format(self.vi.src_fname,self.index,i))
-                        ret = False
-                else:
-                    if client.index >= len(typeList):
-                        if (self.po.verbose > 1):
-                            eprint("{:s}: Warning: TypeDesc {:d} sub-type {:d} references outranged TD {:d}"\
-                              .format(self.vi.src_fname,self.index,i,client.index))
-                        ret = False
-                pass
-        exp_whole_len = self.expectedRSRCSize()
-        if len(self.raw_data) != exp_whole_len:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
-                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
 
