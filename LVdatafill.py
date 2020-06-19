@@ -586,7 +586,7 @@ class DataFillArray(DataFill):
         if block is not None:
             section = block.sections[self.blockref[1]]
             if section is not None:
-                clientsLimit = min(clientsLimit, section.last_plain_data_size) # we don't know the zise of single client fill, so assume 1 byte
+                clientsLimit = min(clientsLimit, section.last_plain_data_size) # we don't know the size of single client fill, so assume 1 byte
         if totItems > clientsLimit:
                 raise RuntimeError("Fill for TD {} claims to contain {} fields, expected below {}; pos within block 0x{:x}"\
                   .format(self.getXMLTagName(), totItems, clientsLimit, bldata.tell()))

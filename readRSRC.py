@@ -54,7 +54,7 @@ def main():
             help="extract all connectors into raw binary files instead of pure XML" \
             " (works only with --extract command)")
 
-    parser.add_argument('--print-map', choices=["RSRC","VCTP","DFDS","LIbd","LIds","LIfp","LIvi"],
+    parser.add_argument('--print-map', choices=["RSRC","DFDS","LIbd","LIds","LIfp","LIvi","VCTP","VITS"],
             help="print map for whole file (RSRC) or section (given ident);" \
             " the map contains offsets at which things are within the file;" \
             " for sections which are compressed within RSRC file, specific" \
