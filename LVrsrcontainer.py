@@ -43,6 +43,7 @@ class FILE_FMT_TYPE(enum.Enum):
     RFilesOld = 14
     Subroutine = 15
     VI = 16
+    Zero = 17
 
 
 class RSRCHeader(RSRCStructure):
@@ -166,6 +167,7 @@ def getRsrcTypeForFileType(ftype):
         FILE_FMT_TYPE.UsrIfaceResrc: b'iUWl',
         FILE_FMT_TYPE.Subroutine: b'LVSB',
         FILE_FMT_TYPE.VI: b'LVIN',
+        FILE_FMT_TYPE.Zero: b'\0\0\0\0',
     }.get(ftype, b'')
     return file_type
 
@@ -443,7 +445,11 @@ class VI():
         fmtver_str = self.xml_root.get("FormatVersion")
         self.fmtver = int(fmtver_str, 0)
         pretty_type_str = self.xml_root.get("Type")
-        rsrc_type_id = getRsrcTypeFromPrettyStr(pretty_type_str)
+        if pretty_type_str is not None:
+            rsrc_type_id = getRsrcTypeFromPrettyStr(pretty_type_str)
+        else:
+            pretty_type_str = self.xml_root.get("TypeHex")
+            rsrc_type_id = bytes.fromhex(pretty_type_str)
         self.ftype = recognizeFileTypeFromRsrcType(rsrc_type_id)
 
         encoding_str = self.xml_root.get("Encoding")
@@ -598,7 +604,10 @@ class VI():
         elem = ET.Element('RSRC')
         elem.set("FormatVersion", "{:d}".format(self.fmtver))
         rsrc_type_id = getRsrcTypeForFileType(self.ftype)
-        elem.set("Type", rsrc_type_id.decode('ascii'))
+        if any((c < ord(' ') or c > ord('~')) for c in rsrc_type_id):
+            elem.set("TypeHex", rsrc_type_id.hex())
+        else:
+            elem.set("Type", rsrc_type_id.decode('ascii'))
         elem.set("Encoding", self.textEncoding)
 
         if self.ftype == FILE_FMT_TYPE.LLB or isSmallerVersion(ver, 7,0,0):
