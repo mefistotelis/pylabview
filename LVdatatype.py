@@ -1535,10 +1535,10 @@ class TDObjectFunction(TDObjectContainer):
 
         count = readVariableSizeFieldU2p2(bldata)
         # Create _separate_ empty namespace for each TypeDesc
-        self.clients = [SimpleNamespace() for _ in range(count)]
+        self.clients = []
         for i in range(count):
-            cli_idx = readVariableSizeFieldU2p2(bldata)
-            self.clients[i].index = cli_idx
+            clientTD, cli_len = self.parseRSRCIndexedTD(bldata)
+            self.clients.append(clientTD)
         # end of MultiContainer part
         self.fflags = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         self.pattern = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
@@ -1575,9 +1575,7 @@ class TDObjectFunction(TDObjectContainer):
             self.field7 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         if (self.fflags & 0x8000) != 0:
             # If the flag is set, then the last sub-type is special - comes from here, not the standard list
-            clientTD = SimpleNamespace()
-            clientTD.index = readVariableSizeFieldU2p2(bldata)
-            clientTD.flags = 0
+            clientTD, cli_len = self.parseRSRCIndexedTD(bldata)
             clientTD.thrallSources = []
             self.clients.append(clientTD)
 
@@ -1891,6 +1889,7 @@ class TDObjectArray(TDObjectContainer):
         self.dimensions = [ ]
 
     def parseRSRCData(self, bldata):
+        ver = self.vi.getFileVersion()
         # Fields oflags,otype are set at constructor, but no harm in setting them again
         self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
 
@@ -1902,13 +1901,22 @@ class TDObjectArray(TDObjectContainer):
             dim.fixedSize = flags & 0x00FFFFFF
 
         self.clients = [ ]
-        for i in range(1):
-            clientTD = self.parseRSRCIndexedTD(bldata)
-            self.clients.append(clientTD)
+        if isGreaterOrEqVersion(ver, 8,0,0,1):
+            for i in range(1):
+                clientTD, cli_len = self.parseRSRCIndexedTD(bldata)
+                self.clients.append(clientTD)
+        else:
+            for i in range(1):
+                clientTD, cli_len = self.parseRSRCNestedTD(bldata)
+                self.clients.append(clientTD)
 
         self.parseRSRCDataFinish(bldata)
 
     def prepareRSRCData(self, avoid_recompute=False):
+        if not avoid_recompute:
+            ver = self.vi.getFileVersion()
+        else:
+            ver = decodeVersion(0x09000000)
         data_buf = b''
         data_buf += int(len(self.dimensions)).to_bytes(2, byteorder='big', signed=False)
         for dim in self.dimensions:
@@ -1918,8 +1926,12 @@ class TDObjectArray(TDObjectContainer):
             if (self.po.verbose > 1):
                 eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} has unexpacted amount of clients; should have 1"\
                   .format(self.vi.src_fname,self.index,self.otype))
-        for clientTD in self.clients:
-            data_buf += self.prepareRSRCIndexedTD(clientTD, avoid_recompute=avoid_recompute)
+        if isGreaterOrEqVersion(ver, 8,0,0,1):
+            for clientTD in self.clients:
+                data_buf += self.prepareRSRCIndexedTD(clientTD, avoid_recompute=avoid_recompute)
+        else:
+            for clientTD in self.clients:
+                data_buf += self.prepareRSRCNestedTD(clientTD, avoid_recompute=avoid_recompute)
         return data_buf
 
     def expectedRSRCSize(self):
@@ -2061,7 +2073,7 @@ class TDObjectAlignedBlock(TDObjectBlock):
         self.clients = []
         self.blkSize = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         for i in range(1):
-            clientTD = self.parseRSRCIndexedTD(bldata)
+            clientTD, cli_len = self.parseRSRCIndexedTD(bldata)
             self.clients.append(clientTD)
 
         # No more known data inside
@@ -2124,7 +2136,7 @@ class TDObjectRepeatedBlock(TDObjectContainer):
         self.clients = []
         self.numRepeats = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         for i in range(1):
-            clientTD = self.parseRSRCIndexedTD(bldata)
+            clientTD, cli_len = self.parseRSRCIndexedTD(bldata)
             self.clients.append(clientTD)
         # No more known data inside
         self.parseRSRCDataFinish(bldata)
@@ -2371,7 +2383,7 @@ class TDObjectCluster(TDObjectContainer):
         # Create _separate_ empty namespace for each TypeDesc
         self.clients = []
         for i in range(count):
-            clientTD = self.parseRSRCIndexedTD(bldata)
+            clientTD, cli_len = self.parseRSRCIndexedTD(bldata)
             self.clients.append(clientTD)
         # No more data inside
         self.parseRSRCDataFinish(bldata)
@@ -2683,7 +2695,7 @@ class TDObjectSingleContainer(TDObjectContainer):
 
         self.clients = []
         for i in range(1):
-            clientTD = self.parseRSRCIndexedTD(bldata)
+            clientTD, cli_len = self.parseRSRCIndexedTD(bldata)
             self.clients.append(clientTD)
 
         # No more data inside
