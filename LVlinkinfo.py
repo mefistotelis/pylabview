@@ -337,7 +337,7 @@ class LinkObjBase:
 
             # TD was stored directly before consolidated list was introduced
             obj_pos = bldata.tell()
-            obj_type, obj_flags, obj_len = TDObject.parseRSRCDataHeader(bldata)
+            obj_type, obj_flags, obj_len = LVdatatype.TDObject.parseRSRCDataHeader(bldata)
             if (self.po.verbose > 2):
                 print("{:s}: Block {} LinkObj {} TypeDesc at 0x{:04x}, type 0x{:02x} flags 0x{:02x} len {:d}"\
                   .format(self.vi.src_fname, self.blockref[0], self.ident, obj_pos, obj_type, obj_flags, obj_len))
