@@ -934,6 +934,17 @@ class TDObjectContainer(TDObject):
         td_subelem.set("TypeID", str(clientTD.index))
         td_subelem.set("Flags", "0x{:04X}".format(clientTD.flags))
 
+    def exportXMLAllClients(self, td_elem, fname_base):
+        for i, clientTD in enumerate(self.clients):
+            subelem = ET.SubElement(td_elem,"TypeDesc")
+
+            cli_fname = "{:s}_cli{:02d}".format(fname_base,i)
+            if clientTD.index == -1:
+                self.exportXMLNestedTD(clientTD, subelem, cli_fname)
+            else:
+                self.exportXMLIndexedTD(clientTD, subelem, cli_fname)
+        pass
+
 
 class TDObjectVoid(TDObject):
     """ Type Descriptor with Void data
@@ -1562,7 +1573,7 @@ class TDObjectFunction(TDObjectContainer):
 
         data_buf += prepareVariableSizeFieldU2p2(len(clients))
         for clientTD in clients:
-            data_buf += prepareVariableSizeFieldU2p2(clientTD.index)
+            data_buf += self.prepareRSRCIndexedTD(clientTD, avoid_recompute=avoid_recompute)
         # end of MultiContainer part
         data_buf += int(self.fflags).to_bytes(2, byteorder='big', signed=False)
         data_buf += int(self.pattern).to_bytes(2, byteorder='big', signed=False)
@@ -1588,7 +1599,7 @@ class TDObjectFunction(TDObjectContainer):
             data_buf += int(self.field6).to_bytes(4, byteorder='big', signed=False)
             data_buf += int(self.field7).to_bytes(4, byteorder='big', signed=False)
         if spec_cli is not None:
-            data_buf += prepareVariableSizeFieldU2p2(spec_cli.index)
+            data_buf += self.prepareRSRCIndexedTD(spec_cli, avoid_recompute=avoid_recompute)
 
         return data_buf
 
@@ -1670,6 +1681,25 @@ class TDObjectFunction(TDObjectContainer):
             TDObject.initWithXML(self, conn_elem)
         pass
 
+    def exportXMLAllClients(self, td_elem, fname_base):
+        for i, clientTD in enumerate(self.clients):
+            subelem = ET.SubElement(td_elem,"TypeDesc")
+
+            cli_fname = "{:s}_cli{:02d}".format(fname_base,i)
+            if clientTD.index == -1:
+                self.exportXMLNestedTD(clientTD, subelem, cli_fname)
+            else:
+                self.exportXMLIndexedTD(clientTD, subelem, cli_fname)
+
+            if len(clientTD.thrallSources) > 0:
+                strlist = ""
+                for k, val in enumerate(clientTD.thrallSources):
+                    strlist += " {:3d}".format(val)
+
+                sub_subelem = ET.SubElement(subelem,"ThrallSources")
+                sub_subelem.text = strlist
+        pass
+
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
 
@@ -1682,19 +1712,7 @@ class TDObjectFunction(TDObjectContainer):
         if self.field7 != 0:
             conn_elem.set("Field7", "0x{:X}".format(self.field7))
 
-        for i, clientTD in enumerate(self.clients):
-            subelem = ET.SubElement(conn_elem,"TypeDesc")
-
-            cli_fname = "{:s}_cli{:02d}".format(fname_base,i)
-            self.exportXMLIndexedTD(clientTD, subelem, cli_fname)
-
-            if len(clientTD.thrallSources) > 0:
-                strlist = ""
-                for k, val in enumerate(clientTD.thrallSources):
-                    strlist += " {:3d}".format(val)
-
-                sub_subelem = ET.SubElement(subelem,"ThrallSources")
-                sub_subelem.text = strlist
+        self.exportXMLAllClients(conn_elem, fname_base)
 
         conn_elem.set("Format", "inline")
 
@@ -1761,7 +1779,7 @@ class TDObjectTypeDef(TDObjectContainer):
             if clientTD.index == -1:
                 data_buf += self.prepareRSRCNestedTD(clientTD, avoid_recompute=avoid_recompute)
             else:
-                data_buf += prepareVariableSizeFieldU2p2(clientTD.index)
+                data_buf += self.prepareRSRCIndexedTD(clientTD, avoid_recompute=avoid_recompute)
 
         return data_buf
 
@@ -1827,14 +1845,7 @@ class TDObjectTypeDef(TDObjectContainer):
 
         conn_elem.set("Flag1", "0x{:X}".format(self.flag1))
 
-        for i, clientTD in enumerate(self.clients):
-            subelem = ET.SubElement(conn_elem,"TypeDesc")
-
-            if self.index >= 0:
-                part_fname = "{:s}_{:04d}_cli{:02d}".format(fname_base,self.index,i)
-            else:
-                part_fname = "{:s}_cli{:02d}".format(fname_base,i)
-            self.exportXMLNestedTD(clientTD, subelem, part_fname)
+        self.exportXMLAllClients(conn_elem, fname_base)
 
         for i, label in enumerate(self.labels):
             subelem = ET.SubElement(conn_elem,"Label")
@@ -1900,7 +1911,7 @@ class TDObjectArray(TDObjectContainer):
                 eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} has unexpacted amount of clients; should have 1"\
                   .format(self.vi.src_fname,self.index,self.otype))
         for clientTD in self.clients:
-            data_buf += prepareVariableSizeFieldU2p2(clientTD.index)
+            data_buf += self.prepareRSRCIndexedTD(clientTD, avoid_recompute=avoid_recompute)
         return data_buf
 
     def expectedRSRCSize(self):
@@ -1952,11 +1963,7 @@ class TDObjectArray(TDObjectContainer):
             subelem.set("Flags", "0x{:04X}".format(dim.flags))
             subelem.set("FixedSize", "0x{:04X}".format(dim.fixedSize))
 
-        for i, clientTD in enumerate(self.clients):
-            subelem = ET.SubElement(conn_elem,"TypeDesc")
-
-            cli_fname = "{:s}_cli{:02d}".format(fname_base,i)
-            self.exportXMLIndexedTD(clientTD, subelem, cli_fname)
+        self.exportXMLAllClients(conn_elem, fname_base)
 
         conn_elem.set("Format", "inline")
 
@@ -2061,7 +2068,7 @@ class TDObjectAlignedBlock(TDObjectBlock):
         data_buf = b''
         data_buf += int(self.blkSize).to_bytes(4, byteorder='big', signed=False)
         for clientTD in self.clients:
-            data_buf += prepareVariableSizeFieldU2p2(clientTD.index)
+            data_buf += self.prepareRSRCIndexedTD(clientTD, avoid_recompute=avoid_recompute)
             break # only one client is supported
         return data_buf
 
@@ -2091,11 +2098,8 @@ class TDObjectAlignedBlock(TDObjectBlock):
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
         conn_elem.set("BlockSize", "0x{:X}".format(self.blkSize))
-        for i, clientTD in enumerate(self.clients):
-            subelem = ET.SubElement(conn_elem,"TypeDesc")
 
-            cli_fname = "{:s}_cli{:02d}".format(fname_base,i)
-            self.exportXMLIndexedTD(clientTD, subelem, cli_fname)
+        self.exportXMLAllClients(conn_elem, fname_base)
 
         conn_elem.set("Format", "inline")
 
@@ -2131,7 +2135,7 @@ class TDObjectRepeatedBlock(TDObjectContainer):
         data_buf = b''
         data_buf += int(self.numRepeats).to_bytes(4, byteorder='big', signed=False)
         for clientTD in self.clients:
-            data_buf += prepareVariableSizeFieldU2p2(clientTD.index)
+            data_buf += self.prepareRSRCIndexedTD(clientTD, avoid_recompute=avoid_recompute)
             break # only one sub-type is supported
         return data_buf
 
@@ -2178,11 +2182,8 @@ class TDObjectRepeatedBlock(TDObjectContainer):
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
         conn_elem.set("NumRepeats", "{:d}".format(self.numRepeats))
-        for i, clientTD in enumerate(self.clients):
-            subelem = ET.SubElement(conn_elem,"TypeDesc")
 
-            cli_fname = "{:s}_cli{:02d}".format(fname_base,i)
-            self.exportXMLIndexedTD(clientTD, subelem, cli_fname)
+        self.exportXMLAllClients(conn_elem, fname_base)
 
         conn_elem.set("Format", "inline")
 
@@ -2303,6 +2304,20 @@ class TDObjectRef(TDObjectContainer):
             obj.initWithXMLLate()
         pass
 
+    def exportXMLAllClients(self, td_elem, fname_base):
+        for i, clientTD in enumerate(self.clients):
+            subelem = ET.SubElement(td_elem,"TypeDesc")
+
+            cli_fname = "{:s}_cli{:02d}".format(fname_base,i)
+            if clientTD.index == -1:
+                self.exportXMLNestedTD(clientTD, subelem, cli_fname)
+            else:
+                self.exportXMLIndexedTD(clientTD, subelem, cli_fname)
+
+            if self.ref_obj is not None:
+                self.ref_obj.exportXMLClient(clientTD, subelem, fname_base)
+        pass
+
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
 
@@ -2310,14 +2325,7 @@ class TDObjectRef(TDObjectContainer):
         if self.ref_obj is not None:
             self.ref_obj.exportXML(conn_elem, fname_base)
 
-        for i, clientTD in enumerate(self.clients):
-            subelem = ET.SubElement(conn_elem,"TypeDesc")
-
-            cli_fname = "{:s}_cli{:02d}".format(fname_base,i)
-            self.exportXMLIndexedTD(clientTD, subelem, cli_fname)
-
-            if self.ref_obj is not None:
-                self.ref_obj.exportXMLClient(clientTD, subelem, fname_base)
+        self.exportXMLAllClients(conn_elem, fname_base)
 
         for i, item in enumerate(self.items):
             subelem = ET.SubElement(conn_elem,"Item")
@@ -2378,9 +2386,9 @@ class TDObjectCluster(TDObjectContainer):
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
-        data_buf += int(len(self.clients)).to_bytes(2, byteorder='big', signed=False)
+        data_buf += len(self.clients).to_bytes(2, byteorder='big', signed=False)
         for clientTD in self.clients:
-            data_buf += prepareVariableSizeFieldU2p2(clientTD.index)
+            data_buf += self.prepareRSRCIndexedTD(clientTD, avoid_recompute=avoid_recompute)
         return data_buf
 
     def expectedRSRCSize(self):
@@ -2426,11 +2434,7 @@ class TDObjectCluster(TDObjectContainer):
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
 
-        for i, clientTD in enumerate(self.clients):
-            subelem = ET.SubElement(conn_elem,"TypeDesc")
-
-            cli_fname = "{:s}_cli{:02d}".format(fname_base,i)
-            self.exportXMLIndexedTD(clientTD, subelem, cli_fname)
+        self.exportXMLAllClients(conn_elem, fname_base)
 
         conn_elem.set("Format", "inline")
 
@@ -2706,8 +2710,8 @@ class TDObjectSingleContainer(TDObjectContainer):
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
-        for client in self.clients:
-            data_buf += prepareVariableSizeFieldU2p2(client.index)
+        for clientTD in self.clients:
+            data_buf += self.prepareRSRCIndexedTD(clientTD, avoid_recompute=avoid_recompute)
             break # only one sub-type is supported
 
         return data_buf
@@ -2756,11 +2760,7 @@ class TDObjectSingleContainer(TDObjectContainer):
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
 
-        for i, clientTD in enumerate(self.clients):
-            subelem = ET.SubElement(conn_elem,"TypeDesc")
-
-            cli_fname = "{:s}_cli{:02d}".format(fname_base,i)
-            self.exportXMLIndexedTD(clientTD, subelem, cli_fname)
+        self.exportXMLAllClients(conn_elem, fname_base)
 
         conn_elem.set("Format", "inline")
 
