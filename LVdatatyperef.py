@@ -1047,12 +1047,13 @@ class RefnumUDClassInst(RefnumBase):
         data_buf = int(self.td_obj.field0).to_bytes(2, byteorder='big')
         if isSmallerVersion(ver, 8,6,1):
             data_buf += int(self.td_obj.field2).to_bytes(4, byteorder='big')
-        items = self.td_obj.items
+        items = self.td_obj.items.copy()
         if self.td_obj.multiItem == 0:
             if len(items) > 1:
                 self.td_obj.multiItem = 1
         if self.td_obj.multiItem != 0:
-            totlen = sum( (len(item.text)+1) for item in items ) + 1
+            # In multi-item mode, we store additional length at start and '\0' at end
+            totlen = sum( (1+len(item.text)) for item in items ) + 1
             data_buf += int(totlen).to_bytes(1, byteorder='big')
             for item in items:
                 strlen = len(item.text)
@@ -1060,10 +1061,12 @@ class RefnumUDClassInst(RefnumBase):
                 data_buf += item.text
             data_buf += b'\0' # empty strlen marks end of list
         else:
+            # Make sure we have at least one item to store
             if len(items) < 1:
                 item = SimpleNamespace()
                 item.text =  b''
-            for item in items: # we made sure there is only one item
+                items.append(item)
+            for item in items: # we made sure there is exactly one item
                 strlen = len(item.text)
                 totlen = strlen
                 data_buf += int(strlen).to_bytes(1, byteorder='big')
@@ -1081,9 +1084,11 @@ class RefnumUDClassInst(RefnumBase):
         items = self.td_obj.items
         if self.td_obj.multiItem != 0 or len(items) > 1:
             exp_whole_len += 1
-            totlen = sum( (len(item.text)+1) for item in items ) + 1
+            totlen = sum( (1+len(item.text)) for item in items ) + 1
+        elif len(items) > 0:
+            totlen = sum( (1+len(item.text)) for item in items )
         else:
-            totlen = 1+len(item.text)
+            totlen = 1
         if ((totlen+1) % 2) > 0:
             totlen += 1
         exp_whole_len += totlen
