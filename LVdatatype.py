@@ -758,6 +758,14 @@ class TDObjectContainer(TDObject):
                 td.parseData()
         pass
 
+    def initWithXMLLate(self):
+        super().initWithXMLLate()
+        for clientTD in self.clients:
+            if clientTD.index == -1:
+                clientTD.nested.setOwningList(self.topTypeList)
+                clientTD.nested.initWithXMLLate()
+        pass
+
     def checkSanity(self):
         ret = True
         # Get Type List for checking non-nested clientTDs
@@ -1596,17 +1604,17 @@ class TDObjectFunction(TDObjectContainer):
         data_buf += int(self.pattern).to_bytes(2, byteorder='big', signed=False)
 
         if isGreaterOrEqVersion(ver, 10,0,0,stage="alpha"):
-            for client in clients:
-                data_buf += int(client.flags).to_bytes(4, byteorder='big', signed=False)
+            for clientTD in clients:
+                data_buf += int(clientTD.flags).to_bytes(4, byteorder='big', signed=False)
         else:
-            for client in clients:
-                data_buf += int(client.flags).to_bytes(2, byteorder='big', signed=False)
+            for clientTD in clients:
+                data_buf += int(clientTD.flags).to_bytes(2, byteorder='big', signed=False)
 
         if isGreaterOrEqVersion(ver, 8,0,0,stage="beta"):
             data_buf += int(self.hasThrall).to_bytes(2, byteorder='big', signed=False)
             if self.hasThrall != 0:
-                for client in clients:
-                    for k in client.thrallSources:
+                for clientTD in clients:
+                    for k in clientTD.thrallSources:
                         if isGreaterOrEqVersion(ver, 8,2,0,stage="beta"):
                             k = k + 1
                         data_buf += int(k).to_bytes(1, byteorder='big', signed=False)
@@ -1640,8 +1648,8 @@ class TDObjectFunction(TDObjectContainer):
         if isGreaterOrEqVersion(ver, 8,0,0,stage="beta"):
             exp_whole_len += 2
             if self.hasThrall != 0:
-                for client in clients:
-                    exp_whole_len += 1 * len(client.thrallSources)
+                for clientTD in clients:
+                    exp_whole_len += 1 * len(clientTD.thrallSources)
                     exp_whole_len += 1
 
         if (self.fflags & 0x0800) != 0:
@@ -1843,14 +1851,6 @@ class TDObjectTypeDef(TDObjectContainer):
             TDObject.initWithXML(self, conn_elem)
         pass
 
-    def initWithXMLLate(self):
-        super().initWithXMLLate()
-        for clientTD in self.clients:
-            if clientTD.index == -1:
-                clientTD.nested.setOwningList(self.topTypeList)
-                clientTD.nested.initWithXMLLate()
-        pass
-
     def exportXML(self, conn_elem, fname_base):
         self.parseData()
 
@@ -1901,12 +1901,10 @@ class TDObjectArray(TDObjectContainer):
             dim.flags = flags >> 24
             dim.fixedSize = flags & 0x00FFFFFF
 
-        self.clients = [ SimpleNamespace() ]
-        for clientTD in self.clients:
-            cli_idx = readVariableSizeFieldU2p2(bldata)
-            cli_flags = 0
-            clientTD.index = cli_idx
-            clientTD.flags = cli_flags
+        self.clients = [ ]
+        for i in range(1):
+            clientTD = self.parseRSRCIndexedTD(bldata)
+            self.clients.append(clientTD)
 
         self.parseRSRCDataFinish(bldata)
 
@@ -2062,10 +2060,8 @@ class TDObjectAlignedBlock(TDObjectBlock):
 
         self.clients = []
         self.blkSize = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        if True:
-            clientTD = SimpleNamespace()
-            clientTD.index = readVariableSizeFieldU2p2(bldata)
-            clientTD.flags = 0
+        for i in range(1):
+            clientTD = self.parseRSRCIndexedTD(bldata)
             self.clients.append(clientTD)
 
         # No more known data inside
@@ -2127,10 +2123,8 @@ class TDObjectRepeatedBlock(TDObjectContainer):
 
         self.clients = []
         self.numRepeats = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        if True:
-            clientTD = SimpleNamespace()
-            clientTD.index = readVariableSizeFieldU2p2(bldata)
-            clientTD.flags = 0
+        for i in range(1):
+            clientTD = self.parseRSRCIndexedTD(bldata)
             self.clients.append(clientTD)
         # No more known data inside
         self.parseRSRCDataFinish(bldata)
@@ -2375,12 +2369,10 @@ class TDObjectCluster(TDObjectContainer):
 
         count = readVariableSizeFieldU2p2(bldata)
         # Create _separate_ empty namespace for each TypeDesc
-        self.clients = [SimpleNamespace() for _ in range(count)]
+        self.clients = []
         for i in range(count):
-            cli_idx = readVariableSizeFieldU2p2(bldata)
-            cli_flags = 0
-            self.clients[i].index = cli_idx
-            self.clients[i].flags = cli_flags
+            clientTD = self.parseRSRCIndexedTD(bldata)
+            self.clients.append(clientTD)
         # No more data inside
         self.parseRSRCDataFinish(bldata)
 
@@ -2421,14 +2413,6 @@ class TDObjectCluster(TDObjectContainer):
 
         else:
             TDObject.initWithXML(self, conn_elem)
-        pass
-
-    def initWithXMLLate(self):
-        super().initWithXMLLate()
-        for clientTD in self.clients:
-            if clientTD.index == -1:
-                clientTD.nested.setOwningList(self.topTypeList)
-                clientTD.nested.initWithXMLLate()
         pass
 
     def exportXML(self, conn_elem, fname_base):
@@ -2698,11 +2682,9 @@ class TDObjectSingleContainer(TDObjectContainer):
         self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
 
         self.clients = []
-        if True:
-            client = SimpleNamespace()
-            client.index = readVariableSizeFieldU2p2(bldata)
-            client.flags = 0
-            self.clients.append(client)
+        for i in range(1):
+            clientTD = self.parseRSRCIndexedTD(bldata)
+            self.clients.append(clientTD)
 
         # No more data inside
         self.parseRSRCDataFinish(bldata)
@@ -2717,7 +2699,7 @@ class TDObjectSingleContainer(TDObjectContainer):
 
     def expectedRSRCSize(self):
         exp_whole_len = 4
-        for client in self.clients:
+        for clientTD in self.clients:
             exp_whole_len += self.expectedRSRCClientTDSize(clientTD)
             break # only one sub-type is valid
         exp_whole_len += self.expectedRSRCLabelSize()
@@ -2744,14 +2726,6 @@ class TDObjectSingleContainer(TDObjectContainer):
 
         else:
             TDObject.initWithXML(self, conn_elem)
-        pass
-
-    def initWithXMLLate(self):
-        super().initWithXMLLate()
-        for clientTD in self.clients:
-            if clientTD.index == -1:
-                clientTD.nested.setOwningList(self.topTypeList)
-                clientTD.nested.initWithXMLLate()
         pass
 
     def exportXML(self, conn_elem, fname_base):
