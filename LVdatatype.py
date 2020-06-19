@@ -907,6 +907,14 @@ class TDObjectContainer(TDObject):
     def prepareRSRCIndexedTD(self, clientTD, avoid_recompute=False):
         return prepareVariableSizeFieldU2p2(clientTD.index)
 
+    def expectedRSRCClientTDSize(self, clientTD):
+        if clientTD.index == -1:
+            # nested expected size already includes header size
+            obj_len = clientTD.nested.expectedRSRCSize()
+        else:
+            obj_len = 2 if clientTD.index <= 0x7FFF else 4
+        return obj_len
+
     def initWithXMLNestedTD(self, td_subelem):
         clientTD = SimpleNamespace()
         clientTD.index = -1
@@ -922,6 +930,15 @@ class TDObjectContainer(TDObject):
         clientTD = SimpleNamespace()
         clientTD.index = int(td_subelem.get("TypeID"), 0)
         clientTD.flags = int(td_subelem.get("Flags"), 0)
+        return clientTD
+
+    def initWithXMLAnyClientTD(self, td_subelem):
+        if td_subelem.get("TypeID") is not None:
+            clientTD = self.initWithXMLIndexedTD(td_subelem)
+        elif td_subelem.get("Type") is not None:
+            clientTD = self.initWithXMLNestedTD(td_subelem)
+        else:
+            raise AttributeError("TypeDesc sub-TD lacks mandatory attributes")
         return clientTD
 
     def exportXMLNestedTD(self, clientTD, td_subelem, cli_fname):
@@ -1612,7 +1629,7 @@ class TDObjectFunction(TDObjectContainer):
             spec_cli = clients.pop()
         exp_whole_len += 2 if len(clients) <= 0x7FFF else 4
         for clientTD in clients:
-            exp_whole_len += 2 if clientTD.index <= 0x7FFF else 4
+            exp_whole_len += self.expectedRSRCClientTDSize(clientTD)
         exp_whole_len += 2 + 2
 
         if isGreaterOrEqVersion(ver, 10,0,0,stage="alpha"):
@@ -1630,7 +1647,7 @@ class TDObjectFunction(TDObjectContainer):
         if (self.fflags & 0x0800) != 0:
             exp_whole_len += 8
         if spec_cli is not None:
-            exp_whole_len += 2 if spec_cli.index <= 0x7FFF else 4
+            exp_whole_len += self.expectedRSRCClientTDSize(spec_cli)
 
         exp_whole_len += self.expectedRSRCLabelSize()
         return exp_whole_len
@@ -1660,9 +1677,7 @@ class TDObjectFunction(TDObjectContainer):
             self.clients = []
             for subelem in conn_elem:
                 if (subelem.tag == "TypeDesc"):
-                    clientTD = SimpleNamespace()
-                    clientTD.index = int(subelem.get("TypeID"), 0)
-                    clientTD.flags = int(subelem.get("Flags"), 0)
+                    clientTD = self.initWithXMLAnyClientTD(subelem)
                     clientTD.thrallSources = []
                     for sub_subelem in subelem:
                         if (sub_subelem.tag == "ThrallSources"):
@@ -1795,11 +1810,7 @@ class TDObjectTypeDef(TDObjectContainer):
             if exp_whole_len % 2 > 0: # Include padding
                 exp_whole_len += 2 - (exp_whole_len % 2)
         for clientTD in self.clients:
-            if clientTD.index == -1:
-                # nested expected size already includes header size
-                exp_whole_len += clientTD.nested.expectedRSRCSize()
-            else:
-                exp_whole_len += ( 2 if (clientTD.index <= 0x7fff) else 4 )
+            exp_whole_len += self.expectedRSRCClientTDSize(clientTD)
         exp_whole_len += self.expectedRSRCLabelSize()
         return exp_whole_len
 
@@ -1878,7 +1889,6 @@ class TDObjectArray(TDObjectContainer):
     def __init__(self, *args):
         super().__init__(*args)
         self.dimensions = [ ]
-        self.clients = [ ]
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
@@ -1918,7 +1928,7 @@ class TDObjectArray(TDObjectContainer):
         exp_whole_len = 4
         exp_whole_len += 2 + 4 * len(self.dimensions)
         for clientTD in self.clients:
-            exp_whole_len += ( 2 if (clientTD.index <= 0x7fff) else 4 )
+            exp_whole_len += self.expectedRSRCClientTDSize(clientTD)
         exp_whole_len += self.expectedRSRCLabelSize()
         return exp_whole_len
 
@@ -1940,9 +1950,7 @@ class TDObjectArray(TDObjectContainer):
                     dim.fixedSize = int(subelem.get("FixedSize"), 0)
                     self.dimensions.append(dim)
                 elif (subelem.tag == "TypeDesc"):
-                    clientTD = SimpleNamespace()
-                    clientTD.index = int(subelem.get("TypeID"), 0)
-                    clientTD.flags = int(subelem.get("Flags"), 0)
+                    clientTD = self.initWithXMLAnyClientTD(subelem)
                     self.clients.append(clientTD)
                 else:
                     raise AttributeError("Type Descriptor contains unexpected tag '{}'"\
@@ -2047,7 +2055,6 @@ class TDObjectAlignedBlock(TDObjectBlock):
     """
     def __init__(self, *args):
         super().__init__(*args)
-        self.clients = []
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
@@ -2076,7 +2083,7 @@ class TDObjectAlignedBlock(TDObjectBlock):
         exp_whole_len = 0
         exp_whole_len += 4
         for clientTD in self.clients:
-            exp_whole_len += ( 2 if (clientTD.index <= 0x7fff) else 4 )
+            exp_whole_len += self.expectedRSRCClientTDSize(clientTD)
             break # only one sub-type is valid
         return exp_whole_len
 
@@ -2086,9 +2093,7 @@ class TDObjectAlignedBlock(TDObjectBlock):
 
         for subelem in conn_elem:
             if (subelem.tag == "TypeDesc"):
-                clientTD = SimpleNamespace()
-                clientTD.index = int(subelem.get("TypeID"), 0)
-                clientTD.flags = int(subelem.get("Flags"), 0)
+                clientTD = self.initWithXMLAnyClientTD(subelem)
                 self.clients.append(clientTD)
             else:
                 raise AttributeError("Type Descriptor contains unexpected tag '{}'"\
@@ -2113,7 +2118,6 @@ class TDObjectRepeatedBlock(TDObjectContainer):
     """
     def __init__(self, *args):
         super().__init__(*args)
-        self.clients = []
         self.numRepeats = 0
         self.dfComments = {}
 
@@ -2143,7 +2147,7 @@ class TDObjectRepeatedBlock(TDObjectContainer):
         exp_whole_len = 4
         exp_whole_len += 4
         for clientTD in self.clients:
-            exp_whole_len += ( 2 if (clientTD.index <= 0x7fff) else 4 )
+            exp_whole_len += self.expectedRSRCClientTDSize(clientTD)
             break # only one sub-type is valid
         exp_whole_len += self.expectedRSRCLabelSize()
         return exp_whole_len
@@ -2154,9 +2158,7 @@ class TDObjectRepeatedBlock(TDObjectContainer):
 
         for subelem in conn_elem:
             if (subelem.tag == "TypeDesc"):
-                clientTD = SimpleNamespace()
-                clientTD.index = int(subelem.get("TypeID"), 0)
-                clientTD.flags = int(subelem.get("Flags"), 0)
+                clientTD = self.initWithXMLAnyClientTD(subelem)
                 self.clients.append(clientTD)
             else:
                 raise AttributeError("Type Descriptor contains unexpected tag '{}'"\
@@ -2266,9 +2268,7 @@ class TDObjectRef(TDObjectContainer):
             self.items = []
             for subelem in conn_elem:
                 if (subelem.tag == "TypeDesc"):
-                    clientTD = SimpleNamespace()
-                    clientTD.index = int(subelem.get("TypeID"), 0)
-                    clientTD.flags = int(subelem.get("Flags"), 0)
+                    clientTD = self.initWithXMLAnyClientTD(subelem)
                     if self.ref_obj is not None:
                         self.ref_obj.initWithXMLClient(clientTD, subelem)
                     self.clients.append(clientTD)
@@ -2393,7 +2393,9 @@ class TDObjectCluster(TDObjectContainer):
 
     def expectedRSRCSize(self):
         exp_whole_len = 4
-        exp_whole_len += 2 + 2 * len(self.clients)
+        exp_whole_len += 2
+        for clientTD in self.clients:
+            exp_whole_len += self.expectedRSRCClientTDSize(clientTD)
         exp_whole_len += self.expectedRSRCLabelSize()
         return exp_whole_len
 
@@ -2409,10 +2411,8 @@ class TDObjectCluster(TDObjectContainer):
             self.clients = []
             for subelem in conn_elem:
                 if (subelem.tag == "TypeDesc"):
-                    client = SimpleNamespace()
-                    client.index = int(subelem.get("TypeID"), 0)
-                    client.flags = 0
-                    self.clients.append(client)
+                    clientTD = self.initWithXMLAnyClientTD(subelem)
+                    self.clients.append(clientTD)
                 else:
                     raise AttributeError("Type Descriptor contains unexpected tag '{}'"\
                       .format(subelem.tag))
@@ -2692,7 +2692,6 @@ class TDObjectSingleContainer(TDObjectContainer):
     """
     def __init__(self, *args):
         super().__init__(*args)
-        self.clients = []
 
     def parseRSRCData(self, bldata):
         # Fields oflags,otype are set at constructor, but no harm in setting them again
@@ -2719,7 +2718,7 @@ class TDObjectSingleContainer(TDObjectContainer):
     def expectedRSRCSize(self):
         exp_whole_len = 4
         for client in self.clients:
-            exp_whole_len += ( 2 if (client.index <= 0x7fff) else 4 )
+            exp_whole_len += self.expectedRSRCClientTDSize(clientTD)
             break # only one sub-type is valid
         exp_whole_len += self.expectedRSRCLabelSize()
         return exp_whole_len
@@ -2735,10 +2734,8 @@ class TDObjectSingleContainer(TDObjectContainer):
             self.clients = []
             for subelem in conn_elem:
                 if (subelem.tag == "TypeDesc"):
-                    client = SimpleNamespace()
-                    client.index = int(subelem.get("TypeID"), 0)
-                    client.flags = int(subelem.get("Flags"), 0)
-                    self.clients.append(client)
+                    clientTD = self.initWithXMLAnyClientTD(subelem)
+                    self.clients.append(clientTD)
                 else:
                     raise AttributeError("Type Descriptor contains unexpected tag '{}'"\
                       .format(subelem.tag))
