@@ -308,18 +308,22 @@ class LVVariant(LVObject):
         self.attrs = []
         self.hasvaritem2 = 0
         self.vartype2 = 0
+        # If version information is too small, then it contains size instead of version - that was the case for LV7 and older
+        if isSmallerVersion(self.version, 1,0,0,1):
+            auto_ver = self.vi.getFileVersion()
+            if isGreaterOrEqVersion(auto_ver, 8,0,0,1):
+                raise AttributeError("LVVariant has ver set to size=0x{:06X}, but file version is above LV8.0".format(varver))
+            self.version = auto_ver.copy()
         #TODO use LVdatatype.parseTDObject(self.vi, bldata, self.version, self.po) instead of doubling the implementation here
-        if isSmallerVersion(self.version, 8,0,0,1):
-            raise NotImplementedError("Unsupported LVVariant ver=0x{:06X} older than LV8.0".format(varver))
-        elif self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):
+        if self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):
             self.hasvaritem2 = 1
             self.vartype2 = readVariableSizeFieldU2p2(bldata)
             usesConsolidatedTD = True
-        else:
+        elif isGreaterOrEqVersion(self.version, 8,0,0,1):
             varcount = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             if varcount > self.po.typedesc_list_limit:
                 raise AttributeError("{:s} {:d} ver 0x{:X} types count {:d} exceeds limit"\
-                  .format(type(self).__name__, self.index, varver, varcount))
+                  .format(type(self).__name__, self.index, encodeVersion(self.version), varcount))
             pos = bldata.tell()
             for i in range(varcount):
                 obj_idx, obj_len = self.parseRSRCTypeDef(bldata, i, pos)
@@ -333,6 +337,23 @@ class LVVariant(LVObject):
             if self.hasvaritem2 != 0:
                 self.vartype2 = readVariableSizeFieldU2p2(bldata)
             usesConsolidatedTD = False
+        elif isGreaterOrEqVersion(self.version, 4,0,0,0):
+            varcount = 1
+            pos = bldata.tell()
+            for i in range(varcount):
+                obj_idx, obj_len = self.parseRSRCTypeDef(bldata, i, pos)
+                pos += obj_len
+                if obj_len < 4:
+                    eprint("{:s}: Warning: {:s} {:d} data size too small for all clients"\
+                      .format(self.vi.src_fname, type(self).__name__, self.index))
+                    break
+            bldata.seek(pos)
+            self.hasvaritem2 = self.allowFillValue
+            self.vartype2 = varcount - 1
+            usesConsolidatedTD = False
+            raise NotImplementedError("Unsupported LVVariant ver=0x{:06X} older than LV8.0".format(varver))#TODO remove this line
+        else:
+            raise NotImplementedError("Unsupported LVVariant ver=0x{:06X} older than LV4.0".format(encodeVersion(self.version)))
         # Read fill of vartype2
         if self.allowFillValue:
             if not self.hasvaritem2:
