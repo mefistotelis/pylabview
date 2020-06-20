@@ -1097,6 +1097,7 @@ class LinkObjBase:
         pass
 
     def clearCCSymbolLinkRefInfo(self):
+        from LVdatatype import TD_FULL_TYPE
         stringTd = LVdatatype.newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.String, self.po)
         self.ccSymbolStrDf = LVdatafill.newDataFillObjectWithTD(self.vi, self.blockref, -1, 0, stringTd, self.po)
         self.ccSymbolLinkBool = 0
