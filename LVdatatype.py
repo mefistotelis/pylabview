@@ -937,7 +937,10 @@ class TDObjectContainer(TDObject):
     def initWithXMLIndexedTD(self, td_subelem):
         clientTD = SimpleNamespace()
         clientTD.index = int(td_subelem.get("TypeID"), 0)
-        clientTD.flags = int(td_subelem.get("Flags"), 0)
+        clientTD.flags = 0
+        tmp = td_subelem.get("Flags")
+        if tmp is not None:
+            clientTD.flags = int(tmp, 0)
         return clientTD
 
     def initWithXMLAnyClientTD(self, td_subelem):
@@ -955,9 +958,11 @@ class TDObjectContainer(TDObject):
         clientTD.nested.exportXML(td_subelem, cli_fname)
         clientTD.nested.exportXMLFinish(td_subelem)
 
-    def exportXMLIndexedTD(self, clientTD, td_subelem, cli_fname):
+    def exportXMLIndexedTD(self, clientTD, td_subelem, cli_fname, skip_flags=True):
         td_subelem.set("TypeID", str(clientTD.index))
-        td_subelem.set("Flags", "0x{:04X}".format(clientTD.flags))
+        if (not skip_flags) or (clientTD.flags != 0):
+            td_subelem.set("Flags", "0x{:04X}".format(clientTD.flags))
+        pass
 
     def exportXMLAllClients(self, td_elem, fname_base):
         for i, clientTD in enumerate(self.clients):
@@ -1712,7 +1717,7 @@ class TDObjectFunction(TDObjectContainer):
             if clientTD.index == -1:
                 self.exportXMLNestedTD(clientTD, subelem, cli_fname)
             else:
-                self.exportXMLIndexedTD(clientTD, subelem, cli_fname)
+                self.exportXMLIndexedTD(clientTD, subelem, cli_fname, skip_flags=False)
 
             if len(clientTD.thrallSources) > 0:
                 strlist = ""
