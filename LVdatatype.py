@@ -1135,9 +1135,11 @@ class TDObjectNumber(TDObject):
 
     def initWithXMLEnumAttr(self, td_elem):
         for subelem in td_elem:
-            if (subelem.tag == "Value"):
+            if (subelem.tag == "EnumLabel"):
                 value = SimpleNamespace()
-                label_str = subelem.get("EnumLabel")
+                label_str = subelem.text
+                if label_str is None:
+                    label_str = ''
                 value.label = label_str.encode(self.vi.textEncoding)
                 value.intval1 = None
                 value.intval2 = None
@@ -1149,10 +1151,10 @@ class TDObjectNumber(TDObject):
 
     def initWithXMLUnitsAttr(self, td_elem):
         for subelem in td_elem:
-            if (subelem.tag == "Value"):
+            if (subelem.tag == "PhysUnit"):
                 value = SimpleNamespace()
-                value.intval1 = int(subelem.get("UnitVal1"), 0)
-                value.intval2 = int(subelem.get("UnitVal2"), 0)
+                value.intval1 = int(subelem.get("Val1"), 0)
+                value.intval2 = int(subelem.get("Val2"), 0)
                 value.label = "0x{:02X}:0x{:02X}".format(value.intval1,value.intval2)
                 if (self.po.verbose > 2):
                     print("{:s}: TD {:d} type 0x{:02x} Units Attr {} are 0x{:02X} 0x{:02X}"\
@@ -1188,18 +1190,18 @@ class TDObjectNumber(TDObject):
 
     def exportXMLEnumAttr(self, td_elem, fname_base):
         for i, value in enumerate(self.values):
-            subelem = ET.SubElement(td_elem,"Value")
+            subelem = ET.SubElement(td_elem,"EnumLabel")
 
             label_str = value.label.decode(self.vi.textEncoding)
-            subelem.set("EnumLabel", label_str)
+            subelem.text = label_str
         pass
 
     def exportXMLUnitsAttr(self, td_elem, fname_base):
         for i, value in enumerate(self.values):
-            subelem = ET.SubElement(td_elem,"Value")
+            subelem = ET.SubElement(td_elem,"PhysUnit")
 
-            subelem.set("UnitVal1", "{:d}".format(value.intval1))
-            subelem.set("UnitVal2", "{:d}".format(value.intval2))
+            subelem.set("Val1", "{:d}".format(value.intval1))
+            subelem.set("Val2", "{:d}".format(value.intval2))
         pass
 
     def exportXML(self, td_elem, fname_base):
