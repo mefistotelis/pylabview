@@ -397,14 +397,21 @@ class LVVariant(LVObject):
     def prepareRSRCVariant(self, avoid_recompute=False):
         varver = encodeVersion(self.version)
         data_buf = b''
-        data_buf += int(varver).to_bytes(4, byteorder='big', signed=False)
 
-        if isSmallerVersion(self.version, 8,0,0,1):
-            raise NotImplementedError("Unsupported LVVariant ver=0x{:06X} older than LV8.0".format(varver))
-        elif self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):
+        if self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):
+            data_buf += int(varver).to_bytes(4, byteorder='big', signed=False)
             data_buf += prepareVariableSizeFieldU2p2(self.vartype2)
             usesConsolidatedTD = True
-        else:
+            # Store fill of vartype2
+            if self.allowFillValue:
+                if not self.hasvaritem2:
+                    raise NotImplementedError("Unsupported LVVariant type storage case with no hasvaritem2 but with DataFill")
+                for df in self.datafill:
+                    data_buf += df.prepareRSRCData(avoid_recompute=avoid_recompute)
+                    break # expecting one DataFill entry
+            data_buf += self.prepareRSRCAttribs(avoid_recompute=avoid_recompute)
+        elif isGreaterOrEqVersion(self.version, 8,0,0,1):
+            data_buf += int(varver).to_bytes(4, byteorder='big', signed=False)
             varcount = sum(1 for client in self.clients2 if client.index == -1)
             data_buf += int(varcount).to_bytes(4, byteorder='big', signed=False)
             for clientTD in self.clients2:
@@ -412,22 +419,43 @@ class LVVariant(LVObject):
                     continue
                 clientTD.nested.updateData(avoid_recompute=avoid_recompute)
                 data_buf += clientTD.nested.raw_data
-            hasvaritem2 = self.hasvaritem2
             data_buf += prepareVariableSizeFieldU2p2(self.hasvaritem2)
 
             if self.hasvaritem2 != 0:
                 data_buf += prepareVariableSizeFieldU2p2(self.vartype2)
             usesConsolidatedTD = False
+            # Store fill of vartype2
+            if self.allowFillValue:
+                if not self.hasvaritem2:
+                    raise NotImplementedError("Unsupported LVVariant type storage case with no hasvaritem2 but with DataFill")
+                for df in self.datafill:
+                    data_buf += df.prepareRSRCData(avoid_recompute=avoid_recompute)
+                    break # expecting one DataFill entry
+            data_buf += self.prepareRSRCAttribs(avoid_recompute=avoid_recompute)
+        elif isGreaterOrEqVersion(self.version, 4,0,0,0):
+            td_buf = b''
+            varcount = self.vartype2 + 1
+            for clientTD in self.clients2:
+                if clientTD.index != -1:
+                    continue
+                clientTD.nested.updateData(avoid_recompute=avoid_recompute)
+                td_buf += clientTD.nested.raw_data
+            usesConsolidatedTD = False
+            # Store fill of vartype2
+            if self.allowFillValue:
+                if not self.hasvaritem2:
+                    raise NotImplementedError("Unsupported LVVariant type storage case with no hasvaritem2 but with DataFill")
+                for df in self.datafill:
+                    td_buf += df.prepareRSRCData(avoid_recompute=avoid_recompute)
+                    break # expecting one DataFill entry
 
-        # Store fill of vartype2
-        if self.allowFillValue:
-            if not self.hasvaritem2:
-                raise NotImplementedError("Unsupported LVVariant type storage case with no hasvaritem2 but with DataFill")
-            for df in self.datafill:
-                data_buf += df.prepareRSRCData(avoid_recompute=avoid_recompute)
-                break # expecting one DataFill entry
+            td_buf += self.prepareRSRCAttribs(avoid_recompute=avoid_recompute)
 
-        data_buf += self.prepareRSRCAttribs(avoid_recompute=avoid_recompute)
+            data_buf += int(4+len(td_buf)).to_bytes(4, byteorder='big', signed=False)
+            data_buf += td_buf
+        else:
+            raise NotImplementedError("Unsupported LVVariant ver=0x{:06X} older than LV4.0".format(encodeVersion(self.version)))
+
         return data_buf
 
     def prepareRSRCData(self, avoid_recompute=False):

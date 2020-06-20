@@ -878,6 +878,7 @@ class TDObjectContainer(TDObject):
         being stored directly after main TD. Index -1 is assigned to the TD
         as indication that it is nested and not stored in any consolidated list.
         """
+        ver = self.vi.getFileVersion()
         pos = bldata.tell()
         # Fields oflags,otype are set at constructor, but no harm in setting them again
         obj_type, obj_flags, obj_len = TDObject.parseRSRCDataHeader(bldata)
@@ -885,9 +886,13 @@ class TDObjectContainer(TDObject):
         obj = newTDObject(self.vi, self.blockref, -1, obj_flags, obj_type, self.po)
         bldata.seek(pos)
         obj.setOwningList(self.topTypeList)
-        # The object length of this nested TypeDesc is 4 bytes larger than real thing.
-        # Not everyone is aiming for consistency.
-        obj.initWithRSRC(bldata, obj_len-4)
+        if isGreaterOrEqVersion(ver, 8,0,0,1):
+            # The object length of this nested TypeDesc is 4 bytes larger than real thing.
+            norm_obj_len = obj_len-4
+        else:
+            # In older versions, size was normal.
+            norm_obj_len = obj_len
+        obj.initWithRSRC(bldata, norm_obj_len)
         clientTD = SimpleNamespace()
         clientTD.index = obj.index # Nested clients have index -1
         clientTD.flags = tm_flags
@@ -1923,7 +1928,10 @@ class TDObjectArray(TDObjectContainer):
         if not avoid_recompute:
             ver = self.vi.getFileVersion()
         else:
-            ver = decodeVersion(0x09000000)
+            if (len(self.clients) > 0) and (self.clients[0].index == -1):
+                ver = decodeVersion(0x07000000)
+            else:
+                ver = decodeVersion(0x09000000)
         data_buf = b''
         data_buf += int(len(self.dimensions)).to_bytes(2, byteorder='big', signed=False)
         for dim in self.dimensions:
@@ -1935,9 +1943,13 @@ class TDObjectArray(TDObjectContainer):
                   .format(self.vi.src_fname,self.index,self.otype))
         if isGreaterOrEqVersion(ver, 8,0,0,1):
             for clientTD in self.clients:
+                if clientTD.index == -1:
+                    raise AttributeError("Type Descriptor contains nested client but LV8+ format is in use")
                 data_buf += self.prepareRSRCIndexedTD(clientTD, avoid_recompute=avoid_recompute)
         else:
             for clientTD in self.clients:
+                if clientTD.index != -1:
+                    raise AttributeError("Type Descriptor contains indexed client but pre-LV8 format is in use")
                 data_buf += self.prepareRSRCNestedTD(clientTD, avoid_recompute=avoid_recompute)
         return data_buf
 
