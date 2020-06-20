@@ -242,14 +242,17 @@ def unescape_cdata_control_chars(text):
 
 def escape_attribute_control_chars(text):
     """ escape control characters
+
+    Within attributes, white spaces are normalized, including tabs.
+    We need to escape all of these.
     """
-    ccList = ( i for i in range(0,32) if i not in (ord("\t"),) )
+    ccList = ( i for i in range(0,32) )
     return escape_cdata_custom_chars(text, ccList)
 
 def unescape_attribute_control_chars(text):
     """ un-escape control characters
     """
-    ccList = ( i for i in range(0,32) if i not in (ord("\t"),) )
+    ccList = ( i for i in range(0,32) )
     return unescape_cdata_custom_chars(text, ccList)
 
 def CDATA(text=None):
@@ -309,7 +312,7 @@ def _escape_attrib(text):
         if "\"" in text:
             text = text.replace("\"", "&quot;")
         # Additionally, change control chars to entity numbers
-        if any(chr(c) in text for c in [c for c in range(0,32) if c not in (ord("\t"),)]):
+        if any(chr(c) in text for c in [c for c in range(0,32)]):
             return escape_attribute_control_chars(text)
     except (TypeError, AttributeError):
         ET._raise_serialization_error(text)
