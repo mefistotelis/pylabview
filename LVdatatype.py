@@ -886,6 +886,7 @@ class TDObjectContainer(TDObject):
         obj = newTDObject(self.vi, self.blockref, -1, obj_flags, obj_type, self.po)
         bldata.seek(pos)
         obj.setOwningList(self.topTypeList)
+        # size of nested TypeDesc is sometimes computed differently than in main TypeDesc
         if isGreaterOrEqVersion(ver, 8,0,0,1):
             # The object length of this nested TypeDesc is 4 bytes larger than real thing.
             norm_obj_len = obj_len-4
@@ -907,11 +908,21 @@ class TDObjectContainer(TDObject):
         return clientTD, obj_len
 
     def prepareRSRCNestedTD(self, clientTD, avoid_recompute=False):
+        if not avoid_recompute:
+            ver = self.vi.getFileVersion()
+        else:
+            ver = decodeVersion(0x09000000)
         data_buf = clientTD.nested.prepareRSRCData(avoid_recompute=avoid_recompute)
         data_buf += clientTD.nested.prepareRSRCDataFinish()
 
-        # size of nested TypeDesc is computed differently than in main TypeDesc
-        data_head = int(len(data_buf)+8).to_bytes(2, byteorder='big', signed=False)
+        # size of nested TypeDesc is sometimes computed differently than in main TypeDesc
+        if isGreaterOrEqVersion(ver, 8,0,0,1):
+            # The object length of this nested TypeDesc is 4 bytes larger than real thing.
+            norm_obj_len = len(data_buf) + 8
+        else:
+            # In older versions, size was normal.
+            norm_obj_len = len(data_buf) + 4
+        data_head = int(norm_obj_len).to_bytes(2, byteorder='big', signed=False)
         data_head += int(clientTD.nested.oflags).to_bytes(1, byteorder='big', signed=False)
         data_head += int(clientTD.nested.otype).to_bytes(1, byteorder='big', signed=False)
 
@@ -1083,10 +1094,12 @@ class TDObjectNumber(TDObject):
         pass
 
     def parseRSRCData(self, bldata):
+        ver = self.vi.getFileVersion()
         # Fields oflags,otype are set at constructor, but no harm in setting them again
         self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
         self.padding1 = b''
         self.values = []
+        self.prop1 = None
 
         if self.isEnum():
             self.parseRSRCEnumAttr(bldata)
@@ -1094,7 +1107,8 @@ class TDObjectNumber(TDObject):
         if self.isPhys():
             self.parseRSRCUnitsAttr(bldata)
 
-        self.prop1 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
+        if isGreaterOrEqVersion(ver, 8,0,0,1):
+            self.prop1 = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         # No more data inside
         self.parseRSRCDataFinish(bldata)
 
@@ -1120,6 +1134,10 @@ class TDObjectNumber(TDObject):
         return data_buf
 
     def prepareRSRCData(self, avoid_recompute=False):
+        if not avoid_recompute:
+            ver = self.vi.getFileVersion()
+        else:
+            ver = decodeVersion(0x09000000)
         data_buf = b''
 
         if self.isEnum():
@@ -1128,7 +1146,8 @@ class TDObjectNumber(TDObject):
         if self.isPhys():
             data_buf += self.prepareRSRCUnitsAttr(avoid_recompute=avoid_recompute)
 
-        data_buf += int(self.prop1).to_bytes(1, byteorder='big', signed=False)
+        if isGreaterOrEqVersion(ver, 8,0,0,1) and self.prop1 is not None:
+            data_buf += int(self.prop1).to_bytes(1, byteorder='big', signed=False)
         return data_buf
 
     def expectedRSRCSize(self):
@@ -1139,7 +1158,8 @@ class TDObjectNumber(TDObject):
                 exp_whole_len += 2 - (exp_whole_len % 2)
         if self.isPhys():
             exp_whole_len = 2 + (2+2) * len(self.values)
-        exp_whole_len += 1
+        if self.prop1 is not None:
+            exp_whole_len += 1
         exp_whole_len += self.expectedRSRCLabelSize()
         return exp_whole_len
 
@@ -1176,6 +1196,10 @@ class TDObjectNumber(TDObject):
         pass
 
     def initWithXML(self, td_elem):
+        self.prop1 = None
+        self.padding1 = b''
+        self.values = []
+
         fmt = td_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
@@ -1183,9 +1207,10 @@ class TDObjectNumber(TDObject):
                   .format(self.vi.src_fname,self.index,self.otype))
 
             self.initWithXMLInlineStart(td_elem)
-            self.prop1 = int(td_elem.get("Prop1"), 0)
-            self.padding1 = b''
-            self.values = []
+
+            tmp = td_elem.get("Prop1")
+            if tmp is not None:
+                self.prop1 = int(tmp, 0)
 
             if self.isEnum():
                 self.initWithXMLEnumAttr(td_elem)
@@ -1216,7 +1241,8 @@ class TDObjectNumber(TDObject):
 
     def exportXML(self, td_elem, fname_base):
         self.parseData()
-        td_elem.set("Prop1", "{:d}".format(self.prop1))
+        if self.prop1 is not None:
+            td_elem.set("Prop1", "{:d}".format(self.prop1))
         if self.isEnum():
             self.exportXMLEnumAttr(td_elem, fname_base)
         if self.isPhys():
