@@ -2596,11 +2596,11 @@ class BFAL(CompleteBlock):
     def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
 
-        data_buf = len(section.content).to_bytes(4, byteorder='big')
+        data_buf = len(section.content).to_bytes(4, byteorder='big', signed=False)
         for entry in section.content:
-            data_buf += int(entry.uid).to_bytes(4, byteorder='big')
-            data_buf += int(entry.tmi).to_bytes(4, byteorder='big')
-            data_buf += int(entry.flags).to_bytes(1, byteorder='big')
+            data_buf += int(entry.uid).to_bytes(4, byteorder='big', signed=False)
+            data_buf += int(entry.tmi).to_bytes(4, byteorder='big', signed=False)
+            data_buf += int(entry.flags).to_bytes(1, byteorder='big', signed=False)
         return data_buf
 
     def expectedRSRCSize(self, section_num):
@@ -2684,10 +2684,10 @@ class CPMp(CompleteBlock):
     def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
 
-        data_buf = len(section.content).to_bytes(1, byteorder='big')
-        data_buf += int(section.field1).to_bytes(1, byteorder='big')
+        data_buf = len(section.content).to_bytes(1, byteorder='big', signed=False)
+        data_buf += int(section.field1).to_bytes(1, byteorder='big', signed=False)
         for value in section.content:
-            data_buf += int(value).to_bytes(2, byteorder='big')
+            data_buf += int(value).to_bytes(2, byteorder='big', signed=False)
         return data_buf
 
     def expectedRSRCSize(self, section_num):
@@ -2700,11 +2700,11 @@ class CPMp(CompleteBlock):
     def initWithXMLSectionData(self, section, section_elem):
         snum = section.start.section_idx
         section.content = []
-
-        section.field1 = int(section_elem.get("Field1"), 0)
         if (self.po.verbose > 2):
             print("{:s}: For Block {} section {:d}, reading inline XML data"\
               .format(self.vi.src_fname,self.ident,snum))
+
+        section.field1 = int(section_elem.get("Field1"), 0)
         for subelem in section_elem:
             if (subelem.tag == "NameObject"):
                 pass # Items parsed somewhere else
@@ -2734,17 +2734,46 @@ class CPMp(CompleteBlock):
         pass
 
 
-class DLDR(Block):
-    """ DL Data Record
+class DLDR(CompleteBlock):
+    """ DataLog Data Record
 
     """
     def createSection(self):
         section = super().createSection()
+        section.prop1 = 0
+        section.prop2 = 1
+        section.prop3 = b''
         return section
+
+    def parseRSRCSectionData(self, section_num, bldata):
+        section = self.sections[section_num]
+
+        section.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        section.prop2 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        section.prop3 = bldata.read(20)
+
+    def prepareRSRCData(self, section_num):
+        section = self.sections[section_num]
+
+        data_buf = b''
+        data_buf += int(section.prop1).to_bytes(4, byteorder='big', signed=False)
+        data_buf += int(section.prop2).to_bytes(4, byteorder='big', signed=False)
+        data_buf += section.prop3
+        return data_buf
+
+    def initWithXMLSectionData(self, section, section_elem):
+        snum = section.start.section_idx
+        if (self.po.verbose > 2):
+            print("{:s}: For Block {} section {:d}, reading inline XML data"\
+              .format(self.vi.src_fname,self.ident,snum))
+
+        section.prop1 = int(section_elem.get("Prop1"), 0)
+        section.prop2 = int(section_elem.get("Prop2"), 0)
+        section.prop3 = bytes.fromhex(section_elem.get("Prop3"))
 
 
 class DLLP(Block):
-    """ DL Local Path
+    """ DataLog Local Path
 
     """
     def createSection(self):
