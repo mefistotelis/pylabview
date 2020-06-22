@@ -2771,6 +2771,11 @@ class DLDR(CompleteBlock):
         section.prop2 = int(section_elem.get("Prop2"), 0)
         section.prop3 = bytes.fromhex(section_elem.get("Prop3"))
 
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
+        section_elem.set("Prop1", "{:d}".format(section.prop1))
+        section_elem.set("Prop2", "{:d}".format(section.prop2))
+        section_elem.set("Prop3", "{:s}".format(section.prop3.hex()))
+
 
 class DLLP(Block):
     """ DataLog Local Path
