@@ -21,6 +21,9 @@ in each of them.
 To get specifics about command line arguments of each tool, run them with `--help`
 option. Some tools also have additional remarks in their headers - try viewing them.
 
+The first tool to use is `readRSRC.py` and extract the RSRC file into a form
+which is easier to understand and modify.
+
 # Supported versions
 
 The tools were tested on all standard VIs from LabVIEW 2014 and LabVIEW 6.0.
@@ -49,7 +52,12 @@ A few example files are included in the project.
 
 # Use cases
 
-Several things you can do with these tools are listed below.
+The general intended use of the tools is as follows:
+- extract RSRC file to XML form
+- look at the resulting XML, perform modifications
+- re-create RSRC file from the XML
+
+Several specific things you can do with these tools are listed below.
 One caveat worth noticing is that these tasks are not fully automated. To use
 these functions, you must know what you're doing, and modify the scripts where
 apropriate.
