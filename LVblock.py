@@ -2786,13 +2786,44 @@ class DLLP(Block):
         return section
 
 
-class FTAB(Block):
+class FTAB(CompleteBlock):
     """ Font Table
 
     """
     def createSection(self):
         section = super().createSection()
+        section.content = []
         return section
+
+    def parseRSRCSectionData(self, section_num, bldata):
+        section = self.sections[section_num]
+
+        section.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        section.prop3 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+
+        if count > 127:
+            raise RuntimeError("Font table consists of {:d} fonts, limit is {:d}"\
+              .format(count,127))
+
+        for i in range(count):
+            fnEntry = SimpleNamespace()
+            fnEntry.nameOffs = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            fnEntry.prop2 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            fnEntry.prop3 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            fnEntry.prop4 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            # Font entry has either 12 or 16 bytes
+            if (section.prop1 & 0x00010000) == 0:
+                fnEntry.prop5 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            else:
+                fnEntry.prop6 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+                fnEntry.prop7 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+                fnEntry.prop8 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            section.content.append(fnEntry)
+
+        for fnEntry in section.content:
+            bldata.seek(fnEntry.nameOffs)
+            fnEntry.name = readPStr(bldata, 1, self.po)
 
 
 class HIST(Block):
