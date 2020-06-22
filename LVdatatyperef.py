@@ -569,8 +569,14 @@ class RefnumLVObjCtl(RefnumBase):
         return data_buf
 
     def expectedRSRCSize(self):
+        ver = self.vi.getFileVersion()
         exp_whole_len = 2 + 2 * len(self.td_obj.clients)
-        exp_whole_len += 2 + 2
+        exp_whole_len += 2
+        if isGreaterOrEqVersion(ver, 8,0):
+            exp_whole_len += 2
+            if self.td_obj.hasitem != 0:
+                exp_whole_len += len(self.td_obj.itmident)
+                exp_whole_len += 4 + sum((1+len(item.strval)) for item in self.td_obj.items)
         return exp_whole_len
 
     def initWithXML(self, conn_elem):

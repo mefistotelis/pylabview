@@ -2427,6 +2427,9 @@ class TDObjectRef(TDObjectContainer):
 
     def checkSanity(self):
         ret = super().checkSanity()
+        if self.ref_obj is not None:
+            if not self.ref_obj.checkSanity():
+                ret = False
         return ret
 
     def refType(self):
