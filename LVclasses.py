@@ -241,13 +241,14 @@ class LVPath0(LVObject):
 class LVVariant(LVObject):
     """ Object with variant type data
     """
-    def __init__(self, index, *args, useConsolidatedTypes=False, allowFillValue=False):
+    def __init__(self, index, *args, useConsolidatedTypes=False, expectContentKind="auto", allowFillValue=False):
         super().__init__(*args)
         self.datafill = []
         self.clients2 = []
         self.attrs = []
         self.version = decodeVersion(0x09000000)
         self.useConsolidatedTypes = useConsolidatedTypes
+        self.expectContentKind = expectContentKind
         self.allowFillValue = allowFillValue
         self.hasvaritem2 = 0
         self.vartype2 = 0
@@ -351,7 +352,7 @@ class LVVariant(LVObject):
             self.hasvaritem2 = self.allowFillValue
             self.vartype2 = varcount - 1
             usesConsolidatedTD = False
-            raise NotImplementedError("Unsupported LVVariant ver=0x{:06X} older than LV8.0".format(varver))#TODO remove this line
+            #raise NotImplementedError("Unsupported LVVariant ver=0x{:06X} older than LV8.0".format(varver))#TODO remove this line
         else:
             raise NotImplementedError("Unsupported LVVariant ver=0x{:06X} older than LV4.0".format(encodeVersion(self.version)))
         # Read fill of vartype2
@@ -370,7 +371,7 @@ class LVVariant(LVObject):
 
             if td is None:
                 raise AttributeError("LVVariant has no linked TD  but is supposed to have DataFill")
-            df = LVdatafill.newDataFillObjectWithTD(self.vi, self.blockref, -1, 0, td, self.po)
+            df = LVdatafill.newDataFillObjectWithTD(self.vi, self.blockref, -1, 0, td, self.po, expectContentKind=self.expectContentKind)
             self.datafill.append(df)
             df.initWithRSRC(bldata)
             pass
@@ -553,6 +554,7 @@ class LVVariant(LVObject):
                 for df_elem in subelem:
                     df = LVdatafill.newDataFillObjectWithTag(self.vi, self.blockref, df_elem.tag, self.po)
                     self.datafill.append(df)
+                    df.expectContentKind = self.expectContentKind
                     df.initWithXML(df_elem)
             else:
                 raise AttributeError("LVVariant subtree contains unexpected tag '{}'".format(subelem.tag))

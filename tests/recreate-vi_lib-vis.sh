@@ -34,6 +34,7 @@ sed -i -n '/lv07\/user[.]lib\/\(dir\)[.]mnu/!p' log-vi_lib-vi-0list.txt
 sed -i -n '/lv10\/menus\/[^\/]\+\/[^\/]\+\/\(dir\)[.]mnu/!p' log-vi_lib-vi-0list.txt
 sed -i -n '/lv10\/menus\/Controls\/[^\/]\+\/\(3dio\|io\)[.]mnu/!p' log-vi_lib-vi-0list.txt
 sed -i -n '/lv10\/menus\/default\/[^\/]\+\/\(instr\|picture\)[.]mnu/!p' log-vi_lib-vi-0list.txt
+sed -i -n '/lv10\/menus\/default\/\(root\)[.]mnu/!p' log-vi_lib-vi-0list.txt
 
 while IFS= read -r rsrc_fn; do
     rsrc_out_fn=$(basename "${rsrc_fn}")

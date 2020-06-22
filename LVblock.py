@@ -2284,12 +2284,12 @@ class LinkObjRefs(CompleteBlock):
         if len(section.unk1) > 0 or len(section.unk2) > 0:
             list_elem.set("Unk1", section.unk1.decode(self.vi.textEncoding))
             list_elem.set("Unk2", section.unk2.hex())
-        for client in section.content:
+        for i, client in enumerate(section.content):
             if len(client.full_name) > 0:
                 comment_elem = ET.Comment(" {:s} ".format(client.full_name))
                 list_elem.append(comment_elem)
             subelem = ET.SubElement(list_elem,"LinkObject")
-            client.exportXML(subelem, fname_base)
+            client.exportXML(subelem, "{:s}_li{:04d}".format(fname_base,i))
         pass
 
 
@@ -2498,7 +2498,7 @@ class DFDS(CompleteBlock):
         pass
 
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
-        for df in section.content:
+        for i, df in enumerate(section.content):
             dftop_elem = ET.SubElement(section_elem, "DataFill")
             # For some old LV versions type map index may not make sense; but we are not supporting them ATM
             if df.index >= 0:
@@ -2518,7 +2518,7 @@ class DFDS(CompleteBlock):
 
             subelem = ET.SubElement(dftop_elem, df.getXMLTagName())
 
-            df.exportXML(subelem, fname_base)
+            df.exportXML(subelem, "{:s}_df{:04d}".format(fname_base,i))
         pass
 
     def getDataFill(self, df_idx, section_num=None):
@@ -4888,7 +4888,7 @@ class HeapVerb(CompleteBlock):
                 # Having two root items would crash here. And that's good, we can't have two roots.
                 elem = ET.SubElement(parent_elems[-1], tagName)
 
-            obj.exportXML(elem, scopeInfo, "{:s}_{:04d}".format(fname_base,i))
+            obj.exportXML(elem, scopeInfo, "{:s}_obj{:04d}".format(fname_base,i))
 
             if scopeInfo == LVheap.NODE_SCOPE.TagOpen:
                 parent_elems.append(elem)
@@ -5435,7 +5435,7 @@ class TypeDescListBase(CompleteBlock):
         return data_buf
 
     def exportXMLTypeDescList(self, section_elem, section_num, section, fname_base):
-        for clientTD in section.content:
+        for i, clientTD in enumerate(section.content):
             if len(clientTD.nested.full_name) > 0:
                 commentDesc = clientTD.nested.full_name
             else:
@@ -5450,10 +5450,10 @@ class TypeDescListBase(CompleteBlock):
             subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(TD_FULL_TYPE, clientTD.nested.otype)))
 
             if not self.po.raw_connectors:
-                clientTD.nested.exportXML(subelem, fname_base)
+                clientTD.nested.exportXML(subelem, "{:s}_td{:04d}".format(fname_base,i))
                 clientTD.nested.exportXMLFinish(subelem)
             else:
-                TDObject.exportXML(clientTD.nested, subelem, fname_base)
+                TDObject.exportXML(clientTD.nested, subelem, "{:s}_td{:04d}".format(fname_base,i))
                 TDObject.exportXMLFinish(clientTD.nested, subelem)
         pass
 
@@ -6057,6 +6057,9 @@ class VITS(CompleteBlock):
             obj_pos = bldata.tell()
             val.obj = LVdatafill.newDataFillObject(self.vi, blockref, TD_FULL_TYPE.LVVariant, None, self.po)
             val.obj.useConsolidatedTypes = False
+            if val.name in (b'nirviModGen',):
+                # The content of this type is RSRC file - store it accordingly
+                val.obj.expectContentKind = "RSRC"
             val.obj.initWithRSRC(bldata)
             self.appendPrintMapEntry(section, bldata.tell(), bldata.tell()-obj_pos, 1, "TagObject[{}].Content".format(len(section.content)))
             section.content.append(val)
@@ -6096,6 +6099,9 @@ class VITS(CompleteBlock):
             val.name = name_str.encode(self.vi.textEncoding)
             val.obj = LVdatafill.newDataFillObjectWithTag(self.vi, blockref, subelem.tag, self.po)
             val.obj.useConsolidatedTypes = False
+            if val.name in (b'nirviModGen',):
+                # The content of this type is RSRC file - store it accordingly
+                val.obj.expectContentKind = "RSRC"
             val.obj.initWithXML(subelem)
             section.content.append(val)
         pass
@@ -6115,5 +6121,5 @@ class VITS(CompleteBlock):
             subelem = ET.SubElement(section_elem, "Object")
             subelem.set("Name", val.name.decode(self.vi.textEncoding))
 
-            val.obj.exportXML(subelem, fname_base)
+            val.obj.exportXML(subelem, "{:s}_ts{:04d}".format(fname_base,i))
         pass

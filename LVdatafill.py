@@ -14,6 +14,7 @@
 import enum
 import struct
 import math
+import os
 
 from hashlib import md5
 from io import BytesIO
@@ -36,6 +37,7 @@ class DataFill:
         self.po = po
         self.tdType = tdType
         self.tdSubType = tdSubType
+        self.expectContentKind = "auto"
         self.index = -1
         self.tm_flags = None
         self.td = None
@@ -541,11 +543,20 @@ class DataFillArray(DataFill):
         super().setTD(td, idx, tm_flags)
         if len(self.value) < 1:
             return # If value list is not filled yet, no further work to do
+        smartContentKind = self.smartContentUsed()
         # We expect exactly one client within Array
         for cli_idx, td_idx, td_obj, td_flags in self.td.clientsEnumerate():
                 sub_td = td_obj
-        for sub_df in self.value:
-            sub_df.setTD(sub_td, -1, self.tm_flags)
+        if smartContentKind == "RSRC":
+            from LVdatatype import TD_FULL_TYPE, newTDObject
+            smart_td = newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.Block, self.po)
+            totItems = self.countTotalItems()
+            smart_td.blkSize = totItems * sub_td.constantSizeFill()
+            for sub_df in self.value:
+                sub_df.setTD(smart_td, -1, 0)
+        else:
+            for sub_df in self.value:
+                sub_df.setTD(sub_td, -1, self.tm_flags)
 
     def findTD(self, td):
         dfFound = super().findTD(td)
@@ -557,6 +568,17 @@ class DataFillArray(DataFill):
                 return dfFound
         return None
 
+    def smartContentUsed(self):
+        # We expect exactly one client within Array
+        sub_td = None
+        for cli_idx, td_idx, td_obj, td_flags in self.td.clientsEnumerate():
+            sub_td = td_obj
+        if self.expectContentKind == "RSRC" and sub_td is not None:
+            itemSize = sub_td.constantSizeFill()
+            if sub_td.isNumber() and (itemSize is not None) and (itemSize > 0):
+                return "RSRC"
+        return "auto"
+
     def initWithRSRCParse(self, bldata):
         self.dimensions = []
         for dim in self.td.dimensions:
@@ -564,14 +586,8 @@ class DataFillArray(DataFill):
             self.dimensions.append(val)
         if len(self.td.clients) < 1:
             raise RuntimeError("TD {} used for DataFill before being initialized".format(enumOrIntToName(self.td.fullType())))
-        # Multiply sizes of each dimension to get total number of items
-        totItems = 1
         # TODO the amounts are in self.dimensions; maybe they need to be same as self.td.dimensions, unless dynamic size is used? print warning?
-        for i, dim in enumerate(self.dimensions):
-            if dim > self.po.array_data_limit:
-                raise RuntimeError("Fill for TD {} dimension {} claims size of {} fields, expected below {}"\
-                  .format(self.getXMLTagName(), i, dim, self.po.array_data_limit))
-            totItems *= dim & 0x7fffffff
+        totItems = self.countTotalItems()
         if (self.po.verbose > 1):
             print("{:s}: {:s} {:d}: The array has {} dimensions, {} fields in total"\
               .format(self.vi.src_fname, type(self).__name__, self.index, len(self.dimensions), totItems))
@@ -590,13 +606,26 @@ class DataFillArray(DataFill):
         if totItems > clientsLimit:
                 raise RuntimeError("Fill for TD {} claims to contain {} fields, expected below {}; pos within block 0x{:x}"\
                   .format(self.getXMLTagName(), totItems, clientsLimit, bldata.tell()))
-        for i in range(totItems):
+        smartContentKind = self.smartContentUsed()
+        if smartContentKind == "RSRC":
+            from LVdatatype import TD_FULL_TYPE, newTDObject
+            smart_td = newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.Block, self.po)
+            smart_td.blkSize = totItems * sub_td.constantSizeFill()
             try:
-                sub_df = newDataFillObjectWithTD(self.vi, self.blockref, sub_td_idx, self.tm_flags, sub_td, self.po)
+                sub_df = newDataFillObjectWithTD(self.vi, self.blockref, -1, 0, smart_td, self.po)
                 self.value.append(sub_df)
+                sub_df.expectContentKind = self.expectContentKind
                 sub_df.initWithRSRC(bldata)
             except Exception as e:
-                raise RuntimeError("Fill for TD {}: {}".format(enumOrIntToName(sub_td.fullType()), str(e)))
+                raise RuntimeError("Smart {} Fill for TD {}: {}".format(smartContentKind,enumOrIntToName(smart_td.fullType()), str(e)))
+        else:
+            for i in range(totItems):
+                try:
+                    sub_df = newDataFillObjectWithTD(self.vi, self.blockref, sub_td_idx, self.tm_flags, sub_td, self.po)
+                    self.value.append(sub_df)
+                    sub_df.initWithRSRC(bldata)
+                except Exception as e:
+                    raise RuntimeError("Fill for TD {}: {}".format(enumOrIntToName(sub_td.fullType()), str(e)))
         pass
 
     def prepareRSRCData(self, avoid_recompute=False):
@@ -643,6 +672,20 @@ class DataFillArray(DataFill):
             subelem = ET.SubElement(df_elem, sub_df.getXMLTagName())
             sub_df.exportXML(subelem, fname_base)
         pass
+
+    def countTotalItems(self):
+        """ Get total amount of items stored in this DF
+
+        Multiplies sizes of each dimension to get total number of items in this Array DataFill.
+        """
+        totItems = 1
+        # TODO the amounts are in self.dimensions; maybe they need to be same as self.td.dimensions, unless dynamic size is used? print warning?
+        for i, dim in enumerate(self.dimensions):
+            if dim > self.po.array_data_limit:
+                raise RuntimeError("Fill for TD {} dimension {} claims size of {} fields, expected below {}"\
+                  .format(self.getXMLTagName(), i, dim, self.po.array_data_limit))
+            totItems *= dim & 0x7fffffff
+        return totItems
 
 
 class DataFillArrayDataPtr(DataFill):
@@ -750,7 +793,8 @@ class DataFillLVVariant(DataFill):
     def initWithRSRCParse(self, bldata):
         ver = self.vi.getFileVersion()
         if isGreaterOrEqVersion(ver, 6,0,0,2):
-            self.value = LVclasses.LVVariant(0, self.vi, self.blockref, self.po, useConsolidatedTypes=self.useConsolidatedTypes, allowFillValue=True)
+            self.value = LVclasses.LVVariant(0, self.vi, self.blockref, self.po, allowFillValue=True,
+              useConsolidatedTypes=self.useConsolidatedTypes, expectContentKind=self.expectContentKind)
         else:
             self.value = LVclasses.OleVariant(0, self.vi, self.blockref, self.po)
         self.value.parseRSRCData(bldata)
@@ -766,7 +810,8 @@ class DataFillLVVariant(DataFill):
 
     def initWithXML(self, df_elem):
         if df_elem.tag == LVclasses.LVVariant.__name__:
-            self.value = LVclasses.LVVariant(0, self.vi, self.blockref, self.po, useConsolidatedTypes=self.useConsolidatedTypes, allowFillValue=True)
+            self.value = LVclasses.LVVariant(0, self.vi, self.blockref, self.po, allowFillValue=True,
+              useConsolidatedTypes=self.useConsolidatedTypes, expectContentKind=self.expectContentKind)
         elif df_elem.tag == LVclasses.OleVariant.__name__:
             self.value = LVclasses.OleVariant(0, self.vi, self.blockref, self.po)
         else:
@@ -1035,6 +1080,9 @@ class DataFillFixedPoint(DataFill):
 
 
 class DataFillBlock(DataFill):
+    def smartContentUsed(self):
+        return self.expectContentKind
+
     def initWithRSRCParse(self, bldata):
         self.value = bldata.read(self.td.blkSize)
 
@@ -1056,14 +1104,96 @@ class DataFillBlock(DataFill):
         exp_whole_len += len(self.value)
         return exp_whole_len
 
+    def bytesToChunks(self, buf):
+        """ Returns a dict describing how to divide given buffer into chunks
+        """
+        smartContentKind = self.smartContentUsed()
+        if smartContentKind == "RSRC":
+            from LVrsrcontainer import RSRCHeader
+            chunksA = { 0: [len(buf),"Hex"] }
+            chunksB = { }
+            for pos, chunk in chunksA.items():
+                if chunk[1] != "Hex":
+                    # Copy the chunk without changes
+                    chunksB[pos] = chunk
+                    continue
+                gotValidRSRC = False
+                rsrc_pos = pos - 4
+                while not gotValidRSRC:
+                    rsrc_pos = buf.find(b"RSRC",rsrc_pos+4)
+                    if rsrc_pos < 0: break
+                    rsrc_len = rsrc_pos + chunk[0] - pos # max possible size
+                    try:
+                        rsrchead = RSRCHeader.from_buffer_copy(buf,rsrc_pos)
+                        # We did not called our constructor; set things manually
+                        rsrchead.po = self.po
+                        if rsrchead.checkSanity():
+                            #TODO maybe update rsrc_len to make sure it's not too large?
+                            gotValidRSRC = True
+                    except Exception as e:
+                        pass
+                if gotValidRSRC:
+                    if rsrc_pos > 0:
+                        # there is some data before RSRC; make it a separate chunk
+                        chunksB[pos] = [rsrc_pos-pos,"Hex"]
+                        chunksB[rsrc_pos] = [rsrc_len,"RSRC"]
+                    else: # rsrc_pos == 0
+                        chunksB[rsrc_pos] = [rsrc_len,"RSRC"]
+                    if rsrc_pos+rsrc_len < pos+chunk[0]:
+                        # there is some data after RSRC; make it a separate chunk
+                        chunksB[rsrc_pos+rsrc_len] = [pos+chunk[0]-(rsrc_pos+rsrc_len),"Hex"]
+                else:
+                    # Copy the chunk without changes
+                    chunksB[pos] = [chunk[0],chunk[1]]
+            return chunksB
+        return None
+
     def initWithXML(self, df_elem):
         self.value = b''
         if df_elem.text is not None: # Empty string may be None after parsing
             self.value = bytes.fromhex(df_elem.text)
+        # In case the block is divided into chunks
+        for i, subelem in enumerate(df_elem):
+            if subelem.tag == "Chunk":
+                fmt = subelem.get("Format")
+                storedAs = subelem.get("StoredAs")
+                if fmt == "bin":# Format="bin" - the content is stored separately as raw binary data
+                    bin_path = os.path.dirname(self.vi.src_fname)
+                    if len(bin_path) > 0:
+                        bin_fname = bin_path + '/' + subelem.get("File")
+                    else:
+                        bin_fname = subelem.get("File")
+                    with open(bin_fname, "rb") as bin_fh:
+                        data_buf = bin_fh.read()
+                    self.value += data_buf
+                else: # fmt == "inline"
+                    if storedAs == "Hex":
+                        self.value += bytes.fromhex(subelem.text)
+            else:
+                raise AttributeError("Class {} encountered unexpected tag '{}'"\
+                  .format(type(self).__name__, subelem.tag))
         pass
 
     def exportXML(self, df_elem, fname_base):
-        df_elem.text = self.value.hex()
+        chunks = self.bytesToChunks(self.value)
+        if chunks is not None:
+            i = 0
+            for pos, chunk in chunks.items():
+                subelem = ET.SubElement(df_elem, "Chunk")
+                if chunk[1] == "RSRC":
+                    subelem.set("Format", "bin")
+                    subelem.set("StoredAs", "RSRC")
+                    chunk_fname = "{}_ch{:04d}.{}".format(fname_base,i,"rsrc")
+                    with open(chunk_fname, "wb") as chunk_fh:
+                        chunk_fh.write(self.value[pos:pos+chunk[0]])
+                    subelem.set("File", os.path.basename(chunk_fname))
+                else: # chunk[1] == "Hex":
+                    subelem.set("Format", "inline")
+                    subelem.set("StoredAs", "Hex")
+                    subelem.text = self.value[pos:pos+chunk[0]].hex()
+                i += 1
+        else: # No chunks - just export one hex string
+            df_elem.text = self.value.hex()
         pass
 
 
@@ -1836,7 +1966,7 @@ def newDataFillObject(vi, blockref, tdType, tdSubType, po):
           .format(enumOrIntToName(tdType),str(e)))
     return ctor(vi, blockref, tdType, tdSubType, po)
 
-def newDataFillObjectWithTD(vi, blockref, idx, tm_flags, td, po):
+def newDataFillObjectWithTD(vi, blockref, idx, tm_flags, td, po, expectContentKind="auto"):
     """ Creates and returns new data fill object with given parameters
     """
     from LVdatatype import TD_FULL_TYPE
@@ -1848,6 +1978,7 @@ def newDataFillObjectWithTD(vi, blockref, idx, tm_flags, td, po):
     else:
         tdSubType = None
     df = newDataFillObject(vi, blockref, tdType, tdSubType, po)
+    df.expectContentKind = expectContentKind
     df.setTD(td, idx, tm_flags)
     return df
 

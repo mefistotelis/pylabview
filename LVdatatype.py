@@ -687,18 +687,38 @@ class TDObject:
         return ( \
           (self.mainType() == TD_MAIN_TYPE.Number) or \
           (self.mainType() == TD_MAIN_TYPE.Unit) or \
-          (self.fullType() == TD_FULL_TYPE.FixedPoint));
+          (self.fullType() == TD_FULL_TYPE.FixedPoint))
 
     def isString(self):
         return ( \
           (self.fullType() == TD_FULL_TYPE.String));
         # looks like these are not counted as strings?
         #  (self.fullType() == TD_FULL_TYPE.CString) or \
-        #  (self.fullType() == TD_FULL_TYPE.PasString));
+        #  (self.fullType() == TD_FULL_TYPE.PasString))
 
     def isPath(self):
         return ( \
-          (self.fullType() == TD_FULL_TYPE.Path));
+          (self.fullType() == TD_FULL_TYPE.Path))
+
+    def constantSizeFill(self):
+        """ If this type has constant-size DataFill, returns that size.
+
+        Gives non-negative integer, or None if the type has no constant
+        size DataFill.
+        Note: Make sure that DataFill implementation of the type matches
+        the return value of this function.
+        """
+        fullType = self.fullType()
+        if fullType in (TD_FULL_TYPE.NumInt8,TD_FULL_TYPE.NumUInt8,TD_FULL_TYPE.UnitUInt8,):
+            return 1
+        elif fullType in (TD_FULL_TYPE.NumInt16,TD_FULL_TYPE.NumUInt16,TD_FULL_TYPE.UnitUInt16,):
+            return 2
+        elif fullType in (TD_FULL_TYPE.NumInt32,TD_FULL_TYPE.NumUInt32,TD_FULL_TYPE.UnitUInt32,):
+            return 4
+        elif fullType in (TD_FULL_TYPE.NumInt64,TD_FULL_TYPE.NumUInt64,):
+            return 8
+        #TODO some constant size types are missing here
+        return None
 
     def hasClients(self):
         return False
@@ -2047,6 +2067,8 @@ class TDObjectArray(TDObjectContainer):
 
 class TDObjectBlock(TDObjectContainer):
     """ Type Descriptor with Block based data
+
+    Inherits from Container only because of further inheriting classes.
     """
     def __init__(self, *args):
         super().__init__(*args)
