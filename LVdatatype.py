@@ -662,8 +662,11 @@ class TDObject:
         exp_whole_len = self.expectedRSRCSize()
         if (exp_whole_len is not None) and (len(self.raw_data) != exp_whole_len):
             if (self.po.verbose > 1):
-                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d}, expected {:d}"\
-                  .format(self.vi.src_fname,self.index,self.otype,len(self.raw_data),exp_whole_len))
+                tmp = ""
+                if self.otype == TD_FULL_TYPE.Refnum.value:
+                    tmp = " RefType {}".format(self.refType())
+                eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x}{} data size {:d}, expected {:d}"\
+                  .format(self.vi.src_fname,self.index,self.otype,tmp,len(self.raw_data),exp_whole_len))
             ret = False
         return ret
 
