@@ -1463,6 +1463,12 @@ class CONP(CompleteBlock):
         return section.value
 
 
+class CLNM(Block):
+    """ VI Clone Map
+    """
+    pass
+
+
 class CPTM(Block):
     """ Connector Port Type Map
 
