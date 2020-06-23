@@ -1544,11 +1544,12 @@ class DataFillUDClassInst(DataFill):
 
         numLevels = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
-        self.libName = readPStr(bldata, 4, self.po)
-
         if numLevels > self.po.typedesc_list_limit:
             raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
               .format(self.getXMLTagName(), numLevels, self.po.typedesc_list_limit))
+
+        if True:
+            self.libName = readPStr(bldata, 4, self.po)
 
         numDLevels = numLevels
         for i in range(numLevels):
@@ -1572,8 +1573,11 @@ class DataFillUDClassInst(DataFill):
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
-        data_buf += len(self.value).to_bytes(4, byteorder='big', signed=False)
-        data_buf += preparePStr(self.libName, 4, self.po)
+        numLevels = len(self.value)
+        data_buf += int(numLevels).to_bytes(4, byteorder='big', signed=False)
+
+        if True:
+            data_buf += preparePStr(self.libName, 4, self.po)
 
         for libVersion in self.value:
             data_buf += int(libVersion['major']).to_bytes(2, byteorder='big', signed=False)
