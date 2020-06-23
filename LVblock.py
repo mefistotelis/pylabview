@@ -5887,7 +5887,8 @@ class VICD(CompleteBlock):
         section.signatureName = 0
         # The actual code
         section.content = b''
-        section.patches = b''
+        section.patches_raw = None # Value other than None means that parsing patches has failed
+        section.patches = []
         # Properties at end
         section.endVerifier = b''
         section.endProp1 = 0
@@ -5940,6 +5941,71 @@ class VICD(CompleteBlock):
         for e in section.ct_map:
             fh.write(" {:04X}:{:08X}       {:s}\n".format(1,e[0],e[2]))
         pass
+
+    def parseRSRCSectionMCLVRTPatches(self, section, section_num, pos, archEndianness, archDependLen, bldata):
+        section.patches = []
+        codeTotLen = section.codeEndOffset
+        patchesTotLen = section.codeEndOffset - section.pTabOffset
+        bldata.seek(pos)
+        #TODO parse the patches instead of just reading raw data
+        raise NotImplementedError("No parsing made for MCLVRTPatches")
+
+    def parseRSRCSectionLVRTPatches(self, section, section_num, pos, archEndianness, archDependLen, bldata):
+        section.patches = []
+        codeTotLen = section.codeEndOffset
+        patchesTotLen = section.codeEndOffset - section.pTabOffset
+        bldata.seek(pos)
+        pidx = 0
+        while True:
+            patchPos = bldata.tell()
+            patch = SimpleNamespace()
+            patch.offs = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            if patch.offs == 0: # end of list
+                break
+
+            patch.ident = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            if patch.offs >= codeTotLen and patch.ident != 0x20000:
+                raise AttributeError("Patch offset out of range")
+
+            section.patches.append(patch)
+
+            if patch.ident == 0x20000 or patch.ident == 0x20007:
+                patch.field2 = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+                bucketCount = int.from_bytes(bldata.read(2), byteorder=archEndianness, signed=False)
+                patch.buckets = []
+                for i in range(bucketCount):
+                    patchFld4 = int.from_bytes(bldata.read(2), byteorder=archEndianness, signed=False)
+                    offsLowList = []
+                    for k in range(patchFld4):
+                        offsLow = int.from_bytes(bldata.read(2), byteorder=archEndianness, signed=False)
+                        offsLowList.append(offsLow)
+                    patch.buckets.append(offsLowList)
+                patchLen = bldata.tell() - patchPos
+                uneven_len = patchLen % 4 # Read padding
+                if uneven_len > 0:
+                    bldata.read(4 - uneven_len)
+            else:
+                pass
+            self.addMapEntry(section, bldata, bldata.tell() - patchPos, "patch_{}".format(pidx), "VarElemLenArray")
+            pidx += 1
+
+        # Read padding
+        if bldata.tell() < pos + patchesTotLen:
+            # Patches are padded to 4096 bytes, but footer is also included in that padding
+            padding_len = patchesTotLen - (bldata.tell() - pos)
+            padding = bldata.read(padding_len)
+            print(padding)
+            if set(padding) != set(b'\0'):
+                raise AttributeError("Padding after patches array has non-zero bytes, meaning bad parse attempt")
+
+        if bldata.tell() - pos != patchesTotLen:
+            raise IOError("Parsed length of patches array ({}) does not match expected size ({})"\
+              .format(bldata.tell() - pos, patchesTotLen))
+        pass
+
+    def parseRSRCSectionRawPatches(self, section, section_num, pos, archEndianness, archDependLen, bldata):
+        bldata.seek(pos)
+        section.patches_raw = bldata.read(patchesTotLen)
 
     def parseRSRCSectionData(self, section_num, bldata):
         ver = self.vi.getFileVersion()
@@ -5994,8 +6060,19 @@ class VICD(CompleteBlock):
         headLen = bldata.tell() - headStartPos
         section.content = bldata.read(section.pTabOffset - headLen)
         self.addMapEntry(section, bldata, section.pTabOffset - headLen, "codeBlob", "VarElemLenArray")
-        section.patches = bldata.read(section.codeEndOffset - section.pTabOffset)
-        self.addMapEntry(section, bldata, section.codeEndOffset - section.pTabOffset, "patch_{}".format(0), "VarElemLenArray")
+
+        patchesPos = bldata.tell()
+        try:
+            patchFormat = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            if patchFormat == 0xBADEEBAD:
+                self.parseRSRCSectionMCLVRTPatches(section, section_num, patchesPos, archEndianness, archDependLen, bldata)
+            else:
+                self.parseRSRCSectionLVRTPatches(section, section_num, patchesPos, archEndianness, archDependLen, bldata)
+            #TODO store raw patches only on parse exception
+            self.parseRSRCSectionRawPatches(section, section_num, pos, archEndianness, archDependLen, bldata)
+        except:
+            self.parseRSRCSectionRawPatches(section, section_num, pos, archEndianness, archDependLen, bldata)
+        self.addMapEntry(section, bldata, bldata.tell() - patchesPos, "patches".format(pidx), "VarElemLenArray")
 
         section.endVerifier = bldata.read(4)
         self.addMapEntry(section, bldata, 4, "endVerifier", "u8[]")
@@ -6038,6 +6115,14 @@ class VICD(CompleteBlock):
               .format(self.vi.src_fname, self.ident, section_num))
         with open(map_fname, "w") as map_fh:
             self.printMap(section, map_fh)
+
+        if section.patches_raw is not None:
+            patch_fname = "{:s}_patches.{:s}".format(fname_base,"bin")
+            if (self.po.verbose > 1):
+                print("{}: Writing code patches file for block {} section {:d}"\
+                  .format(self.vi.src_fname, self.ident, section_num))
+            with open(patch_fname, "wb") as patch_fh:
+                patch_fh.write(section.patches_raw)
 
         raise NotImplementedError("The block is only partially exported as XML")
 
