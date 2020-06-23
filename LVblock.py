@@ -5994,7 +5994,6 @@ class VICD(CompleteBlock):
             # Patches are padded to 4096 bytes, but footer is also included in that padding
             padding_len = patchesTotLen - (bldata.tell() - pos)
             padding = bldata.read(padding_len)
-            print(padding)
             if set(padding) != set(b'\0'):
                 raise AttributeError("Padding after patches array has non-zero bytes, meaning bad parse attempt")
 
@@ -6004,6 +6003,7 @@ class VICD(CompleteBlock):
         pass
 
     def parseRSRCSectionRawPatches(self, section, section_num, pos, archEndianness, archDependLen, bldata):
+        patchesTotLen = section.codeEndOffset - section.pTabOffset
         bldata.seek(pos)
         section.patches_raw = bldata.read(patchesTotLen)
 
@@ -6069,10 +6069,10 @@ class VICD(CompleteBlock):
             else:
                 self.parseRSRCSectionLVRTPatches(section, section_num, patchesPos, archEndianness, archDependLen, bldata)
             #TODO store raw patches only on parse exception
-            self.parseRSRCSectionRawPatches(section, section_num, pos, archEndianness, archDependLen, bldata)
+            self.parseRSRCSectionRawPatches(section, section_num, patchesPos, archEndianness, archDependLen, bldata)
         except:
-            self.parseRSRCSectionRawPatches(section, section_num, pos, archEndianness, archDependLen, bldata)
-        self.addMapEntry(section, bldata, bldata.tell() - patchesPos, "patches".format(pidx), "VarElemLenArray")
+            self.parseRSRCSectionRawPatches(section, section_num, patchesPos, archEndianness, archDependLen, bldata)
+        self.addMapEntry(section, bldata, bldata.tell() - patchesPos, "patches", "VarElemLenArray")
 
         section.endVerifier = bldata.read(4)
         self.addMapEntry(section, bldata, 4, "endVerifier", "u8[]")
