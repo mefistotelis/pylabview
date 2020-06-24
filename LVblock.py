@@ -6173,11 +6173,15 @@ class VICD(CompleteBlock):
                 data_buf += int(bucket_idx).to_bytes(2, byteorder=archEndianness, signed=False)
                 data_buf += bucket_buf
 
-
-        footer_len = self.expectedRSRCSizeFoot(section_num) - 4
-        uneven_len = (len(data_buf)+footer_len) % 4096
-        if uneven_len > 0:
-            padding_len = 4096 - uneven_len
+        patchesTotLen = section.codeEndOffset - section.pTabOffset
+        padding_len = 0
+        if len(data_buf) > patchesTotLen:
+            uneven_len = len(data_buf) % 1024
+            if uneven_len > 0:
+                padding_len = 1024 - uneven_len
+        else:
+            padding_len = patchesTotLen - len(data_buf)
+        if padding_len > 0:
             data_buf += ( b'\0' * padding_len )
 
         return data_buf
@@ -6185,6 +6189,10 @@ class VICD(CompleteBlock):
     def expectedRSRCSizePatches(self, section_num):
         section = self.sections[section_num]
         exp_whole_len = 0
+
+        # Simple solution if we're using unparsed patches binary
+        if section.patches_raw is not None:
+            return len(section.patches_raw)
 
         for patch in section.patches:
             exp_whole_len += 4 + 4
@@ -6206,11 +6214,16 @@ class VICD(CompleteBlock):
                     bucket_idx += 1
                 exp_whole_len += 2
 
-        footer_len = self.expectedRSRCSizeFoot(section_num) - 4
-        uneven_len = (exp_whole_len+footer_len) % 4096
-        if uneven_len > 0:
-            padding_len = 4096 - uneven_len
-            exp_whole_len += padding_len
+        patchesTotLen = section.codeEndOffset - section.pTabOffset
+        padding_len = 0
+        if exp_whole_len > patchesTotLen:
+            uneven_len = exp_whole_len % 1024
+            if uneven_len > 0:
+                padding_len = 1024 - uneven_len
+        else:
+            padding_len = patchesTotLen - exp_whole_len
+        exp_whole_len += padding_len
+
         return exp_whole_len
 
     def parseRSRCSectionRawPatches(self, section, section_num, pos, archEndianness, archDependLen, bldata):
@@ -6259,18 +6272,22 @@ class VICD(CompleteBlock):
         archDependLen = 8 if self.isX64(section_num) else 4
         archEndianness = 'little' if self.isLE(section_num) else 'big'
 
-        section.codeEndOffset = len(section.content) + self.expectedRSRCSizePatches(section_num)
+        section.pTabOffset = len(section.content)
+        section.codeEndOffset = section.pTabOffset + self.expectedRSRCSizePatches(section_num)
         section.endCodeEndOffset = section.codeEndOffset
 
         data_buf += self.prepareRSRCSectionHead(section, section_num, archEndianness, archDependLen)
         data_buf += section.content[len(data_buf):]
 
-        if section.patchFmtType == "MCLVRT":
-            data_buf += self.prepareRSRCSectionMCLVRTPatches(section, section_num, archEndianness, archDependLen)
-        elif section.patchFmtType == "LVRT":
-            data_buf += self.prepareRSRCSectionLVRTPatches(section, section_num, archEndianness, archDependLen)
+        if section.patches_raw is None:
+            if section.patchFmtType == "MCLVRT":
+                data_buf += self.prepareRSRCSectionMCLVRTPatches(section, section_num, archEndianness, archDependLen)
+            elif section.patchFmtType == "LVRT":
+                data_buf += self.prepareRSRCSectionLVRTPatches(section, section_num, archEndianness, archDependLen)
+            else:
+                raise NotImplementedError("Unrecognized patches format type")
         else:
-            raise NotImplementedError("Unrecognized patches format type")
+                data_buf += section.patches_raw
 
         data_buf += self.prepareRSRCSectionFoot(section, section_num, archEndianness, archDependLen)
         return data_buf
@@ -6279,8 +6296,6 @@ class VICD(CompleteBlock):
         section_num = section.start.section_idx
         tmp = code_elem.get("InitProcOffset")
         section.initProcOffset = int(tmp, 0)
-        tmp = code_elem.get("PTabOffset")
-        section.pTabOffset = int(tmp, 0)
         tmp = code_elem.get("NumberOfBasicBlocks")
         section.numberOfBasicBlocks = int(tmp, 0)
         tmp = code_elem.get("HostCodeEntryVI")
@@ -6308,7 +6323,7 @@ class VICD(CompleteBlock):
             section.content = data_buf
         else:
             raise NotImplementedError("Unknown code format")
-        pass
+        section.pTabOffset = len(section.content)
 
     def exportXMLSectionPatches(self, section_elem, section_num, section, fname_base):
         patch_elem = ET.SubElement(section_elem,"Patches")
@@ -6329,6 +6344,8 @@ class VICD(CompleteBlock):
                     relelem = ET.SubElement(subelem,"Reloc")
                     relelem.text = "0x{:04x}".format(offs)
 
+            patch_elem.set("PaddedSize", "{:d}".format(section.codeEndOffset - section.pTabOffset))
+
             patch_elem.set("Type", section.patchFmtType)
             patch_elem.set("Format", "inline")
         else:
@@ -6347,6 +6364,10 @@ class VICD(CompleteBlock):
         section.patches_raw = None
         section.patches = []
         section.patchFmtType = patch_elem.get("Type")
+        tmp = patch_elem.get("PaddedSize")
+        paddedSize = 0x100
+        if tmp is not None:
+            paddedSize = int(tmp, 0)
 
         fmt = patch_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
@@ -6393,12 +6414,12 @@ class VICD(CompleteBlock):
             section.patches_raw = data_buf
         else:
             raise NotImplementedError("Unknown patches format")
-        pass
+        section.codeEndOffset = section.pTabOffset + paddedSize
+        section.endCodeEndOffset = section.codeEndOffset
 
     def exportXMLSectionCode(self, section_elem, section_num, section, fname_base):
         subelem = ET.SubElement(section_elem,"Code")
         subelem.set("InitProcOffset", "0x{:X}".format(section.initProcOffset))
-        subelem.set("PTabOffset", "0x{:X}".format(section.pTabOffset))
         subelem.set("NumberOfBasicBlocks", "{:d}".format(section.numberOfBasicBlocks))
         subelem.set("HostCodeEntryVI", "0x{:X}".format(section.hostCodeEntryVI))
         subelem.set("SignatureName", "0x{:X}".format(section.signatureName))
@@ -6436,8 +6457,6 @@ class VICD(CompleteBlock):
         self.exportXMLSectionCode(section_elem, section_num, section, fname_base)
 
         self.exportXMLSectionPatches(section_elem, section_num, section, fname_base)
-
-        raise NotImplementedError("The block is only partially exported as XML")
 
     def initWithXMLSectionData(self, section, section_elem):
         section.content = b''
