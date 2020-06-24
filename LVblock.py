@@ -5889,6 +5889,7 @@ class VICD(CompleteBlock):
         section.content = b''
         section.patches_raw = None # Value other than None means that parsing patches has failed
         section.patches = []
+        section.patchFmtType = None
         # Properties at end
         section.endVerifier = b''
         section.endProp1 = 0
@@ -5942,77 +5943,9 @@ class VICD(CompleteBlock):
             fh.write(" {:04X}:{:08X}       {:s}\n".format(1,e[0],e[2]))
         pass
 
-    def parseRSRCSectionMCLVRTPatches(self, section, section_num, pos, archEndianness, archDependLen, bldata):
-        section.patches = []
-        codeTotLen = section.codeEndOffset
-        patchesTotLen = section.codeEndOffset - section.pTabOffset
-        bldata.seek(pos)
-        #TODO parse the patches instead of just reading raw data
-        raise NotImplementedError("No parsing made for MCLVRTPatches")
-
-    def parseRSRCSectionLVRTPatches(self, section, section_num, pos, archEndianness, archDependLen, bldata):
-        section.patches = []
-        codeTotLen = section.codeEndOffset
-        patchesTotLen = section.codeEndOffset - section.pTabOffset
-        bldata.seek(pos)
-        pidx = 0
-        while True:
-            patchPos = bldata.tell()
-            patch = SimpleNamespace()
-            patch.offs = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-            if patch.offs == 0: # end of list
-                break
-
-            patch.ident = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-            if patch.offs >= codeTotLen and patch.ident != 0x20000:
-                raise AttributeError("Patch offset out of range")
-
-            section.patches.append(patch)
-
-            if patch.ident == 0x20000 or patch.ident == 0x20007:
-                patch.field2 = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-                bucketCount = int.from_bytes(bldata.read(2), byteorder=archEndianness, signed=False)
-                patch.buckets = []
-                for i in range(bucketCount):
-                    patchFld4 = int.from_bytes(bldata.read(2), byteorder=archEndianness, signed=False)
-                    offsLowList = []
-                    for k in range(patchFld4):
-                        offsLow = int.from_bytes(bldata.read(2), byteorder=archEndianness, signed=False)
-                        offsLowList.append(offsLow)
-                    patch.buckets.append(offsLowList)
-                patchLen = bldata.tell() - patchPos
-                uneven_len = patchLen % 4 # Read padding
-                if uneven_len > 0:
-                    bldata.read(4 - uneven_len)
-            else:
-                pass
-            self.addMapEntry(section, bldata, bldata.tell() - patchPos, "patch_{}".format(pidx), "VarElemLenArray")
-            pidx += 1
-
-        # Read padding
-        if bldata.tell() < pos + patchesTotLen:
-            # Patches are padded to 4096 bytes, but footer is also included in that padding
-            padding_len = patchesTotLen - (bldata.tell() - pos)
-            padding = bldata.read(padding_len)
-            if set(padding) != set(b'\0'):
-                raise AttributeError("Padding after patches array has non-zero bytes, meaning bad parse attempt")
-
-        if bldata.tell() - pos != patchesTotLen:
-            raise IOError("Parsed length of patches array ({}) does not match expected size ({})"\
-              .format(bldata.tell() - pos, patchesTotLen))
-        pass
-
-    def parseRSRCSectionRawPatches(self, section, section_num, pos, archEndianness, archDependLen, bldata):
-        patchesTotLen = section.codeEndOffset - section.pTabOffset
-        bldata.seek(pos)
-        section.patches_raw = bldata.read(patchesTotLen)
-
-    def parseRSRCSectionData(self, section_num, bldata):
+    def parseRSRCSectionHead(self, section, section_num, bldata):
         ver = self.vi.getFileVersion()
-        section = self.sections[section_num]
-        section.ct_map = []
 
-        headStartPos = bldata.tell()
         initProcOffset = bldata.read(4)
         self.addMapEntry(section, bldata, 4, "initProcOffset", "u32")
         section.codeID = bldata.read(4)
@@ -6057,22 +5990,50 @@ class VICD(CompleteBlock):
             self.addMapEntry(section, bldata, 4, "hostCodeEntryVI", "u32")
             section.signatureName = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             self.addMapEntry(section, bldata, 4, "signatureName", "u32")
-        headLen = bldata.tell() - headStartPos
-        section.content = bldata.read(section.pTabOffset - headLen)
-        self.addMapEntry(section, bldata, section.pTabOffset - headLen, "codeBlob", "VarElemLenArray")
+        return archEndianness, archDependLen
 
-        patchesPos = bldata.tell()
-        try:
-            patchFormat = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-            if patchFormat == 0xBADEEBAD:
-                self.parseRSRCSectionMCLVRTPatches(section, section_num, patchesPos, archEndianness, archDependLen, bldata)
-            else:
-                self.parseRSRCSectionLVRTPatches(section, section_num, patchesPos, archEndianness, archDependLen, bldata)
-            #TODO store raw patches only on parse exception
-            self.parseRSRCSectionRawPatches(section, section_num, patchesPos, archEndianness, archDependLen, bldata)
-        except:
-            self.parseRSRCSectionRawPatches(section, section_num, patchesPos, archEndianness, archDependLen, bldata)
-        self.addMapEntry(section, bldata, bldata.tell() - patchesPos, "patches", "VarElemLenArray")
+    def prepareRSRCSectionHead(self, section, section_num, archEndianness, archDependLen):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+
+        if isGreaterOrEqVersion(ver, 12,0,0,0):# Should be False for LV 11,0,0,4, True for 14,0,0,3
+            data_buf += int(section.initProcOffset).to_bytes(4, byteorder=archEndianness, signed=False)
+            data_buf += section.codeID[:4]
+            data_buf += int(section.pTabOffset).to_bytes(4, byteorder=archEndianness, signed=False)
+            data_buf += int(section.codeFlags).to_bytes(4, byteorder=archEndianness, signed=False)
+            data_buf += int(section.version).to_bytes(4, byteorder='big', signed=False)
+            data_buf += section.verifier[:4]
+            data_buf += int(section.numberOfBasicBlocks).to_bytes(4, byteorder=archEndianness, signed=False)
+            data_buf += int(section.compilerOptimizationLevel).to_bytes(4, byteorder=archEndianness, signed=False)
+            data_buf += int(section.hostCodeEntryVI).to_bytes(4, byteorder=archEndianness, signed=False)
+            data_buf += int(section.codeEndOffset).to_bytes(archDependLen, byteorder=archEndianness, signed=False)
+            data_buf += int(section.signatureName).to_bytes(4, byteorder='big', signed=False)
+        else: # Lowest version tested with this is LV 6,0,0,2
+            data_buf += int(section.initProcOffset).to_bytes(4, byteorder=archEndianness, signed=False)
+            data_buf += section.codeID[:4]
+            data_buf += int(section.pTabOffset).to_bytes(4, byteorder=archEndianness, signed=False)
+            data_buf += int(section.codeFlags).to_bytes(4, byteorder=archEndianness, signed=False)
+            data_buf += int(section.version).to_bytes(4, byteorder='big', signed=False)
+            data_buf += section.verifier[:4]
+            data_buf += int(section.numberOfBasicBlocks).to_bytes(4, byteorder=archEndianness, signed=False)
+            data_buf += int(section.codeEndOffset).to_bytes(archDependLen, byteorder=archEndianness, signed=False)
+            data_buf += int(section.hostCodeEntryVI).to_bytes(4, byteorder=archEndianness, signed=False)
+            data_buf += int(section.signatureName).to_bytes(4, byteorder='big', signed=False)
+        return data_buf
+
+    def expectedRSRCSizeHead(self, section_num):
+        ver = self.vi.getFileVersion()
+        archDependLen = 8 if self.isX64(section_num) else 4
+
+        exp_whole_len = 0
+        if isGreaterOrEqVersion(ver, 12,0,0,0):# Should be False for LV 11,0,0,4, True for 14,0,0,3
+            exp_whole_len += 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + archDependLen + 4
+        else: # Lowest version tested with this is LV 6,0,0,2
+            exp_whole_len += 4 + 4 + 4 + 4 + 4 + 4 + 4 + archDependLen + 4 + 4
+        return exp_whole_len
+
+    def parseRSRCSectionFoot(self, section, section_num, archEndianness, archDependLen, bldata):
+        ver = self.vi.getFileVersion()
 
         section.endVerifier = bldata.read(4)
         self.addMapEntry(section, bldata, 4, "endVerifier", "u8[]")
@@ -6092,6 +6053,371 @@ class VICD(CompleteBlock):
             self.addMapEntry(section, bldata, 4, "endProp5", "u32")
         pass
 
+    def prepareRSRCSectionFoot(self, section, section_num, archEndianness, archDependLen):
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+
+        data_buf += section.endVerifier[:4]
+        data_buf += int(section.endProp1).to_bytes(4, byteorder='big', signed=False)
+
+        if isGreaterOrEqVersion(ver, 7,0,0,0):# Should be False for LV 6,0,0,2, True for 7,1,0,3
+            data_buf += int(section.endSignatureName).to_bytes(archDependLen, byteorder='big', signed=False)
+            data_buf += int(section.endLocalLVRTCodeBlocks).to_bytes(archDependLen, byteorder='big', signed=False)
+
+        data_buf += int(section.endCodeEndOffset).to_bytes(4, byteorder=archEndianness, signed=False)
+
+        if isGreaterOrEqVersion(ver, 12,0,0,0):# Should be False for 11,0,0,4, True for 14,0,0,3
+            data_buf += int(section.endProp5).to_bytes(4, byteorder='big', signed=False)
+        return data_buf
+
+    def expectedRSRCSizeFoot(self, section_num):
+        ver = self.vi.getFileVersion()
+        archDependLen = 8 if self.isX64(section_num) else 4
+
+        exp_whole_len = 0
+        exp_whole_len += 4 + 4
+        if isGreaterOrEqVersion(ver, 7,0,0,0):# Should be False for LV 6,0,0,2, True for 7,1,0,3
+            exp_whole_len += archDependLen + archDependLen
+        exp_whole_len += 4
+        if isGreaterOrEqVersion(ver, 12,0,0,0):# Should be False for 11,0,0,4, True for 14,0,0,3
+            exp_whole_len += 4
+        return exp_whole_len
+
+    def parseRSRCSectionMCLVRTPatches(self, section, section_num, pos, archEndianness, archDependLen, bldata):
+        section.patches = []
+        codeTotLen = section.codeEndOffset
+        patchesTotLen = section.codeEndOffset - section.pTabOffset
+        bldata.seek(pos)
+        #TODO parse the patches instead of just reading raw data
+        raise NotImplementedError("No parsing made for MCLVRTPatches")
+
+    def prepareRSRCSectionMCLVRTPatches(self, section, section_num, archEndianness, archDependLen):
+        raise NotImplementedError("No bin prepare made for MCLVRTPatches")
+
+    def parseRSRCSectionLVRTPatches(self, section, section_num, pos, archEndianness, archDependLen, bldata):
+        section.patches = []
+        codeTotLen = section.codeEndOffset
+        patchesTotLen = section.codeEndOffset - section.pTabOffset
+        bldata.seek(pos)
+        pidx = 0
+        while True:
+            patchPos = bldata.tell()
+            patch = SimpleNamespace()
+            patch.offs = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            if patch.offs == 0: # end of list
+                break
+
+            patch.ident = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            if patch.offs >= codeTotLen and patch.ident != 0x20000:
+                raise AttributeError("Patch offset out of range")
+
+            patch.field2 = None
+            patch.relocs = []
+            section.patches.append(patch)
+
+            if patch.ident == 0x20000 or patch.ident == 0x20007:
+                patch.field2 = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+                bucketCount = int.from_bytes(bldata.read(2), byteorder=archEndianness, signed=False)
+                patch.relocs = []
+                for i in range(bucketCount):
+                    itmCount = int.from_bytes(bldata.read(2), byteorder=archEndianness, signed=False)
+                    offsLowList = []
+                    for k in range(itmCount):
+                        offsLow = int.from_bytes(bldata.read(2), byteorder=archEndianness, signed=False)
+                        patch.relocs.append((i << 16) + offsLow)
+                patchLen = bldata.tell() - patchPos
+                uneven_len = patchLen % 4 # Read padding
+                if uneven_len > 0:
+                    bldata.read(4 - uneven_len)
+            else:
+                pass
+            self.addMapEntry(section, bldata, bldata.tell() - patchPos, "patch_{}".format(pidx), "VarElemLenArray")
+            pidx += 1
+
+        # Read padding
+        if bldata.tell() < pos + patchesTotLen:
+            # Patches are padded to 4096 bytes, but footer is also included in that padding
+            padding_len = patchesTotLen - (bldata.tell() - pos)
+            padding = bldata.read(padding_len)
+            if set(padding) != set(b'\0'):
+                raise AttributeError("Padding after patches array has non-zero bytes, meaning bad parse attempt")
+
+        if bldata.tell() - pos != patchesTotLen:
+            raise IOError("Parsed length of patches array ({}) does not match expected size ({})"\
+              .format(bldata.tell() - pos, patchesTotLen))
+        pass
+
+    def prepareRSRCSectionLVRTPatches(self, section, section_num, archEndianness, archDependLen):
+        data_buf = b''
+
+        for patch in section.patches:
+            data_buf += int(patch.offs).to_bytes(4, byteorder=archEndianness, signed=False)
+            data_buf += int(patch.ident).to_bytes(4, byteorder=archEndianness, signed=False)
+            if patch.ident == 0x20000 or patch.ident == 0x20007:
+                data_buf += int(patch.field2).to_bytes(4, byteorder=archEndianness, signed=False)
+                relocs = sorted(patch.relocs)
+                bucket_idx = 0
+                bucket_buf = b''
+                bucket_beg = 0
+                while bucket_beg < len(relocs):
+                    bucket_end = bucket_beg
+                    while bucket_end < len(relocs):
+                        if (relocs[bucket_end] >> 16) != bucket_idx:
+                            break
+                        bucket_end += 1
+                    bucket_buf += int(bucket_end-bucket_beg).to_bytes(2, byteorder=archEndianness, signed=False)
+                    for i in range(bucket_beg,bucket_end):
+                        bucket_buf += int(relocs[i] & 0xFFFF).to_bytes(2, byteorder=archEndianness, signed=False)
+                    bucket_beg = bucket_end
+                    bucket_idx += 1
+                data_buf += int(bucket_idx).to_bytes(2, byteorder=archEndianness, signed=False)
+                data_buf += bucket_buf
+
+
+        footer_len = self.expectedRSRCSizeFoot(section_num) - 4
+        uneven_len = (len(data_buf)+footer_len) % 4096
+        if uneven_len > 0:
+            padding_len = 4096 - uneven_len
+            data_buf += ( b'\0' * padding_len )
+
+        return data_buf
+
+    def expectedRSRCSizePatches(self, section_num):
+        section = self.sections[section_num]
+        exp_whole_len = 0
+
+        for patch in section.patches:
+            exp_whole_len += 4 + 4
+            if patch.ident == 0x20000 or patch.ident == 0x20007:
+                exp_whole_len += 4
+                relocs = sorted(patch.relocs)
+                bucket_idx = 0
+                bucket_beg = 0
+                while bucket_beg < len(relocs):
+                    bucket_end = bucket_beg
+                    while bucket_end < len(relocs):
+                        if (relocs[bucket_end] >> 16) != bucket_idx:
+                            break
+                        bucket_end += 1
+                    exp_whole_len += 2
+                    for i in range(bucket_beg,bucket_end):
+                        exp_whole_len += 2
+                    bucket_beg = bucket_end
+                    bucket_idx += 1
+                exp_whole_len += 2
+
+        footer_len = self.expectedRSRCSizeFoot(section_num) - 4
+        uneven_len = (exp_whole_len+footer_len) % 4096
+        if uneven_len > 0:
+            padding_len = 4096 - uneven_len
+            exp_whole_len += padding_len
+        return exp_whole_len
+
+    def parseRSRCSectionRawPatches(self, section, section_num, pos, archEndianness, archDependLen, bldata):
+        patchesTotLen = section.codeEndOffset - section.pTabOffset
+        bldata.seek(pos)
+        section.patches_raw = bldata.read(patchesTotLen)
+
+    def parseRSRCSectionData(self, section_num, bldata):
+        ver = self.vi.getFileVersion()
+        section = self.sections[section_num]
+        section.ct_map = []
+        section.patchFmtType = None
+
+        headStartPos = bldata.tell()
+        archEndianness, archDependLen = self.parseRSRCSectionHead(section, section_num, bldata)
+
+        headLen = bldata.tell() - headStartPos
+        section.content = ( b'\0' * headLen ) # fill header with zeros in stored binary data
+        section.content += bldata.read(section.pTabOffset - headLen)
+        self.addMapEntry(section, bldata, section.pTabOffset - headLen, "codeBlob", "VarElemLenArray")
+
+        patchesPos = bldata.tell()
+        try:
+            patchFormat = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            if patchFormat == 0xBADEEBAD:
+                section.patchFmtType = "MCLVRT"
+                self.parseRSRCSectionMCLVRTPatches(section, section_num, patchesPos, archEndianness, archDependLen, bldata)
+            else:
+                section.patchFmtType = "LVRT"
+                self.parseRSRCSectionLVRTPatches(section, section_num, patchesPos, archEndianness, archDependLen, bldata)
+        except Exception as e:
+            if (self.po.verbose > 2):
+                import sys, traceback
+                traceback.print_exc(file=sys.stdout)
+            eprint("{:s}: Warning: Block {} section {} patches parse exception: {}."\
+                .format(self.vi.src_fname,self.ident,section_num,str(e)))
+            self.parseRSRCSectionRawPatches(section, section_num, patchesPos, archEndianness, archDependLen, bldata)
+        self.addMapEntry(section, bldata, bldata.tell() - patchesPos, "patches", "VarElemLenArray")
+
+        self.parseRSRCSectionFoot(section, section_num, archEndianness, archDependLen, bldata)
+
+    def prepareRSRCData(self, section_num):
+        ver = self.vi.getFileVersion()
+        section = self.sections[section_num]
+        data_buf = b''
+        archDependLen = 8 if self.isX64(section_num) else 4
+        archEndianness = 'little' if self.isLE(section_num) else 'big'
+
+        section.codeEndOffset = len(section.content) + self.expectedRSRCSizePatches(section_num)
+        section.endCodeEndOffset = section.codeEndOffset
+
+        data_buf += self.prepareRSRCSectionHead(section, section_num, archEndianness, archDependLen)
+        data_buf += section.content[len(data_buf):]
+
+        if section.patchFmtType == "MCLVRT":
+            data_buf += self.prepareRSRCSectionMCLVRTPatches(section, section_num, archEndianness, archDependLen)
+        elif section.patchFmtType == "LVRT":
+            data_buf += self.prepareRSRCSectionLVRTPatches(section, section_num, archEndianness, archDependLen)
+        else:
+            raise NotImplementedError("Unrecognized patches format type")
+
+        data_buf += self.prepareRSRCSectionFoot(section, section_num, archEndianness, archDependLen)
+        return data_buf
+
+    def initWithXMLSectionCode(self, section, code_elem):
+        section_num = section.start.section_idx
+        tmp = code_elem.get("InitProcOffset")
+        section.initProcOffset = int(tmp, 0)
+        tmp = code_elem.get("PTabOffset")
+        section.pTabOffset = int(tmp, 0)
+        tmp = code_elem.get("NumberOfBasicBlocks")
+        section.numberOfBasicBlocks = int(tmp, 0)
+        tmp = code_elem.get("HostCodeEntryVI")
+        section.hostCodeEntryVI = int(tmp, 0)
+        tmp = code_elem.get("SignatureName")
+        section.signatureName = int(tmp, 0)
+
+        fmt = code_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d} code, reading inline XML data"\
+                  .format(self.vi.src_fname,self.ident,section_num))
+            raise NotImplementedError("Reading executable bytecode from XML is not supported")
+        elif fmt == "bin":# Format="bin" - the content is stored separately as raw binary data
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d} code, reading BIN file '{}'"\
+                  .format(self.vi.src_fname,self.ident,section_num,code_elem.get("File")))
+            bin_path = os.path.dirname(self.vi.src_fname)
+            if len(bin_path) > 0:
+                bin_fname = bin_path + '/' + code_elem.get("File")
+            else:
+                bin_fname = code_elem.get("File")
+            with open(bin_fname, "rb") as bin_fh:
+                data_buf = bin_fh.read()
+            section.content = data_buf
+        else:
+            raise NotImplementedError("Unknown code format")
+        pass
+
+    def exportXMLSectionPatches(self, section_elem, section_num, section, fname_base):
+        patch_elem = ET.SubElement(section_elem,"Patches")
+        if section.patches_raw is None:
+            if (self.po.verbose > 1):
+                print("{}: Writing code patches XML for block {} section {:d}"\
+                  .format(self.vi.src_fname, self.ident, section_num))
+
+            for patch in section.patches:
+                subelem = ET.SubElement(patch_elem,"Patch")
+                subelem.set("Offset", "0x{:04x}".format(patch.offs))
+                subelem.set("Ident", "0x{:04x}".format(patch.ident))
+
+                if patch.field2 is not None:
+                    subelem.set("Field2", "{:d}".format(patch.field2))
+
+                for offs in patch.relocs:
+                    relelem = ET.SubElement(subelem,"Reloc")
+                    relelem.text = "0x{:04x}".format(offs)
+
+            patch_elem.set("Type", section.patchFmtType)
+            patch_elem.set("Format", "inline")
+        else:
+            patch_fname = "{:s}_patches.{:s}".format(fname_base,"bin")
+            if (self.po.verbose > 1):
+                print("{}: Writing code patches file for block {} section {:d}"\
+                  .format(self.vi.src_fname, self.ident, section_num))
+            with open(patch_fname, "wb") as patch_fh:
+                patch_fh.write(section.patches_raw)
+            patch_elem.set("Format", "bin")
+            patch_elem.set("File", os.path.basename(patch_fname))
+        pass
+
+    def initWithXMLSectionPatches(self, section, patch_elem):
+        snum = section.start.section_idx
+        section.patches_raw = None
+        section.patches = []
+        section.patchFmtType = patch_elem.get("Type")
+
+        fmt = patch_elem.get("Format")
+        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d} patches, reading inline XML data"\
+                  .format(self.vi.src_fname,self.ident,snum))
+
+            for subelem in patch_elem:
+                if (subelem.tag == "Patch"):
+                    patch = SimpleNamespace()
+                    tmp = subelem.get("Offset")
+                    patch.offs = int(tmp, 0)
+                    tmp = subelem.get("Ident")
+                    patch.ident = int(tmp, 0)
+                    patch.field2 = None
+                    patch.relocs = []
+                    section.patches.append(patch)
+
+                    tmp = subelem.get("Field2")
+                    if tmp is not None:
+                        patch.field2 = int(tmp, 0)
+
+                    for relelem in subelem:
+                        if (relelem.tag == "Reloc"):
+                            addr = int(relelem.text,0)
+                            patch.relocs.append(addr)
+                        else:
+                            raise AttributeError("Section Patches Reloc contains unexpected tag")
+                    pass
+                else:
+                    raise AttributeError("Section Patches contains unexpected tag")
+
+        elif fmt == "bin":# Format="bin" - the content is stored separately as raw binary data
+            if (self.po.verbose > 2):
+                print("{:s}: For Block {} section {:d} patches, reading BIN file '{}'"\
+                  .format(self.vi.src_fname,self.ident,snum,patch_elem.get("File")))
+            bin_path = os.path.dirname(self.vi.src_fname)
+            if len(bin_path) > 0:
+                bin_fname = bin_path + '/' + patch_elem.get("File")
+            else:
+                bin_fname = patch_elem.get("File")
+            with open(bin_fname, "rb") as bin_fh:
+                data_buf = bin_fh.read()
+            section.patches_raw = data_buf
+        else:
+            raise NotImplementedError("Unknown patches format")
+        pass
+
+    def exportXMLSectionCode(self, section_elem, section_num, section, fname_base):
+        subelem = ET.SubElement(section_elem,"Code")
+        subelem.set("InitProcOffset", "0x{:X}".format(section.initProcOffset))
+        subelem.set("PTabOffset", "0x{:X}".format(section.pTabOffset))
+        subelem.set("NumberOfBasicBlocks", "{:d}".format(section.numberOfBasicBlocks))
+        subelem.set("HostCodeEntryVI", "0x{:X}".format(section.hostCodeEntryVI))
+        subelem.set("SignatureName", "0x{:X}".format(section.signatureName))
+
+        if True:
+            code_fname = "{:s}_code.{:s}".format(fname_base,"bin")
+            with open(code_fname, "wb") as code_fh:
+                code_fh.write(section.content)
+            subelem.set("Format", "bin")
+            subelem.set("File", os.path.basename(code_fname))
+
+        map_fname = "{:s}_code.{:s}".format(fname_base,"map")
+        if (self.po.verbose > 1):
+            print("{}: Writing code MAP file for block {} section {:d}"\
+              .format(self.vi.src_fname, self.ident, section_num))
+        with open(map_fname, "w") as map_fh:
+            self.printMap(section, map_fh)
+        pass
+
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         subelem = ET.SubElement(section_elem,"General")
 
@@ -6101,30 +6427,54 @@ class VICD(CompleteBlock):
         subelem.set("CompilerOptimizationLevel", "{:d}".format(section.compilerOptimizationLevel))
         subelem.set("Verifier", getPrettyStrFromRsrcType(section.verifier))
 
-        subelem = ET.SubElement(section_elem,"Code")
-        subelem.set("InitProcOffset", "0x{:X}".format(section.initProcOffset))
-        subelem.set("PTabOffset", "0x{:X}".format(section.pTabOffset))
-        subelem.set("NumberOfBasicBlocks", "{:d}".format(section.numberOfBasicBlocks))
-        subelem.set("HostCodeEntryVI", "0x{:X}".format(section.hostCodeEntryVI))
-        subelem.set("CodeEndOffset", "0x{:X}".format(section.codeEndOffset))
-        subelem.set("SignatureName", "0x{:X}".format(section.signatureName))
+        subelem.set("EndVerifier", getPrettyStrFromRsrcType(section.endVerifier))
+        subelem.set("EndProp1", "{:d}".format(section.endProp1))
+        subelem.set("EndSignatureName", "{:d}".format(section.endSignatureName))
+        subelem.set("EndLocalLVRTCodeBlocks", "{:d}".format(section.endLocalLVRTCodeBlocks))
+        subelem.set("EndProp5", "{:d}".format(section.endProp5))
 
-        map_fname = "{:s}.{:s}".format(fname_base,"map")
-        if (self.po.verbose > 1):
-            print("{}: Writing code MAP file for block {} section {:d}"\
-              .format(self.vi.src_fname, self.ident, section_num))
-        with open(map_fname, "w") as map_fh:
-            self.printMap(section, map_fh)
+        self.exportXMLSectionCode(section_elem, section_num, section, fname_base)
 
-        if section.patches_raw is not None:
-            patch_fname = "{:s}_patches.{:s}".format(fname_base,"bin")
-            if (self.po.verbose > 1):
-                print("{}: Writing code patches file for block {} section {:d}"\
-                  .format(self.vi.src_fname, self.ident, section_num))
-            with open(patch_fname, "wb") as patch_fh:
-                patch_fh.write(section.patches_raw)
+        self.exportXMLSectionPatches(section_elem, section_num, section, fname_base)
 
         raise NotImplementedError("The block is only partially exported as XML")
+
+    def initWithXMLSectionData(self, section, section_elem):
+        section.content = b''
+        blockref = (self.ident,section.start.section_idx,)
+        for subelem in section_elem:
+            if (subelem.tag == "NameObject"):
+                pass # Items parsed somewhere else
+            elif (subelem.tag == "General"):
+                tmp = subelem.get("CodeID")
+                section.codeID = getRsrcTypeFromPrettyStr(tmp)
+                tmp = subelem.get("CodeFlags")
+                section.codeFlags = int(tmp, 0)
+                tmp = subelem.get("Version")
+                section.version = int(tmp, 0)
+                tmp = subelem.get("CompilerOptimizationLevel")
+                section.compilerOptimizationLevel = int(tmp, 0)
+                tmp = subelem.get("Verifier")
+                section.verifier = getRsrcTypeFromPrettyStr(tmp)
+
+                tmp = subelem.get("EndVerifier")
+                section.endVerifier = getRsrcTypeFromPrettyStr(tmp)
+                tmp = subelem.get("EndProp1")
+                section.endProp1 = int(tmp, 0)
+                tmp = subelem.get("EndSignatureName")
+                section.endSignatureName = int(tmp, 0)
+                tmp = subelem.get("EndLocalLVRTCodeBlocks")
+                section.endLocalLVRTCodeBlocks = int(tmp, 0)
+                tmp = subelem.get("EndProp5")
+                section.endProp5 = int(tmp, 0)
+
+            elif (subelem.tag == "Code"):
+                self.initWithXMLSectionCode(section, subelem)
+            elif (subelem.tag == "Patches"):
+                self.initWithXMLSectionPatches(section, subelem)
+            else:
+                raise AttributeError("Section contains unexpected tag")
+        pass
 
     def checkSanity(self, section_num=None):
         if section_num is None:
