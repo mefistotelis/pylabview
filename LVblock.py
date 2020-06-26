@@ -6081,49 +6081,51 @@ class VICD(CompleteBlock):
         ver = self.vi.getFileVersion()
 
         initProcOffset = bldata.read(4)
-        self.addMapEntry(section, bldata, 4, "initProcOffset", "u32")
+        self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.initProcOffset")
+        #self.addMapEntry(section, bldata, 4, "initProcOffset", "u32")
         section.codeID = bldata.read(4)
-        self.addMapEntry(section, bldata, 4, "codeID", "u8[]")
+        self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.codeID")
+        #self.addMapEntry(section, bldata, 4, "codeID", "u8[]")
         archDependLen = 8 if self.isX64(section_num) else 4
         archEndianness = 'little' if self.isLE(section_num) else 'big'
         if isGreaterOrEqVersion(ver, 12,0,0,0):# Should be False for LV 11,0,0,4, True for 14,0,0,3
             section.initProcOffset = int.from_bytes(initProcOffset, byteorder=archEndianness, signed=False)
             section.pTabOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-            self.addMapEntry(section, bldata, 4, "pTabOffset", "u32")
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.pTabOffset")
             section.codeFlags = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-            self.addMapEntry(section, bldata, 4, "codeFlags", "u32")
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.codeFlags")
             section.version = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            self.addMapEntry(section, bldata, 4, "version", "u32")
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.version")
             section.verifier = bldata.read(4)
-            self.addMapEntry(section, bldata, 4, "verifier", "u8[]")
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.verifier")
             section.numberOfBasicBlocks = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-            self.addMapEntry(section, bldata, 4, "numberOfBasicBlocks", "u32")
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.numberOfBasicBlocks")
             section.compilerOptimizationLevel = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-            self.addMapEntry(section, bldata, 4, "compilerOptimizationLevel", "u32")
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.compilerOptimizationLevel")
             section.hostCodeEntryVI = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-            self.addMapEntry(section, bldata, 4, "hostCodeEntryVI", "u32")
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.hostCodeEntryVI")
             section.codeEndOffset = int.from_bytes(bldata.read(archDependLen), byteorder=archEndianness, signed=False)
-            self.addMapEntry(section, bldata, archDependLen, "codeEndOffset", "u64" if archDependLen == 8 else "u32")
+            self.appendPrintMapEntry(section, bldata.tell(), archDependLen, 1, "Head.codeEndOffset")
             section.signatureName = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            self.addMapEntry(section, bldata, 4, "signatureName", "u32")
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.signatureName")
         else: # Lowest version tested with this is LV 6,0,0,2
             section.initProcOffset = int.from_bytes(initProcOffset, byteorder=archEndianness, signed=False)
             section.pTabOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-            self.addMapEntry(section, bldata, 4, "pTabOffset", "u32")
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.pTabOffset")
             section.codeFlags = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-            self.addMapEntry(section, bldata, 4, "codeFlags", "u32")
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.codeFlags")
             section.version = int.from_bytes(bldata.read(4), byteorder='big', signed=False) # doesn't seem to really be version
-            self.addMapEntry(section, bldata, 4, "version", "u32")
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.version")
             section.verifier = bldata.read(4)
-            self.addMapEntry(section, bldata, 4, "verifier", "u8[]")
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.verifier")
             section.numberOfBasicBlocks = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-            self.addMapEntry(section, bldata, 4, "numberOfBasicBlocks", "u32")
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.numberOfBasicBlocks")
             section.codeEndOffset = int.from_bytes(bldata.read(archDependLen), byteorder=archEndianness, signed=False)
-            self.addMapEntry(section, bldata, archDependLen, "codeEndOffset", "u64" if archDependLen == 8 else "u32")
+            self.appendPrintMapEntry(section, bldata.tell(), archDependLen, 1, "Head.codeEndOffset")
             section.hostCodeEntryVI = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-            self.addMapEntry(section, bldata, 4, "hostCodeEntryVI", "u32")
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.hostCodeEntryVI")
             section.signatureName = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            self.addMapEntry(section, bldata, 4, "signatureName", "u32")
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.signatureName")
         return archEndianness, archDependLen
 
     def prepareRSRCSectionHead(self, section, section_num, archEndianness, archDependLen):
@@ -6170,24 +6172,24 @@ class VICD(CompleteBlock):
         ver = self.vi.getFileVersion()
 
         section.endVerifier = bldata.read(4)
-        self.addMapEntry(section, bldata, 4, "endVerifier", "u8[]")
+        self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Foot.endVerifier")
         section.endProp1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
         if isGreaterOrEqVersion(ver, 7,0,0,0):# Should be False for LV 6,0,0,2, True for 7,1,0,3
             #TODO inconsistency - signatureName doesn't have arch-dependant size
             section.endSignatureName = int.from_bytes(bldata.read(archDependLen), byteorder='big', signed=False)
-            self.addMapEntry(section, bldata, archDependLen, "endSignatureName", "u64" if archDependLen == 8 else "u32")
+            self.appendPrintMapEntry(section, bldata.tell(), archDependLen, 1, "Foot.endSignatureName")
             section.endLocalLVRTCodeBlocks = int.from_bytes(bldata.read(archDependLen), byteorder='big', signed=False)
-            self.addMapEntry(section, bldata, archDependLen, "endLocalLVRTCodeBlocks", "u64" if archDependLen == 8 else "u32")
+            self.appendPrintMapEntry(section, bldata.tell(), archDependLen, 1, "Foot.endLocalLVRTCodeBlocks")
 
         #TODO inconsistency - codeEndOffset has arch-dependant size
         section.endCodeEndOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-        self.addMapEntry(section, bldata, 4, "endCodeEndOffset", "u32")
+        self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Foot.endCodeEndOffset")
 
         if isGreaterOrEqVersion(ver, 13,0,0,0):# Should be False for 12,0,0,4, True for 14,0,0,3
             #TODO maybe for 64-bit arch it's a missing part of endCodeEndOffset?
             section.endProp5 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            self.addMapEntry(section, bldata, 4, "endProp5", "u32")
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Foot.endProp5")
         pass
 
     def prepareRSRCSectionFoot(self, section, section_num, archEndianness, archDependLen):
@@ -6242,10 +6244,12 @@ class VICD(CompleteBlock):
             patchPos = bldata.tell()
             patch = SimpleNamespace()
             patch.offs = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Patch[{}].Offset".format(pidx))
             if patch.offs == 0: # end of list
                 break
 
             patch.ident = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Patch[{}].Ident".format(pidx))
 
             badOffset = False
             if isGreaterOrEqVersion(ver, 14,0,0,0):
@@ -6266,13 +6270,17 @@ class VICD(CompleteBlock):
             if (isGreaterOrEqVersion(ver, 14,0,0,0) and (patch.ident == 0x20000 or patch.ident == 0x20007)) or \
                (isGreaterOrEqVersion(ver,  8,6,0,0) and (patch.ident == 0xffffffff)):
                 patch.field2 = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+                self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Patch[{}].Field2".format(pidx))
                 bucketCount = int.from_bytes(bldata.read(2), byteorder=archEndianness, signed=False)
+                self.appendPrintMapEntry(section, bldata.tell(), 2, 1, "Patch[{}].BucketCount".format(pidx))
                 patch.relocs = []
                 for i in range(bucketCount):
                     itmCount = int.from_bytes(bldata.read(2), byteorder=archEndianness, signed=False)
+                    self.appendPrintMapEntry(section, bldata.tell(), 2, 1, "Patch[{}].Bucket[{}].itmCount".format(pidx,i))
                     offsLowList = []
                     for k in range(itmCount):
                         offsLow = int.from_bytes(bldata.read(2), byteorder=archEndianness, signed=False)
+                        self.appendPrintMapEntry(section, bldata.tell(), 2, 1, "Patch[{}].Bucket[{}].offsLow[{}]".format(pidx,i,k))
                         patch.relocs.append((i << 16) + offsLow)
                 patchLen = bldata.tell() - patchPos
                 uneven_len = patchLen % 4 # Read padding
@@ -6282,7 +6290,7 @@ class VICD(CompleteBlock):
                 raise NotImplementedError("No XML export made for LV6 relocations")
             else:
                 pass
-            self.addMapEntry(section, bldata, bldata.tell() - patchPos, "patch_{}".format(pidx), "VarElemLenArray")
+            self.appendPrintMapEntry(section, bldata.tell(), bldata.tell() - patchPos, 1, "Patch[{}]".format(pidx))
             pidx += 1
 
         # Read padding
@@ -6308,7 +6316,7 @@ class VICD(CompleteBlock):
             if (isGreaterOrEqVersion(ver, 14,0,0,0) and (patch.ident == 0x20000 or patch.ident == 0x20007)) or \
                (isGreaterOrEqVersion(ver,  8,6,0,0) and (patch.ident == 0xffffffff)):
                 data_buf += int(patch.field2).to_bytes(4, byteorder=archEndianness, signed=False)
-                relocs = sorted(patch.relocs)
+                relocs = patch.relocs # no sorted() - preserve original order
                 bucket_idx = 0
                 bucket_buf = b''
                 bucket_beg = 0
@@ -6316,6 +6324,8 @@ class VICD(CompleteBlock):
                     bucket_end = bucket_beg
                     while bucket_end < len(relocs):
                         if (relocs[bucket_end] >> 16) != bucket_idx:
+                            if (relocs[bucket_end] >> 16) < bucket_idx: # detect error - avoid inf. loop
+                                raise RuntimeError("Relocations too unordered - areas for buckets not continuous")
                             break
                         bucket_end += 1
                     bucket_buf += int(bucket_end-bucket_beg).to_bytes(2, byteorder=archEndianness, signed=False)
@@ -6396,6 +6406,8 @@ class VICD(CompleteBlock):
         archEndianness, archDependLen = self.parseRSRCSectionHead(section, section_num, bldata)
 
         headLen = bldata.tell() - headStartPos
+        self.appendPrintMapEntry(section, bldata.tell(), headLen, 1, "Header")
+
         section.content = ( b'\0' * headLen ) # fill header with zeros in stored binary data
         section.content += bldata.read(section.pTabOffset - headLen)
         self.addMapEntry(section, bldata, section.pTabOffset - headLen, "codeBlob", "VarElemLenArray")
@@ -6416,9 +6428,11 @@ class VICD(CompleteBlock):
             eprint("{:s}: Warning: Block {} section {} patches parse exception: {}."\
                 .format(self.vi.src_fname,self.ident,section_num,str(e)))
             self.parseRSRCSectionRawPatches(section, section_num, patchesPos, archEndianness, archDependLen, bldata)
-        self.addMapEntry(section, bldata, bldata.tell() - patchesPos, "patches", "VarElemLenArray")
+        self.appendPrintMapEntry(section, bldata.tell(), bldata.tell() - patchesPos, 1, "Patches")
 
+        footerPos = bldata.tell()
         self.parseRSRCSectionFoot(section, section_num, archEndianness, archDependLen, bldata)
+        self.appendPrintMapEntry(section, bldata.tell(), bldata.tell() - footerPos, 1, "Footer")
 
     def prepareRSRCData(self, section_num):
         ver = self.vi.getFileVersion()
