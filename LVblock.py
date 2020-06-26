@@ -2851,6 +2851,58 @@ class FTAB(CompleteBlock):
             nameOffs = nameOffsList[i]
             bldata.seek(nameOffs)
             fnEntry.name = readPStr(bldata, 1, self.po)
+        # At the end of this function, we should place file pointer at end of the data.
+        # Since font names seem to always be in order, this should be achieved already.
+        pass
+
+    def prepareRSRCData(self, section_num):
+        section = self.sections[section_num]
+        ver = self.vi.getFileVersion()
+        data_buf = b''
+
+        count = len(section.content)
+        if isGreaterOrEqVersion(ver, 14,0,0,0):
+            data_buf += int(section.prop1).to_bytes(4, byteorder='big', signed=False)
+            data_buf += int(count).to_bytes(2, byteorder='big', signed=False)
+            data_buf += int(section.prop3).to_bytes(2, byteorder='big', signed=False)
+        else:
+            data_buf += int(section.prop1).to_bytes(4, byteorder='big', signed=False)
+            data_buf += int(section.prop3).to_bytes(2, byteorder='big', signed=False)
+            data_buf += int(count).to_bytes(2, byteorder='big', signed=False)
+
+        if (section.prop1 & 0x00010000) == 0:
+            nameOffsStart = len(data_buf) + count * 12
+        else:
+            nameOffsStart = len(data_buf) + count * 16
+
+        # Prepare names block first, to get offsets of names
+        nameOffsList = []
+        namesData = b''
+        for fnEntry in section.content:
+            nameOffsList.append(nameOffsStart+len(namesData))
+            namesData += preparePStr(fnEntry.name, 1, self.po)
+
+        for i, fnEntry in enumerate(section.content):
+            nameOffs = nameOffsList[i]
+            data_buf += int(nameOffs).to_bytes(4, byteorder='big', signed=False)
+            data_buf += int(fnEntry.prop2).to_bytes(2, byteorder='big', signed=False)
+            data_buf += int(fnEntry.prop3).to_bytes(2, byteorder='big', signed=False)
+            data_buf += int(fnEntry.prop4).to_bytes(2, byteorder='big', signed=False)
+            if (section.prop1 & 0x00010000) == 0:
+                data_buf += int(fnEntry.prop5).to_bytes(2, byteorder='big', signed=False)
+            else:
+                data_buf += int(fnEntry.prop6).to_bytes(2, byteorder='big', signed=False)
+                data_buf += int(fnEntry.prop7).to_bytes(2, byteorder='big', signed=False)
+                data_buf += int(fnEntry.prop8).to_bytes(2, byteorder='big', signed=False)
+
+        if len(data_buf) != nameOffsStart:
+            raise RuntimeError("Expected names block at 0x{:04x}, got it at 0x{:04x}"\
+              .format(nameOffsStart,len(data_buf)))
+
+        data_buf += namesData
+
+        raise NotImplementedError("Re-creating binary is not fully implemented")
+        return data_buf
 
     def initWithXMLSectionData(self, section, section_elem):
         section_num = section.start.section_idx
