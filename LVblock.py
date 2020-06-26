@@ -2801,6 +2801,18 @@ class FTAB(CompleteBlock):
         section.content = []
         return section
 
+    def newFontEntry(self):
+        fnEntry = SimpleNamespace()
+        fnEntry.prop2 = 0
+        fnEntry.prop3 = 0
+        fnEntry.prop4 = 0
+        fnEntry.prop5 = 0
+        fnEntry.prop6 = 0
+        fnEntry.prop7 = 0
+        fnEntry.prop8 = 0
+        fnEntry.name = b''
+        return fnEntry
+
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
         ver = self.vi.getFileVersion()
@@ -2818,17 +2830,14 @@ class FTAB(CompleteBlock):
             raise RuntimeError("Font table consists of {:d} fonts, limit is {:d}"\
               .format(count,127))
 
+        nameOffsList = []
         for i in range(count):
-            fnEntry = SimpleNamespace()
-            fnEntry.nameOffs = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            fnEntry = self.newFontEntry()
+            nameOffs = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            nameOffsList.append(nameOffs)
             fnEntry.prop2 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
             fnEntry.prop3 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
             fnEntry.prop4 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            fnEntry.prop5 = 0
-            fnEntry.prop6 = 0
-            fnEntry.prop7 = 0
-            fnEntry.prop8 = 0
-            fnEntry.name = b''
             # Font entry has either 12 or 16 bytes
             if (section.prop1 & 0x00010000) == 0:
                 fnEntry.prop5 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
@@ -2838,9 +2847,52 @@ class FTAB(CompleteBlock):
                 fnEntry.prop8 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
             section.content.append(fnEntry)
 
-        for fnEntry in section.content:
-            bldata.seek(fnEntry.nameOffs)
+        for i, fnEntry in enumerate(section.content):
+            nameOffs = nameOffsList[i]
+            bldata.seek(nameOffs)
             fnEntry.name = readPStr(bldata, 1, self.po)
+
+    def initWithXMLSectionData(self, section, section_elem):
+        section_num = section.start.section_idx
+        if (self.po.verbose > 2):
+            print("{:s}: For Block {} section {:d}, reading inline XML data"\
+              .format(self.vi.src_fname,self.ident,section_num))
+
+        section.prop1 = int(section_elem.get("Prop1"), 0)
+        section.prop3 = int(section_elem.get("Prop3"), 0)
+
+        for subelem in section_elem:
+            if (subelem.tag == "NameObject"):
+                pass # Items parsed somewhere else
+            elif (subelem.tag == "Font"):
+                fnEntry = self.newFontEntry()
+                tmp = int(subelem.get("Prop2"), 0)
+                if tmp is not None:
+                    fnEntry.prop2 = int(tmp, 0)
+                tmp = int(subelem.get("Prop3"), 0)
+                if tmp is not None:
+                    fnEntry.prop3 = int(tmp, 0)
+                tmp = int(subelem.get("Prop4"), 0)
+                if tmp is not None:
+                    fnEntry.prop4 = int(tmp, 0)
+                tmp = int(subelem.get("Prop5"), 0)
+                if tmp is not None:
+                    fnEntry.prop5 = int(tmp, 0)
+                tmp = int(subelem.get("Prop6"), 0)
+                if tmp is not None:
+                    fnEntry.prop6 = int(tmp, 0)
+                tmp = int(subelem.get("Prop7"), 0)
+                if tmp is not None:
+                    fnEntry.prop7 = int(tmp, 0)
+                tmp = int(subelem.get("Prop8"), 0)
+                if tmp is not None:
+                    fnEntry.prop8 = int(tmp, 0)
+                if subelem.text is not None:
+                    fnEntry.name = subelem.text.encode(self.vi.textEncoding)
+                section.content.append(fnEntry)
+            else:
+                raise AttributeError("Section contains unexpected tag")
+        pass
 
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         section_elem.set("Prop1", "0x{:04x}".format(section.prop1))
@@ -2851,10 +2903,12 @@ class FTAB(CompleteBlock):
             subelem.set("Prop2", "{:d}".format(fnEntry.prop2))
             subelem.set("Prop3", "{:d}".format(fnEntry.prop3))
             subelem.set("Prop4", "{:d}".format(fnEntry.prop4))
-            subelem.set("Prop5", "{:d}".format(fnEntry.prop5))
-            subelem.set("Prop6", "{:d}".format(fnEntry.prop6))
-            subelem.set("Prop7", "{:d}".format(fnEntry.prop7))
-            subelem.set("Prop8", "{:d}".format(fnEntry.prop8))
+            if (section.prop1 & 0x00010000) == 0:
+                subelem.set("Prop5", "{:d}".format(fnEntry.prop5))
+            else:
+                subelem.set("Prop6", "{:d}".format(fnEntry.prop6))
+                subelem.set("Prop7", "{:d}".format(fnEntry.prop7))
+                subelem.set("Prop8", "{:d}".format(fnEntry.prop8))
             subelem.text = fnEntry.name.decode(self.vi.textEncoding)
 
         raise NotImplementedError("Re-creating binary is not fully implemented")
