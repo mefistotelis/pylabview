@@ -6095,6 +6095,7 @@ class VICD(CompleteBlock):
         raise NotImplementedError("No bin prepare made for MCLVRTPatches")
 
     def parseRSRCSectionLVRTPatches(self, section, section_num, pos, archEndianness, archDependLen, bldata):
+        ver = self.vi.getFileVersion()
         section.patches = []
         codeTotLen = section.codeEndOffset
         patchesTotLen = section.codeEndOffset - section.pTabOffset
@@ -6108,14 +6109,25 @@ class VICD(CompleteBlock):
                 break
 
             patch.ident = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-            if patch.offs >= codeTotLen and patch.ident != 0x20000:
-                raise AttributeError("Patch offset out of range")
+
+            badOffset = False
+            if isGreaterOrEqVersion(ver, 14,0,0,0):
+                if patch.offs >= codeTotLen and patch.ident != 0x20000:
+                    badOffset = True
+            elif isGreaterOrEqVersion(ver, 6,0,0,0):
+                # Confirmed for LV6.0 and LV8.6 (though the format inside is different below 8.6)
+                if patch.offs >= codeTotLen and patch.ident != 0xffffffff:
+                    badOffset = True
+            if badOffset:
+                raise AttributeError("Patch {} offset 0x{:04x} out of range (0x0,0x{:04x})"\
+                  .format(len(section.patches),patch.offs,codeTotLen))
 
             patch.field2 = None
             patch.relocs = []
             section.patches.append(patch)
 
-            if patch.ident == 0x20000 or patch.ident == 0x20007:
+            if (isGreaterOrEqVersion(ver, 14,0,0,0) and (patch.ident == 0x20000 or patch.ident == 0x20007)) or \
+               (isGreaterOrEqVersion(ver,  8,6,0,0) and (patch.ident == 0xffffffff)):
                 patch.field2 = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
                 bucketCount = int.from_bytes(bldata.read(2), byteorder=archEndianness, signed=False)
                 patch.relocs = []
@@ -6129,6 +6141,8 @@ class VICD(CompleteBlock):
                 uneven_len = patchLen % 4 # Read padding
                 if uneven_len > 0:
                     bldata.read(4 - uneven_len)
+            elif isGreaterOrEqVersion(ver, 6,0,0,0) and (patch.ident == 0xffffffff):
+                raise NotImplementedError("No XML export made for LV6 relocations")
             else:
                 pass
             self.addMapEntry(section, bldata, bldata.tell() - patchPos, "patch_{}".format(pidx), "VarElemLenArray")
@@ -6148,12 +6162,14 @@ class VICD(CompleteBlock):
         pass
 
     def prepareRSRCSectionLVRTPatches(self, section, section_num, archEndianness, archDependLen):
+        ver = self.vi.getFileVersion()
         data_buf = b''
 
         for patch in section.patches:
             data_buf += int(patch.offs).to_bytes(4, byteorder=archEndianness, signed=False)
             data_buf += int(patch.ident).to_bytes(4, byteorder=archEndianness, signed=False)
-            if patch.ident == 0x20000 or patch.ident == 0x20007:
+            if (isGreaterOrEqVersion(ver, 14,0,0,0) and (patch.ident == 0x20000 or patch.ident == 0x20007)) or \
+               (isGreaterOrEqVersion(ver,  8,6,0,0) and (patch.ident == 0xffffffff)):
                 data_buf += int(patch.field2).to_bytes(4, byteorder=archEndianness, signed=False)
                 relocs = sorted(patch.relocs)
                 bucket_idx = 0
@@ -6172,6 +6188,8 @@ class VICD(CompleteBlock):
                     bucket_idx += 1
                 data_buf += int(bucket_idx).to_bytes(2, byteorder=archEndianness, signed=False)
                 data_buf += bucket_buf
+            elif isGreaterOrEqVersion(ver, 6,0,0,0) and (patch.ident == 0xffffffff):
+                raise NotImplementedError("No bin prepare made for LV6 relocations")
 
         patchesTotLen = section.codeEndOffset - section.pTabOffset
         padding_len = 0
