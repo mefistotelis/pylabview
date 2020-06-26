@@ -6038,17 +6038,20 @@ class VICD(CompleteBlock):
         section.endVerifier = bldata.read(4)
         self.addMapEntry(section, bldata, 4, "endVerifier", "u8[]")
         section.endProp1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+
         if isGreaterOrEqVersion(ver, 7,0,0,0):# Should be False for LV 6,0,0,2, True for 7,1,0,3
             #TODO inconsistency - signatureName doesn't have arch-dependant size
             section.endSignatureName = int.from_bytes(bldata.read(archDependLen), byteorder='big', signed=False)
             self.addMapEntry(section, bldata, archDependLen, "endSignatureName", "u64" if archDependLen == 8 else "u32")
             section.endLocalLVRTCodeBlocks = int.from_bytes(bldata.read(archDependLen), byteorder='big', signed=False)
             self.addMapEntry(section, bldata, archDependLen, "endLocalLVRTCodeBlocks", "u64" if archDependLen == 8 else "u32")
+
         #TODO inconsistency - codeEndOffset has arch-dependant size
         section.endCodeEndOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
         self.addMapEntry(section, bldata, 4, "endCodeEndOffset", "u32")
-        if isGreaterOrEqVersion(ver, 12,0,0,0):# Should be False for 11,0,0,4, True for 14,0,0,3
-            #TODO maybe it's just for 64-bit arch? a missing part of endCodeEndOffset?
+
+        if isGreaterOrEqVersion(ver, 13,0,0,0):# Should be False for 12,0,0,4, True for 14,0,0,3
+            #TODO maybe for 64-bit arch it's a missing part of endCodeEndOffset?
             section.endProp5 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             self.addMapEntry(section, bldata, 4, "endProp5", "u32")
         pass
@@ -6060,13 +6063,13 @@ class VICD(CompleteBlock):
         data_buf += section.endVerifier[:4]
         data_buf += int(section.endProp1).to_bytes(4, byteorder='big', signed=False)
 
-        if isGreaterOrEqVersion(ver, 7,0,0,0):# Should be False for LV 6,0,0,2, True for 7,1,0,3
+        if isGreaterOrEqVersion(ver, 7,0,0,0):
             data_buf += int(section.endSignatureName).to_bytes(archDependLen, byteorder='big', signed=False)
             data_buf += int(section.endLocalLVRTCodeBlocks).to_bytes(archDependLen, byteorder='big', signed=False)
 
         data_buf += int(section.endCodeEndOffset).to_bytes(4, byteorder=archEndianness, signed=False)
 
-        if isGreaterOrEqVersion(ver, 12,0,0,0):# Should be False for 11,0,0,4, True for 14,0,0,3
+        if isGreaterOrEqVersion(ver, 13,0,0,0):
             data_buf += int(section.endProp5).to_bytes(4, byteorder='big', signed=False)
         return data_buf
 
@@ -6076,10 +6079,10 @@ class VICD(CompleteBlock):
 
         exp_whole_len = 0
         exp_whole_len += 4 + 4
-        if isGreaterOrEqVersion(ver, 7,0,0,0):# Should be False for LV 6,0,0,2, True for 7,1,0,3
+        if isGreaterOrEqVersion(ver, 7,0,0,0):
             exp_whole_len += archDependLen + archDependLen
         exp_whole_len += 4
-        if isGreaterOrEqVersion(ver, 12,0,0,0):# Should be False for 11,0,0,4, True for 14,0,0,3
+        if isGreaterOrEqVersion(ver, 13,0,0,0):
             exp_whole_len += 4
         return exp_whole_len
 
