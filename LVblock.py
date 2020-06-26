@@ -2803,10 +2803,16 @@ class FTAB(CompleteBlock):
 
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
+        ver = self.vi.getFileVersion()
 
-        section.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        section.prop3 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        if isGreaterOrEqVersion(ver, 14,0,0,0):
+            section.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            section.prop3 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        else:
+            section.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
+            section.prop3 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
 
         if count > 127:
             raise RuntimeError("Font table consists of {:d} fonts, limit is {:d}"\
@@ -2818,6 +2824,11 @@ class FTAB(CompleteBlock):
             fnEntry.prop2 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
             fnEntry.prop3 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
             fnEntry.prop4 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+            fnEntry.prop5 = 0
+            fnEntry.prop6 = 0
+            fnEntry.prop7 = 0
+            fnEntry.prop8 = 0
+            fnEntry.name = b''
             # Font entry has either 12 or 16 bytes
             if (section.prop1 & 0x00010000) == 0:
                 fnEntry.prop5 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
@@ -2830,6 +2841,23 @@ class FTAB(CompleteBlock):
         for fnEntry in section.content:
             bldata.seek(fnEntry.nameOffs)
             fnEntry.name = readPStr(bldata, 1, self.po)
+
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
+        section_elem.set("Prop1", "0x{:04x}".format(section.prop1))
+        section_elem.set("Prop3", "{:d}".format(section.prop3))
+
+        for fnEntry in section.content:
+            subelem = ET.SubElement(section_elem,"Font")
+            subelem.set("Prop2", "{:d}".format(fnEntry.prop2))
+            subelem.set("Prop3", "{:d}".format(fnEntry.prop3))
+            subelem.set("Prop4", "{:d}".format(fnEntry.prop4))
+            subelem.set("Prop5", "{:d}".format(fnEntry.prop5))
+            subelem.set("Prop6", "{:d}".format(fnEntry.prop6))
+            subelem.set("Prop7", "{:d}".format(fnEntry.prop7))
+            subelem.set("Prop8", "{:d}".format(fnEntry.prop8))
+            subelem.text = fnEntry.name.decode(self.vi.textEncoding)
+
+        raise NotImplementedError("Re-creating binary is not fully implemented")
 
 
 class HIST(Block):
