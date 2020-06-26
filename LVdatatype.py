@@ -2319,7 +2319,10 @@ class TDObjectRef(TDObjectContainer):
         exp_whole_len = 4
         exp_whole_len += 2
         if self.ref_obj is not None:
-            exp_whole_len += self.ref_obj.expectedRSRCSize()
+            ref_obj_len = self.ref_obj.expectedRSRCSize()
+            if ref_obj_len is None:
+                return None
+            exp_whole_len += ref_obj_len
         exp_whole_len += self.expectedRSRCLabelSize()
         return exp_whole_len
 

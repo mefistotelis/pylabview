@@ -344,7 +344,8 @@ class RefnumBase_RCIOOMId(RefnumBase_RC):
         data_buf += self.td_obj.ident
         if ((strlen+1) % 2) > 0:
             data_buf += b'\0' # padding
-        if isGreaterOrEqVersion(ver, 8,5):
+        if isGreaterOrEqVersion(ver, 8,2,0,4) and \
+          (isSmallerVersion(ver, 8,2,1,1) or isGreaterOrEqVersion(ver, 8,5,0,1)):
             firstclient = self.td_obj.firstclient
             data_buf += int(firstclient).to_bytes(2, byteorder='big')
         else:
@@ -369,6 +370,33 @@ class RefnumBase_RCIOOMId(RefnumBase_RC):
             eprint("{:s}: Warning: TD {:d} type 0x{:02x} has more clients than supported"\
               .format(self.vi.src_fname, self.td_obj.index, self.td_obj.otype))
         return data_buf
+
+    def expectedRSRCTypeOMIdStartSize(self):
+        ver = self.vi.getFileVersion()
+        exp_whole_len = 0
+        strlen = len(self.td_obj.ident)
+        exp_whole_len += 1 + strlen
+        if ((strlen+1) % 2) > 0:
+            exp_whole_len += 1
+        if isGreaterOrEqVersion(ver, 8,2,0,4) and \
+          (isSmallerVersion(ver, 8,2,1,1) or isGreaterOrEqVersion(ver, 8,5,0,1)):
+            firstclient = self.td_obj.firstclient
+            exp_whole_len += 2
+        else:
+            firstclient = 0
+        # Make list of clients which reference other connectors
+        ref_clients = []
+        for client in self.td_obj.clients:
+            if client.index >= 0:
+                ref_clients.append(client.index)
+        if firstclient != 0 and len(ref_clients) > 0:
+            exp_whole_len += ( 2 if (ref_clients[0] <= 0x7fff) else 4 )
+            ref_clients = ref_clients[1:]
+        return exp_whole_len, ref_clients, firstclient
+
+    def expectedRSRCTypeOMIdSize(self):
+        exp_whole_len, ref_clients, firstclient = self.expectedRSRCTypeOMIdStartSize()
+        return exp_whole_len
 
 
 class RefnumDataLog(RefnumBase_SimpleCliSingle):
@@ -466,7 +494,7 @@ class RefnumAutoRef(RefnumBase):
             data_buf += int(guid.classID0).to_bytes(4, byteorder='big')
             data_buf += int(guid.classID4).to_bytes(2, byteorder='big')
             data_buf += int(guid.classID6).to_bytes(2, byteorder='big')
-            data_buf += guid.classID8
+            data_buf += guid.classID8[:8]
         if self.td_obj.ref_flags != 0:
             data_buf += int(self.td_obj.field20).to_bytes(4, byteorder='big')
             data_buf += int(self.td_obj.field24).to_bytes(4, byteorder='big')
@@ -474,8 +502,9 @@ class RefnumAutoRef(RefnumBase):
 
     def expectedRSRCSize(self):
         exp_whole_len = 1
-        exp_whole_len += 1 + 16 * len(self.td_obj.items)
-        if self.td_obj.ref_flags != 0: exp_whole_len += 4 + 4
+        exp_whole_len += 1 + (4+4+2+2+8) * len(self.td_obj.items)
+        if self.td_obj.ref_flags != 0:
+            exp_whole_len += 4 + 4
         return exp_whole_len
 
     def initWithXML(self, conn_elem):
@@ -686,6 +715,13 @@ class RefnumIVIRef(RefnumBase_RCIOOMId):
             data_buf += int(cli_index).to_bytes(2, byteorder='big')
         return data_buf
 
+    def expectedRSRCSize(self):
+        exp_whole_len, ref_clients, firstclient = self.expectedRSRCTypeOMIdStartSize()
+        exp_whole_len += 2
+        for cli_index in ref_clients:
+            exp_whole_len += ( 2 if (ref_clients[0] <= 0x7fff) else 4 )
+        return exp_whole_len
+
 
 class RefnumUDPNetConn(RefnumBase):
     """ UDP Network Connection Refnum Connector
@@ -752,6 +788,16 @@ class RefnumUsrDefined(RefnumBase_RCIOOMId):
         if ((strlen+1) % 2) > 0:
             data_buf += b'\0' # padding
         return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len, ref_clients, firstclient = self.expectedRSRCTypeOMIdStartSize()
+
+        strlen = len(self.td_obj.typeName)
+        exp_whole_len += 1 + strlen
+        if ((strlen+1) % 2) > 0:
+            exp_whole_len += 1
+
+        return exp_whole_len
 
     def initWithXML(self, conn_elem):
         super().initWithXML(conn_elem)
@@ -984,6 +1030,10 @@ class RefnumCallback(RefnumBase_RCIOOMId):
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = self.prepareRSRCTypeOMId(avoid_recompute=avoid_recompute)
         return data_buf
+
+    def expectedRSRCSize(self):
+        exp_whole_len = self.expectedRSRCTypeOMIdSize()
+        return exp_whole_len
 
 
 class RefnumUsrDefTagFlt(RefnumBase_RCIOOMId):
