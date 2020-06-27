@@ -2817,11 +2817,7 @@ class FTAB(CompleteBlock):
         section = self.sections[section_num]
         ver = self.vi.getFileVersion()
 
-        if isGreaterOrEqVersion(ver, 14,0,0,0):
-            section.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            section.prop3 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        else:
+        if True:
             section.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             section.prop3 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
             count = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
