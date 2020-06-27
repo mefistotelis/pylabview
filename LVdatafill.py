@@ -1548,7 +1548,7 @@ class DataFillUDClassInst(DataFill):
             raise RuntimeError("Data type {} claims to contain {} fields, expected below {}"\
               .format(self.getXMLTagName(), numLevels, self.po.typedesc_list_limit))
 
-        if True:
+        if numLevels > 0:
             self.libName = readPStr(bldata, 4, self.po)
 
         numDLevels = numLevels
@@ -1576,7 +1576,7 @@ class DataFillUDClassInst(DataFill):
         numLevels = len(self.value)
         data_buf += int(numLevels).to_bytes(4, byteorder='big', signed=False)
 
-        if True:
+        if numLevels > 0:
             data_buf += preparePStr(self.libName, 4, self.po)
 
         for libVersion in self.value:
@@ -1593,7 +1593,8 @@ class DataFillUDClassInst(DataFill):
     def expectedRSRCSize(self):
         exp_whole_len = 0
         exp_whole_len += 4
-        if True:
+        numLevels = len(self.value)
+        if numLevels > 0:
             str_len = 1 + len(self.libName)
             uneven_len = str_len % 4
             if uneven_len > 0:
