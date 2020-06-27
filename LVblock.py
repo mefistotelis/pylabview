@@ -6059,7 +6059,7 @@ class VICD(CompleteBlock):
             section.block_coding = BLOCK_CODING.NONE
 
     @staticmethod
-    def addMapEntry(section, fh, eSize, eName, eKind):
+    def addMapEntry(section, eOffs, eSize, eName, eKind):
         """ Adds element to a MAP array for the file.
 
         Uses name mangling from MsVS. Not that I like it, it's just the most
@@ -6084,7 +6084,13 @@ class VICD(CompleteBlock):
             fullName = "?{}@@3{}_KA".format(eName, eArr)
         else:
             fullName = "{}".format(eName)
-        section.ct_map.append( (fh.tell()-eSize, eSize, fullName,) )
+        section.ct_map.append( (eOffs, eSize, fullName,) )
+
+    @staticmethod
+    def addMapEntryBeforeFH(section, fh, eSize, eName, eKind):
+        """ Adds element to a MAP array at offset before file handle pos.
+        """
+        VICD.addMapEntry(section, fh.tell()-eSize, eSize, eName, eKind)
 
     @staticmethod
     def printMap(section, fh):
@@ -6098,14 +6104,13 @@ class VICD(CompleteBlock):
 
         initProcOffset = bldata.read(4)
         self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.initProcOffset")
-        #self.addMapEntry(section, bldata, 4, "initProcOffset", "u32")
         section.codeID = bldata.read(4)
         self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.codeID")
-        #self.addMapEntry(section, bldata, 4, "codeID", "u8[]")
         archDependLen = 8 if self.isX64(section_num) else 4
         archEndianness = 'little' if self.isLE(section_num) else 'big'
         if isGreaterOrEqVersion(ver, 12,0,0,0):# Should be False for LV 11,0,0,4, True for 14,0,0,3
             section.initProcOffset = int.from_bytes(initProcOffset, byteorder=archEndianness, signed=False)
+            self.addMapEntry(section, section.initProcOffset, 1, "initProc", "proc")
             section.pTabOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.pTabOffset")
             section.codeFlags = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
@@ -6126,6 +6131,7 @@ class VICD(CompleteBlock):
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.signatureName")
         else: # Lowest version tested with this is LV 6,0,0,2
             section.initProcOffset = int.from_bytes(initProcOffset, byteorder=archEndianness, signed=False)
+            self.addMapEntry(section, section.initProcOffset, 1, "initProc", "proc")
             section.pTabOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.pTabOffset")
             section.codeFlags = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
@@ -6426,7 +6432,7 @@ class VICD(CompleteBlock):
 
         section.content = ( b'\0' * headLen ) # fill header with zeros in stored binary data
         section.content += bldata.read(section.pTabOffset - headLen)
-        self.addMapEntry(section, bldata, section.pTabOffset - headLen, "codeBlob", "VarElemLenArray")
+        self.addMapEntryBeforeFH(section, bldata, section.pTabOffset - headLen, "codeBlob", "VarElemLenArray")
 
         patchesPos = bldata.tell()
         try:
