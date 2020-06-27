@@ -284,14 +284,32 @@ class RefnumBase_RC(RefnumBase):
             ver = decodeVersion(0x09000000)
         data_buf = self.prepareRSRCTypeOMId(avoid_recompute=avoid_recompute)
         # Now LVVariant
-        if isGreaterOrEqVersion(ver, 8,5) and \
-          (isSmallerVersion(ver, 8,5,2) or isGreaterOrEqVersion(ver, 8,6,0)):
+        if isGreaterOrEqVersion(ver, 8,5,0,4) and \
+          (isSmallerVersion(ver, 8,5,1,1) or isGreaterOrEqVersion(ver, 8,6,0,1)):
             for obj in self.td_obj.objects:
                 if not isinstance(obj, LVclasses.LVVariant):
                     continue
                 data_buf += obj.prepareRSRCData(avoid_recompute=avoid_recompute)
                 break
         return data_buf
+
+    def expectedRSRCTypeOMIdSize(self):
+        exp_whole_len = 0
+        return exp_whole_len
+
+    def expectedRSRCSize(self):
+        ver = self.vi.getFileVersion()
+
+        exp_whole_len = self.expectedRSRCTypeOMIdSize()
+
+        if isGreaterOrEqVersion(ver, 8,5,0,4) and \
+          (isSmallerVersion(ver, 8,5,1,1) or isGreaterOrEqVersion(ver, 8,6,0,1)):
+            for obj in self.td_obj.objects:
+                if not isinstance(obj, LVclasses.LVVariant):
+                    continue
+                exp_whole_len += obj.expectedRSRCSize()
+                break
+        return exp_whole_len
 
     def initWithXML(self, conn_elem):
         self.td_obj.ident = conn_elem.get("Ident").encode(encoding='ascii')
@@ -305,6 +323,11 @@ class RefnumBase_RC(RefnumBase):
 
 
 class RefnumBase_RCIOOMId(RefnumBase_RC):
+    """ Base class for RCIOOMId types
+
+    This class and descendants do not need to re-define methods prepared in base class.
+    It should be enough to overload *TypeOMId*() methods.
+    """
     def __init__(self, *args):
         super().__init__(*args)
 
@@ -712,15 +735,25 @@ class RefnumIVIRef(RefnumBase_RCIOOMId):
         data_buf, ref_clients, firstclient = self.prepareRSRCTypeOMIdStart(avoid_recompute=avoid_recompute)
         data_buf += int(len(ref_clients)).to_bytes(2, byteorder='big')
         for cli_index in ref_clients:
-            data_buf += int(cli_index).to_bytes(2, byteorder='big')
+            data_buf += prepareVariableSizeFieldU2p2(cli_index)
         return data_buf
 
-    def expectedRSRCSize(self):
+    def expectedRSRCTypeOMIdSize(self):
         exp_whole_len, ref_clients, firstclient = self.expectedRSRCTypeOMIdStartSize()
         exp_whole_len += 2
         for cli_index in ref_clients:
             exp_whole_len += ( 2 if (ref_clients[0] <= 0x7fff) else 4 )
         return exp_whole_len
+
+    def initWithXML(self, conn_elem):
+        super().initWithXML(conn_elem)
+        # Clients import is covered in TDObjectRef
+        pass
+
+    def exportXML(self, conn_elem, fname_base):
+        super().exportXML(conn_elem, fname_base)
+        # Clients export is covered in TDObjectRef
+        pass
 
 
 class RefnumUDPNetConn(RefnumBase):
@@ -789,14 +822,12 @@ class RefnumUsrDefined(RefnumBase_RCIOOMId):
             data_buf += b'\0' # padding
         return data_buf
 
-    def expectedRSRCSize(self):
+    def expectedRSRCTypeOMIdSize(self):
         exp_whole_len, ref_clients, firstclient = self.expectedRSRCTypeOMIdStartSize()
-
         strlen = len(self.td_obj.typeName)
         exp_whole_len += 1 + strlen
         if ((strlen+1) % 2) > 0:
             exp_whole_len += 1
-
         return exp_whole_len
 
     def initWithXML(self, conn_elem):
@@ -1019,6 +1050,8 @@ class RefnumCallback(RefnumBase_RCIOOMId):
     """ Callback Refnum Connector
 
     Usage unknown.
+    Unlike others RCIOOMId types, this one does not store
+    a variant. So base methods had to be re-defined.
     """
     def __init__(self, *args):
         super().__init__(*args)
