@@ -2903,6 +2903,58 @@ class FTAB(CompleteBlock):
 
         return data_buf
 
+    def initWithXMLSectionFont(self, section, font_elem):
+        section_num = section.start.section_idx
+
+        fnEntry = self.newFontEntry()
+        tmp = font_elem.get("Prop2")
+        if tmp is not None:
+            fnEntry.prop2 = int(tmp, 0)
+        tmp = font_elem.get("Prop3")
+        if tmp is not None:
+            fnEntry.prop3 = int(tmp, 0)
+        tmp = font_elem.get("Prop4")
+        if tmp is not None:
+            fnEntry.prop4 = int(tmp, 0)
+        tmp = font_elem.get("Prop5")
+        if tmp is not None:
+            fnEntry.prop5 = int(tmp, 0)
+        tmp = font_elem.get("Prop6")
+        if tmp is not None:
+            fnEntry.prop6 = int(tmp, 0)
+        tmp = font_elem.get("Prop7")
+        if tmp is not None:
+            fnEntry.prop7 = int(tmp, 0)
+        tmp = font_elem.get("Prop8")
+        if tmp is not None:
+            fnEntry.prop8 = int(tmp, 0)
+        section.content.append(fnEntry)
+
+        for subelem in font_elem:
+            if (subelem.tag == "Name"):
+                if subelem.text is not None:
+                    fnEntry.name = subelem.text.encode(self.vi.textEncoding)
+                else: # If tag exist, but is empty - we have name, but it's zero size
+                    fnEntry.name = b''
+            else:
+                raise AttributeError("Font contains unexpected tag")
+        return fnEntry
+
+    def exportXMLSectionFont(self, section_elem, section_num, section, fnEntry, fname_base):
+        font_elem = ET.SubElement(section_elem,"Font")
+        font_elem.set("Prop2", "{:d}".format(fnEntry.prop2))
+        font_elem.set("Prop3", "{:d}".format(fnEntry.prop3))
+        font_elem.set("Prop4", "{:d}".format(fnEntry.prop4))
+        if (section.prop1 & 0x00010000) == 0:
+            font_elem.set("Prop5", "{:d}".format(fnEntry.prop5))
+        else:
+            font_elem.set("Prop6", "{:d}".format(fnEntry.prop6))
+            font_elem.set("Prop7", "{:d}".format(fnEntry.prop7))
+            font_elem.set("Prop8", "{:d}".format(fnEntry.prop8))
+        if fnEntry.name is not None:
+            subelem = ET.SubElement(font_elem,"Name")
+            subelem.text = fnEntry.name.decode(self.vi.textEncoding)
+
     def initWithXMLSectionData(self, section, section_elem):
         section_num = section.start.section_idx
         if (self.po.verbose > 2):
@@ -2916,31 +2968,7 @@ class FTAB(CompleteBlock):
             if (subelem.tag == "NameObject"):
                 pass # Items parsed somewhere else
             elif (subelem.tag == "Font"):
-                fnEntry = self.newFontEntry()
-                tmp = subelem.get("Prop2")
-                if tmp is not None:
-                    fnEntry.prop2 = int(tmp, 0)
-                tmp = subelem.get("Prop3")
-                if tmp is not None:
-                    fnEntry.prop3 = int(tmp, 0)
-                tmp = subelem.get("Prop4")
-                if tmp is not None:
-                    fnEntry.prop4 = int(tmp, 0)
-                tmp = subelem.get("Prop5")
-                if tmp is not None:
-                    fnEntry.prop5 = int(tmp, 0)
-                tmp = subelem.get("Prop6")
-                if tmp is not None:
-                    fnEntry.prop6 = int(tmp, 0)
-                tmp = subelem.get("Prop7")
-                if tmp is not None:
-                    fnEntry.prop7 = int(tmp, 0)
-                tmp = subelem.get("Prop8")
-                if tmp is not None:
-                    fnEntry.prop8 = int(tmp, 0)
-                if subelem.text is not None:
-                    fnEntry.name = subelem.text.encode(self.vi.textEncoding)
-                section.content.append(fnEntry)
+                self.initWithXMLSectionFont(section, subelem)
             else:
                 raise AttributeError("Section contains unexpected tag")
         pass
@@ -2950,17 +2978,7 @@ class FTAB(CompleteBlock):
         section_elem.set("Prop3", "{:d}".format(section.prop3))
 
         for fnEntry in section.content:
-            subelem = ET.SubElement(section_elem,"Font")
-            subelem.set("Prop2", "{:d}".format(fnEntry.prop2))
-            subelem.set("Prop3", "{:d}".format(fnEntry.prop3))
-            subelem.set("Prop4", "{:d}".format(fnEntry.prop4))
-            if (section.prop1 & 0x00010000) == 0:
-                subelem.set("Prop5", "{:d}".format(fnEntry.prop5))
-            else:
-                subelem.set("Prop6", "{:d}".format(fnEntry.prop6))
-                subelem.set("Prop7", "{:d}".format(fnEntry.prop7))
-                subelem.set("Prop8", "{:d}".format(fnEntry.prop8))
-            subelem.text = fnEntry.name.decode(self.vi.textEncoding)
+            self.exportXMLSectionFont(section_elem, section_num, section, fnEntry, fname_base)
         pass
 
 
