@@ -2810,7 +2810,7 @@ class FTAB(CompleteBlock):
         fnEntry.prop6 = 0
         fnEntry.prop7 = 0
         fnEntry.prop8 = 0
-        fnEntry.name = b''
+        fnEntry.name = None
         return fnEntry
 
     def parseRSRCSectionData(self, section_num, bldata):
@@ -2845,6 +2845,7 @@ class FTAB(CompleteBlock):
 
         for i, fnEntry in enumerate(section.content):
             nameOffs = nameOffsList[i]
+            if nameOffs == 0: continue
             bldata.seek(nameOffs)
             fnEntry.name = readPStr(bldata, 1, self.po)
         # At the end of this function, we should place file pointer at end of the data.
@@ -2875,8 +2876,11 @@ class FTAB(CompleteBlock):
         nameOffsList = []
         namesData = b''
         for fnEntry in section.content:
-            nameOffsList.append(nameOffsStart+len(namesData))
-            namesData += preparePStr(fnEntry.name, 1, self.po)
+            if fnEntry.name is None:
+                nameOffsList.append(0)
+            else:
+                nameOffsList.append(nameOffsStart+len(namesData))
+                namesData += preparePStr(fnEntry.name, 1, self.po)
 
         for i, fnEntry in enumerate(section.content):
             nameOffs = nameOffsList[i]
@@ -2897,7 +2901,6 @@ class FTAB(CompleteBlock):
 
         data_buf += namesData
 
-        raise NotImplementedError("Re-creating binary is not fully implemented")
         return data_buf
 
     def initWithXMLSectionData(self, section, section_elem):
@@ -2914,25 +2917,25 @@ class FTAB(CompleteBlock):
                 pass # Items parsed somewhere else
             elif (subelem.tag == "Font"):
                 fnEntry = self.newFontEntry()
-                tmp = int(subelem.get("Prop2"), 0)
+                tmp = subelem.get("Prop2")
                 if tmp is not None:
                     fnEntry.prop2 = int(tmp, 0)
-                tmp = int(subelem.get("Prop3"), 0)
+                tmp = subelem.get("Prop3")
                 if tmp is not None:
                     fnEntry.prop3 = int(tmp, 0)
-                tmp = int(subelem.get("Prop4"), 0)
+                tmp = subelem.get("Prop4")
                 if tmp is not None:
                     fnEntry.prop4 = int(tmp, 0)
-                tmp = int(subelem.get("Prop5"), 0)
+                tmp = subelem.get("Prop5")
                 if tmp is not None:
                     fnEntry.prop5 = int(tmp, 0)
-                tmp = int(subelem.get("Prop6"), 0)
+                tmp = subelem.get("Prop6")
                 if tmp is not None:
                     fnEntry.prop6 = int(tmp, 0)
-                tmp = int(subelem.get("Prop7"), 0)
+                tmp = subelem.get("Prop7")
                 if tmp is not None:
                     fnEntry.prop7 = int(tmp, 0)
-                tmp = int(subelem.get("Prop8"), 0)
+                tmp = subelem.get("Prop8")
                 if tmp is not None:
                     fnEntry.prop8 = int(tmp, 0)
                 if subelem.text is not None:
@@ -2958,8 +2961,7 @@ class FTAB(CompleteBlock):
                 subelem.set("Prop7", "{:d}".format(fnEntry.prop7))
                 subelem.set("Prop8", "{:d}".format(fnEntry.prop8))
             subelem.text = fnEntry.name.decode(self.vi.textEncoding)
-
-        raise NotImplementedError("Re-creating binary is not fully implemented")
+        pass
 
 
 class HIST(Block):
