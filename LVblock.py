@@ -2858,11 +2858,7 @@ class FTAB(CompleteBlock):
         data_buf = b''
 
         count = len(section.content)
-        if isGreaterOrEqVersion(ver, 14,0,0,0):
-            data_buf += int(section.prop1).to_bytes(4, byteorder='big', signed=False)
-            data_buf += int(count).to_bytes(2, byteorder='big', signed=False)
-            data_buf += int(section.prop3).to_bytes(2, byteorder='big', signed=False)
-        else:
+        if True:
             data_buf += int(section.prop1).to_bytes(4, byteorder='big', signed=False)
             data_buf += int(section.prop3).to_bytes(2, byteorder='big', signed=False)
             data_buf += int(count).to_bytes(2, byteorder='big', signed=False)
