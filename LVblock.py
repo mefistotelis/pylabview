@@ -31,6 +31,7 @@ import LVdatafill
 import LVlinkinfo
 import LVheap
 import LVparts
+import LVcode
 import LVrsrcontainer
 
 class BLOCK_CODING(enum.Enum):
@@ -6061,25 +6062,7 @@ class VICD(CompleteBlock):
         Uses name mangling from MsVS. Not that I like it, it's just the most
         popular ATM - disassembler will read them.
         """
-        eArr = "PA" if  eKind.endswith("[]") else ""
-        if eKind.startswith("i8"):
-            fullName = "?{}@@3{}CA".format(eName, eArr)
-        elif eKind.startswith("i16"):
-            fullName = "?{}@@3{}FA".format(eName, eArr)
-        elif eKind.startswith("i32"):
-            fullName = "?{}@@3{}HA".format(eName, eArr)
-        elif eKind.startswith("i64"):
-            fullName = "?{}@@3{}_JA".format(eName, eArr)
-        elif eKind.startswith("u8"):
-            fullName = "?{}@@3{}EA".format(eName, eArr)
-        elif eKind.startswith("u16"):
-            fullName = "?{}@@3{}GA".format(eName, eArr)
-        elif eKind.startswith("u32"):
-            fullName = "?{}@@3{}IA".format(eName, eArr)
-        elif eKind.startswith("u64"):
-            fullName = "?{}@@3{}_KA".format(eName, eArr)
-        else:
-            fullName = "{}".format(eName)
+        fullName = LVcode.mangleDataName(eName, eKind)
         section.ct_map.append( (eOffs, eSize, fullName,) )
 
     @staticmethod
@@ -6106,7 +6089,8 @@ class VICD(CompleteBlock):
         archEndianness = 'little' if self.isLE(section_num) else 'big'
         if isGreaterOrEqVersion(ver, 12,0,0,0):# Should be False for LV 11,0,0,4, True for 14,0,0,3
             section.initProcOffset = int.from_bytes(initProcOffset, byteorder=archEndianness, signed=False)
-            self.addMapEntry(section, section.initProcOffset, 1, "initCodePtrsProc", "proc")
+            mapItemName = LVcode.getVICodeProcName(LVcode.VICodePtrs_LV13.InitCodePtrsProc)
+            self.addMapEntry(section, section.initProcOffset, 1, mapItemName, "proc")
             section.pTabOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.pTabOffset")
             section.codeFlags = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
@@ -6127,7 +6111,8 @@ class VICD(CompleteBlock):
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.signatureName")
         else: # Lowest version tested with this is LV 6,0,0,2
             section.initProcOffset = int.from_bytes(initProcOffset, byteorder=archEndianness, signed=False)
-            self.addMapEntry(section, section.initProcOffset, 1, "initCodePtrsProc", "proc")
+            mapItemName = LVcode.getVICodeProcName(LVcode.VICodePtrs_LV6.InitCodePtrsProc)
+            self.addMapEntry(section, section.initProcOffset, 1, mapItemName, "proc")
             section.pTabOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.pTabOffset")
             section.codeFlags = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
@@ -6285,7 +6270,7 @@ class VICD(CompleteBlock):
             patch.relocs = []
             section.patches.append(patch)
 
-            if (isGreaterOrEqVersion(ver, 14,0,0,0) and (patch.ident == 0x20000 or patch.ident == 0x20007)) or \
+            if (isGreaterOrEqVersion(ver, 10,0,0,0) and (patch.ident == 0x20000 or patch.ident == 0x20007)) or \
                (isGreaterOrEqVersion(ver,  8,6,0,0) and (patch.ident == 0xffffffff)):
                 patch.field2 = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
                 self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Patch[{}].Field2".format(pidx))
@@ -6331,7 +6316,7 @@ class VICD(CompleteBlock):
         for patch in section.patches:
             data_buf += int(patch.offs).to_bytes(4, byteorder=archEndianness, signed=False)
             data_buf += int(patch.ident).to_bytes(4, byteorder=archEndianness, signed=False)
-            if (isGreaterOrEqVersion(ver, 14,0,0,0) and (patch.ident == 0x20000 or patch.ident == 0x20007)) or \
+            if (isGreaterOrEqVersion(ver, 10,0,0,0) and (patch.ident == 0x20000 or patch.ident == 0x20007)) or \
                (isGreaterOrEqVersion(ver,  8,6,0,0) and (patch.ident == 0xffffffff)):
                 data_buf += int(patch.field2).to_bytes(4, byteorder=archEndianness, signed=False)
                 relocs = patch.relocs # no sorted() - preserve original order

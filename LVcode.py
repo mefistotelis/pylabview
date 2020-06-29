@@ -205,3 +205,43 @@ class VICodePtrs_LV13(enum.IntEnum):
     nRunProcs		= 29
     RunPtrs			= 30
 
+
+def mangleDataName(eName, eKind):
+    """ Prepare symbol name for MAP file.
+
+    Uses name mangling from MsVS. Not that I like it, it's just the most
+    popular ATM - disassembler will read them.
+    """
+    eArr = "PA" if  eKind.endswith("[]") else ""
+    if eKind.startswith("i8"):
+        fullName = "?{}@@3{}CA".format(eName, eArr)
+    elif eKind.startswith("i16"):
+        fullName = "?{}@@3{}FA".format(eName, eArr)
+    elif eKind.startswith("i32"):
+        fullName = "?{}@@3{}HA".format(eName, eArr)
+    elif eKind.startswith("i64"):
+        fullName = "?{}@@3{}_JA".format(eName, eArr)
+    elif eKind.startswith("u8"):
+        fullName = "?{}@@3{}EA".format(eName, eArr)
+    elif eKind.startswith("u16"):
+        fullName = "?{}@@3{}GA".format(eName, eArr)
+    elif eKind.startswith("u32"):
+        fullName = "?{}@@3{}IA".format(eName, eArr)
+    elif eKind.startswith("u64"):
+        fullName = "?{}@@3{}_KA".format(eName, eArr)
+    else:
+        fullName = "{}".format(eName)
+    return fullName
+
+def getVICodeProcName(viCodeItem):
+    if not isinstance(viCodeItem, enum.IntEnum):
+        return "Unkn{:02d}Proc".format(int(viCodeItem))
+    iName = viCodeItem.name
+    if True:
+        fullName = iName[0].lower()
+        for i in range(1,len(iName)-1):
+            if not (iName[i].isupper() and iName[i+1].isupper()):
+                break
+            fullName += iName[i].lower()
+        fullName += iName[i:]
+    return fullName
