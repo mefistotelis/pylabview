@@ -203,7 +203,7 @@ class VICodePtrs_LV13(enum.IntEnum):
     CopyConvertProcs = 27
     InitCodePtrsProc = 28
     nRunProcs		= 29
-    RunPtrs			= 30
+    RunProc			= 30
 
 
 def mangleDataName(eName, eKind):
@@ -233,15 +233,25 @@ def mangleDataName(eName, eKind):
         fullName = "{}".format(eName)
     return fullName
 
+def symbolStartFromLowCase(iName):
+    oName = iName[0].lower()
+    for i in range(1,len(iName)-1):
+        if not (iName[i].isupper() and iName[i+1].isupper()):
+            break
+        oName += iName[i].lower()
+    oName += iName[i:]
+    return oName
+
 def getVICodeProcName(viCodeItem):
     if not isinstance(viCodeItem, enum.IntEnum):
         return "Unkn{:02d}Proc".format(int(viCodeItem))
     iName = viCodeItem.name
-    if True:
-        fullName = iName[0].lower()
-        for i in range(1,len(iName)-1):
-            if not (iName[i].isupper() and iName[i+1].isupper()):
-                break
-            fullName += iName[i].lower()
-        fullName += iName[i:]
+    if viCodeItem in (VICodePtrs_LV5.InitCodePtrsProc,\
+      VICodePtrs_LV6.InitCodePtrsProc,VICodePtrs_LV7.InitCodePtrsProc,\
+      VICodePtrs_LV8.InitCodePtrsProc,VICodePtrs_LV12.InitCodePtrsProc,\
+      VICodePtrs_LV13.InitCodePtrsProc,):
+        fullName = str(len(iName)+1)+"_"+iName
+        fullName = "_Z"+fullName+"PP13VICodePtrsRec"
+    else:
+        fullName = "_"+iName
     return fullName

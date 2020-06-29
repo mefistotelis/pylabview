@@ -6056,20 +6056,16 @@ class VICD(CompleteBlock):
             section.block_coding = BLOCK_CODING.NONE
 
     @staticmethod
-    def addMapEntry(section, eOffs, eSize, eName, eKind):
+    def addMapEntry(section, eOffs, eSize, eName):
         """ Adds element to a MAP array for the file.
-
-        Uses name mangling from MsVS. Not that I like it, it's just the most
-        popular ATM - disassembler will read them.
         """
-        fullName = LVcode.mangleDataName(eName, eKind)
-        section.ct_map.append( (eOffs, eSize, fullName,) )
+        section.ct_map.append( (eOffs, eSize, eName,) )
 
     @staticmethod
-    def addMapEntryBeforeFH(section, fh, eSize, eName, eKind):
+    def addMapEntryBeforeFH(section, fh, eSize, eName):
         """ Adds element to a MAP array at offset before file handle pos.
         """
-        VICD.addMapEntry(section, fh.tell()-eSize, eSize, eName, eKind)
+        VICD.addMapEntry(section, fh.tell()-eSize, eSize, eName)
 
     @staticmethod
     def printMap(section, fh):
@@ -6090,7 +6086,7 @@ class VICD(CompleteBlock):
         if isGreaterOrEqVersion(ver, 12,0,0,0):# Should be False for LV 11,0,0,4, True for 14,0,0,3
             section.initProcOffset = int.from_bytes(initProcOffset, byteorder=archEndianness, signed=False)
             mapItemName = LVcode.getVICodeProcName(LVcode.VICodePtrs_LV13.InitCodePtrsProc)
-            self.addMapEntry(section, section.initProcOffset, 1, mapItemName, "proc")
+            self.addMapEntry(section, section.initProcOffset, 1, mapItemName)
             section.pTabOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.pTabOffset")
             section.codeFlags = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
@@ -6112,7 +6108,7 @@ class VICD(CompleteBlock):
         else: # Lowest version tested with this is LV 6,0,0,2
             section.initProcOffset = int.from_bytes(initProcOffset, byteorder=archEndianness, signed=False)
             mapItemName = LVcode.getVICodeProcName(LVcode.VICodePtrs_LV6.InitCodePtrsProc)
-            self.addMapEntry(section, section.initProcOffset, 1, mapItemName, "proc")
+            self.addMapEntry(section, section.initProcOffset, 1, mapItemName)
             section.pTabOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.pTabOffset")
             section.codeFlags = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
@@ -6413,7 +6409,7 @@ class VICD(CompleteBlock):
 
         section.content = ( b'\0' * headLen ) # fill header with zeros in stored binary data
         section.content += bldata.read(section.pTabOffset - headLen)
-        self.addMapEntryBeforeFH(section, bldata, section.pTabOffset - headLen, "codeBlob", "VarElemLenArray")
+        self.addMapEntryBeforeFH(section, bldata, section.pTabOffset - headLen, LVcode.mangleDataName("codeBlob", "VarElemLenArray"))
 
         patchesPos = bldata.tell()
         try:
