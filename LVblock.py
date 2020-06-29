@@ -6106,7 +6106,7 @@ class VICD(CompleteBlock):
         archEndianness = 'little' if self.isLE(section_num) else 'big'
         if isGreaterOrEqVersion(ver, 12,0,0,0):# Should be False for LV 11,0,0,4, True for 14,0,0,3
             section.initProcOffset = int.from_bytes(initProcOffset, byteorder=archEndianness, signed=False)
-            self.addMapEntry(section, section.initProcOffset, 1, "initProc", "proc")
+            self.addMapEntry(section, section.initProcOffset, 1, "initCodePtrsProc", "proc")
             section.pTabOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.pTabOffset")
             section.codeFlags = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
@@ -6127,7 +6127,7 @@ class VICD(CompleteBlock):
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.signatureName")
         else: # Lowest version tested with this is LV 6,0,0,2
             section.initProcOffset = int.from_bytes(initProcOffset, byteorder=archEndianness, signed=False)
-            self.addMapEntry(section, section.initProcOffset, 1, "initProc", "proc")
+            self.addMapEntry(section, section.initProcOffset, 1, "initCodePtrsProc", "proc")
             section.pTabOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.pTabOffset")
             section.codeFlags = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
