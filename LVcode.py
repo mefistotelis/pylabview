@@ -16,7 +16,7 @@ from ctypes import *
 
 import LVmisc
 
-class VICodePtrs_LV5(enum.IntEnum):
+class VICodePtrs_LV5(enum.Enum):
     """ List of VI Code Pointers from LV5
 
     These callbacks can be set from InitCodePtrsProc within VI compiled code.
@@ -44,7 +44,7 @@ class VICodePtrs_LV5(enum.IntEnum):
     CRoutine	= 20
 
 
-class VICodePtrs_LV6(enum.IntEnum):
+class VICodePtrs_LV6(enum.Enum):
     """ List of VI Code Pointers from LV6 before LV6.1
 
     These callbacks can be set from InitCodePtrsProc within VI compiled code.
@@ -72,7 +72,7 @@ class VICodePtrs_LV6(enum.IntEnum):
     GoProc			= 19
 
 
-class VICodePtrs_LV7(enum.IntEnum):
+class VICodePtrs_LV7(enum.Enum):
     """ List of VI Code Pointers from LV6.1-LV7
 
     These callbacks can be set from InitCodePtrsProc within VI compiled code.
@@ -99,7 +99,7 @@ class VICodePtrs_LV7(enum.IntEnum):
     GoProc			= 19
 
 
-class VICodePtrs_LV8(enum.IntEnum):
+class VICodePtrs_LV8(enum.Enum):
     """ List of VI Code Pointers from LV8-LV11
 
     These callbacks can be set from InitCodePtrsProc within VI compiled code.
@@ -130,7 +130,7 @@ class VICodePtrs_LV8(enum.IntEnum):
     ReleaseDSStaticProc	= 23
 
 
-class VICodePtrs_LV12(enum.IntEnum):
+class VICodePtrs_LV12(enum.Enum):
     """ List of VI Code Pointers from LV12
 
     These callbacks can be set from InitCodePtrsProc within VI compiled code.
@@ -167,7 +167,7 @@ class VICodePtrs_LV12(enum.IntEnum):
     CodeErrHandlingProc = 28
 
 
-class VICodePtrs_LV13(enum.IntEnum):
+class VICodePtrs_LV13(enum.Enum):
     """ List of VI Code Pointers from LV13-LV20
 
     These callbacks can be set from InitCodePtrsProc within VI compiled code.
@@ -243,15 +243,51 @@ def symbolStartFromLowCase(iName):
     return oName
 
 def getVICodeProcName(viCodeItem):
-    if not isinstance(viCodeItem, enum.IntEnum):
+    if not isinstance(viCodeItem, enum.Enum):
         return "Unkn{:02d}Proc".format(int(viCodeItem))
     iName = viCodeItem.name
-    if viCodeItem in (VICodePtrs_LV5.InitCodePtrsProc,\
+    if viCodeItem in (VICodePtrs_LV5.ResetProc,\
+      VICodePtrs_LV6.ResetProc,VICodePtrs_LV7.ResetProc,\
+      VICodePtrs_LV8.ResetProc,VICodePtrs_LV12.ResetProc,\
+      VICodePtrs_LV13.ResetProc,):
+        fullName = str(len(iName)+1)+"_"+iName
+        fullName = "__ZL"+fullName+"P8DSHeaderP8QElement"
+    elif viCodeItem in (VICodePtrs_LV5.InitProc,\
+      VICodePtrs_LV6.InitProc,VICodePtrs_LV7.InitProc,\
+      VICodePtrs_LV8.InitProc,VICodePtrs_LV12.InitProc,\
+      VICodePtrs_LV13.InitProc,):
+        fullName = str(len(iName)+1)+"_"+iName
+        fullName = "__ZL"+fullName+"P8DSHeader"
+    elif viCodeItem in (VICodePtrs_LV5.ErrorStopProc,\
+      VICodePtrs_LV6.ErrorStopProc,VICodePtrs_LV7.ErrorStopProc,\
+      VICodePtrs_LV8.ErrorStopProc,VICodePtrs_LV12.ErrorStopProc,\
+      VICodePtrs_LV13.ErrorStopProc,):
+        fullName = str(len(iName)+1)+"_"+iName
+        fullName = "__ZL"+fullName+"P8DSHeaderllP17VirtualInstrument"
+    elif viCodeItem in (VICodePtrs_LV5.DCOCopyToOpProc,\
+      VICodePtrs_LV6.DCOCopyToOpProc,VICodePtrs_LV7.DCOCopyToOpProc,\
+      VICodePtrs_LV8.DCOCopyToOpProc,VICodePtrs_LV12.DCOCopyToOpProc,\
+      VICodePtrs_LV13.DCOCopyToOpProc,):
+        fullName = str(len(iName)+1)+"_"+iName
+        fullName = "__ZL"+fullName+"P8DSHeaderlPvlb"
+    elif viCodeItem in (VICodePtrs_LV5.DCOCopyFrOpProc,\
+      VICodePtrs_LV6.DCOCopyFrOpProc,VICodePtrs_LV7.DCOCopyFrOpProc,\
+      VICodePtrs_LV8.DCOCopyFrOpProc,VICodePtrs_LV12.DCOCopyFrOpProc,\
+      VICodePtrs_LV13.DCOCopyFrOpProc,):
+        fullName = str(len(iName)+1)+"_"+iName
+        fullName = "__ZL"+fullName+"P8DSHeaderlll"
+    elif viCodeItem in (VICodePtrs_LV5.InitCodePtrsProc,\
       VICodePtrs_LV6.InitCodePtrsProc,VICodePtrs_LV7.InitCodePtrsProc,\
       VICodePtrs_LV8.InitCodePtrsProc,VICodePtrs_LV12.InitCodePtrsProc,\
       VICodePtrs_LV13.InitCodePtrsProc,):
         fullName = str(len(iName)+1)+"_"+iName
         fullName = "_Z"+fullName+"PP13VICodePtrsRec"
+    elif viCodeItem in (\
+      VICodePtrs_LV6.RunProc,VICodePtrs_LV7.RunProc,\
+      VICodePtrs_LV8.RunProc,VICodePtrs_LV12.RunProc,\
+      VICodePtrs_LV13.RunProc,):
+        fullName = str(len(iName)+1)+"_"+iName
+        fullName = "_ZL"+fullName+"P8DSHeaderP8QElementl"
     else:
         fullName = "_"+iName
     return fullName

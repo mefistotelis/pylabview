@@ -6432,6 +6432,7 @@ class VICD(CompleteBlock):
         footerPos = bldata.tell()
         self.parseRSRCSectionFoot(section, section_num, archEndianness, archDependLen, bldata)
         self.appendPrintMapEntry(section, bldata.tell(), bldata.tell() - footerPos, 1, "Footer")
+        self.addMapEntriesForSwitchArrays(section_num)
 
     def prepareRSRCData(self, section_num):
         ver = self.vi.getFileVersion()
@@ -6661,6 +6662,36 @@ class VICD(CompleteBlock):
                 self.initWithXMLSectionPatches(section, subelem)
             else:
                 raise AttributeError("Section contains unexpected tag")
+        pass
+
+    def addMapEntriesForSwitchArrays(self, section_num):
+        """ Analyze relocations to add more symbols to MAP file
+
+        Multiple relocs next to each other mean switch array.
+        """
+        section = self.sections[section_num]
+
+        relocs = []
+        for patch in section.patches:
+            relocs.extend(patch.relocs)
+        if len(relocs) < 2:
+            return
+        relocs = sorted(relocs)
+        addrLen = 4 # TODO verify if it works for 64-bit arch
+
+        arrIdx = 0
+        arrStart = 0
+        arrEnd = arrStart
+        for i in range(1,len(relocs)):
+            if relocs[i] == relocs[i-1] + addrLen:
+                arrEnd = i
+            else:
+                if arrEnd - arrStart >= 3:
+                    arrIdx += 1
+                    mapItemName = "LJTI{:d}".format(arrIdx)
+                    self.addMapEntry(section, relocs[arrStart], 1, mapItemName)
+                arrStart = i
+                arrEnd = arrStart
         pass
 
     def checkSanity(self, section_num=None):
