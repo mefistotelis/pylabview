@@ -6669,6 +6669,7 @@ class VICD(CompleteBlock):
 
         Multiple relocs next to each other mean switch array.
         """
+        ver = self.vi.getFileVersion()
         section = self.sections[section_num]
 
         relocs = []
@@ -6679,6 +6680,7 @@ class VICD(CompleteBlock):
         relocs = sorted(relocs)
         addrLen = 4 # TODO verify if it works for 64-bit arch
 
+        # Find jump arrays
         arrIdx = 0
         arrStart = 0
         arrEnd = arrStart
@@ -6692,6 +6694,41 @@ class VICD(CompleteBlock):
                     self.addMapEntry(section, relocs[arrStart], 1, mapItemName)
                 arrStart = i
                 arrEnd = arrStart
+
+        # The rest will only work if initProcOffset is valid
+        if section.initProcOffset < 0x1c:
+            return
+        # It is also specific to x86 architecture
+        if not self.isX86(section_num):
+            return
+        # Find callback procedures
+        procStart = len(relocs)
+        for i in range(0,len(relocs)):
+            if relocs[i] > section.initProcOffset:
+                procStart = i
+                break
+        if procStart < len(relocs):
+            procIdx = 0
+            procAddr = relocs[procStart] - (2+addrLen)
+            # Check up to 31 relocation addresses
+            for i in range(procStart,min(len(relocs),procStart+32)):
+                if relocs[i] - procAddr < 2+addrLen: # we can't have difference lower than that, asm opcode has 2 bytes
+                    break
+                if relocs[i] - procAddr >= 2*(2+addrLen): # too large difference means end of procs list
+                    break
+                if relocs[i] + addrLen >= len(section.content): # outranged reloc
+                    break
+                procAddr = relocs[i]
+                if section.content[procAddr-3:procAddr-1] == b'\xc7\x40': # x86 opcode for MOV EAX+IMM8, IMM32
+                    procPtrShift = int.from_bytes(section.content[procAddr-1:procAddr], byteorder='little', signed=False)
+                    procOffset = int.from_bytes(section.content[procAddr:procAddr+addrLen], byteorder='little', signed=False)
+                elif section.content[procAddr-6:procAddr-4] == b'\xc7\x80': # x86 opcode for MOV EAX+IMM32, IMM32
+                    procPtrShift = int.from_bytes(section.content[procAddr-4:procAddr], byteorder='little', signed=False)
+                    procOffset = int.from_bytes(section.content[procAddr:procAddr+addrLen], byteorder='little', signed=False)
+                else:
+                    break
+                procViCode = LVcode.getProcPtrShiftVICode(procPtrShift,addrLen,ver)
+                self.addMapEntry(section, procOffset, 1, LVcode.getVICodeProcName(procViCode))
         pass
 
     def checkSanity(self, section_num=None):
@@ -6739,6 +6776,13 @@ class VICD(CompleteBlock):
         section = self.sections[section_num]
         return ( section.codeID in (b'i386', b'wx64', b'ux86', b'ux64',\
           b'm386', b'mx64', b'PWNT', b'axwn', b'axlx', b'axdu', b'ARM ',) )
+
+    def isX86(self, section_num=None):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+        return ( section.codeID in (b'i386', b'wx64', b'ux86', b'ux64',\
+          b'm386', b'mx64',) )
 
 
 class VITS(CompleteBlock):

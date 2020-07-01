@@ -15,8 +15,9 @@ import enum
 from ctypes import *
 
 import LVmisc
+from LVheap import ENUM_TAGS
 
-class VICodePtrs_LV5(enum.Enum):
+class VICodePtrs_LV5(ENUM_TAGS):
     """ List of VI Code Pointers from LV5
 
     These callbacks can be set from InitCodePtrsProc within VI compiled code.
@@ -44,7 +45,7 @@ class VICodePtrs_LV5(enum.Enum):
     CRoutine	= 20
 
 
-class VICodePtrs_LV6(enum.Enum):
+class VICodePtrs_LV6(ENUM_TAGS):
     """ List of VI Code Pointers from LV6 before LV6.1
 
     These callbacks can be set from InitCodePtrsProc within VI compiled code.
@@ -72,7 +73,7 @@ class VICodePtrs_LV6(enum.Enum):
     GoProc			= 19
 
 
-class VICodePtrs_LV7(enum.Enum):
+class VICodePtrs_LV7(ENUM_TAGS):
     """ List of VI Code Pointers from LV6.1-LV7
 
     These callbacks can be set from InitCodePtrsProc within VI compiled code.
@@ -99,7 +100,7 @@ class VICodePtrs_LV7(enum.Enum):
     GoProc			= 19
 
 
-class VICodePtrs_LV8(enum.Enum):
+class VICodePtrs_LV8(ENUM_TAGS):
     """ List of VI Code Pointers from LV8-LV11
 
     These callbacks can be set from InitCodePtrsProc within VI compiled code.
@@ -130,7 +131,7 @@ class VICodePtrs_LV8(enum.Enum):
     ReleaseDSStaticProc	= 23
 
 
-class VICodePtrs_LV12(enum.Enum):
+class VICodePtrs_LV12(ENUM_TAGS):
     """ List of VI Code Pointers from LV12
 
     These callbacks can be set from InitCodePtrsProc within VI compiled code.
@@ -167,7 +168,7 @@ class VICodePtrs_LV12(enum.Enum):
     CodeErrHandlingProc = 28
 
 
-class VICodePtrs_LV13(enum.Enum):
+class VICodePtrs_LV13(ENUM_TAGS):
     """ List of VI Code Pointers from LV13-LV20
 
     These callbacks can be set from InitCodePtrsProc within VI compiled code.
@@ -204,6 +205,20 @@ class VICodePtrs_LV13(enum.Enum):
     InitCodePtrsProc = 28
     nRunProcs		= 29
     RunProc			= 30
+    RunProc2		= 31
+    RunProc3		= 32
+    RunProc4		= 33
+    RunProc5		= 34
+    RunProc6		= 35
+    RunProc7		= 36
+    RunProc8		= 37
+    RunProc9		= 38
+    RunProc10		= 39
+    RunProc11		= 40
+    RunProc12		= 41
+    RunProc13		= 42
+    RunProc14		= 43
+    RunProc15		= 44
 
 
 def mangleDataName(eName, eKind):
@@ -243,7 +258,7 @@ def symbolStartFromLowCase(iName):
     return oName
 
 def getVICodeProcName(viCodeItem):
-    if not isinstance(viCodeItem, enum.Enum):
+    if not isinstance(viCodeItem, ENUM_TAGS):
         return "Unkn{:02d}Proc".format(int(viCodeItem))
     iName = viCodeItem.name
     if viCodeItem in (VICodePtrs_LV5.ResetProc,\
@@ -284,10 +299,36 @@ def getVICodeProcName(viCodeItem):
         fullName = "_Z"+fullName+"PP13VICodePtrsRec"
     elif viCodeItem in (\
       VICodePtrs_LV6.RunProc,VICodePtrs_LV7.RunProc,\
-      VICodePtrs_LV8.RunProc,VICodePtrs_LV12.RunProc,\
+      VICodePtrs_LV8.RunProc,VICodePtrs_LV12.RunCodeProc,\
       VICodePtrs_LV13.RunProc,):
         fullName = str(len(iName)+1)+"_"+iName
         fullName = "_ZL"+fullName+"P8DSHeaderP8QElementl"
     else:
         fullName = "_"+iName
     return fullName
+
+def getVICodePtrs(ver):
+    from LVmisc import isGreaterOrEqVersion
+    if isGreaterOrEqVersion(ver, 13,0,0,0):
+        return VICodePtrs_LV13
+    elif isGreaterOrEqVersion(ver, 12,0,0,0):
+        return VICodePtrs_LV12
+    elif isGreaterOrEqVersion(ver, 8,0,0,0):
+        return VICodePtrs_LV8
+    elif isGreaterOrEqVersion(ver, 6,1,0,0):
+        return VICodePtrs_LV7
+    elif isGreaterOrEqVersion(ver, 6,0,0,0):
+        return VICodePtrs_LV6
+    elif isGreaterOrEqVersion(ver, 5,0,0,0):
+        return VICodePtrs_LV5
+    return None
+
+def getProcPtrShiftVICode(procPtrShift,addrLen,ver):
+    procPos = procPtrShift // addrLen
+    VICodePtrs = getVICodePtrs(ver)
+    if VICodePtrs is None:
+        return procPos
+    if not VICodePtrs.has_value(procPos):
+        return procPos
+    viCodeItem = VICodePtrs(procPos)
+    return viCodeItem
