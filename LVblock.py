@@ -1913,7 +1913,7 @@ class STR(SingleStringBlock):
         section = self.sections[section_num]
 
         if self.isSingleShortString():
-            exp_whole_len += super().expectedRSRCSize(section_num)
+            exp_whole_len = super().expectedRSRCSize(section_num)
         elif self.isSingleLVVariant():
             exp_whole_len = 0
             for obj in section.content: # We expect one object in the list
