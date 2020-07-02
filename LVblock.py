@@ -6106,7 +6106,7 @@ class VICD(CompleteBlock):
             self.appendPrintMapEntry(section, bldata.tell(), archDependLen, 1, "Head.codeEndOffset")
             section.signatureName = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.signatureName")
-        if isGreaterOrEqVersion(ver, 4,0,0,0): # Lowest version tested with this is LV 6,0,0,2
+        elif isGreaterOrEqVersion(ver, 4,0,0,0): # Lowest version tested with this is LV 6,0,0,2
             initProcOffset = bldata.read(4)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.initProcOffset")
             section.codeID = bldata.read(4)
@@ -6168,7 +6168,7 @@ class VICD(CompleteBlock):
             data_buf += int(section.hostCodeEntryVI).to_bytes(4, byteorder=archEndianness, signed=False)
             data_buf += int(section.codeEndOffset).to_bytes(archDependLen, byteorder=archEndianness, signed=False)
             data_buf += int(section.signatureName).to_bytes(4, byteorder='big', signed=False)
-        if isGreaterOrEqVersion(ver, 4,0,0,0): # Lowest version tested with this is LV 6,0,0,2
+        elif isGreaterOrEqVersion(ver, 4,0,0,0): # Lowest version tested with this is LV 6,0,0,2
             data_buf += int(section.initProcOffset).to_bytes(4, byteorder=archEndianness, signed=False)
             data_buf += section.codeID[:4]
             data_buf += int(section.pTabOffset).to_bytes(4, byteorder=archEndianness, signed=False)
