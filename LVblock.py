@@ -6199,6 +6199,11 @@ class VICD(CompleteBlock):
             else:
                 raise AttributeError("Code segment lacks expected jump opcode")
             section.pTabOffset = int.from_bytes(pTabOffset, byteorder=archEndianness, signed=False)
+            if True: # Get section size by just jumping file pointer - it's not in header
+                pos = bldata.tell()
+                bldata.seek(0, io.SEEK_END)
+                section.codeEndOffset = bldata.tell()
+                bldata.seek(pos)
         return archEndianness, archDependLen
 
     def prepareRSRCSectionHead(self, section, section_num, archEndianness, archDependLen):
@@ -6324,7 +6329,7 @@ class VICD(CompleteBlock):
         ver = self.vi.getFileVersion()
         section.patches = []
         codeTotLen = section.codeEndOffset
-        patchesTotLen = section.codeEndOffset - section.pTabOffset
+        patchesTotLen = codeTotLen - section.pTabOffset
         bldata.seek(pos)
         pidx = 0
         while True:
@@ -6428,9 +6433,10 @@ class VICD(CompleteBlock):
         patchesTotLen = section.codeEndOffset - section.pTabOffset
         padding_len = 0
         if len(data_buf) > patchesTotLen:
-            uneven_len = len(data_buf) % 1024
+            padto_len = 1024
+            uneven_len = len(data_buf) % padto_len
             if uneven_len > 0:
-                padding_len = 1024 - uneven_len
+                padding_len = padto_len - uneven_len
         else:
             padding_len = patchesTotLen - len(data_buf)
         if padding_len > 0:
@@ -6820,6 +6826,8 @@ class VICD(CompleteBlock):
         pass
 
     def checkSanity(self, section_num=None):
+        ver = self.vi.getFileVersion()
+
         if section_num is None:
             section_num = self.active_section_num
         section = self.sections[section_num]
@@ -6830,26 +6838,29 @@ class VICD(CompleteBlock):
                 eprint("{:s}: Warning: InitProcOffset 0x{:X} exceeds PTabOffset 0x{:X}"\
                   .format(self.vi.src_fname, section.initProcOffset, section.pTabOffset))
             ret = False
-        if section.pTabOffset >= section.codeEndOffset:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: PTabOffset 0x{:X} exceeds CodeEndOffset 0x{:X}"\
-                  .format(self.vi.src_fname, section.pTabOffset, section.codeEndOffset))
-            ret = False
-        if section.codeEndOffset != section.endCodeEndOffset:
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Copies of CodeEndOffset are different (0x{:X} and 0x{:X})"\
-                  .format(self.vi.src_fname, section.codeEndOffset, section.endCodeEndOffset))
-            ret = False
-        if section.verifier not in (b'code',):
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: Verifier property {} is not known"\
-                  .format(self.vi.src_fname, section.verifier))
-            ret = False
-        if section.endVerifier not in (b'CODE',):
-            if (self.po.verbose > 1):
-                eprint("{:s}: Warning: EndVerifier property {} is not known"\
-                  .format(self.vi.src_fname, section.endVerifier))
-            ret = False
+        if isGreaterOrEqVersion(ver, 4,0,0,0):
+            if section.pTabOffset >= section.codeEndOffset:
+                if (self.po.verbose > 1):
+                    eprint("{:s}: Warning: PTabOffset 0x{:X} exceeds CodeEndOffset 0x{:X}"\
+                      .format(self.vi.src_fname, section.pTabOffset, section.codeEndOffset))
+                ret = False
+            if section.codeEndOffset != section.endCodeEndOffset:
+                if (self.po.verbose > 1):
+                    eprint("{:s}: Warning: Copies of CodeEndOffset are different (0x{:X} and 0x{:X})"\
+                      .format(self.vi.src_fname, section.codeEndOffset, section.endCodeEndOffset))
+                ret = False
+            if section.verifier not in (b'code',):
+                if (self.po.verbose > 1):
+                    eprint("{:s}: Warning: Verifier property {} is not known"\
+                      .format(self.vi.src_fname, section.verifier))
+                ret = False
+            if section.endVerifier not in (b'CODE',):
+                if (self.po.verbose > 1):
+                    eprint("{:s}: Warning: EndVerifier property {} is not known"\
+                      .format(self.vi.src_fname, section.endVerifier))
+                ret = False
+        else: # Older versions lack many header fields
+            pass
         return ret
 
     def isX64(self, section_num=None):
