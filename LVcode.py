@@ -222,7 +222,7 @@ class VICodePtrs_LV13(ENUM_TAGS):
 
 
 class CodeArch(ENUM_TAGS):
-    i386_pc_win32		= 'i386' # Windows 32-bit, previously was also used for Windows 16-bit
+    i386_pc_win32		= 'i386' # Windows 32-bit; used for Windows 3.x with Watcom Win386 extender, then reused for later 32-bit Windowses
     x86_64_pc_win32		= 'wx64'
     i386_pc_unix		= 'ux86' # Linux, previously was also used for Solaris
     x86_64_pc_linux_gnu	= 'ux64'
