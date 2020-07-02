@@ -1841,15 +1841,6 @@ class NOEG(SingleStringBlock):
         return section
 
 
-class STRG(SingleStringBlock):
-    """ String description
-    """
-    def createSection(self):
-        section = super().createSection()
-        section.size_len = 4
-        return section
-
-
 class TITL(SingleStringBlock):
     """ Title of the file
     """
@@ -1973,11 +1964,11 @@ class StringListBlock(SingleStringBlock):
         section.padding_len = 1
         return section
 
-    def parseRSRCSectionData(self, section_num, bldata):
-        section = self.sections[section_num]
-        section.content = []
-
-        count = int.from_bytes(bldata.read(section.count_len), byteorder='big', signed=False)
+    def parseRSRCStringList(self, section, section_num, bldata):
+        if section.count_len > 0:
+            count = int.from_bytes(bldata.read(section.count_len), byteorder='big', signed=False)
+        else:
+            count = 1
         for i in range(count):
             strEntry = SimpleNamespace()
             strEntry.eoln = '\r\n'
@@ -1997,10 +1988,15 @@ class StringListBlock(SingleStringBlock):
             strEntry.chunks = chunks
         pass
 
-    def prepareRSRCData(self, section_num):
+    def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
+        section.content = []
+        self.parseRSRCStringList(section, section_num, bldata)
+
+    def prepareRSRCStringList(self, section, section_num):
         data_buf  = b''
-        data_buf += len(section.content).to_bytes(section.count_len, byteorder='big', signed=False)
+        if section.count_len > 0:
+            data_buf += len(section.content).to_bytes(section.count_len, byteorder='big', signed=False)
         for strEntry in section.content:
             # There is no need to decode while joining
             content_bytes = self.prepareSingleString(strEntry.chunks, strEntry.eoln, self.vi.textEncoding)
@@ -2011,11 +2007,12 @@ class StringListBlock(SingleStringBlock):
                 data_buf += b'\0' * (section.padding_len - uneven_len)
         return data_buf
 
-    def expectedRSRCSize(self, section_num):
-        if section_num is None:
-            section_num = self.active_section_num
+    def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
+        data_buf = self.prepareRSRCStringList(section, section_num)
+        return data_buf
 
+    def expectedRSRCStringListSize(self, section, section_num):
         exp_whole_len = 0
         exp_whole_len += section.count_len
         for strEntry in section.content:
@@ -2028,11 +2025,15 @@ class StringListBlock(SingleStringBlock):
             exp_whole_len += string_len
         return exp_whole_len
 
-    def initWithXMLSectionData(self, section, section_elem):
-        section.eoln = '\r\n'
-        section.content = []
+    def expectedRSRCSize(self, section_num):
+        if section_num is None:
+            section_num = self.active_section_num
+        section = self.sections[section_num]
+        exp_whole_len = self.expectedRSRCStringListSize(section, section_num)
+        return exp_whole_len
 
-        for i, subelem in enumerate(section_elem):
+    def initWithXMLStringList(self, section, strlist_elem):
+        for i, subelem in enumerate(strlist_elem):
             if (subelem.tag == "NameObject"):
                 pass # Items parsed somewhere else
             elif (subelem.tag == "String"):
@@ -2048,11 +2049,18 @@ class StringListBlock(SingleStringBlock):
                 raise AttributeError("Section contains unexpected tag")
         pass
 
-    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
+    def initWithXMLSectionData(self, section, section_elem):
+        section.content = []
+        self.initWithXMLStringList(section, section_elem)
+
+    def exportXMLStringList(self, strlist_elem, section_num, section, fname_base):
         for strEntry in section.content:
-            string_elem = ET.SubElement(section_elem,"String")
+            string_elem = ET.SubElement(strlist_elem,"String")
             self.exportXMLSingleString(strEntry.chunks, strEntry.eoln, self.vi.textEncoding, string_elem)
         pass
+
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
+        self.exportXMLStringList(section_elem, section_num, section, fname_base)
 
 
 class CPST(StringListBlock):
@@ -2088,6 +2096,39 @@ class HDbsh(StringListBlock):
         section.size_len = 4
         section.padding_len = 4
         return section
+
+
+class STRG(StringListBlock):
+    """ String description / descriptions list
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.count_len = 0
+        section.size_len = 4
+        return section
+
+    def setStorageMode(self, section, section_num):
+        """ Properly sets storage mode based on LV version
+        """
+        ver = self.vi.getFileVersion()
+        if isGreaterOrEqVersion(ver, 4,0,0):
+            section.count_len = 0
+            section.size_len = 4
+        else: # Tested on LV2.5
+            section.count_len = 4
+            section.size_len = 1
+        pass
+
+    def parseRSRCSectionData(self, section_num, bldata):
+        section = self.sections[section_num]
+        self.setStorageMode(section, section_num)
+        super().parseRSRCSectionData(section_num, bldata)
+
+    def initWithXMLLate(self):
+        for section_num in self.sections:
+            section = self.sections[section_num]
+            self.setStorageMode(section, section_num)
+        super().initWithXMLLate()
 
 
 class LSTsh(StringListBlock):
@@ -3068,6 +3109,14 @@ class SCSR(CompleteBlock):
             subelem = ET.SubElement(section_elem,"Digest")
             subelem.text = digest.hex()
         pass
+
+
+class TREC(Block):
+    """ Type Descriptor Record
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
 
 
 class DTHP(CompleteBlock):
