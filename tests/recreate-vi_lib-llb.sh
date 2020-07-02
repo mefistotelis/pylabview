@@ -49,7 +49,7 @@ while IFS= read -r rsrc_fn; do
     # Re-extract - we can only compare extracted files
     (../readRSRC.py -vv -x --keep-names -i "${rsrc_out_fn}" -m "${xml_fn}") 2>&1 | tee -a log-vi_lib-llb-3reext.txt
     # Note that some file names within LV LLBs contain characters like: ,'+=!
-    sed -n 's/^.\+: Storing block b'\''.\+'\'' .* in '\''\(.\+[.][a-z]\{1,5\}\)'\''.*$/\1/p' "${log_fn}" | tee "${rsrc_base_fn}.lst"
+    sed -n 's/^.\+: Storing block b'\''.\+'\'' .* in '\''\(.\+[.][a-z]\{1,5\}\)'\''.*$/\1/p' "${log_fn}" | sort -u | tee "${rsrc_base_fn}.lst"
 
     echo "Comparing blocks of \"${rsrc_fn}\"" | tee -a log-vi_lib-llb-4cmp.txt
     while IFS= read -r block_fn; do
