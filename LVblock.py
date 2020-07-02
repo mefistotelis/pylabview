@@ -6077,13 +6077,14 @@ class VICD(CompleteBlock):
     def parseRSRCSectionHead(self, section, section_num, bldata):
         ver = self.vi.getFileVersion()
 
-        initProcOffset = bldata.read(4)
-        self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.initProcOffset")
-        section.codeID = bldata.read(4)
-        self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.codeID")
-        archDependLen = 8 if self.isX64(section_num) else 4
-        archEndianness = 'little' if self.isLE(section_num) else 'big'
         if isGreaterOrEqVersion(ver, 12,0,0,0):# Should be False for LV 11,0,0,4, True for 14,0,0,3
+            initProcOffset = bldata.read(4)
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.initProcOffset")
+            section.codeID = bldata.read(4)
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.codeID")
+            archDependLen = 8 if self.isX64(section_num) else 4
+            archEndianness = 'little' if self.isLE(section_num) else 'big'
+
             section.initProcOffset = int.from_bytes(initProcOffset, byteorder=archEndianness, signed=False)
             mapItemName = LVcode.getVICodeProcName(LVcode.VICodePtrs_LV13.InitCodePtrsProc)
             self.addMapEntry(section, section.initProcOffset, 1, mapItemName)
@@ -6105,7 +6106,14 @@ class VICD(CompleteBlock):
             self.appendPrintMapEntry(section, bldata.tell(), archDependLen, 1, "Head.codeEndOffset")
             section.signatureName = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.signatureName")
-        else: # Lowest version tested with this is LV 6,0,0,2
+        if isGreaterOrEqVersion(ver, 4,0,0,0): # Lowest version tested with this is LV 6,0,0,2
+            initProcOffset = bldata.read(4)
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.initProcOffset")
+            section.codeID = bldata.read(4)
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.codeID")
+            archDependLen = 8 if self.isX64(section_num) else 4
+            archEndianness = 'little' if self.isLE(section_num) else 'big'
+
             section.initProcOffset = int.from_bytes(initProcOffset, byteorder=archEndianness, signed=False)
             mapItemName = LVcode.getVICodeProcName(LVcode.VICodePtrs_LV6.InitCodePtrsProc)
             self.addMapEntry(section, section.initProcOffset, 1, mapItemName)
@@ -6125,6 +6133,23 @@ class VICD(CompleteBlock):
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.hostCodeEntryVI")
             section.signatureName = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.signatureName")
+        else: # Lowest version tested with this is LV 2,5,2,0
+            initProcJump = bldata.read(12)
+            self.appendPrintMapEntry(section, bldata.tell(), 12, 1, "Head.initProcJump")
+            mapItemName = LVcode.getVICodeProcName(LVcode.VICodePtrs_LV6.InitCodePtrsProc)
+            self.addMapEntry(section, section.initProcOffset, 1, mapItemName)
+            pTabOffset = bldata.read(4)
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.pTabOffset")
+            section.codeID = bldata.read(4)
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.codeID")
+            archDependLen = 8 if self.isX64(section_num) else 4
+            archEndianness = 'little' if self.isLE(section_num) else 'big'
+
+            if initProcJump[0:1] == b'\xE9':
+                section.initProcOffset = int.from_bytes(initProcJump[1:3], byteorder=archEndianness, signed=False)
+            else:
+                raise AttributeError("Code segment lacks expected jump opcode")
+            section.pTabOffset = int.from_bytes(pTabOffset, byteorder=archEndianness, signed=False)
         return archEndianness, archDependLen
 
     def prepareRSRCSectionHead(self, section, section_num, archEndianness, archDependLen):
@@ -6143,7 +6168,7 @@ class VICD(CompleteBlock):
             data_buf += int(section.hostCodeEntryVI).to_bytes(4, byteorder=archEndianness, signed=False)
             data_buf += int(section.codeEndOffset).to_bytes(archDependLen, byteorder=archEndianness, signed=False)
             data_buf += int(section.signatureName).to_bytes(4, byteorder='big', signed=False)
-        else: # Lowest version tested with this is LV 6,0,0,2
+        if isGreaterOrEqVersion(ver, 4,0,0,0): # Lowest version tested with this is LV 6,0,0,2
             data_buf += int(section.initProcOffset).to_bytes(4, byteorder=archEndianness, signed=False)
             data_buf += section.codeID[:4]
             data_buf += int(section.pTabOffset).to_bytes(4, byteorder=archEndianness, signed=False)
@@ -6154,6 +6179,12 @@ class VICD(CompleteBlock):
             data_buf += int(section.codeEndOffset).to_bytes(archDependLen, byteorder=archEndianness, signed=False)
             data_buf += int(section.hostCodeEntryVI).to_bytes(4, byteorder=archEndianness, signed=False)
             data_buf += int(section.signatureName).to_bytes(4, byteorder='big', signed=False)
+        else: # Tested with LV 2,5,2,0
+            initProcJump = b'\xE9' + int(section.initProcOffset).to_bytes(2, byteorder=archEndianness, signed=False)
+            data_buf += initProcJump
+            data_buf += b'\0' * (12 - len(initProcJump))
+            data_buf += int(section.pTabOffset).to_bytes(4, byteorder=archEndianness, signed=False)
+            data_buf += section.codeID[:4]
         return data_buf
 
     def expectedRSRCSizeHead(self, section_num):
@@ -6169,6 +6200,10 @@ class VICD(CompleteBlock):
 
     def parseRSRCSectionFoot(self, section, section_num, archEndianness, archDependLen, bldata):
         ver = self.vi.getFileVersion()
+
+        # Oldest versions have no footer
+        if isSmallerVersion(ver, 4,0,0,0):
+            return
 
         section.endVerifier = bldata.read(4)
         self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Foot.endVerifier")
@@ -6194,6 +6229,10 @@ class VICD(CompleteBlock):
     def prepareRSRCSectionFoot(self, section, section_num, archEndianness, archDependLen):
         ver = self.vi.getFileVersion()
         data_buf = b''
+
+        # Oldest versions have no footer
+        if isSmallerVersion(ver, 4,0,0,0):
+            return data_buf
 
         data_buf += section.endVerifier[:4]
         data_buf += int(section.endProp1).to_bytes(4, byteorder='big', signed=False)

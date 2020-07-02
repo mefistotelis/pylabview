@@ -221,6 +221,26 @@ class VICodePtrs_LV13(ENUM_TAGS):
     RunProc15		= 44
 
 
+class CodeArch(ENUM_TAGS):
+    i386_pc_win32		= 'i386' # Windows 32-bit, previously was also used for Windows 16-bit
+    x86_64_pc_win32		= 'wx64'
+    i386_pc_unix		= 'ux86' # Linux, previously was also used for Solaris
+    x86_64_pc_linux_gnu	= 'ux64'
+    i386_apple_darwin	= 'm386'
+    x86_64_apple_darwin	= 'mx64'
+    motorola680xx_mac	= 'M86K'
+    pa_risc_hpunix 		= 'PA  '
+    powerpc_pc_eabi		= 'POWE'
+    powerpc_linux		= 'PLIN'
+    powerpc_win			= 'POWX'
+    powerpc_winnt		= 'PWNT'
+    sparc_solaris		= 'sprc'
+    alphaaxp_winnt		= 'axwn'
+    alphaaxp_linux		= 'axlx'
+    alphaaxp_du			= 'axdu'
+    arm_cortex_eabi		= 'ARM '
+
+
 def mangleDataName(eName, eKind):
     """ Prepare symbol name for MAP file.
 
@@ -300,7 +320,14 @@ def getVICodeProcName(viCodeItem):
     elif viCodeItem in (\
       VICodePtrs_LV6.RunProc,VICodePtrs_LV7.RunProc,\
       VICodePtrs_LV8.RunProc,VICodePtrs_LV12.RunCodeProc,\
-      VICodePtrs_LV13.RunProc,):
+      VICodePtrs_LV13.RunProc,VICodePtrs_LV13.RunProc2,
+      VICodePtrs_LV13.RunProc3,VICodePtrs_LV13.RunProc4,
+      VICodePtrs_LV13.RunProc5,VICodePtrs_LV13.RunProc6,
+      VICodePtrs_LV13.RunProc7,VICodePtrs_LV13.RunProc8,
+      VICodePtrs_LV13.RunProc9,VICodePtrs_LV13.RunProc10,
+      VICodePtrs_LV13.RunProc11,VICodePtrs_LV13.RunProc12,
+      VICodePtrs_LV13.RunProc13,VICodePtrs_LV13.RunProc14,
+      VICodePtrs_LV13.RunProc15,):
         fullName = str(len(iName)+1)+"_"+iName
         fullName = "_ZL"+fullName+"P8DSHeaderP8QElementl"
     else:
