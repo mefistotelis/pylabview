@@ -66,8 +66,17 @@ apropriate.
 
 If you don't have a LabVIEW license, and want to look inside some VIs, these
 tools can help. You can convert your VIs to XML format, and then look at the XML.
+
 It is possible to write a viewer, which displays the XML data in graphical
-form, like they look in LabVIEW.
+form, like they look in LabVIEW. Such viewer does not exist at the moment.
+
+### Look at the compiled code inside VI file
+
+If you want to look at assembly bytecode, the tool will create a BIN file with
+that code during VI extraction. It will even prepare a MAP file, with some known
+symbols within the code. Base address of the extracted code is always 0x0.
+Relocations and imports are stored in an array called 'Patches', and for most
+versions of LV, the tool will store these within XML file.
 
 ### Batch process VIs
 
