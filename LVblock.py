@@ -6187,7 +6187,7 @@ class VICD(CompleteBlock):
             self.appendPrintMapEntry(section, bldata.tell(), archDependLen, 1, "Head.codeEndOffset")
             section.signatureName = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.signatureName")
-        elif isGreaterOrEqVersion(ver, 4,0,0,0): # Lowest version tested with this is LV 6,0,0,2
+        elif isGreaterOrEqVersion(ver, 5,0,0,0): # Lowest version tested with this is LV 6,0,0,2
             initProcOffset = bldata.read(4)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.initProcOffset")
             section.codeID = bldata.read(4)
@@ -6214,7 +6214,7 @@ class VICD(CompleteBlock):
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.hostCodeEntryVI")
             section.signatureName = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.signatureName")
-        else: # Lowest version tested with this is LV 2,5,2,0
+        else: # Tested with LV2.5.2 to LV4.0.0.2
             initProcJump = bldata.read(12)
             self.appendPrintMapEntry(section, bldata.tell(), 12, 1, "Head.initProcJump")
             mapItemName = LVcode.getVICodeProcName(LVcode.VICodePtrs_LV6.InitCodePtrsProc)
@@ -6254,7 +6254,7 @@ class VICD(CompleteBlock):
             data_buf += int(section.hostCodeEntryVI).to_bytes(4, byteorder=archEndianness, signed=False)
             data_buf += int(section.codeEndOffset).to_bytes(archDependLen, byteorder=archEndianness, signed=False)
             data_buf += int(section.signatureName).to_bytes(4, byteorder='big', signed=False)
-        elif isGreaterOrEqVersion(ver, 4,0,0,0): # Lowest version tested with this is LV 6,0,0,2
+        elif isGreaterOrEqVersion(ver, 5,0,0,0):
             data_buf += int(section.initProcOffset).to_bytes(4, byteorder=archEndianness, signed=False)
             data_buf += section.codeID[:4]
             data_buf += int(section.pTabOffset).to_bytes(4, byteorder=archEndianness, signed=False)
@@ -6265,7 +6265,7 @@ class VICD(CompleteBlock):
             data_buf += int(section.codeEndOffset).to_bytes(archDependLen, byteorder=archEndianness, signed=False)
             data_buf += int(section.hostCodeEntryVI).to_bytes(4, byteorder=archEndianness, signed=False)
             data_buf += int(section.signatureName).to_bytes(4, byteorder='big', signed=False)
-        else: # Tested with LV 2,5,2,0
+        else:
             initProcJump = b'\xE9' + int(section.initProcOffset).to_bytes(2, byteorder=archEndianness, signed=False)
             data_buf += initProcJump
             data_buf += b'\0' * (12 - len(initProcJump))
@@ -6288,7 +6288,7 @@ class VICD(CompleteBlock):
         ver = self.vi.getFileVersion()
 
         # Oldest versions have no footer
-        if isSmallerVersion(ver, 4,0,0,0):
+        if isSmallerVersion(ver, 5,0,0,0):
             return
 
         section.endVerifier = bldata.read(4)
@@ -6317,7 +6317,7 @@ class VICD(CompleteBlock):
         data_buf = b''
 
         # Oldest versions have no footer
-        if isSmallerVersion(ver, 4,0,0,0):
+        if isSmallerVersion(ver, 5,0,0,0):
             return data_buf
 
         data_buf += section.endVerifier[:4]
@@ -6735,19 +6735,22 @@ class VICD(CompleteBlock):
         pass
 
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
+        ver = self.vi.getFileVersion()
         subelem = ET.SubElement(section_elem,"General")
 
         subelem.set("CodeID", getPrettyStrFromRsrcType(section.codeID))
         subelem.set("CodeFlags", "0x{:X}".format(section.codeFlags))
         subelem.set("Version", "0x{:X}".format(section.version))
         subelem.set("CompilerOptimizationLevel", "{:d}".format(section.compilerOptimizationLevel))
-        subelem.set("Verifier", getPrettyStrFromRsrcType(section.verifier))
+        if isGreaterOrEqVersion(ver, 5,0,0,0):
+            subelem.set("Verifier", getPrettyStrFromRsrcType(section.verifier))
 
-        subelem.set("EndVerifier", getPrettyStrFromRsrcType(section.endVerifier))
-        subelem.set("EndProp1", "{:d}".format(section.endProp1))
-        subelem.set("EndSignatureName", "{:d}".format(section.endSignatureName))
-        subelem.set("EndLocalLVRTCodeBlocks", "{:d}".format(section.endLocalLVRTCodeBlocks))
-        subelem.set("EndProp5", "{:d}".format(section.endProp5))
+        if isGreaterOrEqVersion(ver, 5,0,0,0):
+            subelem.set("EndVerifier", getPrettyStrFromRsrcType(section.endVerifier))
+            subelem.set("EndProp1", "{:d}".format(section.endProp1))
+            subelem.set("EndSignatureName", "{:d}".format(section.endSignatureName))
+            subelem.set("EndLocalLVRTCodeBlocks", "{:d}".format(section.endLocalLVRTCodeBlocks))
+            subelem.set("EndProp5", "{:d}".format(section.endProp5))
 
         self.exportXMLSectionCode(section_elem, section_num, section, fname_base)
 
@@ -6769,18 +6772,24 @@ class VICD(CompleteBlock):
                 tmp = subelem.get("CompilerOptimizationLevel")
                 section.compilerOptimizationLevel = int(tmp, 0)
                 tmp = subelem.get("Verifier")
-                section.verifier = getRsrcTypeFromPrettyStr(tmp)
+                if tmp is not None:
+                    section.verifier = getRsrcTypeFromPrettyStr(tmp)
 
                 tmp = subelem.get("EndVerifier")
-                section.endVerifier = getRsrcTypeFromPrettyStr(tmp)
+                if tmp is not None:
+                    section.endVerifier = getRsrcTypeFromPrettyStr(tmp)
                 tmp = subelem.get("EndProp1")
-                section.endProp1 = int(tmp, 0)
+                if tmp is not None:
+                    section.endProp1 = int(tmp, 0)
                 tmp = subelem.get("EndSignatureName")
-                section.endSignatureName = int(tmp, 0)
+                if tmp is not None:
+                    section.endSignatureName = int(tmp, 0)
                 tmp = subelem.get("EndLocalLVRTCodeBlocks")
-                section.endLocalLVRTCodeBlocks = int(tmp, 0)
+                if tmp is not None:
+                    section.endLocalLVRTCodeBlocks = int(tmp, 0)
                 tmp = subelem.get("EndProp5")
-                section.endProp5 = int(tmp, 0)
+                if tmp is not None:
+                    section.endProp5 = int(tmp, 0)
 
             elif (subelem.tag == "Code"):
                 self.initWithXMLSectionCode(section, subelem)
@@ -6870,7 +6879,7 @@ class VICD(CompleteBlock):
                 eprint("{:s}: Warning: InitProcOffset 0x{:X} exceeds PTabOffset 0x{:X}"\
                   .format(self.vi.src_fname, section.initProcOffset, section.pTabOffset))
             ret = False
-        if isGreaterOrEqVersion(ver, 4,0,0,0):
+        if isGreaterOrEqVersion(ver, 5,0,0,0):
             if section.pTabOffset >= section.codeEndOffset:
                 if (self.po.verbose > 1):
                     eprint("{:s}: Warning: PTabOffset 0x{:X} exceeds CodeEndOffset 0x{:X}"\
