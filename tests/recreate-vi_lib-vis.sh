@@ -98,6 +98,7 @@ while IFS= read -r rsrc_fn; do
     rsrc_base_pattern="${rsrc_base_fn}"
     rsrc_base_pattern="${rsrc_base_pattern//[/\\[}"
     rsrc_base_pattern="${rsrc_base_pattern//]/\\]}"
+    rm "${rsrc_out_fn}"
     if ! $STORE_EXTRACTED_FILES; then
         find "${rsrc_out_dir}/" -maxdepth 1 -type f -name "${rsrc_base_pattern}*" -exec rm {} +
     fi
