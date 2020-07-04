@@ -1187,7 +1187,7 @@ class VarCodingBlock(Block):
         super().setData(data_buf, section_num=section_num, use_coding=use_coding)
 
 
-class SingleIntBlock(Block):
+class SingleIntBlock(CompleteBlock):
     """ Block with raw data representing single integer value
 
     To be used as parser for several blocks.
@@ -1201,52 +1201,28 @@ class SingleIntBlock(Block):
         section.value = None
         return section
 
-    def parseRSRCData(self, section_num, bldata):
+    def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
-
         section.value = int.from_bytes(bldata.read(section.entsize), byteorder=section.byteorder, signed=section.signed)
 
-    def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
+    def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
-
         data_buf = int(section.value).to_bytes(section.entsize, byteorder=section.byteorder)
+        return data_buf
 
-        if (len(data_buf) != section.entsize):
-            raise RuntimeError("Block {} section {} generated binary data of invalid size"\
-              .format(self.ident,section_num))
+    def expectedRSRCSize(self, section_num):
+        return section.entsize
 
-        self.setData(data_buf, section_num=section_num)
+    def initWithXMLSectionData(self, section, section_elem):
+        tmp = section_elem.get("Value")
+        section.value = int(tmp, 0)
 
-    def getData(self, section_num=None, use_coding=BLOCK_CODING.NONE):
-        bldata = super().getData(section_num=section_num, use_coding=use_coding)
-        return bldata
-
-    def setData(self, data_buf, section_num=None, use_coding=BLOCK_CODING.NONE):
-        super().setData(data_buf, section_num=section_num, use_coding=use_coding)
-
-    def initWithXMLSection(self, section, section_elem):
-        snum = section.start.section_idx
-        fmt = section_elem.get("Format")
-        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
-            if (self.po.verbose > 2):
-                print("{:s}: For Block {} section {:d}, reading inline XML data"\
-                  .format(self.vi.src_fname,self.ident,snum))
-            section.value = int(section_elem.get("Value"), 0)
-        else:
-            Block.initWithXMLSection(self, section, section_elem)
-        pass
-
-    def exportXMLSection(self, section_elem, snum, section, fname_base):
-        self.parseData(section_num=snum)
-
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         if section.base == 16:
             section_elem.set("Value", "0x{:x}".format(section.value))
         else:
             section_elem.set("Value", "{:d}".format(section.value))
-
-        section_elem.set("Format", "inline")
+        pass
 
     def getValue(self, section_num=None):
         if section_num is None:
@@ -1380,6 +1356,10 @@ class BDSE(SingleIntBlock):
 
 
 class FLAG(SingleIntBlock):
+    """ Integer flag field
+
+    Size of the flag varies between files it's used in.
+    """
     def createSection(self):
         section = super().createSection()
         section.byteorder = 'big'
@@ -4216,7 +4196,7 @@ class icssh(ICON):
     def createSection(self):
         section = super().createSection()
         section.width = 16
-        section.height = 16
+        section.height = 32 # Height from LV2.5 labview.rsc; is it sometimes 16?
         section.bpp = 1
         return section
 
