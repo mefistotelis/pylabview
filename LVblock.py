@@ -3239,7 +3239,7 @@ class DTHP(CompleteBlock):
         return VCTP.getTopType(tdIndex)
 
 
-class DSTM(VarCodingBlock):
+class DSTM(CompleteBlock):
     """ Data Space Type Map
     """
     def createSection(self):
@@ -3272,7 +3272,8 @@ class DSTM(VarCodingBlock):
     def getTypeMap(self, section_num=None):
         return tuple()
 
-class TM80(VarCodingBlock):
+
+class TM80(CompleteBlock):
     """ Data Space Type Map LV8.0+
 
     Used for LV 8.0 and newer.
@@ -3291,7 +3292,7 @@ class TM80(VarCodingBlock):
         else:
             section.block_coding = BLOCK_CODING.NONE
 
-    def parseRSRCData(self, section_num, bldata):
+    def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
 
         section.content = []
@@ -3301,47 +3302,43 @@ class TM80(VarCodingBlock):
         for i in range(count):
             val = readVariableSizeFieldU2p2(bldata)
             section.content.append(val)
-
-    def initWithXMLSection(self, section, section_elem):
-        snum = section.start.section_idx
-        fmt = section_elem.get("Format")
-        if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
-            section.content = []
-            section.indexShift = int(section_elem.get("IndexShift"), 0)
-            if (self.po.verbose > 2):
-                print("{:s}: For Block {} section {:d}, reading inline XML data"\
-                  .format(self.vi.src_fname,self.ident,snum))
-            self.content = []
-            for subelem in section_elem:
-                if (subelem.tag == "NameObject"):
-                    pass # Items parsed somewhere else
-                elif (subelem.tag == "Client"):
-                    val = importXMLBitfields(TM_FLAGS, subelem)
-                    section.content.append(val)
-                else:
-                    raise AttributeError("Section contains unexpected tag")
-        else:
-            Block.initWithXMLSection(self, section, section_elem)
         pass
 
-    def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
+    def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
 
-        data_buf = prepareVariableSizeFieldU2p2(len(section.content))
+        data_buf = b''
+        data_buf += prepareVariableSizeFieldU2p2(len(section.content))
         data_buf += prepareVariableSizeFieldU2p2(section.indexShift)
         for val in section.content:
             data_buf += prepareVariableSizeFieldU2p2(val)
+        return data_buf
 
-        if (len(data_buf) < 2 + 2*len(section.content)):
-            raise RuntimeError("Block {} section {} generated binary data of invalid size"\
-              .format(self.ident,section_num))
+    def expectedRSRCSize(self, section_num):
+        section = self.sections[section_num]
 
-        self.setData(data_buf, section_num=section_num)
+        exp_whole_len = 0
+        exp_whole_len += ( 2 if (len(section.content) <= 0x7fff) else 4 )
+        exp_whole_len += ( 2 if (section.indexShift <= 0x7fff) else 4 )
+        for val in section.content:
+            exp_whole_len += ( 2 if (val <= 0x7fff) else 4 )
+        return exp_whole_len
 
-    def exportXMLSection(self, section_elem, snum, section, fname_base):
-        self.parseData(section_num=snum)
+    def initWithXMLSectionData(self, section, section_elem):
+        section.content = []
+        section.indexShift = int(section_elem.get("IndexShift"), 0)
+
+        for subelem in section_elem:
+            if (subelem.tag == "NameObject"):
+                pass # Items parsed somewhere else
+            elif (subelem.tag == "Client"):
+                val = importXMLBitfields(TM_FLAGS, subelem)
+                section.content.append(val)
+            else:
+                raise AttributeError("Section contains unexpected tag")
+        pass
+
+    def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         # This is only for a comment, allowed to return None
         VCTP = self.vi.get('VCTP')
 
@@ -3367,8 +3364,7 @@ class TM80(VarCodingBlock):
         if len(section.content) == 0:
             comment_elem = ET.Comment("List of types is empty")
             section_elem.append(comment_elem)
-
-        section_elem.set("Format", "inline")
+        pass
 
     def getTypeEntry(self, tme_index, section_num=None):
         if section_num is None:
@@ -4007,31 +4003,21 @@ class MNGI(PNGI):
         return section
 
 
-class BMAP(ImageBlock):
-    """ Bitamap custom size 1bpp
+class RawImageBlock(ImageBlock):
+    """ Base class for blocks with raw images
     """
-    def createSection(self):
-        section = super().createSection()
-        section.width = 32
-        section.height = 32
-        section.bpp = 1
-        # Padding, for some reason to 16 bits
-        section.padding_w = 16
-        return section
-
-    def parseRSRCRawImage(self, section_num, bldata):
-        section = self.sections[section_num]
-
-        padded_width = section.width
-        uneven_w = (section.width % section.padding_w)
+    @staticmethod
+    def parseRSRCRawImage(width, height, bpp, padding_w, bldata):
+        padded_width = width
+        uneven_w = (width % padding_w)
         if uneven_w != 0:
-            padded_width += section.padding_w - uneven_w
+            padded_width += padding_w - uneven_w
 
-        icon = Image.new("P", (padded_width, section.height))
+        image = Image.new("P", (padded_width, height))
         img_palette = [ 0 ] * (3*256)
-        if section.bpp == 8:
+        if bpp == 8:
             lv_color_palette = LABVIEW_COLOR_PALETTE_256
-        elif section.bpp == 4:
+        elif bpp == 4:
             lv_color_palette = LABVIEW_COLOR_PALETTE_16
         else:
             lv_color_palette = LABVIEW_COLOR_PALETTE_2
@@ -4039,18 +4025,18 @@ class BMAP(ImageBlock):
             img_palette[3*i+0] = (rgb >> 16) & 0xFF
             img_palette[3*i+1] = (rgb >>  8) & 0xFF
             img_palette[3*i+2] = (rgb >>  0) & 0xFF
-        icon.putpalette(img_palette, rawmode='RGB')
-        img_data = bldata.read(int(padded_width * section.height * section.bpp / 8))
-        if section.bpp == 8:
+        image.putpalette(img_palette, rawmode='RGB')
+        img_data = bldata.read(int(padded_width * height * bpp / 8))
+        if bpp == 8:
             pass
-        elif section.bpp == 4:
-            img_data8 = bytearray(padded_width * section.height)
+        elif bpp == 4:
+            img_data8 = bytearray(padded_width * height)
             for i, px in enumerate(img_data):
                 img_data8[2*i+0] = (px >> 4) & 0xF
                 img_data8[2*i+1] = (px >> 0) & 0xF
             img_data = img_data8
-        elif section.bpp == 1:
-            img_data8 = bytearray(padded_width * section.height)
+        elif bpp == 1:
+            img_data8 = bytearray(padded_width * height)
             for i, px in enumerate(img_data):
                 img_data8[8*i+0] = (px >> 7) & 0x1
                 img_data8[8*i+1] = (px >> 6) & 0x1
@@ -4062,67 +4048,131 @@ class BMAP(ImageBlock):
                 img_data8[8*i+7] = (px >> 0) & 0x1
             img_data = img_data8
         else:
-            raise ValueError("Unsupported icon BPP")
+            raise ValueError("Unsupported image BPP")
 
-        icon.putdata(img_data)
-        if padded_width != section.width:
-            icon = icon.crop((0, 0, section.width, section.height,))
+        image.putdata(img_data)
+        if padded_width != width:
+            image = image.crop((0, 0, width, height,))
         # Pixel-by-pixel method, for reference (slower than all-at-once)
-        #for y in range(0, section.height):
-        #    for x in range(0, section.width):
-        #        icon.putpixel((x, y), bldata.read(1))
-        return icon
+        #for y in range(0, height):
+        #    for x in range(0, width):
+        #        image.putpixel((x, y), bldata.read(1))
+        return image
 
-    def parseRSRCData(self, section_num, bldata):
-        section = self.sections[section_num]
+    @staticmethod
+    def prepareRawImage(width, height, bpp, padding_w, image):
+        """ Prepares raw image data for given image
 
-        section.height = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        section.width = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-        icon = self.parseRSRCRawImage(section_num, bldata)
-        section.image = icon
+        @width - width of the image in RAW
+        @height - height of the image in RAW
+        @bpp -bits per pixel of the image in RAW
+        @padding_w - line padding in RAW data
+        @image - source PIL image
+        """
+        padded_width = width
+        uneven_w = (width % padding_w)
+        if uneven_w != 0:
+            padded_width += padding_w - uneven_w
 
-    def prepareRawImage(self, section_num):
-        section = self.sections[section_num]
+        if (padded_width % (8//bpp)) != 0:
+            raise ValueError("Width padding incorrect for given BPP")
 
-        data_buf = bytes(section.image.getdata())
-        data_len = (section.width * section.height * section.bpp) // 8
+        data_buf = bytes(image.getdata())
+        line_len = (padded_width * bpp) // 8
+        data_len = line_len * height
 
-        if section.bpp == 8:
+        if bpp == 8:
             pass
-        elif section.bpp == 4:
+            #TODO apply padding for 8bpp bitmaps
+        elif bpp == 4:
             data_buf8 = bytearray(data_len)
-            for i in range(data_len):
-                data_buf8[i] = (data_buf[2*i+0] << 4) | (data_buf[2*i+1] << 0)
+            i = 0
+            hpos = 0
+            for h in range(height):
+                w = 0
+                while w < width // 2:
+                    data_buf8[hpos+w] = (data_buf[i+0] << 4) | (data_buf[i+1] << 0)
+                    i += 2 # 8//bpp
+                    w += 1
+                while w < (width+1) // 2:
+                    bt = 0
+                    for b in range(2):
+                        if i >= (h+1) * image.width: break
+                        bt |= data_buf[i] << (4-4*b)
+                        i += 1
+                    data_buf8[hpos+w] = bt
+                    w += 1
+                hpos += line_len
             data_buf = data_buf8
-        elif section.bpp == 1:
+        elif bpp == 1:
             data_buf8 = bytearray(data_len)
-            for i in range(data_len):
-                data_buf8[i] = (data_buf[8*i+0] << 7) | (data_buf[8*i+1] << 6) | \
-                    (data_buf[8*i+2] << 5) | (data_buf[8*i+3] << 4) | \
-                    (data_buf[8*i+4] << 3) | (data_buf[8*i+5] << 2) | \
-                    (data_buf[8*i+6] << 1) | (data_buf[8*i+7] << 0)
+            i = 0
+            hpos = 0
+            for h in range(height):
+                w = 0
+                while w < width // 8:
+                    data_buf8[hpos+w] = \
+                        (data_buf[i+0] << 7) | (data_buf[i+1] << 6) | \
+                        (data_buf[i+2] << 5) | (data_buf[i+3] << 4) | \
+                        (data_buf[i+4] << 3) | (data_buf[i+5] << 2) | \
+                        (data_buf[i+6] << 1) | (data_buf[i+7] << 0)
+                    i += 8
+                    w += 1
+                while w < (width+7) // 8:
+                    bt = 0
+                    for b in range(8):
+                        if i >= (h+1) * image.width: break
+                        bt |= data_buf[i] << (7-b)
+                        i += 1
+                    data_buf8[hpos+w] = bt
+                    w += 1
+                hpos += line_len
             data_buf = data_buf8
         else:
-            raise ValueError("Unsupported icon BPP")
+            raise ValueError("Unsupported image BPP")
 
         if len(data_buf) < data_len:
             data_buf += b'\0' * (data_len - len(data_buf))
         return data_buf
 
-    def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
+class BMAP(RawImageBlock):
+    """ Bitamap custom size 1bpp
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.width = 32
+        section.height = 32
+        section.bpp = 1
+        # Padding, for some reason to 16 bits
+        section.padding_w = 16
+        return section
+
+    def parseRSRCSectionData(self, section_num, bldata):
+        section = self.sections[section_num]
+
+        section.height = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        section.width = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
+        image = self.parseRSRCRawImage(section.width, section.height, section.bpp, section.padding_w, bldata)
+        section.image = image
+        section.width = image.width
+        section.height = image.height
+
+    def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
 
         data_buf = b''
-        data_buf += int(section.height).to_bytes(4, byteorder='big', signed=False)
-        data_buf += int(section.width).to_bytes(4, byteorder='big', signed=False)
-        data_buf += self.prepareRawImage(section_num)
+        data_buf += int(section.height).to_bytes(2, byteorder='big', signed=False)
+        data_buf += int(section.width).to_bytes(2, byteorder='big', signed=False)
+        data_buf += self.prepareRawImage(section.width, section.height, section.bpp, section.padding_w, section.image)
+        return data_buf
 
-        self.setData(data_buf, section_num=section_num)
+    def initWithImageSectionData(self, section, section_elem, image, block_fh):
+        section.image = image
+        section.width = image.width
+        section.height = image.height
 
 
-class ICON(BMAP):
+class ICON(RawImageBlock):
     """ Icon 32x32 1bpp
     """
     def createSection(self):
@@ -4136,7 +4186,7 @@ class ICON(BMAP):
     def parseRSRCData(self, section_num, bldata):
         section = self.sections[section_num]
 
-        icon = self.parseRSRCRawImage(section_num, bldata)
+        icon = self.parseRSRCRawImage(section.width, section.height, section.bpp, section.padding_w, bldata)
         section.image = icon
 
     def updateSectionData(self, section_num=None):
@@ -4144,7 +4194,7 @@ class ICON(BMAP):
             section_num = self.active_section_num
         section = self.sections[section_num]
 
-        data_buf = self.prepareRawImage(section_num)
+        data_buf = self.prepareRawImage(section.width, section.height, section.bpp, section.padding_w, section.image)
 
         self.setData(data_buf, section_num=section_num)
 
