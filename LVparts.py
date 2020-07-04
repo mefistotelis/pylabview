@@ -209,11 +209,11 @@ class DSINIT(enum.IntEnum):
     fpdcoTableOfst	= 7
     # Type Map Index which points to TypeDesc for DCO Table
     fpdcoTableTMI	= 8
-    # Amount of Clump QE Allocations pointed by two values below
+    # Amount of Clump QElement Allocations pointed by two values below
     nClumpQEs		= 9
-    # Offset of the Clump QE Alloc within Invariant Data Space
+    # Offset of the Clump QElement Alloc within Invariant Data Space
     clumpQEAllocOffset	= 10
-    # Type Map Index which points to TypeDesc for Clump QE Alloc
+    # Type Map Index which points to TypeDesc for Clump QElement Alloc
     clumpQEAllocTMI		= 11
     # Amount of Connection Port Connections
     # Probably used as size to some tables here, bit not for the ones just below.
