@@ -1969,6 +1969,8 @@ class StringListBlock(SingleStringBlock):
             count = int.from_bytes(bldata.read(section.count_len), byteorder='big', signed=False)
         else:
             count = 1
+        if self.size is not None and self.size < section.count_len + (count * section.size_len):
+            raise AttributeError("Section size ({}) too small to store {} strings".format(self.size,count))
         for i in range(count):
             strEntry = SimpleNamespace()
             strEntry.eoln = '\r\n'
