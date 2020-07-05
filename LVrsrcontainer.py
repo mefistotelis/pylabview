@@ -406,19 +406,17 @@ class VI():
         If it does not, set property with the unexpected order.
         """
         ordered_blocks = self.getBlocksSaveOrder()
+        # Prepare list of sections sorted by name offset
         blockNamesOrder = {}
         for block in ordered_blocks:
-            for snum, section in block.sections.items():
-                if section.start.name_offset == 0xFFFFFFFF: # This value means no name
-                    continue
+            for snum, section in block.enumerateRSRCSectionsWithNames():
                 blockNamesOrder[section.start.name_offset] = (block.ident,snum,)
         blockNamesOrder = [itm[1] for itm in sorted(blockNamesOrder.items())]
+        # Use that list to check whether names are in order
         blockNamesSorted = True
         i = 0
         for block in ordered_blocks:
-            for snum, section in block.sections.items():
-                if section.start.name_offset == 0xFFFFFFFF: # This value means no name
-                    continue
+            for snum, section in block.enumerateRSRCSectionsWithNames():
                 if i >= len(blockNamesOrder): break
                 if blockNamesOrder[i] != (block.ident,snum,):
                     blockNamesSorted = False
@@ -568,19 +566,17 @@ class VI():
         for block in shuffled_blocks:
             # If we're beyond the list to sort, just add in current order
             if bridx >= len(sorted_blkref_list):
-                sorted_blocks.extend(blocks_cache)
-                blocks_cache = []
-                sorted_blocks.append(block)
+                blocks_cache.append(block)
                 continue
             blkref = sorted_blkref_list[bridx]
             # If we're on a block we have in cache, add it from cache
             while True:
-                cached_block = next((blk for blk in blocks_cache if blk.ident == blockref[0]), None)
+                cached_block = next((blk for blk in blocks_cache if blk.ident == blkref[0]), None)
                 if cached_block is None:
                     break
                 blocks_cache.remove(cached_block)
                 sorted_blocks.append(cached_block)
-                bridx += VI.blkrefCountSameIdent(self.order_names, bridx)
+                bridx += VI.blkrefCountSameIdent(sorted_blkref_list, bridx)
                 if bridx >= len(sorted_blkref_list):
                     break
                 blkref = sorted_blkref_list[bridx]
@@ -595,13 +591,13 @@ class VI():
             # If the current block is expected later in sorting, add it to cache
             if block.ident in [ blkref[0] for blkref in sorted_blkref_list[bridx:] ]:
                 blocks_cache.append(block)
-                bridx += VI.blkrefCountSameIdent(sorted_blkref_list, bridx)
                 continue
             # If we're here, the current block is not present in sorting list
             if True:
                 sorted_blocks.append(block)
                 bridx += VI.blkrefCountSameIdent(sorted_blkref_list, bridx)
                 continue
+        sorted_blocks.extend(blocks_cache)
         return sorted_blocks
 
     def saveRSRCData(self, fh):

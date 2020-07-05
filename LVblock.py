@@ -676,17 +676,17 @@ class Block(object):
 
         self.setRawData(raw_data_section, section_num=section_num)
 
-    def hasRSRCNames(self):
-        """ Returns if any section in this block has data for Names Array
+    def enumerateRSRCSectionsWithNames(self):
+        """ Enumeration for section in this block which have data for Names Array
 
         That array is stored separate from the Block, at end of RSRC file.
         """
         for snum, section in self.sections.items():
             if section.name_obj is not None:
-                return True
-            if section.name_text is not None:
-                return True
-        return False
+                yield (snum, section,)
+            elif section.name_text is not None:
+                yield (snum, section,)
+        return
 
     def saveRSRCNames(self, section_names, order_list=None):
         """ Save names used in the section, and set their offsets within section
