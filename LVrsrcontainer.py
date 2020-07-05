@@ -481,9 +481,12 @@ class VI():
         names_elem = order_elem.find("Names")
         if names_elem is not None:
             for i, blkref_elem in enumerate(names_elem):
-                ident = blkref_elem.tag
+                ident = getRsrcTypeFromPrettyStr(blkref_elem.tag)
                 snum = blkref_elem.get("Index")
-                if snum is None: snum = 0
+                if snum is None:
+                    snum = 0
+                else:
+                    snum = int(snum,0)
                 blockNamesOrder.append( (ident,snum,) )
         if len(blockNamesOrder) > 0:
             self.order_names = blockNamesOrder
@@ -543,6 +546,64 @@ class VI():
         for block in self.blocks.values():
             block.updateData()
 
+    @staticmethod
+    def blkrefCountSameIdent(blkref_list, idx):
+        if idx >= len(blkref_list):
+            return 0
+        firstref = blkref_list[idx]
+        count = 1
+        for blkref in blkref_list[idx+1:]:
+            if blkref[0] != firstref[0]:
+                break
+            count += 1
+        return count
+
+    @staticmethod
+    def blkrefSortBlocks(shuffled_blocks, sorted_blkref_list):
+        """ Gives list of blocks sorted to match given order of references
+        """
+        bridx = 0
+        blocks_cache = []
+        sorted_blocks = []
+        for block in shuffled_blocks:
+            # If we're beyond the list to sort, just add in current order
+            if bridx >= len(sorted_blkref_list):
+                sorted_blocks.extend(blocks_cache)
+                blocks_cache = []
+                sorted_blocks.append(block)
+                continue
+            blkref = sorted_blkref_list[bridx]
+            # If we're on a block we have in cache, add it from cache
+            while True:
+                cached_block = next((blk for blk in blocks_cache if blk.ident == blockref[0]), None)
+                if cached_block is None:
+                    break
+                blocks_cache.remove(cached_block)
+                sorted_blocks.append(cached_block)
+                bridx += VI.blkrefCountSameIdent(self.order_names, bridx)
+                if bridx >= len(sorted_blkref_list):
+                    break
+                blkref = sorted_blkref_list[bridx]
+            if bridx >= len(sorted_blkref_list): # In case we moved beyond known ordering
+                blocks_cache.append(block)
+                continue
+            # If we're on the block expected by sorting, add it now
+            if block.ident == blkref[0]:
+                sorted_blocks.append(block)
+                bridx += VI.blkrefCountSameIdent(sorted_blkref_list, bridx)
+                continue
+            # If the current block is expected later in sorting, add it to cache
+            if block.ident in [ blkref[0] for blkref in sorted_blkref_list[bridx:] ]:
+                blocks_cache.append(block)
+                bridx += VI.blkrefCountSameIdent(sorted_blkref_list, bridx)
+                continue
+            # If we're here, the current block is not present in sorting list
+            if True:
+                sorted_blocks.append(block)
+                bridx += VI.blkrefCountSameIdent(sorted_blkref_list, bridx)
+                continue
+        return sorted_blocks
+
     def saveRSRCData(self, fh):
         ver = self.getFileVersion()
         # Write header, though it is not completely filled yet
@@ -555,12 +616,23 @@ class VI():
         # Also create mutable array which will become the names block
         section_names = bytearray()
 
+        # First, let's store names section in proper order
+        if True:
+            if self.order_names is None:
+                all_blocks_for_names = all_blocks
+                for block in all_blocks_for_names:
+                    block.saveRSRCNames(section_names)
+            else:
+                all_blocks_for_names = self.blkrefSortBlocks(all_blocks, self.order_names)
+                for block in all_blocks_for_names:
+                    sections_list = [ blkref[1] for blkref in self.order_names if block.ident == blkref[0] ]
+                    block.saveRSRCNames(section_names, order_list=sections_list)
+
         if isGreaterOrEqVersion(ver, 7,0,0):
             # The same order is used for both data and the following header blocks
             for block in all_blocks:
                 if (self.po.verbose > 0):
                     print("{}: Writing RSRC block {} data".format(self.src_fname,block.ident))
-                block.saveRSRCNames(section_names)
                 block.header.starts = block.saveRSRCData(fh)
         else:
             # Section headers are sorted normally, but section data is different - some sections are moved to end
@@ -574,12 +646,10 @@ class VI():
                     continue
                 if (self.po.verbose > 0):
                     print("{}: Writing RSRC block {} data".format(self.src_fname,block.ident))
-                block.saveRSRCNames(section_names)
                 block.header.starts = block.saveRSRCData(fh)
             for block in data_at_end_blocks:
                 if (self.po.verbose > 0):
                     print("{}: Writing RSRC block {} data at end".format(self.src_fname,block.ident))
-                block.saveRSRCNames(section_names)
                 block.header.starts = block.saveRSRCData(fh)
 
         rsrchead.rsrc_info_offset = fh.tell()
