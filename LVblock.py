@@ -2201,6 +2201,26 @@ class FDFL(Block):
         return section
 
 
+class PLAT(Block):
+    """ Platform FourCC Identifier
+
+    Identifies platform in platform-dependent VIs.
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+
+class TRec(Block):
+    """ Type Descriptor Record
+
+    Contains definition of data type.
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+
 class LinkObjRefs(CompleteBlock):
     """ LinkObj Identity Refs
     """
