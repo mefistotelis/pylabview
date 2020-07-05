@@ -226,6 +226,7 @@ class VI():
         self.textEncoding = text_encoding
         self.blocks = None
         self.rsrc_map = []
+        self.order_names = None
 
         if rsrc_fh is not None:
             self.dataSource = "rsrc"
@@ -369,6 +370,8 @@ class VI():
         for block in self.blocks.values():
             block.parseData()
 
+        self.rememberRSRCNamesOrder()
+
         # Do final integrations which establish dependencies betweebn blocks
         for block in self.blocks.values():
             block.integrateData()
@@ -396,12 +399,46 @@ class VI():
             block.readRawDataSections(section_count=0xffffffff)
         pass
 
+    def rememberRSRCNamesOrder(self):
+        """ Remembers information on section names order, if it is needed
+
+        Check if order of section names matches order of section headers.
+        If it does not, set property with the unexpected order.
+        """
+        ordered_blocks = self.getBlocksSaveOrder()
+        blockNamesOrder = {}
+        for block in ordered_blocks:
+            for snum, section in block.sections.items():
+                if section.start.name_offset == 0xFFFFFFFF: # This value means no name
+                    continue
+                blockNamesOrder[section.start.name_offset] = (block.ident,snum,)
+        blockNamesOrder = [itm[1] for itm in sorted(blockNamesOrder.items())]
+        blockNamesSorted = True
+        i = 0
+        for block in ordered_blocks:
+            for snum, section in block.sections.items():
+                if section.start.name_offset == 0xFFFFFFFF: # This value means no name
+                    continue
+                if i >= len(blockNamesOrder): break
+                if blockNamesOrder[i] != (block.ident,snum,):
+                    blockNamesSorted = False
+                    break
+                i += 1
+        if not blockNamesSorted:
+            if (self.po.verbose > 0):
+                print("{:s}: Names of sections are not ordered the same as actual sections".format(self.po.rsrc))
+            self.order_names = blockNamesOrder
+        else:
+            self.order_names = None
+        pass
+
     def readXMLBlockData(self):
         """ Read data sections for all Blocks from the input file.
             After this function, `self.blocks` is filled.
         """
         blocks_arr = []
         for i, block_elem in enumerate(self.xml_root):
+            if block_elem.tag in ("SpecialOrder",): continue # Special tags, not treated as Blocks
             ident = block_elem.tag
             bfactory = getattr(LVblock, ident, None)
             # Block may depend on some other informational blocks (ie. version info)
@@ -435,6 +472,24 @@ class VI():
             block.integrateData()
 
         return (len(blocks) > 0)
+
+    def readXMLOrder(self, elem):
+        order_elem = elem.find("SpecialOrder")
+        if order_elem is None:
+            return
+        blockNamesOrder = []
+        names_elem = order_elem.find("Names")
+        if names_elem is not None:
+            for i, blkref_elem in enumerate(names_elem):
+                ident = blkref_elem.tag
+                snum = blkref_elem.get("Index")
+                if snum is None: snum = 0
+                blockNamesOrder.append( (ident,snum,) )
+        if len(blockNamesOrder) > 0:
+            self.order_names = blockNamesOrder
+        else:
+            self.order_names = None
+        pass
 
     def readXML(self, xml_root, xml_fname):
         self.xml_root = xml_root
@@ -478,6 +533,7 @@ class VI():
             self.binflsthead.dataset_int2 = int(dataset_int2, 0)
 
         self.readXMLBlockData()
+        self.readXMLOrder(self.xml_root)
         self.checkSanity()
         pass
 
@@ -494,7 +550,7 @@ class VI():
         fh.write((c_ubyte * sizeof(rsrchead)).from_buffer_copy(rsrchead))
 
         # Prepare list of blocks; this sets blocks order which we will use
-        all_blocks = self.blocks.values()
+        all_blocks = self.getBlocksSaveOrder()
 
         # Also create mutable array which will become the names block
         section_names = bytearray()
@@ -504,7 +560,8 @@ class VI():
             for block in all_blocks:
                 if (self.po.verbose > 0):
                     print("{}: Writing RSRC block {} data".format(self.src_fname,block.ident))
-                block.header.starts = block.saveRSRCData(fh, section_names)
+                block.saveRSRCNames(section_names)
+                block.header.starts = block.saveRSRCData(fh)
         else:
             # Section headers are sorted normally, but section data is different - some sections are moved to end
             data_at_end_blocks = []
@@ -517,11 +574,13 @@ class VI():
                     continue
                 if (self.po.verbose > 0):
                     print("{}: Writing RSRC block {} data".format(self.src_fname,block.ident))
-                block.header.starts = block.saveRSRCData(fh, section_names)
+                block.saveRSRCNames(section_names)
+                block.header.starts = block.saveRSRCData(fh)
             for block in data_at_end_blocks:
                 if (self.po.verbose > 0):
                     print("{}: Writing RSRC block {} data at end".format(self.src_fname,block.ident))
-                block.header.starts = block.saveRSRCData(fh, section_names)
+                block.saveRSRCNames(section_names)
+                block.header.starts = block.saveRSRCData(fh)
 
         rsrchead.rsrc_info_offset = fh.tell()
         rsrchead.rsrc_data_size = rsrchead.rsrc_info_offset - rsrchead.rsrc_data_offset
@@ -627,6 +686,21 @@ class VI():
 
         return elem
 
+    def exportXMLOrder(self, elem):
+        if self.order_names is None:
+            return
+        order_elem = ET.SubElement(elem,"SpecialOrder")
+        comment_elem = ET.Comment(" {:s} ".format("Provides information on how items were ordered in the RSRC file"))
+        order_elem.append(comment_elem)
+        if self.order_names is not None:
+            subelem = ET.SubElement(order_elem,"Names")
+            for blockref in self.order_names:
+                pretty_ident = getPrettyStrFromRsrcType(blockref[0])
+                blkref_elem = ET.Element(pretty_ident)
+                blkref_elem.set("Index", str(blockref[1]))
+                subelem.append(blkref_elem)
+        pass
+
     def exportBinBlocksXMLTree(self):
         """ Export the file data into BIN files with XML glue
         """
@@ -652,6 +726,7 @@ class VI():
             subelem = block.exportXMLTree()
             elem.append(subelem)
 
+        self.exportXMLOrder(elem)
         ET.pretty_element_tree_heap(elem)
         return elem
 
@@ -815,6 +890,11 @@ class VI():
             if ident in self.blocks:
                 return self.blocks[ident]
         raise LookupError("None of blocks {} found in RSRC file.".format(",".join(identv)))
+
+    def getBlocksSaveOrder(self):
+        """ Returns list of blocks in the order they should be saved
+        """
+        return self.blocks.values()
 
     def getFileVersion(self):
         """ Gets file version array from any existing version block
