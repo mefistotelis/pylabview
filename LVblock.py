@@ -1399,7 +1399,7 @@ class FLAG(SingleIntBlock):
 
 
 class CONP(CompleteBlock):
-    """ Connector Port Type Map
+    """ Connector Pane Type Map
 
     Contains list of types. For VIs, with exactly one
     type inside; for LLBs it stores more.
@@ -1480,7 +1480,7 @@ class CLNM(Block):
 
 
 class CPTM(Block):
-    """ Connector Port Type Map
+    """ Connector Pane Type Map
 
     Contains list of types.
     """
@@ -1488,7 +1488,7 @@ class CPTM(Block):
 
 
 class CPC2(CONP):
-    """ Connector Port Content Type v2
+    """ Connector Pane Content Type v2
 
     Contains list of types. For VIs, with exactly one
     type inside; for LLBs it stores more.
@@ -1503,7 +1503,7 @@ class CPC2(CONP):
 
 
 class CPCT(Block):
-    """ Connector Port Content Type
+    """ Connector Pane Content Type
 
     Contains list of types.
     """
@@ -1511,7 +1511,7 @@ class CPCT(Block):
 
 
 class CPD2(CONP):
-    """ Connector Port DI v2
+    """ Connector Pane DI v2
 
     Contains list of types. For VIs, with exactly one
     type inside; for LLBs it stores more.
@@ -1523,7 +1523,7 @@ class CPD2(CONP):
 
 
 class CPDI(Block):
-    """ Connector Port DI
+    """ Connector Pane DI
 
     Contains list of types.
     The Type Descriptor stored is related to CPTM and CPCT.
@@ -5633,6 +5633,16 @@ class DLG3(UCRF):
     def setDefaultEncoding(self, section_num):
         section = self.sections[section_num]
         section.block_coding = BLOCK_CODING.NONE
+
+
+class LVSB(Block):
+    """ LabVIEW Subroutine
+
+        Stores executable code in platform-specific container.
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
 
 
 class TypeDescListBase(CompleteBlock):
