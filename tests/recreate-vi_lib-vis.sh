@@ -15,7 +15,7 @@ else
     echo "Custom folders set from parameter list"
     SRC_VI_DIRS="$@"
 fi
-STORE_EXTRACTED_FILES=false
+STORE_EXTRACTED_FILES=true
 
 mkdir -p ../test_out
 cd ../test_out
