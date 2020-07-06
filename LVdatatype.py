@@ -855,6 +855,13 @@ class TDObjectContainer(TDObject):
             out_enum.append( (i, clientTD.index, td, clientTD.flags, ) )
         return out_enum
 
+    def clientsRepeatCount(self):
+        """ How many times the clients are repeated in this type
+
+        Used for kinds of arrays.
+        """
+        return 1
+
     def getClientTypeDescsByType(self):
         self.parseData() # Make sure the block is parsed
         out_lists = { 'number': [], 'path': [], 'string': [], 'compound': [], 'other': [] }
@@ -1948,6 +1955,18 @@ class TDObjectArray(TDObjectContainer):
     def __init__(self, *args):
         super().__init__(*args)
         self.dimensions = [ ]
+
+    def clientsRepeatCount(self):
+        """ How many times the clients are repeated in this type
+
+        Used for kinds of arrays. Returns -1 if the size is dynamic.
+        """
+        totItems = 1
+        for i, dim in enumerate(self.dimensions):
+            if (dim.flags == 0xFF) and (dim.fixedSize == 0x00FFFFFF):
+                return -1 # dynamic size
+            totItems *= dim.fixedSize
+        return totItems
 
     def parseRSRCData(self, bldata):
         ver = self.vi.getFileVersion()

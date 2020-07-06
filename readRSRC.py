@@ -95,6 +95,7 @@ def main():
 
     po.typedesc_list_limit = 4095
     po.array_data_limit = (2**28) - 1
+    po.store_as_data_above = 4095
 
     # Store base name - without path and extension
     if len(po.xml) > 0:

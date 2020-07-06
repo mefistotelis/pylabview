@@ -543,20 +543,7 @@ class DataFillArray(DataFill):
         super().setTD(td, idx, tm_flags)
         if len(self.value) < 1:
             return # If value list is not filled yet, no further work to do
-        smartContentKind = self.smartContentUsed()
-        # We expect exactly one client within Array
-        for cli_idx, td_idx, td_obj, td_flags in self.td.clientsEnumerate():
-                sub_td = td_obj
-        if smartContentKind == "RSRC":
-            from LVdatatype import TD_FULL_TYPE, newTDObject
-            smart_td = newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.Block, self.po)
-            totItems = self.countTotalItems()
-            smart_td.blkSize = totItems * sub_td.constantSizeFill()
-            for sub_df in self.value:
-                sub_df.setTD(smart_td, -1, 0)
-        else:
-            for sub_df in self.value:
-                sub_df.setTD(sub_td, -1, self.tm_flags)
+        self.setSmartContent()
 
     def findTD(self, td):
         dfFound = super().findTD(td)
@@ -568,15 +555,46 @@ class DataFillArray(DataFill):
                 return dfFound
         return None
 
+    def setSmartContent(self):
+        smartContentKind = self.smartContentUsed()
+        # We expect exactly one client within Array
+        for cli_idx, td_idx, td_obj, td_flags in self.td.clientsEnumerate():
+                sub_td = td_obj
+        if smartContentKind in ("RSRC","Data",):
+            from LVdatatype import TD_FULL_TYPE, newTDObject
+            smart_td = newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.Block, self.po)
+            repeatRealCount = self.countTotalItems()
+            smart_td.blkSize = repeatRealCount * sub_td.constantSizeFill()
+            for sub_df in self.value:
+                sub_df.setTD(smart_td, -1, 0)
+        else:
+            for sub_df in self.value:
+                sub_df.setTD(sub_td, -1, self.tm_flags)
+
     def smartContentUsed(self):
         # We expect exactly one client within Array
         sub_td = None
         for cli_idx, td_idx, td_obj, td_flags in self.td.clientsEnumerate():
             sub_td = td_obj
-        if self.expectContentKind == "RSRC" and sub_td is not None:
+        if sub_td is not None:
             itemSize = sub_td.constantSizeFill()
-            if sub_td.isNumber() and (itemSize is not None) and (itemSize > 0):
+        else:
+            itemSize = None
+        itemCount = self.td.clientsRepeatCount()
+        if self.expectContentKind == "RSRC" and sub_td is not None:
+            if sub_td.isNumber() and (itemSize is not None) and (itemSize > 0) and \
+              (itemCount == -1 or itemSize*itemCount > 0x1C):
                 return "RSRC"
+        if self.expectContentKind == "Data":
+            return "Data"
+        if self.expectContentKind == "auto" and sub_td is not None:
+            if sub_td.isNumber() and (itemSize is not None) and (itemSize > 0):
+                if (itemCount != -1) and (itemSize*itemCount > self.po.store_as_data_above):
+                    return "Data"
+                # This introduces dependency on dimensions filled by initWithRSRCParse()
+                repeatRealCount = self.countTotalItems()
+                if (itemSize*repeatRealCount > self.po.store_as_data_above):
+                    return "Data"
         return "auto"
 
     def initWithRSRCParse(self, bldata):
@@ -587,10 +605,10 @@ class DataFillArray(DataFill):
         if len(self.td.clients) < 1:
             raise RuntimeError("TD {} used for DataFill before being initialized".format(enumOrIntToName(self.td.fullType())))
         # TODO the amounts are in self.dimensions; maybe they need to be same as self.td.dimensions, unless dynamic size is used? print warning?
-        totItems = self.countTotalItems()
+        repeatRealCount = self.countTotalItems()
         if (self.po.verbose > 1):
             print("{:s}: {:s} {:d}: The array has {} dimensions, {} fields in total"\
-              .format(self.vi.src_fname, type(self).__name__, self.index, len(self.dimensions), totItems))
+              .format(self.vi.src_fname, type(self).__name__, self.index, len(self.dimensions), repeatRealCount))
         self.value = []
         # We expect exactly one client within Array
         for cli_idx, td_idx, td_obj, td_flags in self.td.clientsEnumerate():
@@ -603,23 +621,23 @@ class DataFillArray(DataFill):
             section = block.sections[self.blockref[1]]
             if section is not None:
                 clientsLimit = min(clientsLimit, section.last_plain_data_size) # we don't know the size of single client fill, so assume 1 byte
-        if totItems > clientsLimit:
+        if repeatRealCount > clientsLimit:
                 raise RuntimeError("Fill for TD {} claims to contain {} fields, expected below {}; pos within block 0x{:x}"\
-                  .format(self.getXMLTagName(), totItems, clientsLimit, bldata.tell()))
+                  .format(self.getXMLTagName(), repeatRealCount, clientsLimit, bldata.tell()))
         smartContentKind = self.smartContentUsed()
-        if smartContentKind == "RSRC":
+        if smartContentKind in ("RSRC","Data",):
             from LVdatatype import TD_FULL_TYPE, newTDObject
             smart_td = newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.Block, self.po)
-            smart_td.blkSize = totItems * sub_td.constantSizeFill()
+            smart_td.blkSize = repeatRealCount * sub_td.constantSizeFill()
             try:
                 sub_df = newDataFillObjectWithTD(self.vi, self.blockref, -1, 0, smart_td, self.po)
                 self.value.append(sub_df)
-                sub_df.expectContentKind = self.expectContentKind
+                sub_df.expectContentKind = smartContentKind # usually setting it to self.expectContentKind would be a better idea; but not here
                 sub_df.initWithRSRC(bldata)
             except Exception as e:
                 raise RuntimeError("Smart {} Fill for TD {}: {}".format(smartContentKind,enumOrIntToName(smart_td.fullType()), str(e)))
         else:
-            for i in range(totItems):
+            for i in range(repeatRealCount):
                 try:
                     sub_df = newDataFillObjectWithTD(self.vi, self.blockref, sub_td_idx, self.tm_flags, sub_td, self.po)
                     self.value.append(sub_df)
@@ -678,14 +696,14 @@ class DataFillArray(DataFill):
 
         Multiplies sizes of each dimension to get total number of items in this Array DataFill.
         """
-        totItems = 1
+        repeatCount = 1
         # TODO the amounts are in self.dimensions; maybe they need to be same as self.td.dimensions, unless dynamic size is used? print warning?
         for i, dim in enumerate(self.dimensions):
             if dim > self.po.array_data_limit:
                 raise RuntimeError("Fill for TD {} dimension {} claims size of {} fields, expected below {}"\
                   .format(self.getXMLTagName(), i, dim, self.po.array_data_limit))
-            totItems *= dim & 0x7fffffff
-        return totItems
+            repeatCount *= dim & 0x7fffffff
+        return repeatCount
 
 
 class DataFillArrayDataPtr(DataFill):
@@ -1108,9 +1126,9 @@ class DataFillBlock(DataFill):
         """ Returns a dict describing how to divide given buffer into chunks
         """
         smartContentKind = self.smartContentUsed()
-        if smartContentKind == "RSRC":
+        if smartContentKind in ("RSRC","Data",):
             from LVrsrcontainer import RSRCHeader
-            chunksA = { 0: [len(buf),"Hex"] }
+            chunksA = { 0: [len(buf),"Hex"] } # { chunk_offset: [chunk_length,storage_type] }
             chunksB = { }
             for pos, chunk in chunksA.items():
                 if chunk[1] != "Hex":
@@ -1145,6 +1163,10 @@ class DataFillBlock(DataFill):
                 else:
                     # Copy the chunk without changes
                     chunksB[pos] = [chunk[0],chunk[1]]
+            # If there are very long chunks, switch them to storage in BIN Data file
+            for pos, chunk in chunksB.items():
+                if (chunk[0] > self.po.store_as_data_above) and (chunk[1] == "Hex"):
+                    chunk[1] = "Data"
             return chunksB
         return None
 
@@ -1180,7 +1202,14 @@ class DataFillBlock(DataFill):
             i = 0
             for pos, chunk in chunks.items():
                 subelem = ET.SubElement(df_elem, "Chunk")
-                if chunk[1] == "RSRC":
+                if chunk[1] == "Data":
+                    subelem.set("Format", "bin")
+                    subelem.set("StoredAs", "Data")
+                    chunk_fname = "{}_ch{:04d}.{}".format(fname_base,i,"bin")
+                    with open(chunk_fname, "wb") as chunk_fh:
+                        chunk_fh.write(self.value[pos:pos+chunk[0]])
+                    subelem.set("File", os.path.basename(chunk_fname))
+                elif chunk[1] == "RSRC":
                     subelem.set("Format", "bin")
                     subelem.set("StoredAs", "RSRC")
                     chunk_fname = "{}_ch{:04d}.{}".format(fname_base,i,"rsrc")
