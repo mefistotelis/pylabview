@@ -447,6 +447,13 @@ def getConsolidatedTopType(RSRC, typeID, po):
     VCTP_FlatTypeDesc = VCTP.find("./TypeDesc["+str(VCTP_FlatTypeID+1)+"]")
     return VCTP_FlatTypeDesc
 
+def getConsolidatedFlatType(RSRC, flatTypeID, po):
+    VCTP = RSRC.find("./VCTP/Section")
+    if VCTP is None:
+        return None
+    VCTP_FlatTypeDesc = VCTP.find("./TypeDesc["+str(flatTypeID+1)+"]")
+    return VCTP_FlatTypeDesc
+
 def valueOfTypeToXML(valueType, val, po):
     """ Returns dict of values for its XML representation of given type
 
@@ -650,6 +657,7 @@ def getConnectorPortsCount(RSRC, ver, fo, po):
             if CONP_TypeID is not None:
                 TypeDesc = getConsolidatedTopType(RSRC, CONP_TypeID, po)
             if TypeDesc.get("Type") != "Function":
+                # In .ctl files, this can reference TypeDef instead of Function
                 eprint("{:s}: CONP references incorrect TD entry".format(po.xml))
                 TypeDesc = None
         #TODO We could also detect the type with connectors by finding "Function" TDs, without CONP
@@ -1229,20 +1237,30 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
         if dcoTypeDesc != ddoTypeDesc:
             eprint("{:s}: Warning: DCO and DDO types differ: '{}' vs '{}'"\
               .format(po.xml,dcoTypeDesc.get("Type"),ddoTypeDesc.get("Type")))
-        # For complex types, get sub-types
+        # For compound types, get sub-types
         subTypeID = ddoTypeID + 1
         if dcoTypeDesc.get("Type") == "Cluster":
+            # For cluster, a type identical to each sub-type is also added directly to the DTHP list
             dcoTypeDesc_FieldList = list(filter(lambda f: f.tag is not ET.Comment, dcoTypeDesc.findall("./*")))
-            for dcoSubTypeDesc in dcoTypeDesc_FieldList:
+            for dcoSubTypeDesc_ref in reversed(dcoTypeDesc_FieldList): # The list of fields looks reverted.. Maybe it's just unsorted?
+                # The content of Cluster type either stores the sub-types, or references to them
+                dcoSubTypeDesc_typeId = int(dcoSubTypeDesc_ref.get("TypeID"), 0)
+                if dcoSubTypeDesc_typeId == -1:
+                    dcoSubTypeDesc = dcoSubTypeDesc_ref
+                else:
+                    dcoSubTypeDesc = getConsolidatedFlatType(RSRC, dcoSubTypeDesc_typeId, po)
                 if subTypeID not in heapTypeMap:
-                    eprint("{:s}: Warning: Heap TypeDesc {} expected for DCO{} syb-type does not exist"\
+                    eprint("{:s}: Warning: Heap TypeDesc {} expected for DCO{} sub-type does not exist"\
                       .format(po.xml,subTypeID,DCO['dcoIndex']))
                     break
                 subTypeDesc = heapTypeMap[subTypeID]
                 if subTypeDesc != dcoSubTypeDesc:
-                    eprint("{:s}: Warning: Heap TypeDesc {} expected for DCO{} has unexpected type: '{}' instead of '{}'"\
+                    eprint("{:s}: Warning: Heap TypeDesc {} expected for DCO{} has non-matching type: '{}' instead of '{}'"\
                       .format(po.xml,subTypeID,DCO['dcoIndex'],subTypeDesc.get("Type"),dcoSubTypeDesc.get("Type")))
                     continue
+                if (po.verbose > 1):
+                    print("{:s}: Heap TypeDesc {} expected for DCO{} has type '{}' matching Cluster field"\
+                      .format(po.xml,subTypeID,DCO['dcoIndex'],subTypeDesc.get("Type")))
                 subTypeIDs.append(subTypeID)
                 subTypeID += 1
         DCO['dcoTypeID'] = dcoTypeID
@@ -2166,10 +2184,11 @@ def main():
             print("{}: Starting XML file parse for RSRC fix".format(po.xml))
         tree = ET.parse(po.xml, parser=ET.XMLParser(target=ET.CommentedTreeBuilder()))
         root = tree.getroot()
-        for blkIdent in po.drop_section:
-            sub_elem = root.find("./"+blkIdent)
-            if sub_elem is not None:
-                root.remove(sub_elem)
+        if po.drop_section is not None:
+            for blkIdent in po.drop_section:
+                sub_elem = root.find("./"+blkIdent)
+                if sub_elem is not None:
+                    root.remove(sub_elem)
         parseSubXMLs(root, po)
 
         checkBlocksAvailable(root, po)
