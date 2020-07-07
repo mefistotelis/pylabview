@@ -1010,6 +1010,32 @@ class RefnumDotNet(RefnumBase):
                     data_buf += b'\0' # padding
         return data_buf
 
+    def expectedRSRCSize(self):
+        ver = self.vi.getFileVersion()
+        exp_whole_len = 0
+
+        if isGreaterOrEqVersion(ver, 8,1,1):
+            exp_whole_len += 4
+            dnTypeName = self.td_obj.dnTypeName
+            if dnTypeName is not None:
+                exp_whole_len += 4+len(dnTypeName)
+        else:
+            exp_whole_len += 1 + 1
+            assemblyName = self.td_obj.assemblyName
+            if assemblyName is not None:
+                strlen = len(assemblyName)
+                if ((strlen+1) % 2) > 0:
+                    strlen += 1
+                exp_whole_len += 1+strlen
+            dnTypeName = self.td_obj.dnTypeName
+            if dnTypeName is not None:
+                strlen = len(dnTypeName)
+                if ((strlen+1) % 2) > 0:
+                    strlen += 1
+                exp_whole_len += 1+strlen
+
+        return exp_whole_len
+
     def initWithXML(self, conn_elem):
         field0 = conn_elem.get("Field0")
         if field0 is not None:
