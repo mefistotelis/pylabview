@@ -1398,6 +1398,18 @@ class FLAG(SingleIntBlock):
         return section
 
 
+class CCST(SingleIntBlock):
+    """ Code Compile Settings
+    """
+    def createSection(self):
+        section = super().createSection()
+        section.byteorder = 'big'
+        section.entsize = 4
+        section.base = 10
+        section.signed = False
+        return section
+
+
 class CONP(CompleteBlock):
     """ Connector Pane Type Map
 
