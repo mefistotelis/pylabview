@@ -552,41 +552,12 @@ def valueTypeGetDefaultRange(valueType, po):
         stdInc = None
     return stdMin, stdMax, stdInc
 
-def elemCheckOrCreate_zPlaneList_arrayElement(parent, fo, po, aeClass="fPDCO", \
-          aeTypeID=1, aeObjFlags=None, aeDdoClass="stdBool", aeConNum=None, \
-          aeTermListLength=None, aeDdoObjFlags=None, aeBounds=None, \
+def elemCheckOrCreate_ddo_content(ddo, fo, po, aeDdoObjFlags=None, aeBounds=None, \
           aeDdoTypeID=None, aeMouseWheelSupport=None, aeMinButSize=None, \
-          valueType="Boolean", aeStdNumMin=None, aeStdNumMax=None, aeStdNumInc=None):
-
-    searchTags = []
-    searchTags.append( ("typeDesc", "TypeID({})".format(aeTypeID),) )
-    arrayElement = elemFindOrCreateWithAttribsAndTags(parent, "SL__arrayElement", \
-      ( ("class", aeClass,), ), searchTags, fo, po)
-    attribGetOrSetDefault(arrayElement, "class", aeClass, fo, po)
-    attribGetOrSetDefault(arrayElement, "uid", 1, fo, po)
-
-    if aeObjFlags is not None:
-        objFlags = elemFindOrCreate(arrayElement, "objFlags", fo, po, pos=0)
-        elemTextGetOrSetDefault(objFlags, aeObjFlags, fo, po)
-
-    typeDesc = elemFindOrCreate(arrayElement, "typeDesc", fo, po)
-    elemTextGetOrSetDefault(typeDesc, "TypeID({})".format(aeTypeID), fo, po)
-
-    ddo = elemFindOrCreate(arrayElement, "ddo", fo, po)
-    attribGetOrSetDefault(ddo, "class", aeDdoClass, fo, po)
-    attribGetOrSetDefault(ddo, "uid", 1, fo, po)
-
-    # Not having a "conNum" set seem to actually mean it's equal to 0, which
-    # means it is set. The value with the meaning of 'unset' is -1.
-    if aeConNum is not None:
-        conNum = elemFindOrCreate(arrayElement, "conNum", fo, po)
-        elemTextGetOrSetDefault(conNum, aeConNum, fo, po)
-
-    if aeTermListLength is not None:
-        termListLength = elemFindOrCreate(arrayElement, "termListLength", fo, po)
-        elemTextGetOrSetDefault(termListLength, aeTermListLength, fo, po)
-
-    # Now content of 'arrayElement/ddo'
+          valueType="Boolean", aeStdNumMin=None, aeStdNumMax=None, aeStdNumInc=None, \
+          aeSavedSize=None):
+    """ Fils content of pre-created DDO tag
+    """
 
     if aeDdoObjFlags is not None:
         ddo_objFlags = elemFindOrCreate(ddo, "objFlags", fo, po, pos=0)
@@ -596,11 +567,13 @@ def elemCheckOrCreate_zPlaneList_arrayElement(parent, fo, po, aeClass="fPDCO", \
         ddo_bounds = elemFindOrCreate(ddo, "bounds", fo, po)
         elemTextGetOrSetDefault(ddo_bounds, aeBounds, fo, po)
 
-    partsList = elemFindOrCreate(ddo, "partsList", fo, po)
-    attribGetOrSetDefault(partsList, "elements", 0, fo, po)
+    partsList = None
+    if aeDdoTypeID is not None: # Only root element has no type and no parts list
+        partsList = elemFindOrCreate(ddo, "partsList", fo, po)
+        attribGetOrSetDefault(partsList, "elements", 0, fo, po)
 
-    ddo_TypeDesc = elemFindOrCreate(ddo, "typeDesc", fo, po)
-    elemTextGetOrSetDefault(ddo_TypeDesc, "TypeID({})".format(aeDdoTypeID), fo, po)
+        ddo_TypeDesc = elemFindOrCreate(ddo, "typeDesc", fo, po)
+        elemTextGetOrSetDefault(ddo_TypeDesc, "TypeID({})".format(aeDdoTypeID), fo, po)
 
     if aeMouseWheelSupport is not None:
         ddo_MouseWheelSupport = elemFindOrCreate(ddo, "MouseWheelSupport", fo, po)
@@ -640,7 +613,55 @@ def elemCheckOrCreate_zPlaneList_arrayElement(parent, fo, po, aeClass="fPDCO", \
             tmp_subtag = elemFindOrCreate(ddo_StdNumInc, tagName, fo, po)
             elemTextGetOrSetDefault(tmp_subtag, tagValue, fo, po)
 
-    return arrayElement, partsList
+    paneHierarchy = None
+    if valueType == "Cluster": # Some types have sub-lists of objects
+        ddo_ddoList = elemFindOrCreate(ddo, "ddoList", fo, po)
+        attribGetOrSetDefault(ddo_ddoList, "elements", 0, fo, po)
+
+        paneHierarchy = elemFindOrCreate(ddo, "paneHierarchy", fo, po)
+        attribGetOrSetDefault(paneHierarchy, "class", "pane", fo, po)
+        attribGetOrSetDefault(paneHierarchy, "uid", 1, fo, po)
+
+    if aeSavedSize is not None:
+        ddo_savedSize = elemFindOrCreate(ddo, "savedSize", fo, po)
+        elemTextGetOrSetDefault(ddo_savedSize, aeSavedSize, fo, po)
+
+    return partsList, paneHierarchy
+
+def elemCheckOrCreate_zPlaneList_arrayElement(parent, fo, po, aeClass="fPDCO", \
+          aeTypeID=1, aeObjFlags=None, aeDdoClass="stdBool", aeConNum=None, \
+          aeTermListLength=None):
+
+    searchTags = []
+    searchTags.append( ("typeDesc", "TypeID({})".format(aeTypeID),) )
+    arrayElement = elemFindOrCreateWithAttribsAndTags(parent, "SL__arrayElement", \
+      ( ("class", aeClass,), ), searchTags, fo, po)
+    attribGetOrSetDefault(arrayElement, "class", aeClass, fo, po)
+    attribGetOrSetDefault(arrayElement, "uid", 1, fo, po)
+
+    if aeObjFlags is not None:
+        objFlags = elemFindOrCreate(arrayElement, "objFlags", fo, po, pos=0)
+        elemTextGetOrSetDefault(objFlags, aeObjFlags, fo, po)
+
+    typeDesc = elemFindOrCreate(arrayElement, "typeDesc", fo, po)
+    elemTextGetOrSetDefault(typeDesc, "TypeID({})".format(aeTypeID), fo, po)
+
+    ddo = elemFindOrCreate(arrayElement, "ddo", fo, po)
+    attribGetOrSetDefault(ddo, "class", aeDdoClass, fo, po)
+    attribGetOrSetDefault(ddo, "uid", 1, fo, po)
+
+    # Not having a "conNum" set seem to actually mean it's equal to 0, which
+    # means it is set. The value with the meaning of 'unset' is -1.
+    if aeConNum is not None:
+        conNum = elemFindOrCreate(arrayElement, "conNum", fo, po)
+        elemTextGetOrSetDefault(conNum, aeConNum, fo, po)
+
+    if aeTermListLength is not None:
+        termListLength = elemFindOrCreate(arrayElement, "termListLength", fo, po)
+        elemTextGetOrSetDefault(termListLength, aeTermListLength, fo, po)
+
+    # Now content of 'arrayElement/ddo'
+    return arrayElement, ddo
 
 def getConnectorPortsCount(RSRC, ver, fo, po):
     """ Returns amount of connector ports the RSRC uses.
@@ -1044,6 +1065,50 @@ def checkOrCreateParts_stdNum_indicator(RSRC, partsList, parentObjFlags, labelTe
 
     return numText
 
+def checkOrCreateParts_stdClust_control(RSRC, partsList, parentObjFlags, labelText, fo, po):
+    """ Checks content of partsList element of Cluster Control type
+    """
+    nameLabel = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="label", \
+      aePartID=PARTID.CAPTION, aeObjFlags=1507654, aeMasterPart=PARTID.FRAME, aeHowGrow=4096,
+      aeBounds=[0,0,15,33], aeImageResID=-9, aeFgColor=0x01000000, aeBgColor=0x01000000)
+    nameLabel_textRec = elemFindOrCreate(nameLabel, "textRec", fo, po)
+    attribGetOrSetDefault(nameLabel_textRec, "class", "textHair", fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "flags", fo, po), 1536, fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "mode", fo, po), 17412, fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "text", fo, po), "\""+labelText+"\"", fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "bgColor", fo, po), "{:08X}".format(0x01000000), fo, po)
+
+    nameLabel = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="label", \
+      aePartID=PARTID.NAME_LABEL, aeObjFlags=1511758, aeMasterPart=PARTID.FRAME, aeHowGrow=4096,
+      aeBounds=[16,-37,31,-4], aeImageResID=-9, aeFgColor=0x01000000, aeBgColor=0x01000000)
+    nameLabel_textRec = elemFindOrCreate(nameLabel, "textRec", fo, po)
+    attribGetOrSetDefault(nameLabel_textRec, "class", "textHair", fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "flags", fo, po), 1536, fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "mode", fo, po), 17412, fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "text", fo, po), "\""+labelText+"\"", fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(nameLabel_textRec, "bgColor", fo, po), "{:08X}".format(0x01000000), fo, po)
+
+    contentArea = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="cosm", \
+      aePartID=PARTID.CONTENT_AREA, aeObjFlags=2359, aeMasterPart=PARTID.FRAME, aeHowGrow=240, \
+      aeBounds=[21,4,210,140], aeImageResID=0, aeFgColor=0x00A6A6A6, aeBgColor=0x00A6A6A6)
+
+    elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="cosm", \
+      aePartID=PARTID.CONTENT_AREA, aeObjFlags=2359, aeMasterPart=PARTID.FRAME, aeHowGrow=240, \
+      aeBounds=[21,4,210,140], aeImageResID=0, aeFgColor=0x00A6A6A6, aeBgColor=0x00A6A6A6)
+
+    elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="cosm", \
+      aePartID=PARTID.FRAME, aeObjFlags=2327, aeMasterPart=None, aeHowGrow=240, \
+      aeBounds=[17,0,214,144], aeImageResID=-412, aeFgColor=0x00B3B3B3, aeBgColor=0x01000000)
+
+    # ANNEX properties taken from empty VI file created in LV14
+    annexPart = elemCheckOrCreate_partList_arrayElement(partsList, fo, po, aeClass="annex", \
+      aePartID=PARTID.ANNEX)
+    elemTextGetOrSetDefault(elemFindOrCreate(annexPart, "refListLength", fo, po), 0, fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(annexPart, "hGrowNodeListLength", fo, po), 0, fo, po)
+    elemTextGetOrSetDefault(elemFindOrCreate(annexPart, "rsrcID", fo, po), 21607, fo, po)
+
+    return contentArea
+
 
 def FPHb_Fix(RSRC, FPHP, ver, fo, po):
     block_name = "FPHb"
@@ -1087,24 +1152,9 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
 
     # Now content of the 'root' element
 
-    root_objFlags = elemFindOrCreate(root, "objFlags", fo, po, pos=0)
-    elemTextGetOrSetDefault(root_objFlags, 65536, fo, po)
-
-    root_bounds = elemFindOrCreate(root, "bounds", fo, po)
-    elemTextGetOrSetDefault(root_bounds, [0,0,0,0], fo, po)
-
-    root_MouseWheelSupport = elemFindOrCreate(root, "MouseWheelSupport", fo, po)
-    elemTextGetOrSetDefault(root_MouseWheelSupport, 0, fo, po)
-
-    root_ddoList = elemFindOrCreate(root, "ddoList", fo, po)
-    attribGetOrSetDefault(root_ddoList, "elements", 0, fo, po)
-
-    root_paneHierarchy = elemFindOrCreate(root, "paneHierarchy", fo, po)
-    attribGetOrSetDefault(root_paneHierarchy, "class", "pane", fo, po)
-    attribGetOrSetDefault(root_paneHierarchy, "uid", 1, fo, po)
-
-    root_savedSize = elemFindOrCreate(root, "savedSize", fo, po)
-    elemTextGetOrSetDefault(root_savedSize, [0,0,0,0], fo, po)
+    root_partsList, root_paneHierarchy = elemCheckOrCreate_ddo_content(root, fo, po,
+      aeDdoObjFlags=65536, aeBounds=[0,0,0,0], aeMouseWheelSupport=0, \
+      valueType="Cluster", aeSavedSize=[0,0,0,0])
 
     root_conPane = elemFindOrCreate(root, "conPane", fo, po)
     attribGetOrSetDefault(root_conPane, "class", "conPane", fo, po)
@@ -1286,10 +1336,12 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
             ddoObjFlags_val = 0 # 0x1: user input disabled
             labelText = dcoTypeDesc.get("Label")
             if labelText is None: labelText = "Boolean"
-            dco_elem, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
-              aeTypeID=DCO['dcoTypeID'], aeObjFlags=dcoObjFlags_val, aeDdoClass="stdBool", aeConNum=DCO['conNum'], aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val,
+            dco_elem, ddo_elem = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
+              aeTypeID=DCO['dcoTypeID'], aeObjFlags=dcoObjFlags_val, aeDdoClass="stdBool", aeConNum=DCO['conNum'], aeTermListLength=1)
+            dco_partsList, _ = elemCheckOrCreate_ddo_content(ddo_elem, fo, po, aeDdoObjFlags=ddoObjFlags_val,
               aeBounds=[pos[0],pos[1],pos[0]+48,pos[1]+60], aeDdoTypeID=DCO['ddoTypeID'], aeMouseWheelSupport=0, aeMinButSize=[50,21], \
               valueType=dcoTypeDesc.get("Type"))
+
             checkOrCreateParts_stdBool_control(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
         elif dcoTypeDesc.get("Type") == "Boolean" and DCO['isIndicator'] != 0:
             print("{:s}: Associating DCO{} TypeDesc '{}' with FpDCO {} of class '{}'"\
@@ -1298,8 +1350,9 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
             ddoObjFlags_val = 1
             labelText = dcoTypeDesc.get("Label")
             if labelText is None: labelText = "Boolean"
-            dco_elem, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
-              aeTypeID=DCO['dcoTypeID'], aeObjFlags=dcoObjFlags_val, aeDdoClass="stdBool", aeConNum=DCO['conNum'], aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val,
+            dco_elem, ddo_elem = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
+              aeTypeID=DCO['dcoTypeID'], aeObjFlags=dcoObjFlags_val, aeDdoClass="stdBool", aeConNum=DCO['conNum'], aeTermListLength=1)
+            dco_partsList, _ = elemCheckOrCreate_ddo_content(ddo_elem, fo, po, aeDdoObjFlags=ddoObjFlags_val,
               aeBounds=[pos[0],pos[1],pos[0]+38,pos[1]+41], aeDdoTypeID=DCO['ddoTypeID'], aeMouseWheelSupport=0, aeMinButSize=[17,17], \
               valueType=dcoTypeDesc.get("Type"))
             checkOrCreateParts_stdBool_indicator(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
@@ -1311,8 +1364,9 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
             labelText = dcoTypeDesc.get("Label")
             if labelText is None: labelText = "Numeric"
             stdNumMin, stdNumMax, stdNumInc = valueTypeGetDefaultRange(dcoTypeDesc.get("Type"), po)
-            dco_elem, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
-              aeTypeID=DCO['dcoTypeID'], aeObjFlags=dcoObjFlags_val, aeDdoClass="stdNum", aeConNum=DCO['conNum'], aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val, \
+            dco_elem, ddo_elem = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
+              aeTypeID=DCO['dcoTypeID'], aeObjFlags=dcoObjFlags_val, aeDdoClass="stdNum", aeConNum=DCO['conNum'], aeTermListLength=1)
+            dco_partsList, _ = elemCheckOrCreate_ddo_content(ddo_elem, fo, po, aeDdoObjFlags=ddoObjFlags_val, \
               aeBounds=[185,581,223,622], aeDdoTypeID=DCO['ddoTypeID'], aeMouseWheelSupport=2, aeMinButSize=None, \
               valueType=dcoTypeDesc.get("Type"), aeStdNumMin=stdNumMin, aeStdNumMax=stdNumMax, aeStdNumInc=stdNumInc)
             checkOrCreateParts_stdNum_control(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
@@ -1324,11 +1378,25 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
             labelText = dcoTypeDesc.get("Label")
             if labelText is None: labelText = "Numeric"
             stdNumMin, stdNumMax, stdNumInc = valueTypeGetDefaultRange(dcoTypeDesc.get("Type"), po)
-            dco_elem, dco_partsList = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
-              aeTypeID=DCO['dcoTypeID'], aeObjFlags=dcoObjFlags_val, aeDdoClass="stdNum", aeConNum=DCO['conNum'], aeTermListLength=1, aeDdoObjFlags=ddoObjFlags_val, \
+            dco_elem, ddo_elem = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
+              aeTypeID=DCO['dcoTypeID'], aeObjFlags=dcoObjFlags_val, aeDdoClass="stdNum", aeConNum=DCO['conNum'], aeTermListLength=1)
+            dco_partsList, _ = elemCheckOrCreate_ddo_content(ddo_elem, fo, po, aeDdoObjFlags=ddoObjFlags_val, \
               aeBounds=[185,581,223,622], aeDdoTypeID=DCO['ddoTypeID'], aeMouseWheelSupport=2, aeMinButSize=None, \
               valueType=dcoTypeDesc.get("Type"), aeStdNumMin=stdNumMin, aeStdNumMax=stdNumMax, aeStdNumInc=stdNumInc)
             checkOrCreateParts_stdNum_indicator(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
+        elif dcoTypeDesc.get("Type") == "Cluster" and DCO['isIndicator'] == 0:
+            print("{:s}: Associating DCO{} TypeDesc '{}' with FpDCO {} of class '{}'"\
+              .format(po.xml,DCO['dcoIndex'],dcoTypeDesc.get("Type"),typeCtlOrInd,"stdClust"))
+            dcoObjFlags_val = 0
+            ddoObjFlags_val = 0x00004
+            labelText = dcoTypeDesc.get("Label")
+            if labelText is None: labelText = "Cluster"
+            dco_elem, ddo_elem = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
+              aeTypeID=DCO['dcoTypeID'], aeObjFlags=dcoObjFlags_val, aeDdoClass="stdClust", aeConNum=DCO['conNum'], aeTermListLength=1)
+            dco_partsList, ddo_paneHierarchy = elemCheckOrCreate_ddo_content(ddo_elem, fo, po, aeDdoObjFlags=ddoObjFlags_val, \
+              aeBounds=[185,581,223,622], aeDdoTypeID=DCO['ddoTypeID'], aeMouseWheelSupport=0, aeMinButSize=None, \
+              valueType=dcoTypeDesc.get("Type"), aeSavedSize=[0,0,0,0])
+            checkOrCreateParts_stdClust_control(RSRC, dco_partsList, ddoObjFlags_val, labelText, fo, po)
         else:
             #TODO add more types
             dco_elem = None
