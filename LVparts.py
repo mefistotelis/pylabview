@@ -167,6 +167,42 @@ def partIdToEnum(partId):
         return partId
     return PARTID(partId)
 
+class OBJ_FLAGS(enum.IntEnum):
+    """ Part ObjFlags bits
+    """
+    OFFBit0 = 1 << 0	# unknown
+    OFFBit1 = 1 << 1	# unknown
+    OFFBit2 = 1 << 2	# unknown
+    OFFBit3 = 1 << 3	# isHidden - part is not visible on screen
+    OFFBit4 = 1 << 4	# unknown
+    OFFBit5 = 1 << 5	# unknown
+    OFFBit6 = 1 << 6	# unknown
+    OFFBit7 = 1 << 7	# unknown
+    OFFBit8 = 1 << 8	# unknown
+    OFFBit9 = 1 << 9	# unknown
+    OFFBit10 = 1 << 10	# unknown
+    OFFBit11 = 1 << 11	# unknown
+    OFFBit12 = 1 << 12	# unknown
+    OFFBit13 = 1 << 13	# unknown
+    OFFBit14 = 1 << 14	# unknown
+    OFFBit15 = 1 << 15	# unknown
+    OFFBit16 = 1 << 16	# unknown
+    OFFBit17 = 1 << 17	# unknown
+    OFFBit18 = 1 << 18	# unknown
+    OFFBit19 = 1 << 19	# unknown
+    OFFBit20 = 1 << 20	# unknown
+    OFFBit21 = 1 << 21	# unknown
+    OFFBit22 = 1 << 22	# unknown
+    OFFBit23 = 1 << 23	# unknown
+    OFFBit24 = 1 << 24	# unknown
+    OFFBit25 = 1 << 25	# unknown
+    OFFBit26 = 1 << 26	# unknown
+    OFFBit27 = 1 << 27	# unknown
+    OFFBit28 = 1 << 28	# unknown
+    OFFBit29 = 1 << 29	# unknown
+    OFFBit30 = 1 << 30	# unknown
+    OFFBit31 = 1 << 31	# unknown
+
 class DSINIT(enum.IntEnum):
     """ Dats Space Initialization metadata
 
