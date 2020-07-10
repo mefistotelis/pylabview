@@ -1409,56 +1409,51 @@ def FPHb_elemCheckOrCreate_zPlaneList_DCO(RSRC, paneHierarchy_zPlaneList, fo, po
           aeTypeID=dcoTypeID, aeObjFlags=dcoObjFlags_val, aeDdoClass=ddoClass_val, aeConNum=dcoConNum, aeTermListLength=1)
     else:
         dco_elem, ddo_elem = elemCheckOrCreate_zPlaneList_arrayElement(paneHierarchy_zPlaneList, fo, po, aeClass="fPDCO", \
-          aeTypeID=None, aeObjFlags=dcoObjFlags_val, aeDdoClass=ddoClass_val, aeConNum=dcoConNum, aeTermListLength=1)
-
-    if defineDDO:
-        aeDdoTypeID = ddoTypeID
-    else:
-        aeDdoTypeID = None
+          aeTypeID=dcoTypeID, aeObjFlags=dcoObjFlags_val, aeDdoClass=ddoClass_val, aeConNum=dcoConNum, aeTermListLength=1)
 
     if dcoTypeDesc.get("Type") == "Boolean" and isIndicator == 0:
         corBR = [corTL[0]+48,corTL[1]+60]
         ddo_partsList, _ = elemCheckOrCreate_ddo_content(ddo_elem, fo, po, aeDdoObjFlags=ddoObjFlags_val,
-          aeBounds=corTL+corBR, hasParts=True, aeDdoTypeID=aeDdoTypeID, \
+          aeBounds=corTL+corBR, hasParts=True, aeDdoTypeID=ddoTypeID, \
           aeMouseWheelSupport=0, aeMinButSize=[50,21], valueType=dcoTypeDesc.get("Type"))
         checkOrCreateParts_stdBool_control(RSRC, ddo_partsList, ddoObjFlags_val, labelText, fo, po)
     elif dcoTypeDesc.get("Type") == "Boolean" and isIndicator != 0:
         corBR = [corTL[0]+38,corTL[1]+50+32] # Bool indicator LED is moved strongly towards the left
         ddo_partsList, _ = elemCheckOrCreate_ddo_content(ddo_elem, fo, po, aeDdoObjFlags=ddoObjFlags_val,
-          aeBounds=[corTL[0],corTL[1]+32]+corBR, hasParts=True, aeDdoTypeID=aeDdoTypeID, \
+          aeBounds=[corTL[0],corTL[1]+32]+corBR, hasParts=True, aeDdoTypeID=ddoTypeID, \
           aeMouseWheelSupport=0, aeMinButSize=[17,17], valueType=dcoTypeDesc.get("Type"))
         checkOrCreateParts_stdBool_indicator(RSRC, ddo_partsList, ddoObjFlags_val, labelText, fo, po)
     elif dcoTypeDesc.get("Type").startswith("Num") and isIndicator == 0:
         corBR = [corTL[0]+38,corTL[1]+41+16] # Numeric control has 16-px arrows before component bounds
         ddo_partsList, _ = elemCheckOrCreate_ddo_content(ddo_elem, fo, po, aeDdoObjFlags=ddoObjFlags_val, \
-          aeBounds=[corTL[0],corTL[1]+16]+corBR, hasParts=True, aeDdoTypeID=aeDdoTypeID, \
+          aeBounds=[corTL[0],corTL[1]+16]+corBR, hasParts=True, aeDdoTypeID=ddoTypeID, \
           aeMouseWheelSupport=2, aeMinButSize=None, valueType=dcoTypeDesc.get("Type"), \
           aeStdNumMin=stdNumMin, aeStdNumMax=stdNumMax, aeStdNumInc=stdNumInc)
         checkOrCreateParts_stdNum_control(RSRC, ddo_partsList, ddoObjFlags_val, labelText, fo, po)
     elif dcoTypeDesc.get("Type").startswith("Num") and isIndicator != 0:
         corBR = [corTL[0]+38,corTL[1]+41]
         ddo_partsList, _ = elemCheckOrCreate_ddo_content(ddo_elem, fo, po, aeDdoObjFlags=ddoObjFlags_val, \
-          aeBounds=corTL+corBR, hasParts=True, aeDdoTypeID=aeDdoTypeID, \
+          aeBounds=corTL+corBR, hasParts=True, aeDdoTypeID=ddoTypeID, \
           aeMouseWheelSupport=2, aeMinButSize=None, valueType=dcoTypeDesc.get("Type"), \
           aeStdNumMin=stdNumMin, aeStdNumMax=stdNumMax, aeStdNumInc=stdNumInc)
         checkOrCreateParts_stdNum_indicator(RSRC, ddo_partsList, ddoObjFlags_val, labelText, fo, po)
     elif dcoTypeDesc.get("Type") == "String" and isIndicator == 0:
         corBR = [corTL[0]+40,corTL[1]+100]
         ddo_partsList, _ = elemCheckOrCreate_ddo_content(ddo_elem, fo, po, aeDdoObjFlags=ddoObjFlags_val, \
-          aeBounds=corTL+corBR, hasParts=True, aeDdoTypeID=aeDdoTypeID, \
+          aeBounds=corTL+corBR, hasParts=True, aeDdoTypeID=ddoTypeID, \
           aeMouseWheelSupport=3, aeMinButSize=None, valueType=dcoTypeDesc.get("Type"))
         checkOrCreateParts_stdString_control(RSRC, ddo_partsList, ddoObjFlags_val, labelText, fo, po)
     elif dcoTypeDesc.get("Type") == "String" and isIndicator != 0:
         corBR = [corTL[0]+40,corTL[1]+100]
         ddo_partsList, _ = elemCheckOrCreate_ddo_content(ddo_elem, fo, po, aeDdoObjFlags=ddoObjFlags_val, \
-          aeBounds=corTL+corBR, hasParts=True, aeDdoTypeID=aeDdoTypeID, \
+          aeBounds=corTL+corBR, hasParts=True, aeDdoTypeID=ddoTypeID, \
           aeMouseWheelSupport=3, aeMinButSize=None, valueType=dcoTypeDesc.get("Type"))
         checkOrCreateParts_stdString_indicator(RSRC, ddo_partsList, ddoObjFlags_val, labelText, fo, po)
 
     elif dcoTypeDesc.get("Type") == "Cluster" and isIndicator == 0:
         corBR = [corTL[0]+40,corTL[1]+100]
         ddo_partsList, ddo_paneHierarchy = elemCheckOrCreate_ddo_content(ddo_elem, fo, po, aeDdoObjFlags=ddoObjFlags_val, \
-          aeBounds=corTL+corBR, hasParts=True, aeDdoTypeID=aeDdoTypeID, \
+          aeBounds=corTL+corBR, hasParts=True, aeDdoTypeID=ddoTypeID, \
           aeMouseWheelSupport=0, aeMinButSize=None, valueType=dcoTypeDesc.get("Type"), aeSavedSize=[0,0,0,0])
         checkOrCreateParts_stdClust_control(RSRC, ddo_partsList, ddoObjFlags_val, labelText, fo, po)
 
