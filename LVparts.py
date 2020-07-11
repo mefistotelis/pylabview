@@ -170,7 +170,7 @@ def partIdToEnum(partId):
 class OBJ_FLAGS(enum.IntEnum):
     """ Part ObjFlags bits
     """
-    OFFBit0 = 1 << 0	# unknown
+    OFFBit0 = 1 << 0	# isIndicator - indicator, input is disabled
     OFFBit1 = 1 << 1	# unknown
     OFFBit2 = 1 << 2	# unknown
     OFFBit3 = 1 << 3	# isHidden - part is not visible on screen
