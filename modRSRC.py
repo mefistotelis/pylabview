@@ -1835,10 +1835,59 @@ def intRangesOneContaining(iRanges, leaveIndex):
         return iRanges
     return nRanges
 
+def getTypeDescFromMapUsingList(FlatTypeDescList, TDTopMap, po):
+    """ Retrieves TypeDesc element, using mapping list and TD list
+
+    Returns entry from FlatTypeDescList, and position of that entry.
+    """
+    TDTopMap_Index = TDTopMap.get("Index")
+    if TDTopMap_Index is not None:
+        TDTopMap_Index = int(TDTopMap_Index, 0)
+    FlatTypeID = TDTopMap.get("FlatTypeID")
+    if FlatTypeID is None:
+        FlatTypeID = TDTopMap.get("TypeID") # For map entries within Clusters
+    if FlatTypeID is not None:
+        FlatTypeID = int(FlatTypeID, 0)
+    if FlatTypeID is None:
+        if (po.verbose > 2):
+            print("{:s}: TypeDesc {} mapping entry is damaged"\
+                .format(po.xml,TDTopMap_Index))
+        return None, TDTopMap_Index, FlatTypeID
+    if FlatTypeID >= 0 and FlatTypeID < len(FlatTypeDescList):
+        TypeDesc = FlatTypeDescList[FlatTypeID]
+    else:
+        if (po.verbose > 2):
+            print("{:s}: TypeDesc {} Flat TypeID {} is missing from flat list"\
+                .format(po.xml,TDTopMap_Index,FlatTypeID))
+        TypeDesc = None
+    return TypeDesc, TDTopMap_Index, FlatTypeID
+
+def getTypeDescFromIDUsingLists(TypeDescMap, FlatTypeDescList, typeID, po):
+    """ Retrieves TypeDesc element, using mapping list and TD list
+
+    Returns entry from FlatTypeDescList, and position of that entry.
+    """
+    for TDTopMap in TypeDescMap:
+        TDTopMap_Index = TDTopMap.get("Index")
+        if TDTopMap_Index is not None:
+            TDTopMap_Index = int(TDTopMap_Index, 0)
+        if TDTopMap_Index != typeID:
+            continue
+        TypeDesc, TDTopMap_Index, FlatTypeID = getTypeDescFromMapUsingList(FlatTypeDescList, TDTopMap, po)
+        return TypeDesc, FlatTypeID
+    return None, None
+
 def DTHP_TypeDesc_matching_ranges(RSRC, VCTP_TypeDescList, VCTP_FlatTypeDescList, fo, po):
     # Set min possible value; we will increase it shortly
     # and max acceptable value; we will decrease it shortly
-    heapRanges = [ SimpleNamespace(min=1,max=len(VCTP_TypeDescList)+1) ]
+    properMax = 1
+    for TDTopMap in VCTP_TypeDescList:
+        TDTopMap_Index = TDTopMap.get("Index")
+        if TDTopMap_Index is not None:
+            TDTopMap_Index = int(TDTopMap_Index, 0)
+        if TDTopMap_Index is not None:
+            properMax = max(properMax, TDTopMap_Index)
+    heapRanges = [ SimpleNamespace(min=1,max=properMax) ]
     dcoDataTypes = {}
     if True: # find proper Heap TDs range
         # DTHP range is always above TM80 IndexShift
@@ -2069,35 +2118,126 @@ def DTHP_TypeDesc_matching_ranges(RSRC, VCTP_TypeDescList, VCTP_FlatTypeDescList
         # IndexShift must be high enough or count must be small enough to keep
         # Function TDs outside.
         nonHeapTypes = []
-        for TypeDesc in VCTP_TypeDescList:
-            TypeDesc_Index = TypeDesc.get("Index")
-            if TypeDesc_Index is not None:
-                TypeDesc_Index = int(TypeDesc_Index, 0)
-            FlatTypeID = TypeDesc.get("FlatTypeID")
-            if FlatTypeID is not None:
-                FlatTypeID = int(FlatTypeID, 0)
-            if FlatTypeID is None: continue # Something is wrong with the list
-            if FlatTypeID >= len(VCTP_FlatTypeDescList): continue # Something is wrong with the list
-            FlatTypeDesc = VCTP_FlatTypeDescList[FlatTypeID]
-            if FlatTypeDesc.get("Type") == "Function":
+        for TDTopMap in VCTP_TypeDescList:
+            TypeDesc, TDTopMap_Index, FlatTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, TDTopMap, po)
+            if TypeDesc is None: continue
+            if TypeDesc.get("Type") == "Function":
                 # Function type can only be part of heap types if its FlatTypeID is used two times
                 # in the file, and the other use is not a heap type.
-                for OtherTypeDesc in VCTP_TypeDescList:
-                    OtherTypeDesc_Index = OtherTypeDesc.get("Index")
-                    if OtherTypeDesc_Index is not None:
-                        OtherTypeDesc_Index = int(OtherTypeDesc_Index, 0)
-                    OtherFlatTypeID = OtherTypeDesc.get("FlatTypeID")
-                    if OtherFlatTypeID is not None:
-                        OtherFlatTypeID = int(OtherFlatTypeID, 0)
+                for otherTDTopMap in VCTP_TypeDescList:
+                    otherTypeDesc, otherTDTopMap_Index, otherFlatTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, otherTDTopMap, po)
                     # Let's assume the second use of the same Function type can be in heap types
                     # So only if we are on first use of that flat type, disallow it s use in heap
-                    if OtherFlatTypeID == FlatTypeID:
-                        if OtherTypeDesc_Index == TypeDesc_Index:
-                            nonHeapTypes.append(TypeDesc_Index)
+                    if otherFlatTypeID == FlatTypeID:
+                        if otherTDTopMap_Index == TDTopMap_Index:
+                            nonHeapTypes.append(TDTopMap_Index)
                         break
             #TODO check if other types should be removed from heap
         for TypeDesc_Index in nonHeapTypes:
             heapRanges = intRangesExcludeOne(heapRanges, TypeDesc_Index)
+        if (po.verbose > 2):
+            print("{:s}: After Type based exclusion, heap TD ranges: {}"\
+                .format(po.xml,heapRanges))
+    # DTHP must match the two-per-TD layout (with proper exceptions)
+    # Valid ranges contain ref to the same type twice for each DCO, single types are only used after Cluster
+    # (and they must match the fields within cluster)
+    heapRangesProper = []
+    for rng in heapRanges:
+        properMin = None
+        properMax = None
+
+        dcoTypeID = None # Starting typeID for currently verified DCO
+        dcoTypeDesc = None # Starting type descriptor for currently verified DCO
+        dcoFlatTypeID = None
+        dcoSubTypeDescList = []
+        rangeEnded = False
+        for typeID in range(rng.min,rng.max+1):
+            currTypeDesc, currFlatTypeID = \
+                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID, po)
+            if dcoTypeID is not None and typeID == dcoTypeID+1:
+                # If types are after each other, compare flatTypeIDs - DCO and DDO TDs should have same base type
+                if dcoFlatTypeID == currFlatTypeID:
+                    #ddoTypeID = typeID # no need to have DDO type stored
+                    if properMin is None:
+                        properMin = dcoTypeID
+                    if dcoTypeDesc.get("Type") == "Cluster":
+                        dcoSubTypeDescMap = dcoTypeDesc.findall("./TypeDesc")
+                        dcoSubTypeDescList = []
+                        for TDTopMap in dcoSubTypeDescMap:
+                            TypeDesc, _, _ = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, TDTopMap, po)
+                            if TypeDesc is None: continue
+                            dcoSubTypeDescList.append(TypeDesc)
+                        # Following that, we expect types from inside the Cluster; make sure there are some
+                        if len(dcoSubTypeDescList) < 1:
+                            # No sub-types - end of types for this DCO
+                            properMax = typeID
+                            dcoTypeID = None
+                            dcoTypeDesc = None
+                            dcoFlatTypeID = None
+                            dcoSubTypeDescList = []
+                        pass
+                    else:
+                        # Proper end of types for this DCO
+                        properMax = typeID
+                        dcoTypeID = None
+                        dcoTypeDesc = None
+                        dcoFlatTypeID = None
+                        dcoSubTypeDescList = []
+                    continue # in all cases above, jump to next type
+                else:
+                    if (po.verbose > 2):
+                        print("{:s}: TypeID {} FlatTypeId {} followed by TypeID {} FlatTypeId {}, not viable for heap"\
+                          .format(po.xml,dcoTypeID,dcoFlatTypeID,typeID,currFlatTypeID))
+                    rangeEnded = True
+                    # This type is not part of the range list we're in; but it may still be
+                    # the beginning of next range - make sure it's set as dcoTypeID of next range
+            elif dcoTypeID is not None and typeID > dcoTypeID+1:
+                # If types are further away than one, check Cluster content
+                dcoSubTypeIndex = len(dcoSubTypeDescList) - (typeID-dcoTypeID-1)
+                if dcoSubTypeIndex >= 0 and dcoSubTypeIndex < len(dcoSubTypeDescList):
+                    dcoSubTypeDesc = dcoSubTypeDescList[dcoSubTypeIndex]
+                    if currTypeDesc.get("Type") == dcoSubTypeDesc.get("Type"):
+                        if dcoSubTypeIndex > 0:
+                            # Matching entry, but not end of sub-entries yet - go to next
+                            pass
+                        else:
+                            # Proper end of types for this Cluster DCO
+                            properMax = typeID
+                            dcoTypeID = None
+                            dcoTypeDesc = None
+                            dcoFlatTypeID = None
+                            dcoSubTypeDescList = []
+                        continue
+                    else:
+                        if (po.verbose > 2):
+                            print("{:s}: TypeID {} FlatTypeId {} followed by non-matching SubTypeID {}, not viable for heap"\
+                              .format(po.xml,dcoTypeID,dcoFlatTypeID,typeID))
+                        rangeEnded = True
+                    pass
+                else:
+                    # Subtype is outranged - meaning error
+                    if (po.verbose > 2):
+                        print("{:s}: TypeID {} FlatTypeId {} followed by outranged SubTypeID {}, not viable for heap"\
+                          .format(po.xml,dcoTypeID,dcoFlatTypeID,typeID))
+                    rangeEnded = True
+                pass
+            if rangeEnded:
+                if properMax is not None:
+                    rng = SimpleNamespace(min=properMin,max=properMax)
+                    heapRangesProper.append(rng)
+                properMin = None
+                properMax = None
+                rangeEnded = False
+            if True: # Store current type as previous
+                dcoTypeID = typeID
+                dcoTypeDesc = currTypeDesc
+                dcoFlatTypeID = currFlatTypeID
+                dcoSubTypeDescList = []
+    # Handle any range not added to heapRangesProper yet
+    if properMax is not None:
+        rng = SimpleNamespace(min=properMin,max=properMax)
+        heapRangesProper.append(rng)
+    heapRanges = heapRangesProper
     return heapRanges, dcoDataTypes
 
 def DTHP_Fix(RSRC, DTHP, ver, fo, po):
