@@ -1877,16 +1877,20 @@ def getTypeDescFromIDUsingLists(TypeDescMap, FlatTypeDescList, typeID, po):
         return TypeDesc, FlatTypeID
     return None, None
 
+def getMaxIndexFromList(elemList, fo, po):
+    val = 1
+    for elem in elemList:
+        elemIndex = elem.get("Index")
+        if elemIndex is not None:
+            elemIndex = int(elemIndex, 0)
+        if elemIndex is not None:
+            val = max(val, elemIndex)
+    return val
+
 def DTHP_TypeDesc_matching_ranges(RSRC, VCTP_TypeDescList, VCTP_FlatTypeDescList, fo, po):
     # Set min possible value; we will increase it shortly
     # and max acceptable value; we will decrease it shortly
-    properMax = 1
-    for TDTopMap in VCTP_TypeDescList:
-        TDTopMap_Index = TDTopMap.get("Index")
-        if TDTopMap_Index is not None:
-            TDTopMap_Index = int(TDTopMap_Index, 0)
-        if TDTopMap_Index is not None:
-            properMax = max(properMax, TDTopMap_Index)
+    properMax = getMaxIndexFromList(VCTP_TypeDescList, fo, po)
     heapRanges = [ SimpleNamespace(min=1,max=properMax) ]
     dcoDataTypes = {}
     if True: # find proper Heap TDs range
@@ -2233,10 +2237,10 @@ def DTHP_TypeDesc_matching_ranges(RSRC, VCTP_TypeDescList, VCTP_FlatTypeDescList
                 dcoTypeDesc = currTypeDesc
                 dcoFlatTypeID = currFlatTypeID
                 dcoSubTypeDescList = []
-    # Handle any range not added to heapRangesProper yet
-    if properMax is not None:
-        rng = SimpleNamespace(min=properMin,max=properMax)
-        heapRangesProper.append(rng)
+        # Handle any range not added to heapRangesProper yet
+        if properMax is not None:
+            rng = SimpleNamespace(min=properMin,max=properMax)
+            heapRangesProper.append(rng)
     heapRanges = heapRangesProper
     return heapRanges, dcoDataTypes
 
@@ -2270,8 +2274,26 @@ def DTHP_Fix(RSRC, DTHP, ver, fo, po):
             continue
         minIndexShift = rng.min
         maxTdCount = rng.max - rng.min
-    # TODO if range is empty but we have dcoDataTypes, then we can create new types for DTHP
-    # TODO Flat types is dcoDataTypes should be used to re-create VCTP entries needed for DTHP
+    if maxTdCount <= 0 and len(dcoDataTypes) > 0:
+        # if range is empty but we have dcoDataTypes, then we can create new types for DTHP
+        if (po.verbose > 1):
+            print("{:s}: No TypeDesc entries found for DTHP; need to re-create the entries"\
+                .format(po.xml))
+        minIndexShift = getMaxIndexFromList(VCTP_TypeDescList, fo, po)
+        maxIndexShift = minIndexShift
+        # Flat types is dcoDataTypes should be used to re-create VCTP entries needed for DTHP
+        VCTP_TopLevel = VCTP.find("TopLevel")
+        for dcoIndex, dcoFlatTypeID in dcoDataTypes.items():
+            if (po.verbose > 1):
+                print("{:s}: Re-creating DTHP entries for DCO{} using FlatTypeID {}"\
+                    .format(po.xml,dcoIndex,dcoFlatTypeID))
+            # TODO re-create entries!
+        maxTdCount = maxIndexShift - minIndexShift
+    elif maxTdCount <= 0:
+        if (po.verbose > 1):
+            print("{:s}: No TypeDesc entries found for DTHP, and no DCO TDs to re-create them"\
+                .format(po.xml))
+        pass
     if indexShift is None or indexShift < minIndexShift:
         if (po.verbose > 0):
             print("{:s}: Changing 'DTHP/TypeDescSlice' IndexShift to {}"\
