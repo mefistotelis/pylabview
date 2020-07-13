@@ -2279,15 +2279,38 @@ def DTHP_Fix(RSRC, DTHP, ver, fo, po):
         if (po.verbose > 1):
             print("{:s}: No TypeDesc entries found for DTHP; need to re-create the entries"\
                 .format(po.xml))
-        minIndexShift = getMaxIndexFromList(VCTP_TypeDescList, fo, po)
+        minIndexShift = getMaxIndexFromList(VCTP_TypeDescList, fo, po) + 1
         maxIndexShift = minIndexShift
         # Flat types is dcoDataTypes should be used to re-create VCTP entries needed for DTHP
         VCTP_TopLevel = VCTP.find("TopLevel")
-        for dcoIndex, dcoFlatTypeID in dcoDataTypes.items():
+        for dcoIndex, dcoTypeID in reversed(dcoDataTypes.items()):
+            dcoTypeDesc, dcoFlatTypeID = \
+                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, dcoTypeID, po)
             if (po.verbose > 1):
                 print("{:s}: Re-creating DTHP entries for DCO{} using FlatTypeID {}"\
                     .format(po.xml,dcoIndex,dcoFlatTypeID))
-            # TODO re-create entries!
+            # DCO TypeDesc
+            elem = ET.Element("TypeDesc")
+            elem.set("Index", str(maxIndexShift))
+            elem.set("FlatTypeID", str(dcoFlatTypeID))
+            VCTP_TopLevel.append(elem)
+            maxIndexShift += 1
+            # DDO TypeDesc
+            elem = ET.Element("TypeDesc")
+            elem.set("Index", str(maxIndexShift))
+            elem.set("FlatTypeID", str(dcoFlatTypeID))
+            VCTP_TopLevel.append(elem)
+            maxIndexShift += 1
+            # Sub-types
+            if dcoTypeDesc.get("Type") == "Cluster":
+                dcoSubTypeDescMap = list(filter(lambda f: f.tag is not ET.Comment, dcoTypeDesc.findall("./TypeDesc")))
+                for TDTopMap in reversed(dcoSubTypeDescMap):
+                    dcoSubTypeDesc, _, dcoFlatSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, TDTopMap, po)
+                    elem = ET.Element("TypeDesc")
+                    elem.set("Index", str(maxIndexShift))
+                    elem.set("FlatTypeID", str(dcoFlatSubTypeID))
+                    VCTP_TopLevel.append(elem)
+                    maxIndexShift += 1
         maxTdCount = maxIndexShift - minIndexShift
     elif maxTdCount <= 0:
         if (po.verbose > 1):
