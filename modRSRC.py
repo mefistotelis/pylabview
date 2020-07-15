@@ -1823,6 +1823,13 @@ def intRangesExcludeBelow(iRanges, excludeIndex):
     nRanges = intRangesExcludeOne(iRanges, excludeIndex)
     return [ rng for rng in nRanges if rng.min > excludeIndex ]
 
+def intRangesExcludeBetween(iRanges, excludeIndexMin, excludeIndexMax):
+    if excludeIndexMin is None or excludeIndexMax is None:
+        return iRanges
+    nRanges = intRangesExcludeOne(iRanges, excludeIndexMin)
+    nRanges = intRangesExcludeOne(nRanges, excludeIndexMax)
+    return [ rng for rng in nRanges if (rng.max < excludeIndexMin) or (rng.min > excludeIndexMax) ]
+
 def intRangesOneContaining(iRanges, leaveIndex):
     if leaveIndex is None:
         return iRanges
@@ -1834,6 +1841,38 @@ def intRangesOneContaining(iRanges, leaveIndex):
     if len(nRanges) < 1:
         return iRanges
     return nRanges
+
+def getDCOMappingForIntField(RSRC, dcoFieldName, po, TM80_IndexShift=None, FpDCOTable_TypeID=None):
+    """ Returns mapping between DCO Indexes and specified integer field from the DCOs
+
+    If given dcoFieldName represents TMI, converts it to TypeID.
+    """
+    if TM80_IndexShift is None:
+        TM80 = RSRC.find("./TM80/Section")
+        if TM80 is not None:
+            TM80_IndexShift = TM80.get("IndexShift")
+            if TM80_IndexShift is not None:
+                TM80_IndexShift = int(TM80_IndexShift, 0)
+    dcoMapping = {}
+    DCO_fields = [ field[0] for field in LVparts.DCO._fields_ ]
+    FpDCOTable = getFpDCOTable(RSRC, po, TM80_IndexShift=TM80_IndexShift, FpDCOTable_TypeID=FpDCOTable_TypeID)
+    if FpDCOTable is not None:
+            for FpDCO in FpDCOTable.findall("./RepeatedBlock/Cluster"):
+                FpDCO_FieldValue = None
+                # List fields without comments
+                FpDCO_FieldList = list(filter(lambda f: f.tag is not ET.Comment, FpDCO.findall("./*")))
+                val = FpDCO_FieldList[DCO_fields.index(dcoFieldName)].text
+                if val is not None:
+                    val = int(val,0)
+                    if dcoFieldName.endswith("TMI"):
+                        assert(TM80_IndexShift is not None) # Otherwise we wouldn't have DCO list at all
+                        FpDCO_FieldValue = TM80_IndexShift + (val & 0xFFFFFF)
+                    else:
+                        FpDCO_FieldValue = val
+                idx = FpDCO_FieldList[DCO_fields.index('dcoIndex')].text
+                idx = int(idx,0)
+                dcoMapping[idx] = FpDCO_FieldValue
+    return dcoMapping
 
 def getTypeDescFromMapUsingList(FlatTypeDescList, TDTopMap, po):
     """ Retrieves TypeDesc element, using mapping list and TD list
@@ -1887,180 +1926,224 @@ def getMaxIndexFromList(elemList, fo, po):
             val = max(val, elemIndex)
     return val
 
-def DTHP_TypeDesc_matching_ranges(RSRC, VCTP_TypeDescList, VCTP_FlatTypeDescList, fo, po):
+def TypeDesc_find_unused_ranges(RSRC, fo, po, skipRm=[], VCTP_TypeDescList=None, VCTP_FlatTypeDescList=None):
+    """ Searches through all TDs, looking for unused items
+
+    Skips removal of items for specified groups - often we will want the groups to include TM80.
+    """
+    VCTP = RSRC.find("./VCTP/Section")
+    if VCTP_TypeDescList is None:
+        if VCTP is not None:
+            VCTP_TypeDescList = VCTP.findall("TopLevel/TypeDesc")
+        else:
+            VCTP_TypeDescList = []
+    if VCTP_FlatTypeDescList is None:
+        if VCTP is not None:
+            VCTP_FlatTypeDescList = VCTP.findall("TypeDesc")
     # Set min possible value; we will increase it shortly
     # and max acceptable value; we will decrease it shortly
     properMax = getMaxIndexFromList(VCTP_TypeDescList, fo, po)
-    heapRanges = [ SimpleNamespace(min=1,max=properMax) ]
-    dcoDataTypes = {}
-    if True: # find proper Heap TDs range
-        # DTHP range is always above TM80 IndexShift
-        # This is not directly enforced in code, but before Heap TypeDescs
-        # there are always TypeDescs which store options, and those are
-        # filled with DFDS, meaning they have to be included in TM80 range
+    unusedRanges = [ SimpleNamespace(min=1,max=properMax) ]
+    # find unused TD ranges
+    if True:
+        # We need TM80 to convert TMIs into TypeIDs
         TM80_IndexShift = None
         TM80 = RSRC.find("./TM80/Section")
         if TM80 is not None:
             TM80_IndexShift = TM80.get("IndexShift")
             if TM80_IndexShift is not None:
                 TM80_IndexShift = int(TM80_IndexShift, 0)
-        heapRanges = intRangesExcludeBelow(heapRanges, TM80_IndexShift)
-        if (po.verbose > 2):
-            print("{:s}: After TM80 IndexShift exclusion, heap TD ranges: {}"\
-                .format(po.xml,heapRanges))
-        # DTHP IndexShift must be high enough to not include TypeDesc from CONP
-        # Since CONP type is created with new VIs it is always before any heap TDs
+    if "TM80" not in skipRm:
+        if TM80 is not None:
+            TM80_Clients = TM80.findall("./Client")
+            if len(TM80_Clients) > 0:
+                unusedRanges = intRangesExcludeBetween(unusedRanges, TM80_IndexShift, TM80_IndexShift+len(TM80_Clients)-1)
+    if "DTHP" not in skipRm:
+        DTHP_indexShift = None
+        DTHP_tdCount = None
+        DTHP_typeDescSlice = RSRC.find("./DTHP/Section/TypeDescSlice")
+        if DTHP_typeDescSlice is not None:
+            DTHP_indexShift = DTHP_typeDescSlice.get("IndexShift")
+            if DTHP_indexShift is not None:
+                DTHP_indexShift = int(DTHP_indexShift, 0)
+            DTHP_tdCount = DTHP_typeDescSlice.get("Count")
+            if DTHP_tdCount is not None:
+                DTHP_tdCount = int(DTHP_tdCount, 0)
+        if (DTHP_indexShift is not None) and (DTHP_tdCount is not None):
+            unusedRanges = intRangesExcludeBetween(unusedRanges, DTHP_indexShift, DTHP_indexShift+DTHP_tdCount-1)
+    if "CONP" not in skipRm:
+        # Exclude TypeDesc pointed by CONP
         CONP_TypeID = None
         CONP_TypeDesc = RSRC.find("./CONP/Section/TypeDesc")
         if CONP_TypeDesc is not None:
             CONP_TypeID = CONP_TypeDesc.get("TypeID")
             if CONP_TypeID is not None:
                 CONP_TypeID = int(CONP_TypeID, 0)
-        heapRanges = intRangesExcludeBelow(heapRanges, CONP_TypeID)
+        unusedRanges = intRangesExcludeOne(unusedRanges, CONP_TypeID)
         if (po.verbose > 2):
-            print("{:s}: After CONP exclusion, heap TD ranges: {}"\
-                .format(po.xml,heapRanges))
-        # DTHP must not include TypeDesc from CPC2
-        # That type is created when first connector from pane is assigned; so it's
-        # sometimes placed before, sometimes after heap TDs
+            print("{:s}: After CONP exclusion, unused TD ranges: {}"\
+                .format(po.xml,unusedRanges))
+    if "CPC2" not in skipRm:
+        # Exclude TypeDesc pointed by CPC2
         CPC2_TypeID = None
         CPC2_TypeDesc = RSRC.find("./CPC2/Section/TypeDesc")
         if CPC2_TypeDesc is not None:
             CPC2_TypeID = CPC2_TypeDesc.get("TypeID")
             if CPC2_TypeID is not None:
                 CPC2_TypeID = int(CPC2_TypeID, 0)
-        heapRanges = intRangesExcludeOne(heapRanges, CPC2_TypeID)
-        # DTHP must not include TypeDesc from PFTD
+        unusedRanges = intRangesExcludeOne(unusedRanges, CPC2_TypeID)
+    if "PFTD" not in skipRm:
+        # Exclude TypeDesc pointed by PFTD
         FPTD_TypeID = None
         FPTD_TypeDesc = RSRC.find("./FPTD/Section/TypeDesc")
         if FPTD_TypeDesc is not None:
             FPTD_TypeID = FPTD_TypeDesc.get("TypeID")
             if FPTD_TypeID is not None:
                 FPTD_TypeID = int(FPTD_TypeID, 0)
-        heapRanges = intRangesExcludeOne(heapRanges, FPTD_TypeID)
-        # DTHP must not include TypeDesc with DSInit
-        DSInit = getDSInitRecord(RSRC, po)
+        unusedRanges = intRangesExcludeOne(unusedRanges, FPTD_TypeID)
+    # We need DSInit for several exclusions below
+    DSInit = getDSInitRecord(RSRC, po)
+    if "DSInit" not in skipRm:
+        # Exclude TypeDesc with DSInit
         DSInit_TypeID = None
         if DSInit is not None:
             DSInit_TypeID = DSInit.get("TypeID")
         if DSInit_TypeID is not None:
             DSInit_TypeID = int(DSInit_TypeID, 0)
-        heapRanges = intRangesExcludeOne(heapRanges, DSInit_TypeID)
-        # DTHP must not include TypeDesc with Hilite Table
+        unusedRanges = intRangesExcludeOne(unusedRanges, DSInit_TypeID)
+    if "HiliteTb" not in skipRm:
+        # Exclude TypeDesc which contain Hilite Table
         HiliteTable_TypeID = None
         if TM80_IndexShift is not None:
             val_TMI = getDSInitEntry(RSRC, DSINIT.hiliteTableTMI, po, DSInit=DSInit)
             if val_TMI is not None and val_TMI >= 0:
                 HiliteTable_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
-        heapRanges = intRangesExcludeOne(heapRanges, HiliteTable_TypeID)
-        # DTHP must not include TypeDesc with Probe Table
+        unusedRanges = intRangesExcludeOne(unusedRanges, HiliteTable_TypeID)
+    if True:
+        # We need probe table index not only to exclude it, but to access the items inside
         ProbeTable_TypeID = None
         if TM80_IndexShift is not None:
             val_TMI = getDSInitEntry(RSRC, DSINIT.probeTableTMI, po, DSInit=DSInit)
             if val_TMI is not None:
                 ProbeTable_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
-        heapRanges = intRangesExcludeOne(heapRanges, ProbeTable_TypeID)
-        # DTHP must not include TypeDesc with FP DCO Table
+    if "ProbeTb" not in skipRm:
+        # Exclude TypeDesc which contain Probe Table
+        unusedRanges = intRangesExcludeOne(unusedRanges, ProbeTable_TypeID)
+    if "FpDcoTb" not in skipRm:
+        # Exclude TypeDesc which contain FP DCO Table
         FpDCOTable_TypeID = None
         if TM80_IndexShift is not None:
             val_TMI = getDSInitEntry(RSRC, DSINIT.fpdcoTableTMI, po, DSInit=DSInit)
             if val_TMI is not None:
                 FpDCOTable_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
-        heapRanges = intRangesExcludeOne(heapRanges, FpDCOTable_TypeID)
-        # DTHP must not include TypeDesc with Clump QE Alloc
+        unusedRanges = intRangesExcludeOne(unusedRanges, FpDCOTable_TypeID)
+    if "ClumpQE" not in skipRm:
+        # Exclude TypeDesc which contain Clump QE Alloc
         ClumpQEAlloc_TypeID = None
         if TM80_IndexShift is not None:
             val_TMI = getDSInitEntry(RSRC, DSINIT.clumpQEAllocTMI, po, DSInit=DSInit)
             if val_TMI is not None:
                 ClumpQEAlloc_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
-        heapRanges = intRangesExcludeOne(heapRanges, ClumpQEAlloc_TypeID)
-        # DTHP must not include TypeDesc with VI Param Table
+        unusedRanges = intRangesExcludeOne(unusedRanges, ClumpQEAlloc_TypeID)
+    if "VIParamTb" not in skipRm:
+        # Exclude TypeDesc which contain VI Param Table
         VIParamTable_TypeID = None
         if TM80_IndexShift is not None:
             val_TMI = getDSInitEntry(RSRC, DSINIT.viParamTableTMI, po, DSInit=DSInit)
             if val_TMI is not None:
                 VIParamTable_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
-        heapRanges = intRangesExcludeOne(heapRanges, VIParamTable_TypeID)
+        unusedRanges = intRangesExcludeOne(unusedRanges, VIParamTable_TypeID)
         if (po.verbose > 2):
-            print("{:s}: After VI Param Table exclusion, heap TD ranges: {}"\
-                .format(po.xml,heapRanges))
-        # DTHP must not include TypeDesc with Extra DCO Info
+            print("{:s}: After VI Param Table exclusion, unused TD ranges: {}"\
+                .format(po.xml,unusedRanges))
+    if "ExtraDCOInfo" not in skipRm:
+        # Exclude TypeDesc which contain Extra DCO Info
         ExtraDCOInfo_TypeID = None
         if TM80_IndexShift is not None:
             val_TMI = getDSInitEntry(RSRC, DSINIT.extraDCOInfoTMI, po, DSInit=DSInit)
             if val_TMI is not None:
                 ExtraDCOInfo_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
-        heapRanges = intRangesExcludeOne(heapRanges, ExtraDCOInfo_TypeID)
-        # DTHP must not include TypeDesc with IO Conn Idx
+        unusedRanges = intRangesExcludeOne(unusedRanges, ExtraDCOInfo_TypeID)
+    if "IOConnIdx" not in skipRm:
+        # Exclude TypeDesc which contain IO Conn Idx
         IOConnIdx_TypeID = None
         if TM80_IndexShift is not None:
             val_TMI = getDSInitEntry(RSRC, DSINIT.localInputConnIdxTMI, po, DSInit=DSInit)
             if val_TMI is not None:
                 IOConnIdx_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
-        heapRanges = intRangesExcludeOne(heapRanges, IOConnIdx_TypeID)
-        # DTHP must not include TypeDesc with InternalHiliteTableHandleAndPtr
+        unusedRanges = intRangesExcludeOne(unusedRanges, IOConnIdx_TypeID)
+    if "IntHiliteTb" not in skipRm:
+        # Exclude TypeDesc which contain InternalHiliteTableHandleAndPtr
         InternalHiliteTableHandleAndPtr_TypeID = None
         if TM80_IndexShift is not None:
             val_TMI = getDSInitEntry(RSRC, DSINIT.internalHiliteTableHandleAndPtrTMI, po, DSInit=DSInit)
             if val_TMI is not None:
                 InternalHiliteTableHandleAndPtr_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
-        heapRanges = intRangesExcludeOne(heapRanges, InternalHiliteTableHandleAndPtr_TypeID)
-        # DTHP must not include TypeDesc with SubVI Patch Tags
+        unusedRanges = intRangesExcludeOne(unusedRanges, InternalHiliteTableHandleAndPtr_TypeID)
+    if "SubVIPatchTags" not in skipRm:
+        # Exclude TypeDesc which contain SubVI Patch Tags
         SubVIPatchTags_TypeID = None
         if TM80_IndexShift is not None:
             val_TMI = getDSInitEntry(RSRC, DSINIT.subVIPatchTagsTMI, po, DSInit=DSInit)
             if val_TMI is not None:
                 SubVIPatchTags_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
-        heapRanges = intRangesExcludeOne(heapRanges, SubVIPatchTags_TypeID)
-        # DTHP must not include TypeDesc with SubVI Patch
+        unusedRanges = intRangesExcludeOne(unusedRanges, SubVIPatchTags_TypeID)
+    if "SubVIPatch" not in skipRm:
+        # Exclude TypeDesc which contain SubVI Patch
         SubVIPatch_TypeID = None
         if TM80_IndexShift is not None:
             val_TMI = getDSInitEntry(RSRC, DSINIT.subVIPatchTMI, po, DSInit=DSInit)
             if val_TMI is not None:
                 SubVIPatch_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
-        heapRanges = intRangesExcludeOne(heapRanges, SubVIPatch_TypeID)
+        unusedRanges = intRangesExcludeOne(unusedRanges, SubVIPatch_TypeID)
         if (po.verbose > 2):
-            print("{:s}: After SubVI Patch exclusion, heap TD ranges: {}"\
-                .format(po.xml,heapRanges))
-        # DTHP must not include TypeDesc with Enpd Td Offsets
+            print("{:s}: After SubVI Patch exclusion, unused TD ranges: {}"\
+                .format(po.xml,unusedRanges))
+    if "EnpdTdOffsets" not in skipRm:
+        # Exclude TypeDesc which contain Enpd Td Offsets
         EnpdTdOffsets_TypeID = None
         if TM80_IndexShift is not None:
             val_TMI = getDSInitEntry(RSRC, DSINIT.enpdTdOffsetsTMI, po, DSInit=DSInit)
             if val_TMI is not None:
                 EnpdTdOffsets_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
-        heapRanges = intRangesExcludeOne(heapRanges, EnpdTdOffsets_TypeID)
-        # DTHP must not include TypeDesc with Sp DDO Table
+        unusedRanges = intRangesExcludeOne(unusedRanges, EnpdTdOffsets_TypeID)
+    if "SpDdoTable" not in skipRm:
+        # Exclude TypeDesc which contain Sp DDO Table
         SpDDOTable_TypeID = None
         if TM80_IndexShift is not None:
             val_TMI = getDSInitEntry(RSRC, DSINIT.spDDOTableTMI, po, DSInit=DSInit)
             if val_TMI is not None:
                 SpDDOTable_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
-        heapRanges = intRangesExcludeOne(heapRanges, SpDDOTable_TypeID)
-        # DTHP must not include TypeDesc with StepInto Node Idx Table
+        unusedRanges = intRangesExcludeOne(unusedRanges, SpDDOTable_TypeID)
+    if "StepIntoNodeIdxTb" not in skipRm:
+        # Exclude TypeDesc which contain StepInto Node Idx Table
         StepIntoNodeIdxTable_TypeID = None
         if TM80_IndexShift is not None:
             val_TMI = getDSInitEntry(RSRC, DSINIT.stepIntoNodeIdxTableTMI, po, DSInit=DSInit)
             if val_TMI is not None:
                 StepIntoNodeIdxTable_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
-        heapRanges = intRangesExcludeOne(heapRanges, StepIntoNodeIdxTable_TypeID)
-        # DTHP must not include TypeDesc with Hilite Idx Table
+        unusedRanges = intRangesExcludeOne(unusedRanges, StepIntoNodeIdxTable_TypeID)
+    if "HiliteIdxTable" not in skipRm:
+        # Exclude TypeDesc which contain Hilite Idx Table
         HiliteIdxTable_TypeID = None
         if TM80_IndexShift is not None:
             val_TMI = getDSInitEntry(RSRC, DSINIT.hiliteIdxTableTMI, po, DSInit=DSInit)
             if val_TMI is not None:
                 HiliteIdxTable_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
-        heapRanges = intRangesExcludeOne(heapRanges, HiliteIdxTable_TypeID)
-        # DTHP must not include TypeDesc with Generated Code Profile Result Table
+        unusedRanges = intRangesExcludeOne(unusedRanges, HiliteIdxTable_TypeID)
+    if "GCodeProfileResultTb" not in skipRm:
+        # Exclude TypeDesc which contain Generated Code Profile Result Table
         GeneratedCodeProfileResultTable_TypeID = None
         if TM80_IndexShift is not None:
             val_TMI = getDSInitEntry(RSRC, DSINIT.generatedCodeProfileResultTableTMI, po, DSInit=DSInit)
             if val_TMI is not None:
                 GeneratedCodeProfileResultTable_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
-        heapRanges = intRangesExcludeOne(heapRanges, GeneratedCodeProfileResultTable_TypeID)
+        unusedRanges = intRangesExcludeOne(unusedRanges, GeneratedCodeProfileResultTable_TypeID)
         if (po.verbose > 2):
-            print("{:s}: After GCPR Table exclusion, heap TD ranges: {}"\
-                .format(po.xml,heapRanges))
-        # DTHP must not include TypeDesc values pointed to by DCOs
+            print("{:s}: After GCPR Table exclusion, unused TD ranges: {}"\
+                .format(po.xml,unusedRanges))
+    if "FpDcoTb" not in skipRm:
+        # Exclude TypeDesc values pointed to by DCOs
         DCO_fields = [ field[0] for field in LVparts.DCO._fields_ ]
         FpDCOTable = getFpDCOTable(RSRC, po, TM80_IndexShift=TM80_IndexShift, FpDCOTable_TypeID=FpDCOTable_TypeID)
         if FpDCOTable is not None and TM80_IndexShift is not None:
@@ -2085,13 +2168,13 @@ def DTHP_TypeDesc_matching_ranges(RSRC, VCTP_TypeDescList, VCTP_FlatTypeDescList
                 idx = FpDCO_FieldList[DCO_fields.index('dcoIndex')].text
                 idx = int(idx,0)
                 if (po.verbose > 2):
-                    print("{:s}: After DCO{} check, excluding from heap TD ranges: {} {} {}"\
+                    print("{:s}: After DCO{} check, excluding from unused TD ranges: {} {} {}"\
                         .format(po.xml,idx,FpDCOFlags_TypeID,FpDCODefaultDataTMI_TypeID,FpDCOExtraData_TypeID))
-                dcoDataTypes[idx] = FpDCODefaultDataTMI_TypeID
-                heapRanges = intRangesExcludeOne(heapRanges, FpDCOFlags_TypeID)
-                heapRanges = intRangesExcludeOne(heapRanges, FpDCODefaultDataTMI_TypeID)
-                heapRanges = intRangesExcludeOne(heapRanges, FpDCOExtraData_TypeID)
-        # DTHP must not include TypeDesc values pointed to by ProbePoints
+                unusedRanges = intRangesExcludeOne(unusedRanges, FpDCOFlags_TypeID)
+                unusedRanges = intRangesExcludeOne(unusedRanges, FpDCODefaultDataTMI_TypeID)
+                unusedRanges = intRangesExcludeOne(unusedRanges, FpDCOExtraData_TypeID)
+    if "ProbePoints" not in skipRm:
+        # Exclude TypeDesc values pointed to by ProbePoints
         ProbeTable = getProbeTable(RSRC, po, TM80_IndexShift=TM80_IndexShift, ProbeTable_TypeID=ProbeTable_TypeID)
         if ProbeTable is not None and TM80_IndexShift is not None:
             ProbeTable_FieldList = list(filter(lambda f: f.tag is not ET.Comment, ProbeTable.findall("./RepeatedBlock/I32")))
@@ -2104,11 +2187,12 @@ def DTHP_TypeDesc_matching_ranges(RSRC, VCTP_TypeDescList, VCTP_FlatTypeDescList
                 ProbePoint_TypeID = None
                 if val_TMI is not None:
                     ProbePoint_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
-                heapRanges = intRangesExcludeOne(heapRanges, ProbePoint_TypeID)
+                unusedRanges = intRangesExcludeOne(unusedRanges, ProbePoint_TypeID)
         if (po.verbose > 2):
-            print("{:s}: After ProbePoints exclusion, heap TD ranges: {}"\
-                .format(po.xml,heapRanges))
-        # DTHP must not include TypeDesc values pointed to by BFAL
+            print("{:s}: After ProbePoints exclusion, unused TD ranges: {}"\
+                .format(po.xml,unusedRanges))
+    if "BFAL" not in skipRm:
+        # Exclude TypeDesc values pointed to by BFAL
         if TM80_IndexShift is not None:
             for BFAL_TypeMap in RSRC.findall("./BFAL/Section/TypeMap"):
                 val_TMI = BFAL_TypeMap.get("TMI")
@@ -2117,7 +2201,51 @@ def DTHP_TypeDesc_matching_ranges(RSRC, VCTP_TypeDescList, VCTP_FlatTypeDescList
                 BFAL_TypeID = None
                 if val_TMI is not None:
                     BFAL_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
-                heapRanges = intRangesExcludeOne(heapRanges, BFAL_TypeID)
+                unusedRanges = intRangesExcludeOne(unusedRanges, BFAL_TypeID)
+        if (po.verbose > 2):
+            print("{:s}: After BFAL exclusion, unused TD ranges: {}"\
+                .format(po.xml,unusedRanges))
+    return unusedRanges
+
+def DTHP_TypeDesc_matching_ranges(RSRC, fo, po, VCTP_TypeDescList=None, VCTP_FlatTypeDescList=None):
+    """ Finds possible ranges of TypeDescs for DTHP
+    """
+    # DTHP must not include TypeDesc values used by other sections
+    heapRanges = TypeDesc_find_unused_ranges(RSRC, fo, po, skipRm=["TM80","DTHP"], \
+          VCTP_TypeDescList=VCTP_TypeDescList, VCTP_FlatTypeDescList=VCTP_TypeDescList)
+    if True:
+        # We need TM80 to convert TMIs into TypeIDs
+        TM80_IndexShift = None
+        TM80 = RSRC.find("./TM80/Section")
+        if TM80 is not None:
+            TM80_IndexShift = TM80.get("IndexShift")
+            if TM80_IndexShift is not None:
+                TM80_IndexShift = int(TM80_IndexShift, 0)
+    if True:
+        # DTHP range is always above TM80 IndexShift
+        # This is not directly enforced in code, but before Heap TypeDescs
+        # there are always TypeDescs which store options, and those are
+        # filled with DFDS, meaning they have to be included in TM80 range
+        heapRanges = intRangesExcludeBelow(heapRanges, TM80_IndexShift)
+        if (po.verbose > 2):
+            print("{:s}: After TM80 IndexShift exclusion, heap TD ranges: {}"\
+                .format(po.xml,heapRanges))
+    if True:
+        # DTHP IndexShift must be high enough to not include TypeDesc from CONP
+        # Since CONP type is created with new VIs it is always before any heap TDs
+        # The same does not apply to CPC2 - that type is created when first connector
+        # from pane is assigned; so it's sometimes placed before, sometimes after heap TDs
+        CONP_TypeID = None
+        CONP_TypeDesc = RSRC.find("./CONP/Section/TypeDesc")
+        if CONP_TypeDesc is not None:
+            CONP_TypeID = CONP_TypeDesc.get("TypeID")
+            if CONP_TypeID is not None:
+                CONP_TypeID = int(CONP_TypeID, 0)
+        heapRanges = intRangesExcludeBelow(heapRanges, CONP_TypeID)
+        if (po.verbose > 2):
+            print("{:s}: After CONP exclusion, heap TD ranges: {}"\
+                .format(po.xml,heapRanges))
+    if True:
         # DTHP must not include TypeDesc of type "Function"
         # IndexShift must be high enough or count must be small enough to keep
         # Function TDs outside.
@@ -2242,7 +2370,7 @@ def DTHP_TypeDesc_matching_ranges(RSRC, VCTP_TypeDescList, VCTP_FlatTypeDescList
             rng = SimpleNamespace(min=properMin,max=properMax)
             heapRangesProper.append(rng)
     heapRanges = heapRangesProper
-    return heapRanges, dcoDataTypes
+    return heapRanges
 
 def DTHP_Fix(RSRC, DTHP, ver, fo, po):
     typeDescSlice = DTHP.find("./TypeDescSlice")
@@ -2262,8 +2390,10 @@ def DTHP_Fix(RSRC, DTHP, ver, fo, po):
     if VCTP is not None:
         VCTP_TypeDescList = VCTP.findall("TopLevel/TypeDesc")
         VCTP_FlatTypeDescList = VCTP.findall("TypeDesc")
-    heapRanges, dcoDataTypes = DTHP_TypeDesc_matching_ranges(RSRC, \
-          VCTP_TypeDescList, VCTP_FlatTypeDescList, fo, po)
+    heapRanges = DTHP_TypeDesc_matching_ranges(RSRC, fo, po, \
+          VCTP_TypeDescList=VCTP_TypeDescList, \
+          VCTP_FlatTypeDescList=VCTP_FlatTypeDescList)
+    dcoDataTypes = getDCOMappingForIntField(RSRC, 'defaultDataTMI', po)
     minIndexShift = 0
     maxTdCount = 0
     if (po.verbose > 1):
