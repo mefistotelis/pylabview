@@ -2522,8 +2522,8 @@ def CPC2_Fix(RSRC, CPC2, ver, fo, po):
     VCTP_TypeDescList = []
     VCTP_FlatTypeDescList = None
     if VCTP is not None:
-        VCTP_TypeDescList = VCTP.findall("TopLevel/TypeDesc")
-        VCTP_FlatTypeDescList = VCTP.findall("TypeDesc")
+        VCTP_TypeDescList = VCTP.findall("./TopLevel/TypeDesc")
+        VCTP_FlatTypeDescList = VCTP.findall("./TypeDesc")
     conpc2Ranges = CPC2_TypeDesc_matching_ranges(RSRC, fo, po, \
           VCTP_TypeDescList=VCTP_TypeDescList, \
           VCTP_FlatTypeDescList=VCTP_FlatTypeDescList)
@@ -2547,7 +2547,60 @@ def CPC2_Fix(RSRC, CPC2, ver, fo, po):
         if (po.verbose > 1):
             print("{:s}: No TypeDesc entry found for CPC2; need to re-create from connectors list"\
                 .format(po.xml))
-        #TODO make the re-creation
+        CONP_TypeDesc = None
+        CONP_TypeDescMap = RSRC.find("./CONP/Section/TypeDesc")
+        if CONP_TypeDescMap is not None:
+            CONP_TypeID = CONP_TypeDescMap.get("TypeID")
+            if CONP_TypeID is not None:
+                CONP_TypeID = int(CONP_TypeID, 0)
+            if CONP_TypeID is not None:
+                CONP_TypeDesc = getConsolidatedTopType(RSRC, CONP_TypeID, po)
+        if CONP_TypeDesc is not None:
+            CONP_TDMapList = CONP_TypeDesc.findall("./TypeDesc")
+        else:
+            # At this point, CONP should have been re-created already
+            if (po.verbose > 1):
+                print("{:s}: CONP TypeDesc not found, creating empty list of connectors"\
+                    .format(po.xml))
+            CONP_TDMapList = []
+        # Create the flat type for CPC2
+        TypeDesc_elem = ET.Element("TypeDesc")
+        TypeDesc_elem.set("Type","Function")
+        TypeDesc_elem.set("FuncFlags","0x0")
+        CONP_TypeDesc_Pattern = None
+        CONP_TypeDesc_HasThrall = None
+        if CONP_TypeDescMap is not None:
+            CONP_TypeDesc_Pattern = CONP_TypeDescMap.get("Pattern")
+            CONP_TypeDesc_HasThrall = CONP_TypeDescMap.get("HasThrall")
+        if CONP_TypeDesc_Pattern is None:
+            CONP_TypeDesc_Pattern = "0x8"
+        if CONP_TypeDesc_HasThrall is None:
+            CONP_TypeDesc_HasThrall = "0"
+        TypeDesc_elem.set("Pattern", CONP_TypeDesc_Pattern)
+        TypeDesc_elem.set("HasThrall",CONP_TypeDesc_HasThrall)
+        TypeDesc_elem.set("Format","inline")
+        # flatTypeID and flatPos will usually be the same, but just in case there's
+        # a mess in tags within VCTP, let's treat them as separate values
+        proper_flatTypeID = len(VCTP_FlatTypeDescList)
+        proper_flatPos = list(VCTP).index(VCTP_FlatTypeDescList[-1]) + 1
+        VCTP.insert(proper_flatPos,TypeDesc_elem)
+        fo[FUNC_OPTS.changed] = True
+        for TDFlatMap in CONP_TDMapList:
+            FlatTypeID = TDFlatMap.get("TypeID") # For map entries within Function TD
+            assert(FlatTypeID is not None) # this should've been re-created with CONP
+            FlatTypeID = int(FlatTypeID, 0)
+            FlatTDFlags = TDFlatMap.get("Flags") # For map entries within Function TD
+            assert(FlatTDFlags is not None) # this should've been re-created with CONP
+            FlatTDFlags = int(FlatTDFlags, 0)
+            elem = ET.SubElement(TypeDesc_elem, "TypeDesc")
+            elem.set("TypeID","{:d}".format(FlatTypeID))
+            elem.set("Flags","0x{:04x}".format(FlatTDFlags & ~0x0401)) # checked on one example only
+        # Now add a top type which references our new flat type
+        VCTP_TopLevel = VCTP.find("./TopLevel")
+        proper_typeID = getMaxIndexFromList(VCTP_TypeDescList, fo, po) + 1
+        elem = ET.SubElement(VCTP_TopLevel, "TypeDesc")
+        elem.set("Index","{:d}".format(proper_typeID))
+        elem.set("FlatTypeID","{:d}".format(proper_flatTypeID))
     if CPC2_typeID != proper_typeID:
         if (po.verbose > 0):
             print("{:s}: Changing 'CPC2/TypeDesc' TypeID to {}"\
