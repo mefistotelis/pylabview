@@ -1810,10 +1810,10 @@ def intRangesExcludeOne(iRanges, excludeIndex):
             nRanges.append(rng)
             continue
         nRng = SimpleNamespace(min=rng.min,max=excludeIndex-1)
-        if nRng.max - nRng.min > 0:
+        if nRng.max - nRng.min >= 0:
             nRanges.append(nRng)
         nRng = SimpleNamespace(min=excludeIndex+1,max=rng.max)
-        if nRng.max - nRng.min > 0:
+        if nRng.max - nRng.min >= 0:
             nRanges.append(nRng)
     return nRanges
 
@@ -1980,7 +1980,7 @@ def TypeDesc_find_unused_ranges(RSRC, fo, po, skipRm=[], VCTP_TypeDescList=None,
             if CONP_TypeID is not None:
                 CONP_TypeID = int(CONP_TypeID, 0)
         unusedRanges = intRangesExcludeOne(unusedRanges, CONP_TypeID)
-        if (po.verbose > 2):
+        if (po.verbose > 3):
             print("{:s}: After CONP exclusion, unused TD ranges: {}"\
                 .format(po.xml,unusedRanges))
     if "CPC2" not in skipRm:
@@ -1992,6 +1992,9 @@ def TypeDesc_find_unused_ranges(RSRC, fo, po, skipRm=[], VCTP_TypeDescList=None,
             if CPC2_TypeID is not None:
                 CPC2_TypeID = int(CPC2_TypeID, 0)
         unusedRanges = intRangesExcludeOne(unusedRanges, CPC2_TypeID)
+        if (po.verbose > 3):
+            print("{:s}: After CPC2 exclusion, unused TD ranges: {}"\
+                .format(po.xml,unusedRanges))
     if "PFTD" not in skipRm:
         # Exclude TypeDesc pointed by PFTD
         FPTD_TypeID = None
@@ -2001,6 +2004,9 @@ def TypeDesc_find_unused_ranges(RSRC, fo, po, skipRm=[], VCTP_TypeDescList=None,
             if FPTD_TypeID is not None:
                 FPTD_TypeID = int(FPTD_TypeID, 0)
         unusedRanges = intRangesExcludeOne(unusedRanges, FPTD_TypeID)
+        if (po.verbose > 3):
+            print("{:s}: After PFTD exclusion, unused TD ranges: {}"\
+                .format(po.xml,unusedRanges))
     # We need DSInit for several exclusions below
     DSInit = getDSInitRecord(RSRC, po)
     if "DSInit" not in skipRm:
@@ -2037,6 +2043,9 @@ def TypeDesc_find_unused_ranges(RSRC, fo, po, skipRm=[], VCTP_TypeDescList=None,
             if val_TMI is not None:
                 FpDCOTable_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
         unusedRanges = intRangesExcludeOne(unusedRanges, FpDCOTable_TypeID)
+        if (po.verbose > 3):
+            print("{:s}: After FP DCO Table exclusion, unused TD ranges: {}"\
+                .format(po.xml,unusedRanges))
     if "ClumpQE" not in skipRm:
         # Exclude TypeDesc which contain Clump QE Alloc
         ClumpQEAlloc_TypeID = None
@@ -2053,7 +2062,7 @@ def TypeDesc_find_unused_ranges(RSRC, fo, po, skipRm=[], VCTP_TypeDescList=None,
             if val_TMI is not None:
                 VIParamTable_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
         unusedRanges = intRangesExcludeOne(unusedRanges, VIParamTable_TypeID)
-        if (po.verbose > 2):
+        if (po.verbose > 3):
             print("{:s}: After VI Param Table exclusion, unused TD ranges: {}"\
                 .format(po.xml,unusedRanges))
     if "ExtraDCOInfo" not in skipRm:
@@ -2096,7 +2105,7 @@ def TypeDesc_find_unused_ranges(RSRC, fo, po, skipRm=[], VCTP_TypeDescList=None,
             if val_TMI is not None:
                 SubVIPatch_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
         unusedRanges = intRangesExcludeOne(unusedRanges, SubVIPatch_TypeID)
-        if (po.verbose > 2):
+        if (po.verbose > 3):
             print("{:s}: After SubVI Patch exclusion, unused TD ranges: {}"\
                 .format(po.xml,unusedRanges))
     if "EnpdTdOffsets" not in skipRm:
@@ -2139,7 +2148,7 @@ def TypeDesc_find_unused_ranges(RSRC, fo, po, skipRm=[], VCTP_TypeDescList=None,
             if val_TMI is not None:
                 GeneratedCodeProfileResultTable_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
         unusedRanges = intRangesExcludeOne(unusedRanges, GeneratedCodeProfileResultTable_TypeID)
-        if (po.verbose > 2):
+        if (po.verbose > 3):
             print("{:s}: After GCPR Table exclusion, unused TD ranges: {}"\
                 .format(po.xml,unusedRanges))
     if "FpDcoTb" not in skipRm:
@@ -2167,7 +2176,7 @@ def TypeDesc_find_unused_ranges(RSRC, fo, po, skipRm=[], VCTP_TypeDescList=None,
                     FpDCOExtraData_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
                 idx = FpDCO_FieldList[DCO_fields.index('dcoIndex')].text
                 idx = int(idx,0)
-                if (po.verbose > 2):
+                if (po.verbose > 3):
                     print("{:s}: After DCO{} check, excluding from unused TD ranges: {} {} {}"\
                         .format(po.xml,idx,FpDCOFlags_TypeID,FpDCODefaultDataTMI_TypeID,FpDCOExtraData_TypeID))
                 unusedRanges = intRangesExcludeOne(unusedRanges, FpDCOFlags_TypeID)
@@ -2188,7 +2197,7 @@ def TypeDesc_find_unused_ranges(RSRC, fo, po, skipRm=[], VCTP_TypeDescList=None,
                 if val_TMI is not None:
                     ProbePoint_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
                 unusedRanges = intRangesExcludeOne(unusedRanges, ProbePoint_TypeID)
-        if (po.verbose > 2):
+        if (po.verbose > 3):
             print("{:s}: After ProbePoints exclusion, unused TD ranges: {}"\
                 .format(po.xml,unusedRanges))
     if "BFAL" not in skipRm:
@@ -2202,7 +2211,7 @@ def TypeDesc_find_unused_ranges(RSRC, fo, po, skipRm=[], VCTP_TypeDescList=None,
                 if val_TMI is not None:
                     BFAL_TypeID = TM80_IndexShift + (val_TMI & 0xFFFFFF)
                 unusedRanges = intRangesExcludeOne(unusedRanges, BFAL_TypeID)
-        if (po.verbose > 2):
+        if (po.verbose > 3):
             print("{:s}: After BFAL exclusion, unused TD ranges: {}"\
                 .format(po.xml,unusedRanges))
     return unusedRanges
@@ -2476,6 +2485,75 @@ def VCTP_Fix(RSRC, VCTP, ver, fo, po):
     return fo[FUNC_OPTS.changed]
 
 def CONP_Fix(RSRC, CONP, ver, fo, po):
+    #TODO CONP can be re-created from DSInit
+    return fo[FUNC_OPTS.changed]
+
+def CPC2_TypeDesc_matching_ranges(RSRC, fo, po, VCTP_TypeDescList=None, VCTP_FlatTypeDescList=None):
+    """ Finds possible ranges of TypeDesc for CPC2
+    """
+    # DTHP must not include TypeDesc values used by other sections
+    conpc2Ranges = TypeDesc_find_unused_ranges(RSRC, fo, po, skipRm=["TM80","CPC2"], \
+          VCTP_TypeDescList=VCTP_TypeDescList, VCTP_FlatTypeDescList=VCTP_TypeDescList)
+    if True:
+        # CPC2 TypeDesc type is "Function"
+        nonFuncTypes = []
+        for TDTopMap in VCTP_TypeDescList:
+            TypeDesc, TDTopMap_Index, FlatTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, TDTopMap, po)
+            if TypeDesc is None: continue
+            if TypeDesc.get("Type") != "Function":
+                nonFuncTypes.append(TDTopMap_Index)
+        for TypeDesc_Index in nonFuncTypes:
+            conpc2Ranges = intRangesExcludeOne(conpc2Ranges, TypeDesc_Index)
+        if (po.verbose > 2):
+            print("{:s}: After Type based exclusion, CPC2 TD ranges: {}"\
+                .format(po.xml,conpc2Ranges))
+    return conpc2Ranges
+
+def CPC2_Fix(RSRC, CPC2, ver, fo, po):
+    typeDescMap = CPC2.find("./TypeDesc")
+    if typeDescMap is None:
+        typeDescMap = ET.SubElement(CPC2, "TypeDesc")
+        fo[FUNC_OPTS.changed] = True
+    CPC2_typeID = typeDescMap.get("TypeID")
+    if CPC2_typeID is not None:
+        CPC2_typeID = int(CPC2_typeID, 0)
+    # We have current value, now compute proper one
+    VCTP = RSRC.find("./VCTP/Section")
+    VCTP_TypeDescList = []
+    VCTP_FlatTypeDescList = None
+    if VCTP is not None:
+        VCTP_TypeDescList = VCTP.findall("TopLevel/TypeDesc")
+        VCTP_FlatTypeDescList = VCTP.findall("TypeDesc")
+    conpc2Ranges = CPC2_TypeDesc_matching_ranges(RSRC, fo, po, \
+          VCTP_TypeDescList=VCTP_TypeDescList, \
+          VCTP_FlatTypeDescList=VCTP_FlatTypeDescList)
+    if (po.verbose > 1):
+        print("{:s}: Possible CPC2 TD ranges: {}"\
+            .format(po.xml,conpc2Ranges))
+    proper_typeID = None
+    # Check if current value is within the vaid range
+    if CPC2_typeID is not None:
+        for rng in conpc2Ranges:
+            if rng.min >= CPC2_typeID and rng.max <= CPC2_typeID:
+                proper_typeID = CPC2_typeID
+                break
+    # If it's not, use the last matching type
+    if proper_typeID is None and len(conpc2Ranges) > 0:
+        rng = conpc2Ranges[-1]
+        proper_typeID = rng.max
+    # If no valid TDs in our ranges, re-create the TypeDesc
+    if proper_typeID is None:
+        # if range is empty but we have connector list, make the new TypeDesc based on that
+        if (po.verbose > 1):
+            print("{:s}: No TypeDesc entry found for CPC2; need to re-create from connectors list"\
+                .format(po.xml))
+        #TODO make the re-creation
+    if CPC2_typeID != proper_typeID:
+        if (po.verbose > 0):
+            print("{:s}: Changing 'CPC2/TypeDesc' TypeID to {}"\
+                .format(po.xml,proper_typeID))
+        typeDescMap.set("TypeID","{}".format(proper_typeID))
+        fo[FUNC_OPTS.changed] = True
     return fo[FUNC_OPTS.changed]
 
 def BDHb_Fix(RSRC, BDHb, ver, fo, po):
@@ -2526,6 +2604,10 @@ DSTM_SectionDef = [
 
 CONP_SectionDef = [
  ["CONP",	1,0,0,	CONP_Fix], # existed at least from LV6.0
+]
+
+CPC2_SectionDef = [
+ ["CPC2",	9,0,0,	CPC2_Fix], # does not exist in in LV7.1, found for LV9.0 - LV14.0
 ]
 
 DTHP_SectionDef = [
@@ -2795,6 +2877,9 @@ def checkBlocksAvailable(root, po):
 
     VCTP = getOrMakeSection(VCTP_SectionDef, RSRC, ver, po)
     fixSection(VCTP_SectionDef, RSRC, VCTP, ver, po)
+
+    CPC2 = getOrMakeSection(CPC2_SectionDef, RSRC, ver, po)
+    fixSection(CPC2_SectionDef, RSRC, CPC2, ver, po)
 
     DTHP = getOrMakeSection(DTHP_SectionDef, RSRC, ver, po)
     fixSection(DTHP_SectionDef, RSRC, DTHP, ver, po)
