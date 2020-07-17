@@ -1793,9 +1793,9 @@ def LIfp_Fix(RSRC, LIfp, ver, fo, po):
     return fo[FUNC_OPTS.changed]
 
 def LIbd_Fix(RSRC, LIbd, ver, fo, po):
-    BDHP = LIfp.find("BDHP")
+    BDHP = LIbd.find("BDHP")
     if BDHP is None:
-        BDHP = ET.SubElement(LIfp, "BDHP")
+        BDHP = ET.SubElement(LIbd, "BDHP")
         fo[FUNC_OPTS.changed] = True
     return fo[FUNC_OPTS.changed]
 
@@ -3135,6 +3135,10 @@ def checkBlocksAvailable(root, po):
 
     LIfp = getOrMakeSection(LIfp_SectionDef, RSRC, ver, po)
     fixSection(LIfp_SectionDef, RSRC, LIfp, ver, po)
+
+    LIbd = getOrMakeSection(LIbd_SectionDef, RSRC, ver, po, allowCreate=False)
+    if LIbd is not None:
+        fixSection(LIbd_SectionDef, RSRC, LIbd, ver, po)
 
     DSTM = getOrMakeSection(DSTM_SectionDef, RSRC, ver, po)
     fixSection(DSTM_SectionDef, RSRC, DSTM, ver, po)
