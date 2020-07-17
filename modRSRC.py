@@ -2610,7 +2610,49 @@ def CPC2_Fix(RSRC, CPC2, ver, fo, po):
         fo[FUNC_OPTS.changed] = True
     return fo[FUNC_OPTS.changed]
 
-def BDHb_Fix(RSRC, BDHb, ver, fo, po):
+def BDHb_Fix(RSRC, BDHP, ver, fo, po):
+    block_name = "BDHb"
+
+    attribGetOrSetDefault(BDHP, "Index", 0, fo, po)
+    sect_format = BDHP.get("Format")
+    if sect_format not in ("xml",):
+        BDHP.set("Format","xml")
+        if len(RSRC.findall("./"+block_name+"/Section")) <= 1:
+            snum_str = ""
+        else:
+            if sect_index >= 0:
+                snum_str = str(sect_index)
+            else:
+                snum_str = 'm' + str(-sect_index)
+        fname_base = "{:s}_{:s}{:s}".format(po.filebase, block_name, snum_str)
+        BDHP.set("File","{:s}.xml".format(fname_base))
+        fo[FUNC_OPTS.changed] = True
+
+    rootObject = elemFindOrCreate(BDHP, "SL__rootObject", fo, po)
+    attribGetOrSetDefault(rootObject, "class", "oHExt", fo, po)
+    attribGetOrSetDefault(rootObject, "uid", 1, fo, po)
+
+    root = elemFindOrCreate(rootObject, "root", fo, po)
+    attribGetOrSetDefault(root, "class", "diag", fo, po)
+    attribGetOrSetDefault(root, "uid", 1, fo, po)
+
+    pBounds = elemFindOrCreate(rootObject, "pBounds", fo, po)
+    elemTextGetOrSetDefault(pBounds, [46,0,681,1093], fo, po)
+    dBounds = elemFindOrCreate(rootObject, "dBounds", fo, po)
+    elemTextGetOrSetDefault(dBounds, [0,0,0,0], fo, po)
+
+    origin = elemFindOrCreate(rootObject, "origin", fo, po)
+    elemTextGetOrSetDefault(origin, [327,105], fo, po)
+
+    instrStyle = elemFindOrCreate(rootObject, "instrStyle", fo, po)
+    elemTextGetOrSetDefault(instrStyle, 31, fo, po)
+
+    # Now content of the 'root' element
+
+    #TODO make own function for BD root re-creation
+    root_partsList, root_paneHierarchy = elemCheckOrCreate_ddo_content(root, fo, po,
+      aeDdoObjFlags=16384, valueType="Cluster")
+
     return fo[FUNC_OPTS.changed]
 
 
@@ -2854,7 +2896,7 @@ def versionGreaterOrEq(ver, major,minor,bugfix):
     if ver_bugfix < bugfix: return False
     return True
 
-def getOrMakeSection(section_def, RSRC, ver, po):
+def getOrMakeSection(section_def, RSRC, ver, po, allowCreate=True):
     # Find all blocks, regardless of version we expect them in
     all_sections = []
     for sec_d in section_def:
@@ -2869,6 +2911,11 @@ def getOrMakeSection(section_def, RSRC, ver, po):
     for sec_d in reversed(section_def):
         if versionGreaterOrEq(ver, sec_d[1],sec_d[2],sec_d[3]):
             break
+    if (not allowCreate) and (sec_d[0] not in po.force_recover_section):
+        if (po.verbose > 0):
+            print("{:s}: No sections found for block <{}>, not creating"\
+              .format(po.xml,sec_d[0]))
+        return None
     if (po.verbose > 0):
         print("{:s}: No sections found for block <{}>, making new one"\
           .format(po.xml,sec_d[0]))
@@ -3079,6 +3126,10 @@ def checkBlocksAvailable(root, po):
     FPHP = getOrMakeSection(FPHP_SectionDef, RSRC, ver, po)
     fixSection(FPHP_SectionDef, RSRC, FPHP, ver, po)
 
+    BDHP = getOrMakeSection(BDHP_SectionDef, RSRC, ver, po, allowCreate=False)
+    if BDHP is not None:
+        fixSection(BDHP_SectionDef, RSRC, BDHP, ver, po)
+
     LIvi = getOrMakeSection(LIvi_SectionDef, RSRC, ver, po)
     fixSection(LIvi_SectionDef, RSRC, LIvi, ver, po)
 
@@ -3178,6 +3229,9 @@ def main():
     parser.add_argument('--drop-section', action='append', type=str,
             help="name a section to drop just after XML loading")
 
+    parser.add_argument('--force-recover-section', action='append', type=str,
+            help="name a section to force re-create even if this may produce damaged file")
+
     subparser = parser.add_mutually_exclusive_group(required=True)
 
     subparser.add_argument('-f', '--fix', action='store_true',
@@ -3195,17 +3249,22 @@ def main():
     else:
         raise FileNotFoundError("Input XML file was not provided.")
 
+    if po.force_recover_section is None:
+        po.force_recover_section = []
+
+    if po.drop_section is None:
+        po.drop_section = []
+
     if po.fix:
 
         if (po.verbose > 0):
             print("{}: Starting XML file parse for RSRC fix".format(po.xml))
         tree = ET.parse(po.xml, parser=ET.XMLParser(target=ET.CommentedTreeBuilder()))
         root = tree.getroot()
-        if po.drop_section is not None:
-            for blkIdent in po.drop_section:
-                sub_elem = root.find("./"+blkIdent)
-                if sub_elem is not None:
-                    root.remove(sub_elem)
+        for blkIdent in po.drop_section:
+            sub_elem = root.find("./"+blkIdent)
+            if sub_elem is not None:
+                root.remove(sub_elem)
         parseSubXMLs(root, po)
 
         checkBlocksAvailable(root, po)
