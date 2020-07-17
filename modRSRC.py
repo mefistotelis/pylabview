@@ -2641,15 +2641,9 @@ def icl8_genDefaultIcon(title, po):
     "ff0000000000d500000023230000d400000000830583830000000000000000ff" +\
     "ff000000000000d4d400000000d50000000000838300000000000000000000ff" +\
     "ff0000000000000000d5d4d5d4000000000000000000000000000000000000ff" +\
-    "ff000000000000000000000000000000000000000000000000000000000000ff" +\
-    "ff000000000000000000000000000000000000000000000000000000000000ff" +\
-    "ff0000000000000000000000000000000000000000ffffff0000ffffff0000ff" +\
-    "ff0000000000000000000000000000000000000000ff0000ff00ff00000000ff" +\
-    "ff0000000000000000000000000000000000000000ffffff0000ffff000000ff" +\
-    "ff0000000000000000000000000000000000000000ff0000ff00ff00000000ff" +\
-    "ff0000000000000000000000000000000000000000ff0000ff00ffffff0000ff" +\
-    "ff000000000000000000000000000000000000000000000000000000000000ff" +\
+    "ff000000000000000000000000000000000000000000000000000000000000ff"*8 +\
     "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    from PIL import ImageFont, ImageDraw
     image = Image.new("P", (32, 32))
     if True:
         from LVmisc import LABVIEW_COLOR_PALETTE_256
@@ -2662,11 +2656,16 @@ def icl8_genDefaultIcon(title, po):
         image.putpalette(img_palette, rawmode='RGB')
     img_data = bytes.fromhex(imageHex)
     image.putdata(img_data)
+    draw = ImageDraw.Draw(image)
+    font = ImageFont.load("./assets/tom-thumb.pil")
+    short_title = title
+    if len(short_title) > 7:
+        short_title = re.sub('[^A-Za-z0-9{}=-]', '', short_title)[:7]
+    draw.text((2,24), short_title, font=font, fill=(0xff))
     return image
 
 def icon_changePalette(RSRC, src_image, bpp, fo, po):
     from LVmisc import LABVIEW_COLOR_PALETTE_256, LABVIEW_COLOR_PALETTE_16, LABVIEW_COLOR_PALETTE_2
-    #from PIL import ImagePalette
     img_palette = [ 0 ] * (3*(2**bpp))
     if bpp == 8:
         lv_color_palette = LABVIEW_COLOR_PALETTE_256

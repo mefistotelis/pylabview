@@ -1,0 +1,4 @@
+﻿A very tiny, monospace, bitmap font - “Tom Thumb”
+Robey Pointer <robeypointer@gmail.com>
+
+Licensed under the MIT license; may also be used under either CC0 or CC-BY 3.0 license.
