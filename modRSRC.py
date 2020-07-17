@@ -1526,6 +1526,65 @@ def FPHb_elemCheckOrCreate_zPlaneList_DCO(RSRC, paneHierarchy_zPlaneList, fo, po
 
     return dco_elem, ddo_partsList
 
+def elemCheckOrCreate_bdroot_content(root, fo, po, aeObjFlags=None, hasPlanes=False, \
+          hasNodes=False, hasSignals=False, aeBgColor=None, aeFirstNodeIdx=None,
+          aeBounds=None, aeShortCount=None, aeClumpNum=None):
+    """ Fils content of pre-created DDO tag
+    """
+
+    if aeObjFlags is not None:
+        root_objFlags = elemFindOrCreate(root, "objFlags", fo, po, pos=0)
+        elemTextGetOrSetDefault(root_objFlags, aeObjFlags, fo, po)
+
+    zPlaneList = None
+    if hasPlanes:
+        zPlaneList = elemFindOrCreate(root, "zPlaneList", fo, po)
+        attribGetOrSetDefault(zPlaneList, "elements", 0, fo, po)
+
+    nodeList = None
+    if hasNodes:
+        nodeList = elemFindOrCreate(root, "nodeList", fo, po)
+        attribGetOrSetDefault(nodeList, "elements", 0, fo, po)
+
+    signalList = None
+    if hasSignals:
+        signalList = elemFindOrCreate(root, "signalList", fo, po)
+        attribGetOrSetDefault(signalList, "elements", 0, fo, po)
+
+    if aeBgColor is not None:
+        bgColor = elemFindOrCreate(root, "bgColor", fo, po)
+        elemTextGetOrSetDefault(bgColor, "{:08X}".format(aeBgColor), fo, po)
+
+    if aeFirstNodeIdx is not None:
+        firstNodeIdx = elemFindOrCreate(root, "firstNodeIdx", fo, po)
+        elemTextGetOrSetDefault(firstNodeIdx, aeFirstNodeIdx, fo, po)
+
+    # Now inside of the nodeList
+    if nodeList is not None:
+        nl_arrayElement = elemFindOrCreateWithAttribsAndTags(nodeList, "SL__arrayElement", \
+          ( ("class", "sRN",), ), [], fo, po)
+
+        if aeObjFlags is not None:
+            arrayElement_objFlags = elemFindOrCreate(nl_arrayElement, "objFlags", fo, po, pos=0)
+            elemTextGetOrSetDefault(arrayElement_objFlags, aeObjFlags, fo, po)
+
+        arrayElement_termList = elemFindOrCreate(nl_arrayElement, "termList", fo, po)
+        attribGetOrSetDefault(arrayElement_termList, "elements", 0, fo, po)
+
+        if aeBounds is not None:
+            arrayElement_bounds = elemFindOrCreate(nl_arrayElement, "bounds", fo, po)
+            elemTextGetOrSetDefault(arrayElement_bounds, aeBounds, fo, po)
+
+        if aeShortCount is not None:
+            arrayElement_shortCount = elemFindOrCreate(nl_arrayElement, "shortCount", fo, po)
+            elemTextGetOrSetDefault(arrayElement_shortCount, aeShortCount, fo, po)
+
+        if aeClumpNum is not None:
+            arrayElement_clumpNum = elemFindOrCreate(nl_arrayElement, "clumpNum", fo, po)
+            elemTextGetOrSetDefault(arrayElement_clumpNum, aeClumpNum, fo, po)
+
+    return zPlaneList, arrayElement_termList, signalList
+
 def FPHb_Fix(RSRC, FPHP, ver, fo, po):
     block_name = "FPHb"
 
@@ -2649,9 +2708,10 @@ def BDHb_Fix(RSRC, BDHP, ver, fo, po):
 
     # Now content of the 'root' element
 
-    #TODO make own function for BD root re-creation
-    root_partsList, root_paneHierarchy = elemCheckOrCreate_ddo_content(root, fo, po,
-      aeDdoObjFlags=16384, valueType="Cluster")
+    root_zPlaneList, root_nodeList_termList, root_signalList = elemCheckOrCreate_bdroot_content( \
+          root, fo, po, aeObjFlags=16384, hasPlanes=True, hasNodes=True, hasSignals=True, \
+          aeBgColor=0x00FFFFFF, aeFirstNodeIdx=1, \
+          aeBounds=[0,0,0,0], aeShortCount=1, aeClumpNum=0x020003)
 
     return fo[FUNC_OPTS.changed]
 
