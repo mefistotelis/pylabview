@@ -2664,45 +2664,89 @@ def icl8_genDefaultIcon(title, po):
     image.putdata(img_data)
     return image
 
-def icl8_Fix(RSRC, icl8, ver, fo, po):
-    icl8_Format = icl8.get("Format")
-    icl8_File = icl8.get("File")
+def icon_changePalette(RSRC, src_image, bpp, fo, po):
+    from LVmisc import LABVIEW_COLOR_PALETTE_256, LABVIEW_COLOR_PALETTE_16, LABVIEW_COLOR_PALETTE_2
+    #from PIL import ImagePalette
+    img_palette = [ 0 ] * (3*(2**bpp))
+    if bpp == 8:
+        lv_color_palette = LABVIEW_COLOR_PALETTE_256
+    elif bpp == 4:
+        lv_color_palette = LABVIEW_COLOR_PALETTE_16
+    else:
+        lv_color_palette = LABVIEW_COLOR_PALETTE_2
+    for i, rgb in enumerate(lv_color_palette):
+        img_palette[3*i+0] = (rgb >> 16) & 0xFF
+        img_palette[3*i+1] = (rgb >>  8) & 0xFF
+        img_palette[3*i+2] = (rgb >>  0) & 0xFF
+    palimage = Image.new('P', (2, 2))
+    palimage.putpalette(img_palette, rawmode='RGB')
+    rgb_image = src_image.convert('RGB')
+    dst_image = rgb_image.quantize(colors=len(lv_color_palette), palette=palimage)
+    return dst_image
+
+def icon_readImage(RSRC, icon_elem, fo, po):
+    """ Reads icon image from section
+    """
+    icon_Format = icon_elem.get("Format")
+    icon_File = icon_elem.get("File")
     xml_path = os.path.dirname(po.xml)
-    icl8_fname = None
-    if icl8_File is not None:
+    icon_fname = None
+    if icon_File is not None:
         if len(xml_path) > 0:
-            icl8_fname = xml_path + '/' + icl8_File
+            icon_fname = xml_path + '/' + icon_File
         else:
-            icl8_fname = icl8_File
-    fileOk = (icl8_fname is not None) and os.access(icl8_fname, os.R_OK)
-    if icl8_Format == "bin" and fileOk:
-        # Just accept that; no real need to verify BIN file
-        return fo[FUNC_OPTS.changed]
-    if icl8_Format == "png" and fileOk:
+            icon_fname = icon_File
+    image = None
+    fileOk = (icon_fname is not None) and os.access(icon_fname, os.R_OK)
+    if icon_Format == "png" and fileOk:
         # As long as the file loads, we're good
         try:
-            image = Image.open(icl8_fname)
+            image = Image.open(icon_fname)
             image.getdata() # to make sure the file gets loaded; everything is lazy nowadays
         except:
             fileOk = False
-        if fileOk:
-            return fo[FUNC_OPTS.changed]
+            image = None
+    return image, icon_fname, fileOk
+
+def icl8_Fix(RSRC, icl8, ver, fo, po):
+    icl8_Format = icl8.get("Format")
+    icl8_File = icl8.get("File")
+    image, icl8_fname, fileOk = icon_readImage(RSRC, icl8, fo, po)
+    if image is not None and fileOk:
+        # If we were abe to read the image, section is OK
+        return fo[FUNC_OPTS.changed]
+    if icl8_Format == "bin" and fileOk:
+        # Just accept that; no real need to verify BIN file
+        return fo[FUNC_OPTS.changed]
     # So the section is bad; we will re-create the icon
     icl8_Format = "png"
     icl8_baseName = os.path.splitext(os.path.basename(po.xml))[0]
     icl8_File = icl8_baseName+"_icl8.png"
     if True:
+        xml_path = os.path.dirname(po.xml)
         if len(xml_path) > 0:
             icl8_fname = xml_path + '/' + icl8_File
         else:
             icl8_fname = icl8_File
-    image = icl8_genDefaultIcon(icl8_baseName, po)
+    if image is None:
+        icl4 = RSRC.find("./icl4/Section")
+        if icl4 is not None:
+            image, icl4_fname, fileOk = icon_readImage(RSRC, icl4, fo, po)
+        if image is not None:
+            image = icon_changePalette(RSRC, image, 8, fo, po)
+    if image is None:
+        ICON = RSRC.find("./ICON/Section")
+        if ICON is not None:
+            image, ICON_fname, fileOk = icon_readImage(RSRC, ICON, fo, po)
+        if image is not None:
+            image = icon_changePalette(RSRC, image, 8, fo, po)
+    if image is None:
+        image = icl8_genDefaultIcon(icl8_baseName, po)
     image.save(icl8_fname, format="PNG")
     icl8.set("Format", icl8_Format)
     icl8.set("File", icl8_File)
     fo[FUNC_OPTS.changed] = True
     return fo[FUNC_OPTS.changed]
-
 
 
 LVSR_SectionDef = [
