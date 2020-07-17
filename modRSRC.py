@@ -22,6 +22,7 @@ import os
 import argparse
 import enum
 from types import SimpleNamespace
+from PIL import Image
 
 import LVparts
 from LVparts import PARTID, DSINIT
@@ -2613,6 +2614,97 @@ def BDHb_Fix(RSRC, BDHb, ver, fo, po):
     return fo[FUNC_OPTS.changed]
 
 
+def icl8_genDefaultIcon(title, po):
+    """ Generates default icon image for VI file
+    """
+    imageHex = \
+    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" +\
+    "ff000000000000000000000000000000000000000000000000000000000000ff" +\
+    "ff000000000000000000000000000000000000000000000000000000000000ff" +\
+    "ff0000ffffffffffffffffffffffffffffffffffffff000000000000000000ff" +\
+    "ff0000fffafafafafafafafafafafafaf8fa2cfa2cff000000000000000000ff" +\
+    "ff0000fffafffffffffffffffffffffff8fa2cfa2cff000000000000000000ff" +\
+    "ff0000fffaffd1c5d1ffffffd1c5d1fff8fc2bfc2cff000000000000000000ff" +\
+    "ff0000fffaffc5ffc5ffffffc5ffc5fff82c2c2c2cff000000000000000000ff" +\
+    "ff0000fffad1c5ffc5d1ffd1c5ffc5d1f82bfc2b2cff000000000000000000ff" +\
+    "ff0000fffac5d1ffd1c5ffc5d1ffd1c5f8fc08fc2cff000000000000000000ff" +\
+    "ff0000fffac5ffffffc5ffc5ffffffc5f8fc08fc2cff000000000000000000ff" +\
+    "ff0000fffaffffffffd1c5d1fffffffff82bfc2b2cff000000000000000000ff" +\
+    "ff0000fffafffffffffffffffffffffff82c2c2c2cff000000000000000000ff" +\
+    "ff0000fff8f8f8f8f8f8f8f8f8f8f8f8f82c2c8383ff000000000000000000ff" +\
+    "ff0000ff2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c830583830000000000000000ff" +\
+    "ff0000ff2cfc2c2c2c2c2cfc2c2c2c2c232323830505058383000000000000ff" +\
+    "ff0000fffcd5fc2c2c2cfc23fc2c23232c2c2c830505ff0505838300000000ff" +\
+    "ff0000ff2cd42c2c2c2c232c2c232c2c2c2c2c8305ffffff05050583232300ff" +\
+    "ff0000ffffd5ffffff23ffff23ffffffffffff830505ff0505838300000000ff" +\
+    "ff00000000d4000000230000230000d5d4d4d5830505058383000000000000ff" +\
+    "ff0000000000d500000023230000d400000000830583830000000000000000ff" +\
+    "ff000000000000d4d400000000d50000000000838300000000000000000000ff" +\
+    "ff0000000000000000d5d4d5d4000000000000000000000000000000000000ff" +\
+    "ff000000000000000000000000000000000000000000000000000000000000ff" +\
+    "ff000000000000000000000000000000000000000000000000000000000000ff" +\
+    "ff0000000000000000000000000000000000000000ffffff0000ffffff0000ff" +\
+    "ff0000000000000000000000000000000000000000ff0000ff00ff00000000ff" +\
+    "ff0000000000000000000000000000000000000000ffffff0000ffff000000ff" +\
+    "ff0000000000000000000000000000000000000000ff0000ff00ff00000000ff" +\
+    "ff0000000000000000000000000000000000000000ff0000ff00ffffff0000ff" +\
+    "ff000000000000000000000000000000000000000000000000000000000000ff" +\
+    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    image = Image.new("P", (32, 32))
+    if True:
+        from LVmisc import LABVIEW_COLOR_PALETTE_256
+        img_palette = [ 0 ] * (3*256)
+        lv_color_palette = LABVIEW_COLOR_PALETTE_256
+        for i, rgb in enumerate(lv_color_palette):
+            img_palette[3*i+0] = (rgb >> 16) & 0xFF
+            img_palette[3*i+1] = (rgb >>  8) & 0xFF
+            img_palette[3*i+2] = (rgb >>  0) & 0xFF
+        image.putpalette(img_palette, rawmode='RGB')
+    img_data = bytes.fromhex(imageHex)
+    image.putdata(img_data)
+    return image
+
+def icl8_Fix(RSRC, icl8, ver, fo, po):
+    icl8_Format = icl8.get("Format")
+    icl8_File = icl8.get("File")
+    xml_path = os.path.dirname(po.xml)
+    icl8_fname = None
+    if icl8_File is not None:
+        if len(xml_path) > 0:
+            icl8_fname = xml_path + '/' + icl8_File
+        else:
+            icl8_fname = icl8_File
+    fileOk = (icl8_fname is not None) and os.access(icl8_fname, os.R_OK)
+    if icl8_Format == "bin" and fileOk:
+        # Just accept that; no real need to verify BIN file
+        return fo[FUNC_OPTS.changed]
+    if icl8_Format == "png" and fileOk:
+        # As long as the file loads, we're good
+        try:
+            image = Image.open(icl8_fname)
+            image.getdata() # to make sure the file gets loaded; everything is lazy nowadays
+        except:
+            fileOk = False
+        if fileOk:
+            return fo[FUNC_OPTS.changed]
+    # So the section is bad; we will re-create the icon
+    icl8_Format = "png"
+    icl8_baseName = os.path.splitext(os.path.basename(po.xml))[0]
+    icl8_File = icl8_baseName+"_icl8.png"
+    if True:
+        if len(xml_path) > 0:
+            icl8_fname = xml_path + '/' + icl8_File
+        else:
+            icl8_fname = icl8_File
+    image = icl8_genDefaultIcon(icl8_baseName, po)
+    image.save(icl8_fname, format="PNG")
+    icl8.set("Format", icl8_Format)
+    icl8.set("File", icl8_File)
+    fo[FUNC_OPTS.changed] = True
+    return fo[FUNC_OPTS.changed]
+
+
+
 LVSR_SectionDef = [
  ["LVIN",	1,0,0,	None], # not sure how old it is
  ["LVSR",	5,0,0,	LVSR_Fix], # verified for LV6.0 - LV14.0
@@ -2673,6 +2765,10 @@ DFDS_SectionDef = [
 
 BDPW_SectionDef = [
  ["BDPW",	1,0,0,	BDPW_Fix], # existed at least from LV6.0
+]
+
+icl8_SectionDef = [
+ ["icl8",	5,0,0,	icl8_Fix], # existed at least from LV6.0
 ]
 
 
@@ -2954,6 +3050,9 @@ def checkBlocksAvailable(root, po):
 
     BDPW = getOrMakeSection(BDPW_SectionDef, RSRC, ver, po)
     fixSection(BDPW_SectionDef, RSRC, BDPW, ver, po)
+
+    icl8 = getOrMakeSection(icl8_SectionDef, RSRC, ver, po)
+    fixSection(icl8_SectionDef, RSRC, icl8, ver, po)
 
     # No BD recovery here - make dummy, disconnected section
     BDHP = ET.Element("Section")
