@@ -1350,7 +1350,8 @@ def checkOrCreateParts_stdClust_control(RSRC, partsList, parentObjFlags, labelTe
 
 
 def FPHb_elemCheckOrCreate_zPlaneList_DCO_size(fo, po, heapTypeMap, corTL, dcoTypeID, ddoTypeID, subTypeIDs, isIndicator):
-
+    """ Gives expected size of the GUI element representing given types
+    """
     dcoTypeDesc = None
     if dcoTypeID is not None:
         dcoTypeDesc = heapTypeMap[dcoTypeID]
@@ -1379,7 +1380,10 @@ def FPHb_elemCheckOrCreate_zPlaneList_DCO_size(fo, po, heapTypeMap, corTL, dcoTy
 
 def FPHb_elemCheckOrCreate_zPlaneList_DCO(RSRC, paneHierarchy_zPlaneList, fo, po, heapTypeMap, corTL, \
       defineDDO, dcoTypeID, ddoTypeID, subTypeIDs, dcoConNum, isIndicator, dataSrcIdent):
+    """ Checks or creates Front Panel componennt which represents specific DCO
+    """
     typeCtlOrInd = "indicator" if isIndicator != 0 else "control"
+
     dcoTypeDesc = None
     if dcoTypeID is not None:
         dcoTypeDesc = heapTypeMap[dcoTypeID]
@@ -1387,6 +1391,10 @@ def FPHb_elemCheckOrCreate_zPlaneList_DCO(RSRC, paneHierarchy_zPlaneList, fo, po
         eprint("{:s}: Warning: {} does not have dcoTypeID, not adding to FP"\
           .format(po.xml,dataSrcIdent))
         return None, None
+
+    ddoTypeDesc = None
+    if ddoTypeID is not None:
+        ddoTypeDesc = heapTypeMap[ddoTypeID]
 
     labelText = dcoTypeDesc.get("Label")
     if dcoTypeDesc.get("Type") == "Boolean":
@@ -1719,11 +1727,13 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
     for DCO in FpDCOList:
         # Create empty properties for all DCOs
         DCO['dcoTypeID'] = None
+        DCO['partTypeIDs'] = []
         DCO['ddoTypeID'] = None
         DCO['subTypeIDs'] = []
     for DCO in reversed(FpDCOList):
         # We expect DCO type, DDO type, and then sub-types
         dcoTypeID = usedTypeID + 1
+        partTypeIDs = []
         ddoTypeID = dcoTypeID + 1
         subTypeIDs = []
 
@@ -1767,6 +1777,7 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
                 subTypeIDs.append(subTypeID)
                 subTypeID += 1
         DCO['dcoTypeID'] = dcoTypeID
+        DCO['partTypeIDs'] = partTypeIDs
         DCO['ddoTypeID'] = ddoTypeID
         DCO['subTypeIDs'] = subTypeIDs
         usedTypeID = ddoTypeID + len(subTypeIDs)
@@ -2276,6 +2287,66 @@ def TypeDesc_find_unused_ranges(RSRC, fo, po, skipRm=[], VCTP_TypeDescList=None,
                 .format(po.xml,unusedRanges))
     return unusedRanges
 
+def DCO_regognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescList, VCTP_FlatTypeDescList):
+    """ Recognizes DCO from its data space, starting at given typeID
+
+    Returns amount of typeID entries used by that DCO, and DCO information dict.
+    """
+    if endTypeID < typeID+1:
+        return 0, None
+    # Get DCO TypeDesc and next type desc following it
+    dcoTypeDesc, dcoFlatTypeID = \
+          getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID, po)
+    n1TypeDesc, n1FlatTypeID = \
+          getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+1, po)
+    # Recognize the DCO
+    if dcoTypeDesc.get("Type") == "Boolean" and n1TypeDesc.get("Type") == "Boolean" and dcoFlatTypeID == n1FlatTypeID:
+        # Controls from Boolean category: Buttons, Switches and LEDs
+        # These use two TDs, both pointing at the same flat type.
+        DCOInfo = { 'fpClass': None, 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
+        return 2, DCOInfo
+    if dcoTypeDesc.get("Type").startswith("Num") and n1TypeDesc.get("Type").startswith("Num") and dcoFlatTypeID == n1FlatTypeID:
+        # Controls from Numeric category: Numeric Control, Numeric Indicator
+        # These use two TDs, both pointing at the same flat type.
+        DCOInfo = { 'fpClass': None, 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
+        return 2, DCOInfo
+    if dcoTypeDesc.get("Type") == "String" and n1TypeDesc.get("Type") == "String" and dcoFlatTypeID == n1FlatTypeID:
+        # Controls from String and Path category: String Control, String Indicator
+        # These use two TDs, both pointing at the same flat type.
+        DCOInfo = { 'fpClass': None, 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
+        return 2, DCOInfo
+    if dcoTypeDesc.get("Type").startswith("UnitUInt"):
+        # Controls from Boolean category: RabioButtons
+        # These use two Unit TDs, followed by bool TD for each radio button; both Unit TDs are pointing at the same flat type,
+        # radio buttons have separate TD for each. Unit TD has as much Enum entries as there are following radio button TDs.
+        #if dcoTypeDesc.get("Type") == ddoTypeDesc.get("Type") and dcoFlatTypeID == ddoFlatTypeID:
+        #TODO make RabioButtons support
+        pass
+    if dcoTypeDesc.get("Type") == "Cluster" and n1TypeDesc.get("Type") == "Cluster" and dcoFlatTypeID == n1FlatTypeID:
+        dcoSubTypeDescMap = dcoTypeDesc.findall("./TypeDesc")
+        dcoSubTypeDescList = []
+        for TDTopMap in dcoSubTypeDescMap:
+            TypeDesc, _, _ = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, TDTopMap, po)
+            if TypeDesc is None: continue
+            dcoSubTypeDescList.append(TypeDesc)
+        # Following that, we expect types from inside the Cluster; make sure there are some
+        subTypeIDs = []
+        match = True
+        for i, expectSubTypeDesc in enumerate(reversed(dcoSubTypeDescList)):
+            subTypeDesc, subFlatTypeID = \
+              getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+2+i, po)
+            if expectSubTypeDesc.get("Type") != subTypeDesc.get("Type"):
+                match = False
+                break
+            subTypeIDs.append(typeID+2+i)
+        if match:
+            DCOInfo = { 'fpClass': None, 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': subTypeIDs }
+            return 2+len(dcoSubTypeDescList), DCOInfo
+        pass
+    # No control recognized
+    return 0, None
+
+
 def DTHP_TypeDesc_matching_ranges(RSRC, fo, po, VCTP_TypeDescList=None, VCTP_FlatTypeDescList=None):
     """ Finds possible ranges of TypeDescs for DTHP
     """
@@ -2346,95 +2417,28 @@ def DTHP_TypeDesc_matching_ranges(RSRC, fo, po, VCTP_TypeDescList=None, VCTP_Fla
     for rng in heapRanges:
         properMin = None
         properMax = None
-
-        dcoTypeID = None # Starting typeID for currently verified DCO
-        dcoTypeDesc = None # Starting type descriptor for currently verified DCO
-        dcoFlatTypeID = None
-        dcoSubTypeDescList = []
-        rangeEnded = False
-        for typeID in range(rng.min,rng.max+1):
-            currTypeDesc, currFlatTypeID = \
-                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID, po)
-            if dcoTypeID is not None and typeID == dcoTypeID+1:
-                # If types are after each other, compare flatTypeIDs - DCO and DDO TDs should have same base type
-                if dcoFlatTypeID == currFlatTypeID:
-                    #ddoTypeID = typeID # no need to have DDO type stored
-                    if properMin is None:
-                        properMin = dcoTypeID
-                    if dcoTypeDesc.get("Type") == "Cluster":
-                        dcoSubTypeDescMap = dcoTypeDesc.findall("./TypeDesc")
-                        dcoSubTypeDescList = []
-                        for TDTopMap in dcoSubTypeDescMap:
-                            TypeDesc, _, _ = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, TDTopMap, po)
-                            if TypeDesc is None: continue
-                            dcoSubTypeDescList.append(TypeDesc)
-                        # Following that, we expect types from inside the Cluster; make sure there are some
-                        if len(dcoSubTypeDescList) < 1:
-                            # No sub-types - end of types for this DCO
-                            properMax = typeID
-                            dcoTypeID = None
-                            dcoTypeDesc = None
-                            dcoFlatTypeID = None
-                            dcoSubTypeDescList = []
-                        pass
-                    else:
-                        # Proper end of types for this DCO
-                        properMax = typeID
-                        dcoTypeID = None
-                        dcoTypeDesc = None
-                        dcoFlatTypeID = None
-                        dcoSubTypeDescList = []
-                    continue # in all cases above, jump to next type
-                else:
-                    if (po.verbose > 2):
-                        print("{:s}: TypeID {} FlatTypeId {} followed by TypeID {} FlatTypeId {}, not viable for heap"\
-                          .format(po.xml,dcoTypeID,dcoFlatTypeID,typeID,currFlatTypeID))
-                    rangeEnded = True
-                    # This type is not part of the range list we're in; but it may still be
-                    # the beginning of next range - make sure it's set as dcoTypeID of next range
-            elif dcoTypeID is not None and typeID > dcoTypeID+1:
-                # If types are further away than one, check Cluster content
-                dcoSubTypeIndex = len(dcoSubTypeDescList) - (typeID-dcoTypeID-1)
-                if dcoSubTypeIndex >= 0 and dcoSubTypeIndex < len(dcoSubTypeDescList):
-                    dcoSubTypeDesc = dcoSubTypeDescList[dcoSubTypeIndex]
-                    if currTypeDesc.get("Type") == dcoSubTypeDesc.get("Type"):
-                        if dcoSubTypeIndex > 0:
-                            # Matching entry, but not end of sub-entries yet - go to next
-                            pass
-                        else:
-                            # Proper end of types for this Cluster DCO
-                            properMax = typeID
-                            dcoTypeID = None
-                            dcoTypeDesc = None
-                            dcoFlatTypeID = None
-                            dcoSubTypeDescList = []
-                        continue
-                    else:
-                        if (po.verbose > 2):
-                            print("{:s}: TypeID {} FlatTypeId {} followed by non-matching SubTypeID {}, not viable for heap"\
-                              .format(po.xml,dcoTypeID,dcoFlatTypeID,typeID))
-                        rangeEnded = True
-                    pass
-                else:
-                    # Subtype is outranged - meaning error
-                    if (po.verbose > 2):
-                        print("{:s}: TypeID {} FlatTypeId {} followed by outranged SubTypeID {}, not viable for heap"\
-                          .format(po.xml,dcoTypeID,dcoFlatTypeID,typeID))
-                    rangeEnded = True
-                pass
-            if rangeEnded:
+        typeID = rng.min
+        # Recognize one DCO for each move through this loop (proper DCO requires two or more typeID values; so increment varies)
+        while typeID < rng.max: # rng.max is a proper value, but can't be start of DCO - at least two types make a DCO
+            tdCount, DCOInfo = DCO_regognize_from_typeIDs(RSRC, fo, po, typeID, rng.max, VCTP_TypeDescList, VCTP_FlatTypeDescList)
+            if DCOInfo is not None:
+                # Got a proper types list for DCO
+                if properMin is None:
+                    properMin = typeID
+                properMax = typeID + tdCount
+                typeID += tdCount
+            else:
+                # No control recognized - store the previous range and search for next valid range
+                if (po.verbose > 2):
+                    print("{:s}: TypeID {} not viable for heap after checking subsequent types"\
+                      .format(po.xml,typeID))
                 if properMax is not None:
                     rng = SimpleNamespace(min=properMin,max=properMax)
                     heapRangesProper.append(rng)
                 properMin = None
                 properMax = None
-                rangeEnded = False
-            if True: # Store current type as previous
-                dcoTypeID = typeID
-                dcoTypeDesc = currTypeDesc
-                dcoFlatTypeID = currFlatTypeID
-                dcoSubTypeDescList = []
-        # Handle any range not added to heapRangesProper yet
+                typeID += 1
+        # Store the last proper range, in case loop ended before it had the chance of being saved
         if properMax is not None:
             rng = SimpleNamespace(min=properMin,max=properMax)
             heapRangesProper.append(rng)
