@@ -1697,12 +1697,12 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
 
     DTHP_typeDescSlice = RSRC.find("./DTHP/Section/TypeDescSlice")
     if DTHP_typeDescSlice is not None:
-        indexShift = DTHP_typeDescSlice.get("IndexShift")
-        if indexShift is not None:
-            indexShift = int(indexShift, 0)
-        tdCount = DTHP_typeDescSlice.get("Count")
-        if tdCount is not None:
-            tdCount = int(tdCount, 0)
+        DTHP_indexShift = DTHP_typeDescSlice.get("IndexShift")
+        if DTHP_indexShift is not None:
+            DTHP_indexShift = int(DTHP_indexShift, 0)
+        DTHP_tdCount = DTHP_typeDescSlice.get("Count")
+        if DTHP_tdCount is not None:
+            DTHP_tdCount = int(DTHP_tdCount, 0)
     else:
         raise NotImplementedError("DTHP should've been already re-created at this point.")
 
@@ -1720,67 +1720,36 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
     # Heap Types first store a list of TypeDescs used in FP, then a list of TDs used in BD
     # We need to map the first part to the DCOs we have. Connectors may be helpful here, as if they
     # are set, then they store TypeID values for types associated to the DCOs.
-    heapTypeMap = {htId+1:getConsolidatedTopType(RSRC, indexShift+htId, po) for htId in range(tdCount)}
+    heapTypeMap = {htId+1:getConsolidatedTopType(RSRC, DTHP_indexShift+htId, po) for htId in range(DTHP_tdCount)}
 
-    usedTypeID = 0 # Heap TypeID values start with 1, set it before the range
+    VCTP = RSRC.find("./VCTP/Section")
+    if VCTP is not None:
+        VCTP_TypeDescList = VCTP.findall("TopLevel/TypeDesc")
+        VCTP_FlatTypeDescList = VCTP.findall("TypeDesc")
+    else:
+        VCTP_TypeDescList = []
+        VCTP_FlatTypeDescList = []
+    usedTypeID = 1 # Heap TypeID values start with 1
     # Figure out Heap Types range for each DCO
-    for DCO in FpDCOList:
-        # Create empty properties for all DCOs
-        DCO['dcoTypeID'] = None
-        DCO['partTypeIDs'] = []
-        DCO['ddoTypeID'] = None
-        DCO['subTypeIDs'] = []
     for DCO in reversed(FpDCOList):
-        # We expect DCO type, DDO type, and then sub-types
-        dcoTypeID = usedTypeID + 1
-        partTypeIDs = []
-        ddoTypeID = dcoTypeID + 1
-        subTypeIDs = []
-
-        if dcoTypeID not in heapTypeMap:
-            eprint("{:s}: Warning: Heap TypeDesc {} expected for DCO{} does not exist"\
-              .format(po.xml,dcoTypeID,DCO['dcoIndex']))
-            break
-        if ddoTypeID not in heapTypeMap:
-            eprint("{:s}: Warning: Heap TypeDesc {} expected for DCO{}.DDO does not exist"\
-              .format(po.xml,ddoTypeID,DCO['dcoIndex']))
-            break
-        dcoTypeDesc = heapTypeMap[dcoTypeID]
-        ddoTypeDesc = heapTypeMap[ddoTypeID]
-        if dcoTypeDesc != ddoTypeDesc:
-            eprint("{:s}: Warning: DCO and DDO types differ: '{}' vs '{}'"\
-              .format(po.xml,dcoTypeDesc.get("Type"),ddoTypeDesc.get("Type")))
-        # For compound types, get sub-types
-        subTypeID = ddoTypeID + 1
-        if dcoTypeDesc.get("Type") == "Cluster":
-            # For cluster, a type identical to each sub-type is also added directly to the DTHP list
-            dcoTypeDesc_FieldList = list(filter(lambda f: f.tag is not ET.Comment, dcoTypeDesc.findall("./*")))
-            for dcoSubTypeDesc_ref in reversed(dcoTypeDesc_FieldList): # The list of fields looks reverted.. Maybe it's just unsorted?
-                # The content of Cluster type either stores the sub-types, or references to them
-                dcoSubTypeDesc_typeId = int(dcoSubTypeDesc_ref.get("TypeID"), 0)
-                if dcoSubTypeDesc_typeId == -1:
-                    dcoSubTypeDesc = dcoSubTypeDesc_ref
-                else:
-                    dcoSubTypeDesc = getConsolidatedFlatType(RSRC, dcoSubTypeDesc_typeId, po)
-                if subTypeID not in heapTypeMap:
-                    eprint("{:s}: Warning: Heap TypeDesc {} expected for DCO{} sub-type does not exist"\
-                      .format(po.xml,subTypeID,DCO['dcoIndex']))
-                    break
-                subTypeDesc = heapTypeMap[subTypeID]
-                if subTypeDesc != dcoSubTypeDesc:
-                    eprint("{:s}: Warning: Heap TypeDesc {} expected for DCO{} has non-matching type: '{}' instead of '{}'"\
-                      .format(po.xml,subTypeID,DCO['dcoIndex'],subTypeDesc.get("Type"),dcoSubTypeDesc.get("Type")))
-                    continue
-                if (po.verbose > 1):
-                    print("{:s}: Heap TypeDesc {} expected for DCO{} has type '{}' matching Cluster field"\
-                      .format(po.xml,subTypeID,DCO['dcoIndex'],subTypeDesc.get("Type")))
-                subTypeIDs.append(subTypeID)
-                subTypeID += 1
-        DCO['dcoTypeID'] = dcoTypeID
-        DCO['partTypeIDs'] = partTypeIDs
-        DCO['ddoTypeID'] = ddoTypeID
-        DCO['subTypeIDs'] = subTypeIDs
-        usedTypeID = ddoTypeID + len(subTypeIDs)
+        dcoTDCount = 0
+        DCOInfo = None
+        if usedTypeID in heapTypeMap:
+            dcoTDCount, DCOInfo = DCO_regognize_from_typeIDs(RSRC, fo, po, DTHP_indexShift+usedTypeID-1, DTHP_indexShift+DTHP_tdCount, VCTP_TypeDescList, VCTP_FlatTypeDescList)
+        if DCOInfo is not None:
+            # Switch typeID values to Heap Type IDs
+            DCOInfo['dcoTypeID'] = DCOInfo['dcoTypeID']-DTHP_indexShift+1
+            DCOInfo['partTypeIDs'] = [ typeID-DTHP_indexShift+1 for typeID in DCOInfo['partTypeIDs'] ]
+            DCOInfo['ddoTypeID'] = DCOInfo['ddoTypeID']-DTHP_indexShift+1
+            DCOInfo['subTypeIDs'] = [ typeID-DTHP_indexShift+1 for typeID in DCOInfo['subTypeIDs'] ]
+        else:
+            eprint("{:s}: Warning: Heap TypeDesc {} expected for DCO{} does not match known TD patterns"\
+              .format(po.xml,usedTypeID,DCO['dcoIndex']))
+            DCOInfo = { 'fpClass': "stdNum", 'dcoTypeID': usedTypeID, 'partTypeIDs': [], 'ddoTypeID': usedTypeID, 'subTypeIDs': [] }
+            dcoTDCount = 1
+        # Store the values inside DCO
+        DCO.update(DCOInfo)
+        usedTypeID += dcoTDCount
 
     corTL = [0,0] # Coordinates top left
     for DCO in reversed(FpDCOList):
@@ -2303,25 +2272,44 @@ def DCO_regognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
     if dcoTypeDesc.get("Type") == "Boolean" and n1TypeDesc.get("Type") == "Boolean" and dcoFlatTypeID == n1FlatTypeID:
         # Controls from Boolean category: Buttons, Switches and LEDs
         # These use two TDs, both pointing at the same flat type.
-        DCOInfo = { 'fpClass': None, 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
-        return 2, DCOInfo
+        if True:
+            DCOInfo = { 'fpClass': "stdBool", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
+            return 2, DCOInfo
     if dcoTypeDesc.get("Type").startswith("Num") and n1TypeDesc.get("Type").startswith("Num") and dcoFlatTypeID == n1FlatTypeID:
         # Controls from Numeric category: Numeric Control, Numeric Indicator
         # These use two TDs, both pointing at the same flat type.
-        DCOInfo = { 'fpClass': None, 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
-        return 2, DCOInfo
+        if True:
+            DCOInfo = { 'fpClass': "stdNum", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
+            return 2, DCOInfo
     if dcoTypeDesc.get("Type") == "String" and n1TypeDesc.get("Type") == "String" and dcoFlatTypeID == n1FlatTypeID:
         # Controls from String and Path category: String Control, String Indicator
         # These use two TDs, both pointing at the same flat type.
-        DCOInfo = { 'fpClass': None, 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
-        return 2, DCOInfo
-    if dcoTypeDesc.get("Type").startswith("UnitUInt"):
+        if True:
+            DCOInfo = { 'fpClass': "stdString", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
+            return 2, DCOInfo
+    if dcoTypeDesc.get("Type").startswith("UnitUInt") and dcoTypeDesc.get("Type") == ddoTypeDesc.get("Type") and dcoFlatTypeID == ddoFlatTypeID:
         # Controls from Boolean category: RabioButtons
         # These use two Unit TDs, followed by bool TD for each radio button; both Unit TDs are pointing at the same flat type,
         # radio buttons have separate TD for each. Unit TD has as much Enum entries as there are following radio button TDs.
-        #if dcoTypeDesc.get("Type") == ddoTypeDesc.get("Type") and dcoFlatTypeID == ddoFlatTypeID:
-        #TODO make RabioButtons support
-        pass
+        dcoSubTypeEnumLabels = dcoTypeDesc.findall("./EnumLabel")
+        # Following that, we expect bool types from each radio button
+        subTypeIDs = []
+        subFlatTypeIDs = []
+        match = True
+        for i in range(len(dcoSubTypeEnumLabels)):
+            subTypeDesc, subFlatTypeID = \
+              getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+2+i, po)
+            if expectSubTypeDesc.get("Type") != "Boolean":
+                match = False
+                break
+            subFlatTypeIDs.append(subFlatTypeID)
+            subTypeIDs.append(typeID+2+i)
+        # The Flat Types inside needs to be unique for each radio button
+        if len(subFlatTypeIDs) > len(set(subFlatTypeIDs)):
+            match = False # Some types repeat - fail
+        if match:
+            DCOInfo = { 'fpClass': "radioClust", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': subTypeIDs }
+            return 2+len(dcoSubTypeEnumLabels), DCOInfo
     if dcoTypeDesc.get("Type") == "Cluster" and n1TypeDesc.get("Type") == "Cluster" and dcoFlatTypeID == n1FlatTypeID:
         dcoSubTypeDescMap = dcoTypeDesc.findall("./TypeDesc")
         dcoSubTypeDescList = []
@@ -2329,7 +2317,7 @@ def DCO_regognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
             TypeDesc, _, _ = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, TDTopMap, po)
             if TypeDesc is None: continue
             dcoSubTypeDescList.append(TypeDesc)
-        # Following that, we expect types from inside the Cluster; make sure there are some
+        # Following that, we expect types from inside the Cluster; make all are matching
         subTypeIDs = []
         match = True
         for i, expectSubTypeDesc in enumerate(reversed(dcoSubTypeDescList)):
@@ -2340,9 +2328,8 @@ def DCO_regognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
                 break
             subTypeIDs.append(typeID+2+i)
         if match:
-            DCOInfo = { 'fpClass': None, 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': subTypeIDs }
+            DCOInfo = { 'fpClass': "stdClust", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': subTypeIDs }
             return 2+len(dcoSubTypeDescList), DCOInfo
-        pass
     # No control recognized
     return 0, None
 
