@@ -445,8 +445,9 @@ def elemCheckOrCreate_table_arrayElementImg(parent, fo, po, aeClass="Image", \
 
     return arrayElement
 
-def getConsolidatedTopType(RSRC, typeID, po):
-    VCTP = RSRC.find("./VCTP/Section")
+def getConsolidatedTopTypeAndID(RSRC, typeID, po, VCTP=None):
+    if VCTP is None:
+        VCTP = RSRC.find("./VCTP/Section")
     if VCTP is None:
         return None
     VCTP_TopTypeDesc = VCTP.find("./TopLevel/TypeDesc[@Index='{}']".format(typeID))
@@ -457,6 +458,10 @@ def getConsolidatedTopType(RSRC, typeID, po):
         return None
     VCTP_FlatTypeID = int(VCTP_FlatTypeID, 0)
     VCTP_FlatTypeDesc = VCTP.find("./TypeDesc["+str(VCTP_FlatTypeID+1)+"]")
+    return VCTP_FlatTypeDesc, VCTP_FlatTypeID
+
+def getConsolidatedTopType(RSRC, typeID, po, VCTP=None):
+    VCTP_FlatTypeDesc, _ = getConsolidatedTopTypeAndID(RSRC, typeID, po, VCTP=VCTP)
     return VCTP_FlatTypeDesc
 
 def getConsolidatedFlatType(RSRC, flatTypeID, po):
@@ -1379,7 +1384,7 @@ def FPHb_elemCheckOrCreate_zPlaneList_DCO_size(fo, po, heapTypeMap, corTL, dcoTy
     return corBR
 
 def FPHb_elemCheckOrCreate_zPlaneList_DCO(RSRC, paneHierarchy_zPlaneList, fo, po, heapTypeMap, corTL, \
-      defineDDO, dcoTypeID, ddoTypeID, subTypeIDs, dcoConNum, isIndicator, dataSrcIdent):
+      defineDDO, fpClass, dcoTypeID, partTypeIDs, ddoTypeID, subTypeIDs, dcoConNum, isIndicator, dataSrcIdent):
     """ Checks or creates Front Panel componennt which represents specific DCO
     """
     typeCtlOrInd = "indicator" if isIndicator != 0 else "control"
@@ -1508,8 +1513,9 @@ def FPHb_elemCheckOrCreate_zPlaneList_DCO(RSRC, paneHierarchy_zPlaneList, fo, po
                   dcoTypeID=subTypeID, ddoTypeID=subTypeID, subTypeIDs=[], isIndicator=isIndicator)
             corCtBL = [corCtBL[0]-corBR[0], corCtBL[1]]
             corCtBL_mv = [corCtBL[0], corCtBL[1]] # Make a copy to be sure coords are not modified by the function
+            fpClass = DCO_recognize_class_from_dcoTypeID(RSRC, fo, po, subTypeID)
             FPHb_elemCheckOrCreate_zPlaneList_DCO(RSRC, ddo_ph_zPlaneList, fo, po, heapTypeMap, corCtBL_mv, \
-                  defineDDO=False, dcoTypeID=subTypeID, ddoTypeID=subTypeID, subTypeIDs=[], \
+                  defineDDO=False, fpClass=fpClass, dcoTypeID=subTypeID, partTypeIDs=[], ddoTypeID=subTypeID, subTypeIDs=[], \
                   dcoConNum=dcoConNum, isIndicator=isIndicator, dataSrcIdent="{}.{}".format(dataSrcIdent,dcoTypeDesc.get("Type")))
     else:
         #TODO add more types
@@ -1754,7 +1760,8 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
     corTL = [0,0] # Coordinates top left
     for DCO in reversed(FpDCOList):
         FPHb_elemCheckOrCreate_zPlaneList_DCO(RSRC, paneHierarchy_zPlaneList, fo, po, heapTypeMap, corTL, \
-              defineDDO=True, dcoTypeID=DCO['dcoTypeID'], ddoTypeID=DCO['ddoTypeID'], subTypeIDs=DCO['subTypeIDs'], \
+              defineDDO=True, fpClass=DCO['fpClass'], dcoTypeID=DCO['dcoTypeID'], \
+              partTypeIDs=DCO['partTypeIDs'], ddoTypeID=DCO['ddoTypeID'], subTypeIDs=DCO['subTypeIDs'], \
               dcoConNum=DCO['conNum'], isIndicator=DCO['isIndicator'], dataSrcIdent="DCO{}".format(DCO['dcoIndex']))
 
     # Get expected grid alignment
@@ -2255,6 +2262,28 @@ def TypeDesc_find_unused_ranges(RSRC, fo, po, skipRm=[], VCTP_TypeDescList=None,
             print("{:s}: After BFAL exclusion, unused TD ranges: {}"\
                 .format(po.xml,unusedRanges))
     return unusedRanges
+
+def DCO_recognize_class_from_dcoTypeID(RSRC, fo, po, typeID):
+    """ Recognizes DCO class using only DCO TypeID as input
+
+    This should be used only if more TypeIDs are not available and there is no other way than to use this simplified method.
+    Returns the DCO class name.
+    """
+    # Get DCO TypeDesc
+    dcoTypeDesc = getConsolidatedTopType(RSRC, typeID, po)
+    # Recognize the DCO
+    if dcoTypeDesc.get("Type") == "Boolean":
+        return "stdBool"
+    if dcoTypeDesc.get("Type").startswith("Num"):
+        return "stdNum"
+    if dcoTypeDesc.get("Type") == "String":
+        return "stdString"
+    if dcoTypeDesc.get("Type").startswith("UnitUInt"):
+        return "radioClust"
+    if dcoTypeDesc.get("Type") == "Cluster":
+        return "stdClust"
+    # No control recognized
+    return None
 
 def DCO_regognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescList, VCTP_FlatTypeDescList):
     """ Recognizes DCO from its data space, starting at given typeID
