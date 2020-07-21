@@ -2316,9 +2316,106 @@ def DCO_regognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
         if True:
             DCOInfo = { 'fpClass': "stdBool", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
             return 2, DCOInfo
+    if dcoTypeDesc.get("Type").startswith("Num") and dcoTypeDesc.get("Type") == n1TypeDesc.get("Type") and dcoFlatTypeID != n1FlatTypeID:
+        # Controls from Numeric category: Dial, Gauge, Knob, Meter
+        # We will also use it instead of "stdSlide", as there is no way to distinguish these
+        # These use three TDs, first and last pointing at the same flat TD; second has its own TD, of the same type.
+        if endTypeID >= typeID+2:
+            n2TypeDesc, n2FlatTypeID = \
+                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+2, po)
+        else:
+            n2TypeDesc, n2FlatTypeID = None, None
+        match = True
+        if dcoFlatTypeID != n2FlatTypeID:
+                match = False
+        if match:
+            DCOInfo = { 'fpClass': "stdKnob", 'dcoTypeID': typeID, 'partTypeIDs': [ typeID+1 ], 'ddoTypeID': typeID+2, 'subTypeIDs': [] }
+            return 3, DCOInfo
+    if dcoTypeDesc.get("Type") == "MeasureData" and dcoTypeDesc.get("Flavor") == "TimeStamp" and n1TypeDesc.get("Type") == "Boolean" and dcoFlatTypeID != n1FlatTypeID:
+        # Controls from Numeric category: Timestamp Control, Timestamp Indicator
+        # These use three TDs, first and last pointing at the same flat Measuredata TD; second has its own TD, of Boolean type.
+        if endTypeID >= typeID+2:
+            n2TypeDesc, n2FlatTypeID = \
+                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+2, po)
+        else:
+            n2TypeDesc, n2FlatTypeID = None, None
+        match = True
+        if dcoFlatTypeID != n2FlatTypeID:
+                match = False
+        if match:
+            DCOInfo = { 'fpClass': "absTime", 'dcoTypeID': typeID, 'partTypeIDs': [ typeID+1 ], 'ddoTypeID': typeID+2, 'subTypeIDs': [] }
+            return 3, DCOInfo
+    if dcoTypeDesc.get("Type") == "Array" and n1TypeDesc.get("Type") == "NumUInt32" and dcoFlatTypeID != n1FlatTypeID:
+        # Controls from Array/Matrix/Cluster category: Array
+        # These use three TDs, first and last pointing at the same flat Array TD; second has its own TD, of NumUInt32 type.
+        if endTypeID >= typeID+2:
+            n2TypeDesc, n2FlatTypeID = \
+                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+2, po)
+        else:
+            n2TypeDesc, n2FlatTypeID = None, None
+        match = True
+        if dcoFlatTypeID != n2FlatTypeID:
+                match = False
+        if match:
+            DCOInfo = { 'fpClass': "indArr", 'dcoTypeID': typeID, 'partTypeIDs': [ typeID+1 ], 'ddoTypeID': typeID+2, 'subTypeIDs': [] }
+            return 3, DCOInfo
+    if dcoTypeDesc.get("Type") == "TypeDef" and n1TypeDesc.get("Type") == "NumUInt32" and dcoFlatTypeID != n1FlatTypeID:
+        # Controls from Array/Matrix/Cluster category: Real Matrix, Complex Matrix
+        # These use six TDs (for 2 dimensions), first and last pointing at the same flat TypeDef TD; second and third are
+        # per-dimension NumUInt32 shift TDs; fourth is Array, fifth is the element type Num TD.
+        match = True
+        dcoInnerTypeDesc = dcoTypeDesc.find("./TypeDesc[@Type]")
+        if dcoInnerTypeDesc is not None and dcoInnerTypeDesc.get("Type") == "Array":
+            nDimensions = len(dcoInnerTypeDesc.findall("./Dimension"))
+        else:
+            nDimensions = 0
+        if nDimensions < 1:
+            match = False
+        partTypeIDs = []
+        for dimID in range(nDimensions):
+            if endTypeID >= typeID+1+dimID:
+                n2TypeDesc, n2FlatTypeID = \
+                      getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+1+dimID, po)
+            else:
+                n2TypeDesc, n2FlatTypeID = None, None
+            if n2TypeDesc is not None and n2TypeDesc.get("Type") == "NumUInt32":
+                partTypeIDs.append(typeID+1+dimID)
+            else:
+                match = False
+        if len(partTypeIDs) != nDimensions:
+            match = False
+        if endTypeID >= typeID+1+nDimensions+0:
+            n3TypeDesc, n3FlatTypeID = \
+                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+1+nDimensions+0, po)
+        else:
+            n3TypeDesc, n3FlatTypeID = None, None
+        if n3TypeDesc is not None and n3TypeDesc.get("Type") == "Array":
+            n3Dimensions = len(n3TypeDesc.findall("./Dimension"))
+        else:
+            n3Dimensions = 0
+        if nDimensions != n3Dimensions:
+            match = False
+        if endTypeID >= typeID+1+nDimensions+1:
+            n4TypeDesc, n4FlatTypeID = \
+                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+1+nDimensions+1, po)
+        else:
+            n4TypeDesc, n4FlatTypeID = None, None
+        if n4TypeDesc is None or n4TypeDesc.get("Type") not in ("NumUInt32","NumFloat64",):
+            match = False
+        if endTypeID >= typeID+1+nDimensions+2:
+            n5TypeDesc, n5FlatTypeID = \
+                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+1+nDimensions+2, po)
+        else:
+            n5TypeDesc, n5FlatTypeID = None, None
+        if dcoFlatTypeID != n5FlatTypeID:
+            match = False
+        if match:
+            DCOInfo = { 'fpClass': "typeDef", 'dcoTypeID': typeID, 'partTypeIDs': partTypeIDs, 'ddoTypeID': typeID+1+nDimensions+2, 'subTypeIDs': [] }
+            return 1+nDimensions+3, DCOInfo
     if dcoTypeDesc.get("Type").startswith("Num") and n1TypeDesc.get("Type").startswith("Num") and dcoFlatTypeID == n1FlatTypeID:
         # Controls from Numeric category: Numeric Control, Numeric Indicator
-        # These use two TDs, both pointing at the same flat type.
+        # We will also use it instead of "stdColorNum" and "scrollbar", as there is no way to distinguish these
+        # These use two TDs, both pointing at the same flat Number TD.
         if True:
             DCOInfo = { 'fpClass': "stdNum", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
             return 2, DCOInfo
@@ -2352,6 +2449,8 @@ def DCO_regognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
             DCOInfo = { 'fpClass': "radioClust", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': subTypeIDs }
             return 2+len(dcoSubTypeEnumLabels), DCOInfo
     if dcoTypeDesc.get("Type") == "Cluster" and n1TypeDesc.get("Type") == "Cluster" and dcoFlatTypeID == n1FlatTypeID:
+        # Controls from Array/Matrix/Cluster category: Cluster
+        # These use two Cluster TDs of same flat TD, followed by single TD for each item within the cluster.
         dcoSubTypeDescMap = dcoTypeDesc.findall("./TypeDesc")
         dcoSubTypeDescList = []
         for TDTopMap in dcoSubTypeDescMap:
