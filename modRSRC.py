@@ -2312,7 +2312,7 @@ def DCO_regognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
     # Recognize the DCO
     if dcoTypeDesc.get("Type") == "Boolean" and n1TypeDesc.get("Type") == "Boolean" and dcoFlatTypeID == n1FlatTypeID:
         # Controls from Boolean category: Buttons, Switches and LEDs
-        # These use two TDs, both pointing at the same flat type.
+        # These use two TDs, both pointing at the same flat index of Boolean TD.
         if True:
             DCOInfo = { 'fpClass': "stdBool", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
             return 2, DCOInfo
@@ -2384,6 +2384,7 @@ def DCO_regognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
                 match = False
         if len(partTypeIDs) != nDimensions:
             match = False
+        dcoSubTypeDesc = dcoInnerTypeDesc.find("./TypeDesc[@Type]")
         if endTypeID >= typeID+1+nDimensions+0:
             n3TypeDesc, n3FlatTypeID = \
                   getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+1+nDimensions+0, po)
@@ -2391,9 +2392,13 @@ def DCO_regognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
             n3TypeDesc, n3FlatTypeID = None, None
         if n3TypeDesc is not None and n3TypeDesc.get("Type") == "Array":
             n3Dimensions = len(n3TypeDesc.findall("./Dimension"))
+            n3SubTypeDesc = n3TypeDesc.findall("./TypeDesc[@Type]")
         else:
             n3Dimensions = 0
+            n3SubTypeDesc = None
         if nDimensions != n3Dimensions:
+            match = False
+        if dcoSubTypeDesc is None or n3SubTypeDesc is None or n3SubTypeDesc.get"TypeID") != n3SubTypeDesc.get"TypeID"):
             match = False
         if endTypeID >= typeID+1+nDimensions+1:
             n4TypeDesc, n4FlatTypeID = \
@@ -2421,13 +2426,13 @@ def DCO_regognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
             return 2, DCOInfo
     if dcoTypeDesc.get("Type") == "String" and n1TypeDesc.get("Type") == "String" and dcoFlatTypeID == n1FlatTypeID:
         # Controls from String and Path category: String Control, String Indicator
-        # These use two TDs, both pointing at the same flat type.
+        # These use two TDs, both pointing at the same flat index of String TD.
         if True:
             DCOInfo = { 'fpClass': "stdString", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
             return 2, DCOInfo
     if dcoTypeDesc.get("Type").startswith("UnitUInt") and dcoTypeDesc.get("Type") == ddoTypeDesc.get("Type") and dcoFlatTypeID == ddoFlatTypeID:
         # Controls from Boolean category: RabioButtons
-        # These use two Unit TDs, followed by bool TD for each radio button; both Unit TDs are pointing at the same flat type,
+        # These use two Unit TDs, followed by bool TD for each radio button; both Unit TDs are pointing at the same flat index of UnitUInt TD,
         # radio buttons have separate TD for each. Unit TD has as much Enum entries as there are following radio button TDs.
         dcoSubTypeEnumLabels = dcoTypeDesc.findall("./EnumLabel")
         # Following that, we expect bool types from each radio button
@@ -2470,6 +2475,51 @@ def DCO_regognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
         if match:
             DCOInfo = { 'fpClass': "stdClust", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': subTypeIDs }
             return 2+len(dcoSubTypeDescList), DCOInfo
+    if dcoTypeDesc.get("Type") == "Refnum" and n1TypeDesc.get("Type") == "Refnum" and dcoFlatTypeID == n1FlatTypeID:
+        # Controls from Containers category, FP parts: ActiveX Container, dotNET Container
+        # These use two TDs, both pointing at the same flat index of Refnum TD.
+        # These controls have FP TypeIDs and BD TypeIDs - this will match the FP part only.
+        # Existence of Containers in the VI can be determined by existence of VINS block with multiple entries.
+        match = True
+        # Ref type is AutoRef for ActiveX Container, DotNet for dotNET Container
+        if dcoTypeDesc.get("RefType") not in ("AutoRef","DotNet",):
+            match = False
+        if match:
+            DCOInfo = { 'fpClass': "stdCont", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
+            return 2, DCOInfo
+    if dcoTypeDesc.get("Type") == "UnitUInt32" and n1FlatTypeID.get("Type") == "UnitUInt32" and dcoFlatTypeID != n1FlatTypeID:
+        # Controls from Containers category, FP parts: TabControl
+        # These use four TDs, first and last pointing at the same flat TD; second has its own TD, of the same type; third is NumInt32.
+        match = True
+        if endTypeID >= typeID+2:
+            n2TypeDesc, n2FlatTypeID = \
+                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+2, po)
+        else:
+            n2TypeDesc, n2FlatTypeID = None, None
+        if n2TypeDesc is None or n2TypeDesc.get("Type") not in ("NumUInt32",):
+            match = False
+        if endTypeID >= typeID+3:
+            n3TypeDesc, n3FlatTypeID = \
+                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+3, po)
+        else:
+            n3TypeDesc, n3FlatTypeID = None, None
+        if dcoFlatTypeID != n3FlatTypeID:
+                match = False
+        if match:
+            DCOInfo = { 'fpClass': "tabControl", 'dcoTypeID': typeID, 'partTypeIDs': [ typeID+1, typeID+2 ], 'ddoTypeID': typeID+3, 'subTypeIDs': [] }
+            return 4, DCOInfo
+    if dcoTypeDesc.get("Type") == "Refnum":
+        # Controls from Containers category, FP parts: Sub Panel
+        # These use one FP TD, of Refnum type.
+        # These controls have FP TypeIDs and BD TypeIDs - this will match the FP part only.
+        match = True
+        if dcoTypeDesc.get("RefType") not in ("LVObjCtl",):
+            match = False
+        if match:
+            DCOInfo = { 'fpClass': "grouper", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID, 'subTypeIDs': [] }
+            return 1, DCOInfo
+    #TODO recognize BD part of ActiveX Container, dotNET Container, TabControl, Sub Panel (maybe separate function for BD recognition?)
+    #TODO Also splitter - has BD types only, but it influences structure of FP XML.
     # No control recognized
     return 0, None
 
