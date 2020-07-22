@@ -6160,6 +6160,17 @@ class VCTP(TypeDescListBase):
         return ret
 
 
+class VINS(Block):
+    """ Virtual Instrument Instances
+
+    This section stores list of instances, and the instances
+    themselves; the instances are just embedded VI files.
+    """
+    def createSection(self):
+        section = super().createSection()
+        return section
+
+
 class VICD(CompleteBlock):
     """ Virtual Instrument Compiled Data / VI Code
 
