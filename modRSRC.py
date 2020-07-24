@@ -1740,7 +1740,7 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
         dcoTDCount = 0
         DCOInfo = None
         if usedTypeID in heapTypeMap:
-            dcoTDCount, DCOInfo = DCO_regognize_from_typeIDs(RSRC, fo, po, DTHP_indexShift+usedTypeID-1, DTHP_indexShift+DTHP_tdCount, VCTP_TypeDescList, VCTP_FlatTypeDescList)
+            dcoTDCount, DCOInfo = DCO_recognize_from_typeIDs(RSRC, fo, po, DTHP_indexShift+usedTypeID-1, DTHP_indexShift+DTHP_tdCount, VCTP_TypeDescList, VCTP_FlatTypeDescList)
         if DCOInfo is not None:
             # Switch typeID values to Heap Type IDs
             DCOInfo['dcoTypeID'] = DCOInfo['dcoTypeID']-DTHP_indexShift+1
@@ -2297,7 +2297,7 @@ def DCO_recognize_class_from_dcoTypeID(RSRC, fo, po, dcoTypeID):
     typeID = DTHP_indexShift+dcoTypeID-1
     return DCO_recognize_class_from_single_typeID(RSRC, fo, po, typeID)
 
-def DCO_regognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescList, VCTP_FlatTypeDescList):
+def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescList, VCTP_FlatTypeDescList):
     """ Recognizes DCO from its data space, starting at given typeID
 
     Returns amount of typeID entries used by that DCO, and DCO information dict.
@@ -2398,7 +2398,7 @@ def DCO_regognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
             n3SubTypeDesc = None
         if nDimensions != n3Dimensions:
             match = False
-        if dcoSubTypeDesc is None or n3SubTypeDesc is None or n3SubTypeDesc.get"TypeID") != n3SubTypeDesc.get"TypeID"):
+        if dcoSubTypeDesc is None or n3SubTypeDesc is None or n3SubTypeDesc.get("TypeID") != n3SubTypeDesc.get("TypeID"):
             match = False
         if endTypeID >= typeID+1+nDimensions+1:
             n4TypeDesc, n4FlatTypeID = \
@@ -2455,6 +2455,7 @@ def DCO_regognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
             return 2+len(dcoSubTypeEnumLabels), DCOInfo
     if dcoTypeDesc.get("Type") == "Cluster" and n1TypeDesc.get("Type") == "Cluster" and dcoFlatTypeID == n1FlatTypeID:
         # Controls from Array/Matrix/Cluster category: Cluster
+        # Also matches control from Graph Datatypes category: Text Alignment
         # These use two Cluster TDs of same flat TD, followed by single TD for each item within the cluster.
         dcoSubTypeDescMap = dcoTypeDesc.findall("./TypeDesc")
         dcoSubTypeDescList = []
@@ -2476,9 +2477,9 @@ def DCO_regognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
             DCOInfo = { 'fpClass': "stdClust", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': subTypeIDs }
             return 2+len(dcoSubTypeDescList), DCOInfo
     if dcoTypeDesc.get("Type") == "Refnum" and n1TypeDesc.get("Type") == "Refnum" and dcoFlatTypeID == n1FlatTypeID:
-        # Controls from Containers category, FP parts: ActiveX Container, dotNET Container
+        # Controls from Containers category: ActiveX Container, dotNET Container
+        # Also matches controls from dotNet and ActiveX category - specific control should be recognized later.
         # These use two TDs, both pointing at the same flat index of Refnum TD.
-        # These controls have FP TypeIDs and BD TypeIDs - this will match the FP part only.
         # Existence of Containers in the VI can be determined by existence of VINS block with multiple entries.
         match = True
         # Ref type is AutoRef for ActiveX Container, DotNet for dotNET Container
@@ -2488,7 +2489,7 @@ def DCO_regognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
             DCOInfo = { 'fpClass': "stdCont", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
             return 2, DCOInfo
     if dcoTypeDesc.get("Type") == "UnitUInt32" and n1FlatTypeID.get("Type") == "UnitUInt32" and dcoFlatTypeID != n1FlatTypeID:
-        # Controls from Containers category, FP parts: TabControl
+        # Controls from Containers category: TabControl
         # These use four TDs, first and last pointing at the same flat TD; second has its own TD, of the same type; third is NumInt32.
         match = True
         if endTypeID >= typeID+2:
@@ -2508,18 +2509,74 @@ def DCO_regognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
         if match:
             DCOInfo = { 'fpClass': "tabControl", 'dcoTypeID': typeID, 'partTypeIDs': [ typeID+1, typeID+2 ], 'ddoTypeID': typeID+3, 'subTypeIDs': [] }
             return 4, DCOInfo
+    if dcoTypeDesc.get("Type") == "Refnum" and n1TypeDesc.get("Type") == "Refnum" and dcoFlatTypeID == n1FlatTypeID:
+        # Controls from 3D Graph category: 3D Picture
+        # These use two TDs, both pointing at the same flat index of Refnum TD.
+        match = True
+        if dcoTypeDesc.get("RefType") != "LVObjCtl":
+            match = False
+        if match:
+            DCOInfo = { 'fpClass': "scenegraphdisplay", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
+            return 2, DCOInfo
     if dcoTypeDesc.get("Type") == "Refnum":
         # Controls from Containers category, FP parts: Sub Panel
         # These use one FP TD, of Refnum type.
         # These controls have FP TypeIDs and BD TypeIDs - this will match the FP part only.
+        # We're using only one TD entry here, but we've requested 2 - that's not an issue, since this DCO enforces a lot of following BD heap TDs
         match = True
         if dcoTypeDesc.get("RefType") not in ("LVObjCtl",):
             match = False
         if match:
             DCOInfo = { 'fpClass': "grouper", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID, 'subTypeIDs': [] }
             return 1, DCOInfo
-    #TODO recognize BD part of ActiveX Container, dotNET Container, TabControl, Sub Panel (maybe separate function for BD recognition?)
-    #TODO Also splitter - has BD types only, but it influences structure of FP XML.
+    if dcoTypeDesc.get("Type") == "Array" and n1TypeDesc.get("Type") == "Array" and dcoFlatTypeID == n1FlatTypeID:
+        # Controls from 3D Graph category: Bar, Comet, Contour, LineGraph, Mesh, ParametricGraph, Pie, Quiver, Ribbon,
+        #   Scatter, Stem, Surface, SurfaceGraph, Waterfall
+        # These use three TDs; two are pointing at the same flat index of Array TD; third is a Cluster TD for state.
+        match = True
+        # Get the array item type
+        dcoSubTDMap = dcoTypeDesc.find("./TypeDesc[@TypeID]")
+        dcoSubTypeDesc, _, dcoFlatSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, dcoSubTDMap, po)
+        # Ref type is UDClassInst
+        if dcoSubTypeDesc.get("Type") != "Refnum" or dcoSubTypeDesc.get("RefType") not in ("UDClassInst",):
+            match = False
+        if endTypeID >= typeID+2:
+            n2TypeDesc, n2FlatTypeID = \
+                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+2, po)
+        else:
+            n2TypeDesc, n2FlatTypeID = None, None
+        if n2TypeDesc is not None and n2TypeDesc.get("Type") == "TypeDef":
+            n2ClustTypeDesc = n2TypeDesc.find("./TypeDesc[@Type]")
+        else:
+            n2ClustTypeDesc = None
+        if n2ClustTypeDesc is not None and n2ClustTypeDesc.get("Type") == "Cluster":
+            n2SubTypeDesc = n2ClustTypeDesc.findall("./TypeDesc[@TypeID]")
+        else:
+            n2SubTypeDesc = []
+        # The state Cluster has 6 items; first is a copy of DCO sub-TD, second is TypeDef with queue, following are some int properties.
+        if len(n2SubTypeDesc) != 6:
+            match = False
+        for i, stateTypeMap in enumerate(n2SubTypeDesc):
+            stateTypeDesc, _, stateFlatTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, stateTypeMap, po)
+            if stateTypeDesc is None:
+                match = False
+                break
+            if i == 0:
+                if stateTypeDesc.get("Type") != dcoSubTypeDesc.get("Type") or stateTypeDesc.get("RefType") != dcoSubTypeDesc.get("RefType"):
+                    match = False
+            elif i == 1:
+                if stateTypeDesc.get("Type") != "TypeDef":
+                    match = False
+                #TODO we could check inside of the TypeDef
+            else:
+                if stateTypeDesc.get("Type") != "NumUInt32":
+                    match = False
+        if match:
+            DCOInfo = { 'fpClass': "xControl", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [ typeID+2 ] }
+            return 3, DCOInfo
+
+    #TODO recognize BD part of Sub Panel (maybe separate function for BD recognition?)
+    #TODO recognize splitter - not from TDs, but it should be recognizable.
     # No control recognized
     return 0, None
 
@@ -2597,7 +2654,7 @@ def DTHP_TypeDesc_matching_ranges(RSRC, fo, po, VCTP_TypeDescList=None, VCTP_Fla
         typeID = rng.min
         # Recognize one DCO for each move through this loop (proper DCO requires two or more typeID values; so increment varies)
         while typeID < rng.max: # rng.max is a proper value, but can't be start of DCO - at least two types make a DCO
-            tdCount, DCOInfo = DCO_regognize_from_typeIDs(RSRC, fo, po, typeID, rng.max, VCTP_TypeDescList, VCTP_FlatTypeDescList)
+            tdCount, DCOInfo = DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, rng.max, VCTP_TypeDescList, VCTP_FlatTypeDescList)
             if DCOInfo is not None:
                 # Got a proper types list for DCO
                 if properMin is None:
