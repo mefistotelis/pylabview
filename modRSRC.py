@@ -2417,42 +2417,74 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
         if match:
             DCOInfo = { 'fpClass': "stdClust", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': subTypeIDs }
             return 2+len(dcoSubTypeDescList), DCOInfo
-    if dcoTypeDesc.get("Type") == "Cluster" and n1TypeDesc.get("Type") == "NumUInt32":
-        # Controls from Graph category: Digital Waveform
+    if dcoTypeDesc.get("Type") in ("Cluster","Array",) and n1TypeDesc.get("Type") == "NumUInt32":
+        # Controls from Graph category: Digital Waveform, Waveform Graph, XY Graph, Ex XY Graph
         # These use nineteen TDs, first and last pointing at the same flat TD of Cluster type; inbetween there is a combination of
         #   NumUInt32, Array, Cluster, String, Boolean.
         match = True
-        if endTypeID >= typeID+21:
+        if dcoTypeDesc.get("Type") == "Cluster":
+            ddoTypeIDShift = 21
+        else:
+            ddoTypeIDShift = 20
+        if endTypeID >= typeID+ddoTypeIDShift:
             n21TypeDesc, n21FlatTypeID = \
-                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+21, po)
+                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+ddoTypeIDShift, po)
         else:
             n21TypeDesc, n21FlatTypeID = None, None
         if n21TypeDesc is None or n21TypeDesc.get("Type") != dcoTypeDesc.get("Type") or dcoFlatTypeID != n21FlatTypeID:
             match = False
-        dcoSubTypeDescMap = dcoTypeDesc.findall("./TypeDesc[@TypeID]")
-        if len(dcoSubTypeDescMap) != 4:
-            match = False
-        # Vefify fields within Cluster
-        for i, dcoSubTypeMap in enumerate(dcoSubTypeDescMap):
-            dcoSubTypeDesc, _, dcoFlatSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, dcoSubTypeMap, po)
-            if dcoSubTypeDesc is None:
+        if dcoTypeDesc.get("Type") == "Cluster":
+            # For control: Digital Waveform
+            dcoSubTypeDescMap = dcoTypeDesc.findall("./TypeDesc[@TypeID]")
+            if len(dcoSubTypeDescMap) != 4:
                 match = False
-                break
-            if i in (0,1,):
-                if dcoSubTypeDesc.get("Type") != "NumFloat64":
+            # Vefify fields within Cluster
+            for i, dcoSubTypeMap in enumerate(dcoSubTypeDescMap):
+                dcoSubTypeDesc, _, dcoFlatSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, dcoSubTypeMap, po)
+                if dcoSubTypeDesc is None:
                     match = False
-            elif i in (2,):
-                if dcoSubTypeDesc.get("Type") != "Array":
+                    break
+                if i in (0,1,):
+                    if dcoSubTypeDesc.get("Type") != "NumFloat64":
+                        match = False
+                elif i in (2,):
+                    if dcoSubTypeDesc.get("Type") != "Array":
+                        match = False
+                elif i in (3,):
+                    if dcoSubTypeDesc.get("Type") != "NumInt32":
+                        match = False
+                if not match:
+                    break
+        elif dcoTypeDesc.get("Type") == "Array":
+            dcoSubTypeMap = dcoTypeDesc.find("./TypeDesc[@TypeID]")
+            if dcoSubTypeMap is not None:
+                dcoSubVarTypeDesc, _, dcoFlatClusterTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, dcoSubTypeMap, po)
+            else:
+                dcoSubVarTypeDesc, dcoFlatClusterTypeID = None, None
+            if dcoSubVarTypeDesc is not None and dcoSubVarTypeDesc.get("Type") == "NumFloat64":
+                # For control: Waveform Graph
+                pass
+            elif dcoSubVarTypeDesc is not None and dcoSubVarTypeDesc.get("Type") == "Cluster":
+                # For controls: XY Graph (dcoSubClustTypeDesc is Cluster), Ex XY Graph (dcoSubClustTypeDesc is Array)
+                dcoSubClustTypeMap = dcoSubVarTypeDesc.findall("./TypeDesc[@TypeID]")
+                if len(dcoSubClustTypeMap) != 2:
                     match = False
-            elif i in (3,):
-                if dcoSubTypeDesc.get("Type") != "NumInt32":
-                    match = False
-            if not match:
-                break
+                firstType = None
+                for i, dcoSubClustTypeMap in enumerate(dcoSubClustTypeMap):
+                    dcoSubClustTypeDesc, _, dcoFlatSubClustTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, dcoSubTypeMap, po)
+                    if dcoSubClustTypeDesc.get("Type") != "Array" and dcoSubClustTypeDesc.get("Type") != "Cluster":
+                        match = False
+                    # All the types inside are the same
+                    if firstType is None:
+                        firstType = dcoSubClustTypeDesc.get("Type")
+                    if dcoSubClustTypeDesc.get("Type") != firstType:
+                        match = False
+                    if not match:
+                        break
         # Vefify TDs between DCO TD and DDO TD
         partTypeIDs = []
-        if endTypeID >= typeID+21:
-            for i in range(1,21):
+        if endTypeID >= typeID+ddoTypeIDShift:
+            for i in range(1,ddoTypeIDShift):
                 niTypeDesc, niFlatTypeID = \
                   getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+i, po)
                 if niTypeDesc is None:
@@ -2497,18 +2529,15 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
                 elif i == 19:
                     if niTypeDesc.get("Type") != "Array":
                         break
-                elif i == 20:
+                elif i == 20: # Exists only when dcoTypeDesc is Cluster
                     if niTypeDesc.get("Type") != "String":
                         break
-                elif i == 21:
-                    if niTypeDesc.get("Type") != "Cluster":
-                        break
                 partTypeIDs.append(typeID+i)
-        if len(partTypeIDs) != 20:
+        if len(partTypeIDs) != ddoTypeIDShift-1:
             match = False
         if match:
-            DCOInfo = { 'fpClass': "stdGraph", 'dcoTypeID': typeID, 'partTypeIDs': partTypeIDs, 'ddoTypeID': typeID+21, 'subTypeIDs': [] }
-            return 22, DCOInfo
+            DCOInfo = { 'fpClass': "stdGraph", 'dcoTypeID': typeID, 'partTypeIDs': partTypeIDs, 'ddoTypeID': typeID+ddoTypeIDShift, 'subTypeIDs': [] }
+            return ddoTypeIDShift+1, DCOInfo
     if dcoTypeDesc.get("Type") == "UnitUInt32" and n1TypeDesc.get("Type") == "UnitUInt32" and dcoFlatTypeID != n1FlatTypeID:
         # Controls from Containers category: TabControl
         # These use four TDs, first and last pointing at the same flat TD; second has its own TD, of the same type; third is NumInt32.
@@ -2783,7 +2812,7 @@ def DTHP_TypeDesc_matching_ranges(RSRC, fo, po, VCTP_TypeDescList=None, VCTP_Fla
                 # Got a proper types list for DCO
                 if properMin is None:
                     properMin = typeID
-                properMax = typeID + tdCount
+                properMax = typeID + tdCount - 1 # Max value in our ranges is the last included index
                 typeID += tdCount
             else:
                 # No control recognized - store the previous range and search for next valid range
@@ -2831,10 +2860,10 @@ def DTHP_Fix(RSRC, DTHP, ver, fo, po):
         print("{:s}: Possible heap TD ranges: {}"\
             .format(po.xml,heapRanges))
     for rng in heapRanges:
-        if rng.max - rng.min <= maxTdCount:
+        if rng.max - rng.min + 1 <= maxTdCount:
             continue
         minIndexShift = rng.min
-        maxTdCount = rng.max - rng.min
+        maxTdCount = rng.max - rng.min + 1
     if maxTdCount <= 0 and len(dcoDataTypes) > 0:
         # if range is empty but we have dcoDataTypes, then we can create new types for DTHP
         if (po.verbose > 1):
