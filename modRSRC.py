@@ -2417,8 +2417,8 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
         if match:
             DCOInfo = { 'fpClass': "stdClust", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': subTypeIDs }
             return 2+len(dcoSubTypeDescList), DCOInfo
-    if dcoTypeDesc.get("Type") in ("Cluster","Array",) and n1TypeDesc.get("Type") == "NumUInt32":
-        # Controls from Graph category: Digital Waveform, Waveform Graph, XY Graph, Ex XY Graph
+    if dcoTypeDesc.get("Type") in ("Cluster","Array","NumFloat64",) and n1TypeDesc.get("Type") == "NumUInt32":
+        # Controls from Graph category: Digital Waveform, Waveform Chart, Waveform Graph, XY Graph, Ex XY Graph
         # These use nineteen TDs, first and last pointing at the same flat TD of Cluster type; inbetween there is a combination of
         #   NumUInt32, Array, Cluster, String, Boolean.
         match = True
@@ -2529,15 +2529,32 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
                 elif i == 19:
                     if niTypeDesc.get("Type") != "Array":
                         break
-                elif i == 20: # Exists only when dcoTypeDesc is Cluster
+                elif i == 20: # Exists for: Digital Waveform
                     if niTypeDesc.get("Type") != "String":
                         break
                 partTypeIDs.append(typeID+i)
         if len(partTypeIDs) != ddoTypeIDShift-1:
             match = False
+        subTypeIDs = []
+        if dcoTypeDesc.get("Type") == "NumFloat64":
+            # For Waveform Chart, we have a Cluster at end
+            if endTypeID >= typeID+ddoTypeIDShift+1:
+                n22TypeDesc, n22FlatTypeID = \
+                      getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+ddoTypeIDShift+1, po)
+            else:
+                n22TypeDesc, n22FlatTypeID = None, None
+            if n22TypeDesc is None or n22TypeDesc.get("Type") != "Cluster":
+                n22ClustTypeMap = n22TypeDesc.findall("./TypeDesc[@TypeID]")
+            else:
+                n22ClustTypeMap = n22TypeDesc.findall("./TypeDesc[@TypeID]")
+            if len(n22ClustTypeMap) != 6:
+                match = False
+            #TODO we could verify the cluster members in more detail
+            if match:
+                subTypeIDs.append(typeID+ddoTypeIDShift+1)
         if match:
-            DCOInfo = { 'fpClass': "stdGraph", 'dcoTypeID': typeID, 'partTypeIDs': partTypeIDs, 'ddoTypeID': typeID+ddoTypeIDShift, 'subTypeIDs': [] }
-            return ddoTypeIDShift+1, DCOInfo
+            DCOInfo = { 'fpClass': "stdGraph", 'dcoTypeID': typeID, 'partTypeIDs': partTypeIDs, 'ddoTypeID': typeID+ddoTypeIDShift, 'subTypeIDs': subTypeIDs }
+            return ddoTypeIDShift+len(subTypeIDs)+1, DCOInfo
     if dcoTypeDesc.get("Type") == "UnitUInt32" and n1TypeDesc.get("Type") == "UnitUInt32" and dcoFlatTypeID != n1FlatTypeID:
         # Controls from Containers category: TabControl
         # These use four TDs, first and last pointing at the same flat TD; second has its own TD, of the same type; third is NumInt32.
