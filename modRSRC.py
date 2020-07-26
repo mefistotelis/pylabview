@@ -2301,6 +2301,7 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
     """ Recognizes DCO from its data space, starting at given typeID
 
     Returns amount of typeID entries used by that DCO, and DCO information dict.
+    This is the most importatn function for re-creating DTHP and FPHp sections.
     """
     if endTypeID < typeID+1:
         return 0, None
@@ -2419,20 +2420,10 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
             return 2+len(dcoSubTypeDescList), DCOInfo
     if dcoTypeDesc.get("Type") in ("Cluster","Array","NumFloat64",) and n1TypeDesc.get("Type") == "NumUInt32":
         # Controls from Graph category: Digital Waveform, Waveform Chart, Waveform Graph, XY Graph, Ex XY Graph
-        # These use nineteen TDs, first and last pointing at the same flat TD of Cluster type; inbetween there is a combination of
-        #   NumUInt32, Array, Cluster, String, Boolean.
+        # These use over fifteen TDs, first and last pointing at the same flat TD of Cluster,Array or NumFloat64 type; inbetween there is
+        #   a combination of NumUInt32, Array, Cluster, String, Boolean, with some chunks of the types depending on specific control kind.
         match = True
-        if dcoTypeDesc.get("Type") == "Cluster":
-            ddoTypeIDShift = 21
-        else:
-            ddoTypeIDShift = 20
-        if endTypeID >= typeID+ddoTypeIDShift:
-            n21TypeDesc, n21FlatTypeID = \
-                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+ddoTypeIDShift, po)
-        else:
-            n21TypeDesc, n21FlatTypeID = None, None
-        if n21TypeDesc is None or n21TypeDesc.get("Type") != dcoTypeDesc.get("Type") or dcoFlatTypeID != n21FlatTypeID:
-            match = False
+        # Verify DCO TypeID
         if dcoTypeDesc.get("Type") == "Cluster":
             # For control: Digital Waveform
             dcoSubTypeDescMap = dcoTypeDesc.findall("./TypeDesc[@TypeID]")
@@ -2481,77 +2472,173 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
                         match = False
                     if not match:
                         break
-        # Vefify TDs between DCO TD and DDO TD
-        partTypeIDs = []
-        if endTypeID >= typeID+ddoTypeIDShift:
-            for i in range(1,ddoTypeIDShift):
+        prop1TypeIDShift = 1
+        # Verify TDs between DCO TD and DDO TD - constant part at start
+        prop1TypeIDs = []
+        if endTypeID >= typeID+prop1TypeIDShift+3:
+            for i in range(3):
                 niTypeDesc, niFlatTypeID = \
-                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+i, po)
+                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+prop1TypeIDShift+i, po)
                 if niTypeDesc is None:
                     break
-                if i == 1:
+                if   i == 0:
                     if niTypeDesc.get("Type") != "NumUInt32":
                         break
-                elif i == 2:
+                elif i == 1:
                     if niTypeDesc.get("Type") != "Array":
                         break
-                elif i == 3:
+                elif i == 2:
                     if niTypeDesc.get("Type") != "Cluster":
                         break
                     niPartTypeDesc = niTypeDesc.findall("./TypeDesc[@TypeID]")
-                elif i == 4:
+                    #TODO check the Cluster content
+                prop1TypeIDs.append(typeID+prop1TypeIDShift+i)
+        if len(prop1TypeIDs) != 3:
+            match = False
+        prop2TypeIDShift = prop1TypeIDShift+len(prop1TypeIDs)
+        # Verify TDs between DCO TD and DDO TD - optional middle part
+        prop2TypeIDs = []
+        if endTypeID >= typeID+prop2TypeIDShift+6:
+            for i in range(6):
+                niTypeDesc, niFlatTypeID = \
+                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+prop2TypeIDShift+i, po)
+                if niTypeDesc is None:
+                    break
+                if   i == 0:
                     if niTypeDesc.get("Type") != "String":
                         break
-                elif i in (5,6,):
+                elif i in (1,2,):
                     if niTypeDesc.get("Type") != "Boolean":
                         break
-                elif i == 7:
+                elif i == 3:
                     if niTypeDesc.get("Type") != "NumUInt32":
                         break
-                elif i == 8:
+                elif i == 4:
                     if niTypeDesc.get("Type") != "Array":
+                        break
+                elif i == 5:
+                    if niTypeDesc.get("Type") != "Cluster":
+                        break
+                    niPartTypeDesc = niTypeDesc.findall("./TypeDesc[@TypeID]")
+                    #TODO check the Cluster content
+                prop2TypeIDs.append(typeID+prop2TypeIDShift+i)
+        # Optional part - if no match found, assume it's not there
+        if len(prop2TypeIDs) != 6:
+            prop2TypeIDs = [] # Continue as if nothing was matched
+        prop3TypeIDShift = prop2TypeIDShift+len(prop2TypeIDs)
+        # Verify TDs between DCO TD and DDO TD - constant part near end
+        prop3TypeIDs = []
+        if endTypeID >= typeID+prop3TypeIDShift+10:
+            for i in range(10):
+                niTypeDesc, niFlatTypeID = \
+                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+prop3TypeIDShift+i, po)
+                if niTypeDesc is None:
+                    break
+                if   i == 0:
+                    if niTypeDesc.get("Type") != "String":
+                        break
+                elif i in (1,2,3,):
+                    if niTypeDesc.get("Type") != "Boolean":
+                        break
+                elif i == 4:
+                    if niTypeDesc.get("Type") != "Cluster":
+                        break
+                    niPartTypeDesc = niTypeDesc.findall("./TypeDesc[@TypeID]")
+                    #TODO check the Cluster content
+                elif i in (5,6,7,8,):
+                    if niTypeDesc.get("Type") != "Boolean":
                         break
                 elif i == 9:
-                    if niTypeDesc.get("Type") != "Cluster":
-                        break
-                elif i == 10:
-                    if niTypeDesc.get("Type") != "String":
-                        break
-                elif i in (11,12,13,):
-                    if niTypeDesc.get("Type") != "Boolean":
-                        break
-                elif i == 14:
-                    if niTypeDesc.get("Type") != "Cluster":
-                        break
-                elif i in (15,16,17,18,):
-                    if niTypeDesc.get("Type") != "Boolean":
-                        break
-                elif i == 19:
                     if niTypeDesc.get("Type") != "Array":
                         break
-                elif i == 20: # Exists for: Digital Waveform
+                prop3TypeIDs.append(typeID+prop3TypeIDShift+i)
+        if len(prop3TypeIDs) != 10:
+            match = False
+        prop4TypeIDShift = prop3TypeIDShift+len(prop3TypeIDs)
+        # Verify TDs between DCO TD and DDO TD - optional part at end
+        prop4TypeIDs = []
+        if endTypeID >= typeID+prop4TypeIDShift+1:
+            for i in range(1):
+                niTypeDesc, niFlatTypeID = \
+                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+prop4TypeIDShift+i, po)
+                if niTypeDesc is None:
+                    break
+                if   i == 0: # Exists for: Digital Waveform
                     if niTypeDesc.get("Type") != "String":
                         break
-                partTypeIDs.append(typeID+i)
-        if len(partTypeIDs) != ddoTypeIDShift-1:
+                prop4TypeIDs.append(typeID+prop4TypeIDShift+i)
+        # Optional part - if no match found, assume it's not there
+        if len(prop4TypeIDs) != 1:
+            prop4TypeIDs = [] # Continue as if nothing was matched
+        ddoTypeIDShift = prop4TypeIDShift+len(prop4TypeIDs)
+        # Make list of all part TypeIDs
+        partTypeIDs = prop1TypeIDs + prop2TypeIDs + prop3TypeIDs + prop4TypeIDs
+
+        # Verify DDO TD
+        if endTypeID >= typeID+ddoTypeIDShift:
+            n21TypeDesc, n21FlatTypeID = \
+                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+ddoTypeIDShift, po)
+        else:
+            n21TypeDesc, n21FlatTypeID = None, None
+        if n21TypeDesc is None or n21TypeDesc.get("Type") != dcoTypeDesc.get("Type") or dcoFlatTypeID != n21FlatTypeID:
             match = False
+
         subTypeIDs = []
-        if dcoTypeDesc.get("Type") == "NumFloat64":
-            # For Waveform Chart, we have a Cluster at end
+        hasHistTD = True
+        # For some controls, we have additional Cluster at end; detect it by content
+        if hasHistTD:
             if endTypeID >= typeID+ddoTypeIDShift+1:
-                n22TypeDesc, n22FlatTypeID = \
+                histTypeDesc, histFlatTypeID = \
                       getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+ddoTypeIDShift+1, po)
             else:
-                n22TypeDesc, n22FlatTypeID = None, None
-            if n22TypeDesc is None or n22TypeDesc.get("Type") != "Cluster":
-                n22ClustTypeMap = n22TypeDesc.findall("./TypeDesc[@TypeID]")
+                histTypeDesc, histFlatTypeID = None, None
+            if histTypeDesc is not None and histTypeDesc.get("Type") == "Cluster":
+                histClustTypeMap = histTypeDesc.findall("./TypeDesc[@TypeID]")
             else:
-                n22ClustTypeMap = n22TypeDesc.findall("./TypeDesc[@TypeID]")
-            if len(n22ClustTypeMap) != 6:
-                match = False
-            #TODO we could verify the cluster members in more detail
-            if match:
-                subTypeIDs.append(typeID+ddoTypeIDShift+1)
+                histClustTypeMap = []
+
+            if len(histClustTypeMap) != 6:
+                hasHistTD = False
+            histClustTypeDescList = []
+            histClustFlatTypeIDList = []
+            for hcTypeMap in histClustTypeMap:
+                hcTypeDesc, _, hcFlatSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, hcTypeMap, po)
+                if hcTypeDesc is None:
+                    break
+                histClustTypeDescList.append(hcTypeDesc)
+                histClustFlatTypeIDList.append(hcFlatSubTypeID)
+            if len(histClustTypeDescList) == 6:
+                if histClustTypeDescList[0].get("Type") == "Cluster" and histClustFlatTypeIDList[0] == histClustFlatTypeIDList[5]:
+                    histCCTypeMap = histClustTypeDescList[0].findall("./TypeDesc[@TypeID]")
+                else:
+                    histCCTypeMap = []
+                if len(histCCTypeMap) != 4:
+                    hasHistTD = False
+
+                for hcci, hccTypeMap in enumerate(histCCTypeMap):
+                    hccTypeDesc, _, hccFlatSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, hccTypeMap, po)
+                    if hccTypeDesc is None:
+                        hasHistTD = False
+                        break
+                    if hcci in (0,1,2,):
+                        if hccTypeDesc.get("Type") != "NumInt32":
+                            hasHistTD = False
+                            break
+                    elif hcci == 3:
+                        if hccTypeDesc.get("Type") != "Array":
+                            hasHistTD = False
+                            break
+                        #TODO we could verify the array type
+                if histClustTypeDescList[1].get("Type") != "NumInt32":
+                    hasHistTD = False
+                if histClustTypeDescList[2].get("Type") != "NumInt16" or histClustFlatTypeIDList[2] != histClustFlatTypeIDList[3]:
+                    hasHistTD = False
+                if histClustTypeDescList[4].get("Type") != "NumUInt32":
+                    hasHistTD = False
+            else:
+                hasHistTD = False
+        if hasHistTD:
+            subTypeIDs.append(typeID+ddoTypeIDShift+1)
         if match:
             DCOInfo = { 'fpClass': "stdGraph", 'dcoTypeID': typeID, 'partTypeIDs': partTypeIDs, 'ddoTypeID': typeID+ddoTypeIDShift, 'subTypeIDs': subTypeIDs }
             return ddoTypeIDShift+len(subTypeIDs)+1, DCOInfo
