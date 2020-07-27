@@ -2337,7 +2337,7 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
                 match = False
         if len(partTypeIDs) != nDimensions:
             match = False
-        dcoSubTypeDesc = dcoInnerTypeDesc.find("./TypeDesc[@Type]")
+        dcoSubTypeDesc = dcoInnerTypeDesc.find("./TypeDesc[@TypeID]")
         if endTypeID >= typeID+1+nDimensions+0:
             n3TypeDesc, n3FlatTypeID = \
                   getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+1+nDimensions+0, po)
@@ -2345,20 +2345,20 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
             n3TypeDesc, n3FlatTypeID = None, None
         if n3TypeDesc is not None and n3TypeDesc.get("Type") == "Array":
             n3Dimensions = len(n3TypeDesc.findall("./Dimension"))
-            n3SubTypeDesc = n3TypeDesc.findall("./TypeDesc[@Type]")
+            n3SubTypeDesc = n3TypeDesc.find("./TypeDesc[@TypeID]")
         else:
             n3Dimensions = 0
             n3SubTypeDesc = None
         if nDimensions != n3Dimensions:
             match = False
-        if dcoSubTypeDesc is None or n3SubTypeDesc is None or n3SubTypeDesc.get("TypeID") != n3SubTypeDesc.get("TypeID"):
+        if dcoSubTypeDesc is None or n3SubTypeDesc is None or dcoSubTypeDesc.get("TypeID") != n3SubTypeDesc.get("TypeID"):
             match = False
         if endTypeID >= typeID+1+nDimensions+1:
             n4TypeDesc, n4FlatTypeID = \
                   getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+1+nDimensions+1, po)
         else:
             n4TypeDesc, n4FlatTypeID = None, None
-        if n4TypeDesc is None or n4TypeDesc.get("Type") not in ("NumUInt32","NumFloat64",):
+        if n4TypeDesc is None or n4TypeDesc.get("Type") not in ("NumUInt32","NumFloat64","NumComplex128",):
             match = False
         if endTypeID >= typeID+1+nDimensions+2:
             n5TypeDesc, n5FlatTypeID = \
@@ -2370,7 +2370,7 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
         if match:
             DCOInfo = { 'fpClass': "typeDef", 'dcoTypeID': typeID, 'partTypeIDs': partTypeIDs, 'ddoTypeID': typeID+1+nDimensions+2, 'subTypeIDs': [] }
             return 1+nDimensions+3, DCOInfo
-    if dcoTypeDesc.get("Type") == "UnitUInt32" and dcoTypeDesc.get("Type") == n1TypeDesc.get("Type") and dcoFlatTypeID == n1TypeDesc:
+    if dcoTypeDesc.get("Type") == "UnitUInt32" and dcoTypeDesc.get("Type") == n1TypeDesc.get("Type") and dcoFlatTypeID == n1FlatTypeID:
         # Controls from Boolean category: RabioButtons
         # These use two Unit TDs, followed by bool TD for each radio button; both Unit TDs are pointing at the same flat index of UnitUInt TD,
         # radio buttons have separate TD for each. Unit TD has as much Enum entries as there are following radio button TDs.
@@ -2379,10 +2379,10 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
         subTypeIDs = []
         subFlatTypeIDs = []
         match = True
-        for i in range(len(dcoSubTypeEnumLabels)):
+        for i, dcoSubTypeEnLabel in enumerate(dcoSubTypeEnumLabels):
             subTypeDesc, subFlatTypeID = \
               getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+2+i, po)
-            if expectSubTypeDesc.get("Type") != "Boolean":
+            if subTypeDesc is None or subTypeDesc.get("Type") != "Boolean":
                 match = False
                 break
             subFlatTypeIDs.append(subFlatTypeID)
@@ -2691,8 +2691,8 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
             n2SubTypeDesc = n2ClustTypeDesc.findall("./TypeDesc[@TypeID]")
         else:
             n2SubTypeDesc = []
-        # The state Cluster has 4 or more items; first is a copy of DCO sub-TD, second is TypeDef with queue, following are some int properties.
-        if len(n2SubTypeDesc) < 4 or len(n2SubTypeDesc) > 9:
+        # The state Cluster has 3 or more items; first is a copy of DCO sub-TD, second is TypeDef with queue, following are some int properties.
+        if len(n2SubTypeDesc) < 3 or len(n2SubTypeDesc) > 9:
             match = False
         for i, stateTypeMap in enumerate(n2SubTypeDesc):
             stateTypeDesc, _, stateFlatTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, stateTypeMap, po)
