@@ -2651,7 +2651,7 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
                   getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+2, po)
         else:
             n2TypeDesc, n2FlatTypeID = None, None
-        if n2TypeDesc is None or n2TypeDesc.get("Type") not in ("NumUInt32",):
+        if n2TypeDesc is None or n2TypeDesc.get("Type") not in ("NumInt32",):
             match = False
         if endTypeID >= typeID+3:
             n3TypeDesc, n3FlatTypeID = \
@@ -2694,32 +2694,78 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
         # The state Cluster has 3 or more items; first is a copy of DCO sub-TD, second is TypeDef with queue, following are some int properties.
         if len(n2SubTypeDesc) < 3 or len(n2SubTypeDesc) > 9:
             match = False
+        expectContent = ""
         for i, stateTypeMap in enumerate(n2SubTypeDesc):
             stateTypeDesc, _, stateFlatTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, stateTypeMap, po)
             if stateTypeDesc is None:
                 match = False
                 break
             if i == 0:
-                if stateTypeDesc.get("Type") != dcoSubTypeDesc.get("Type") or stateTypeDesc.get("RefType") != dcoSubTypeDesc.get("RefType"):
-                    match = False
-            elif i == 1:
-                if stateTypeDesc.get("Type") != "TypeDef":
-                    match = False
-                stateRefTypeDesc = stateTypeDesc.find("./TypeDesc[@Type]")
-                if stateRefTypeDesc is not None and stateRefTypeDesc.get("Type") == "Refnum" and stateRefTypeDesc.get("RefType") == "Queue":
-                    queueTypeMap = stateRefTypeDesc.find("./TypeDesc[@TypeID]")
+                if stateTypeDesc.get("Type") == "TypeDef":
+                    expectContent = "LineGraph"
+                elif stateTypeDesc.get("Type") == dcoSubTypeDesc.get("Type"):
+                    expectContent = "Contour"
                 else:
-                    queueTypeMap = None
-                if queueTypeMap is not None:
-                    queueTypeDesc, _, queueFlatSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, queueTypeMap, po)
+                    match = False
+                    break
+            if   expectContent == "LineGraph":
+                if i == 0: # Graph Properties
+                    if stateTypeDesc.get("Type") != "TypeDef":
+                        match = False
+                    grpropTypeDesc = stateTypeDesc.find("./TypeDesc[@Type]")
+                    if grpropTypeDesc is not None and grpropTypeDesc.get("Type") == "Cluster":
+                        grpropTypeMapList = grpropTypeDesc.findall("./TypeDesc[@TypeID]")
+                    else:
+                        grpropTypeMapList = []
+                    if len(grpropTypeMapList) != 9:
+                        match = False
+                elif i == 1: # Plot/Axes/Cursor Properties
+                    if stateTypeDesc.get("Type") != "TypeDef":
+                        match = False
+                    pacpropTypeDesc = stateTypeDesc.find("./TypeDesc[@Type]")
+                    if pacpropTypeDesc is not None and pacpropTypeDesc.get("Type") == "Cluster":
+                        pacpropTypeMapList = pacpropTypeDesc.findall("./TypeDesc[@TypeID]")
+                    else:
+                        pacpropTypeMapList = []
+                    if len(grpropTypeMapList) != 9:
+                        match = False
+                    for ppi, pacpropTypeMap in enumerate(pacpropTypeMapList):
+                        ppeTypeDesc, _, ppeFlatSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, pacpropTypeMap, po)
+                        if ppi in (1,2,3,4,5,6,):
+                            if stateTypeDesc.get("Type") != "TypeDef":
+                                match = False
+                            #TODO we could check content of each typedef
+                        elif ppi == 7:
+                            if stateTypeDesc.get("Type") != "Array":
+                                match = False
+                            #TODO we could check content of that array
+                elif i in (2,3,4,):
+                    if stateTypeDesc.get("Type") != "NumInt32":
+                        match = False
                 else:
-                    queueTypeDesc, queueFlatSubTypeID = None, None
-                if queueTypeDesc is None or queueTypeDesc.get("Type") != "TypeDef":
-                    match = False
-                #TODO we could check the Cluser inside of the TypeDef
-            else:
-                if stateTypeDesc.get("Type") != "NumUInt32":
-                    match = False
+                    if stateTypeDesc.get("Type") != "Boolean":
+                        match = False
+            elif expectContent == "Contour":
+                if i == 0:
+                    if stateTypeDesc.get("Type") != dcoSubTypeDesc.get("Type") or stateTypeDesc.get("RefType") != dcoSubTypeDesc.get("RefType"):
+                        match = False
+                elif i == 1:
+                    if stateTypeDesc.get("Type") != "TypeDef":
+                        match = False
+                    stateRefTypeDesc = stateTypeDesc.find("./TypeDesc[@Type]")
+                    if stateRefTypeDesc is not None and stateRefTypeDesc.get("Type") == "Refnum" and stateRefTypeDesc.get("RefType") == "Queue":
+                        queueTypeMap = stateRefTypeDesc.find("./TypeDesc[@TypeID]")
+                    else:
+                        queueTypeMap = None
+                    if queueTypeMap is not None:
+                        queueTypeDesc, _, queueFlatSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, queueTypeMap, po)
+                    else:
+                        queueTypeDesc, queueFlatSubTypeID = None, None
+                    if queueTypeDesc is None or queueTypeDesc.get("Type") != "TypeDef":
+                        match = False
+                else:
+                    if stateTypeDesc.get("Type") != "NumUInt32":
+                        match = False
         if match:
             DCOInfo = { 'fpClass': "xControl", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [ typeID+2 ] }
             return 3, DCOInfo
