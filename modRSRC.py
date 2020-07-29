@@ -2430,24 +2430,29 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         # The items from inside cluster can be in different order than "master" types.
         dcoSubTypeDescMap = dcoTypeDesc.findall("./TypeDesc")
         dcoSubFlatTypeIDList = []
-        #dcoSubTypeDescList = []
         for TDTopMap in dcoSubTypeDescMap:
             TypeDesc, _, FlatTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, TDTopMap, po)
             if TypeDesc is None: continue
-            #dcoSubTypeDescList.append(TypeDesc)
             dcoSubFlatTypeIDList.append(FlatTypeID)
         # Following that, we expect types from inside the Cluster; make all are matching
         subTypeIDs = []
         match = True
-        # TODO it would seem that the items may be in different order in sub-TDs than inside the main cluster; see "User Font" control for an example
-        # TODO Verify that; if true, we should accept any order, as long as all types have a match.
+        # The elements may be in different order in sub-TDs than inside the actual Cluster
+        # Example of that behavior is "User Font" control, but also Cluster control with elements reordered after creation
         tdShift = 2
-        for i, dcoFlatTypeID in enumerate(reversed(dcoSubFlatTypeIDList)):
-            flatSubTypeIDList = [ dcoFlatTypeID ] + flatTypeIDList[tdShift:]
-            tdSubCount, _ = DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatSubTypeIDList)
-            if tdSubCount < 2:
+        while len(dcoSubFlatTypeIDList) > 0:
+            tdSubCount = 0
+            for dcoFlatTypeID in reversed(dcoSubFlatTypeIDList):
+                flatSubTypeIDList = [ dcoFlatTypeID ] + flatTypeIDList[tdShift:]
+                tdSubCount, _ = DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatSubTypeIDList)
+                if tdSubCount < 2: continue
+                # Found one - end the loop
+                break
+            if tdSubCount < 2: # No match found
                 match = False
                 break
+            # The element was matched - remove it from list
+            dcoSubFlatTypeIDList.remove(dcoFlatTypeID)
             tdShift += tdSubCount - 1
         for typeID in range(2,tdShift):
             subTypeIDs.append(typeID)
