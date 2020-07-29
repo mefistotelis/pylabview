@@ -2837,6 +2837,59 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         if match:
             DCOInfo = { 'fpClass': "stdKnob", 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'ddoTypeID': 2, 'subTypeIDs': [] }
             return 3, DCOInfo
+    if dcoTypeDesc.get("Type") == "Refnum" and dcoTypeDesc.get("RefType") in ("IVIRef","VisaRef","UsrDefndTag",) and n1TypeDesc.get("Type") == "Tag" and dcoFlatTypeID != n1FlatTypeID:
+        # Controls from I/O category: DAQmx Channel, DAQmx Task Name, FieldPoint IO, IVI Logical Name, Motion Resource,
+        #   Shared Variable Control, System Configuration, VISA Resource
+        # These use three TDs, first and last pointing at the same flat Refnum TD; second has its own TD, of Tag type.
+        if len(flatTypeIDList) > 2:
+            n2FlatTypeID = flatTypeIDList[2]
+            n2TypeDesc = getConsolidatedFlatType(RSRC, n2FlatTypeID, po)
+        else:
+            n2TypeDesc, n2FlatTypeID = None, None
+        match = True
+        if   dcoTypeDesc.get("RefType") == "UsrDefndTag" and dcoTypeDesc.get("TypeName") == "DSC":
+            # 1: Shared Variable Control
+            if n1TypeDesc.get("TagType") not in ("Unknown1",):
+                match = False
+        elif dcoTypeDesc.get("RefType") == "UsrDefndTag" and dcoTypeDesc.get("TypeName") == "NIDAQ":
+            # 9: DAQmx Task Name, 10: DAQmx Channel
+            if n1TypeDesc.get("TagType") not in ("9","10",):
+                match = False
+        elif dcoTypeDesc.get("RefType") == "UsrDefndTag" and dcoTypeDesc.get("TypeName") == "FieldPoint":
+            # 7: FieldPoint IO Point
+            if n1TypeDesc.get("TagType") not in ("7",):
+                match = False
+        elif dcoTypeDesc.get("RefType") == "UsrDefndTag" and dcoTypeDesc.get("TypeName") == "Motion":
+            # 8: Motion Resource
+            if n1TypeDesc.get("TagType") not in ("8",):
+                match = False
+        elif dcoTypeDesc.get("RefType") == "UsrDefndTag" and dcoTypeDesc.get("TypeName") == "nisyscfg":
+            # nisyscfg: System Configuration
+            if n1TypeDesc.get("TagType") not in ("UserDefined",):
+                match = False
+            n1SubIdent = n1TypeDesc.find("./Ident")
+            if n1SubIdent is not None and n1SubIdent.text not in ("nisyscfg",):
+                match = False
+        elif dcoTypeDesc.get("RefType") == "VisaRef":
+            # Unknown4: VISA resource name
+            if n1TypeDesc.get("TagType") not in ("Unknown4",):
+                match = False
+        elif dcoTypeDesc.get("RefType") == "IVIRef":
+            # Unknown3: IVI Logical Name
+            if n1TypeDesc.get("TagType") not in ("Unknown3",):
+                match = False
+        else:
+            match = False
+        dcoSubTDMap = dcoTypeDesc.find("./TypeDesc[@TypeID]")
+        dcoSubTypeDesc, _, dcoFlatSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, dcoSubTDMap, po)
+        if dcoFlatSubTypeID != n1FlatTypeID:
+            match = False
+        tagDataType = n1TypeDesc.find("./LVVariant/DataType[@Type='Void']")
+        if tagDataType is None:
+            match = False
+        if match:
+            DCOInfo = { 'fpClass': "stdRefNum", 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'ddoTypeID': 2, 'subTypeIDs': [] }
+            return 3, DCOInfo
     if dcoTypeDesc.get("Type") == "MeasureData" and dcoTypeDesc.get("Flavor") == "TimeStamp" and n1TypeDesc.get("Type") == "Boolean" and dcoFlatTypeID != n1FlatTypeID:
         # Controls from Numeric category: Timestamp Control, Timestamp Indicator
         # These use three TDs, first and last pointing at the same flat Measuredata TD; second has its own TD, of Boolean type.
@@ -2908,9 +2961,22 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
             return 2, DCOInfo
     if dcoTypeDesc.get("Type") == "UnitUInt16" and dcoTypeDesc.get("Type") == n1TypeDesc.get("Type") and dcoFlatTypeID == n1FlatTypeID:
         # Controls from Graph DataType category: Font Enum
-        # These use two Unit TDs; both Unit TDs are pointing at the same flat index of UnitUInt TD,
+        # These use two Unit TDs; both Unit TDs are pointing at the same flat index of UnitUInt TD.
         if True:
             DCOInfo = { 'fpClass': "stdRing", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': [] }
+            return 2, DCOInfo
+    if dcoTypeDesc.get("Type") == "Tag" and n1TypeDesc.get("Type") == "Tag" and dcoFlatTypeID == n1FlatTypeID:
+        # Controls from I/O category: DAQ Channel, DAQmx Device, DAQmx Terminal, DAQmx Physical Channel, DAQmx Scale, DAQmx Switch
+        # These use two TDs, both pointing at the same flat index of Tag TD.
+        match = True
+        # Unknown2: Traditional DAQ Channel, 11: DAQmx Scale Name, 12: DAQmx Device Name, 13: DAQmx Terminal, 14: DAQmx Physical Channel, 16: DAQmx Switch
+        if dcoTypeDesc.get("TagType") not in ("Unknown2","11","12","13","14","16",):
+            match = False
+        tagDataType = dcoTypeDesc.find("./LVVariant/DataType[@Type='Void']")
+        if tagDataType is None:
+            match = False
+        if match:
+            DCOInfo = { 'fpClass': "stdTag", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     if dcoTypeDesc.get("Type") == "Refnum" and n1TypeDesc.get("Type") == "Refnum" and dcoFlatTypeID == n1FlatTypeID:
         # Controls from Containers category: ActiveX Container, dotNET Container
@@ -2923,6 +2989,15 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
             match = False
         if match:
             DCOInfo = { 'fpClass': "stdCont", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': [] }
+            return 2, DCOInfo
+    if dcoTypeDesc.get("Type") == "Refnum" and n1TypeDesc.get("Type") == "Refnum" and dcoFlatTypeID == n1FlatTypeID:
+        # Controls from I/O category: IMAQ Session
+        # These use two TDs, both pointing at the same flat index of Refnum TD.
+        match = True
+        if dcoTypeDesc.get("RefType") != "Imaq" or dcoTypeDesc.get("Ident") != "IMAQ":
+            match = False
+        if match:
+            DCOInfo = { 'fpClass': "stdRefNum", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     if dcoTypeDesc.get("Type") == "Refnum" and n1TypeDesc.get("Type") == "Refnum" and dcoFlatTypeID == n1FlatTypeID:
         # Controls from 3D Graph category: 3D Picture
