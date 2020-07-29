@@ -2460,7 +2460,7 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
             DCOInfo = { 'fpClass': "stdClust", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': subTypeIDs }
             return tdShift, DCOInfo
     if dcoTypeDesc.get("Type") in ("Cluster","Array","NumFloat64",) and n1TypeDesc.get("Type") == "NumUInt32":
-        # Controls from Graph category: Digital Waveform, Waveform Chart, Waveform Graph, XY Graph, Ex XY Graph
+        # Controls from Graph category: Digital Waveform, Waveform Chart, Waveform Graph, XY Graph, Ex XY Graph, Intensity Chart
         # These use over fifteen TDs, first and last pointing at the same flat TD of Cluster,Array or NumFloat64 type; inbetween there is
         #   a combination of NumUInt32, Array, Cluster, String, Boolean, with some chunks of the types depending on specific control kind.
         match = True
@@ -2470,7 +2470,7 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
             dcoSubTypeDescMap = dcoTypeDesc.findall("./TypeDesc[@TypeID]")
             if len(dcoSubTypeDescMap) != 4:
                 match = False
-            # Vefify fields within Cluster
+            # Verify fields within Cluster
             for i, dcoSubTypeMap in enumerate(dcoSubTypeDescMap):
                 dcoSubTypeDesc, _, dcoFlatSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, dcoSubTypeMap, po)
                 if dcoSubTypeDesc is None:
@@ -2598,18 +2598,30 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         prop4TypeIDShift = prop3TypeIDShift+len(prop3TypeIDs)
         # Verify TDs between DCO TD and DDO TD - optional part at end
         prop4TypeIDs = []
+        prop4FirstTD = None
         if len(flatTypeIDList) > prop4TypeIDShift+1:
             for i in range(1):
                 niFlatTypeID = flatTypeIDList[prop4TypeIDShift+i]
                 niTypeDesc = getConsolidatedFlatType(RSRC, niFlatTypeID, po)
                 if niTypeDesc is None:
                     break
-                if   i == 0: # Exists for: Digital Waveform
-                    if niTypeDesc.get("Type") != "String":
+                if   i == 0: # Exists for: Digital Waveform, Intensity Chart
+                    prop4FirstTD = niTypeDesc
+                    if niTypeDesc.get("Type") != "String" and niTypeDesc.get("Type") != "NumUInt32":
+                        break
+                prop4TypeIDs.append(prop4TypeIDShift+i)
+        if len(flatTypeIDList) > prop4TypeIDShift+2 and prop4FirstTD is not None and prop4FirstTD.get("Type") == "NumUInt32":
+            for i in range(1,2):
+                niFlatTypeID = flatTypeIDList[prop4TypeIDShift+i]
+                niTypeDesc = getConsolidatedFlatType(RSRC, niFlatTypeID, po)
+                if niTypeDesc is None:
+                    break
+                if   i == 1: # Exists for: Intensity Chart
+                    if niTypeDesc.get("Type") != prop4FirstTD.get("Type"):
                         break
                 prop4TypeIDs.append(prop4TypeIDShift+i)
         # Optional part - if no match found, assume it's not there
-        if len(prop4TypeIDs) != 1:
+        if len(prop4TypeIDs) not in (1,2,):
             prop4TypeIDs = [] # Continue as if nothing was matched
         ddoTypeIDShift = prop4TypeIDShift+len(prop4TypeIDs)
         # Make list of all part TypeIDs
