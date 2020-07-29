@@ -449,13 +449,13 @@ def getConsolidatedTopTypeAndID(RSRC, typeID, po, VCTP=None):
     if VCTP is None:
         VCTP = RSRC.find("./VCTP/Section")
     if VCTP is None:
-        return None
+        return None, None
     VCTP_TopTypeDesc = VCTP.find("./TopLevel/TypeDesc[@Index='{}']".format(typeID))
     if VCTP_TopTypeDesc is None:
-        return None
+        return None, None
     VCTP_FlatTypeID = VCTP_TopTypeDesc.get("FlatTypeID")
     if VCTP_FlatTypeID is None:
-        return None
+        return None, None
     VCTP_FlatTypeID = int(VCTP_FlatTypeID, 0)
     VCTP_FlatTypeDesc = VCTP.find("./TypeDesc["+str(VCTP_FlatTypeID+1)+"]")
     return VCTP_FlatTypeDesc, VCTP_FlatTypeID
@@ -1359,7 +1359,7 @@ def FPHb_elemCheckOrCreate_zPlaneList_DCO_size(RSRC, fo, po, heapTypeMap, corTL,
     """ Gives expected size of the GUI element representing given types
     """
     dcoTypeDesc = None
-    if dcoTypeID is not None:
+    if dcoTypeID is not None and dcoTypeID in heapTypeMap.keys():
         dcoTypeDesc = heapTypeMap[dcoTypeID]
     if dcoTypeDesc is None:
         corBR = [corTL[0],corTL[1]]
@@ -1392,7 +1392,7 @@ def FPHb_elemCheckOrCreate_zPlaneList_DCO(RSRC, paneHierarchy_zPlaneList, fo, po
     """
     typeCtlOrInd = "indicator" if isIndicator != 0 else "control"
     dcoTypeDesc = None
-    if dcoTypeID is not None:
+    if dcoTypeID is not None and dcoTypeID in heapTypeMap.keys():
         dcoTypeDesc = heapTypeMap[dcoTypeID]
     if dcoTypeDesc is None:
         eprint("{:s}: Warning: {} does not have dcoTypeID, not adding to FP"\
@@ -1740,7 +1740,7 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
         dcoTDCount = 0
         DCOInfo = None
         if usedTypeID in heapTypeMap:
-            dcoTDCount, DCOInfo = DCO_recognize_from_typeIDs(RSRC, fo, po, DTHP_indexShift+usedTypeID-1, DTHP_indexShift+DTHP_tdCount, VCTP_TypeDescList, VCTP_FlatTypeDescList)
+            dcoTDCount, DCOInfo = DCO_recognize_from_typeIDs(RSRC, fo, po, DTHP_indexShift+usedTypeID-1, DTHP_indexShift+DTHP_tdCount-1, VCTP_TypeDescList, VCTP_FlatTypeDescList)
         if DCOInfo is not None:
             # Switch typeID values to Heap Type IDs
             DCOInfo['dcoTypeID'] = DCOInfo['dcoTypeID']-DTHP_indexShift+1
@@ -2301,18 +2301,45 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
     """ Recognizes DCO from its data space, starting at given typeID
 
     Returns amount of typeID entries used by that DCO, and DCO information dict.
-    This is the most importatn function for re-creating DTHP and FPHp sections.
+    TypeID values within the DCO information dict are Top Types in dange between typeID and endTypeID, including boundary values.
     """
-    if endTypeID < typeID+1:
+    VCTP = RSRC.find("./VCTP/Section")
+    if VCTP is None or endTypeID < typeID:
         return 0, None
-    # Get DCO TypeDesc and next type desc following it
-    dcoTypeDesc, dcoFlatTypeID = \
-          getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID, po)
-    n1TypeDesc, n1FlatTypeID = \
-          getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+1, po)
+    # Get list of Flat TypeDescs
+    flatTypeIDList = []
+    for subTypeID in range(typeID, endTypeID+1):
+        _, flatSubTypeID = getConsolidatedTopTypeAndID(RSRC, subTypeID, po, VCTP=VCTP)
+        assert(flatSubTypeID is not None)
+        flatTypeIDList.append(flatSubTypeID)
+    tdCount, DCOShiftInfo = DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTypeIDList)
+    if DCOShiftInfo is None:
+        return 0, None
+    # Convert TypeID Shifts to Top TypeIDs
+    dcoTypeID = typeID + DCOShiftInfo['dcoTypeID']
+    partTypeIDs = [ typeID + typeIndex for typeIndex in DCOShiftInfo['partTypeIDs'] ]
+    subTypeIDs = [ typeID + typeIndex for typeIndex in DCOShiftInfo['subTypeIDs'] ]
+    ddoTypeID = typeID + DCOShiftInfo['ddoTypeID']
+    DCOTopInfo = { 'fpClass': DCOShiftInfo['fpClass'], 'dcoTypeID': dcoTypeID, 'partTypeIDs': partTypeIDs, 'ddoTypeID': ddoTypeID, 'subTypeIDs': subTypeIDs }
+    return tdCount, DCOTopInfo
 
-    # Recognize the DCO - start with Controls which use four or more FP TypeDefs, or the amount is dynamic
-    if dcoTypeDesc.get("Type") == "TypeDef" and n1TypeDesc.get("Type") == "NumUInt32" and dcoFlatTypeID != n1FlatTypeID:
+def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTypeIDList):
+    """ Recognizes DCO from its data space, using given list of FlatTypeIDs
+
+    Returns amount of FlatTypeID entries used by that DCO, and DCO information dict.
+    This is the most important function for re-creating DTHP and FPHp sections.
+    """
+    if len(flatTypeIDList) < 2:
+        return 0, None
+    # Get the DCO TypeDecs
+    dcoFlatTypeID = flatTypeIDList[0]
+    dcoTypeDesc = getConsolidatedFlatType(RSRC, dcoFlatTypeID, po)
+    # Get the next TypeDesc
+    n1FlatTypeID = flatTypeIDList[1]
+    n1TypeDesc = getConsolidatedFlatType(RSRC, n1FlatTypeID, po)
+
+    # Recognize the DCO - start with Controls which use four or more FP TypeDescs, or the amount is dynamic
+    if dcoTypeDesc.get("Type") == "TypeDef" and n1TypeDesc.get("Type") == "NumUInt32":
         # Controls from Array/Matrix/Cluster category: Real Matrix, Complex Matrix
         # These use six TDs (for 2 dimensions), first and last pointing at the same flat TypeDef TD; second and third are
         # per-dimension NumUInt32 shift TDs; fourth is Array, fifth is the element type Num TD.
@@ -2326,21 +2353,21 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
             match = False
         partTypeIDs = []
         for dimID in range(nDimensions):
-            if endTypeID >= typeID+1+dimID:
-                n2TypeDesc, n2FlatTypeID = \
-                      getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+1+dimID, po)
+            if len(flatTypeIDList) > 1+dimID:
+                n2FlatTypeID = flatTypeIDList[1+dimID]
+                n2TypeDesc = getConsolidatedFlatType(RSRC, n2FlatTypeID, po)
             else:
                 n2TypeDesc, n2FlatTypeID = None, None
             if n2TypeDesc is not None and n2TypeDesc.get("Type") == "NumUInt32":
-                partTypeIDs.append(typeID+1+dimID)
+                partTypeIDs.append(1+dimID)
             else:
                 match = False
         if len(partTypeIDs) != nDimensions:
             match = False
         dcoSubTypeDesc = dcoInnerTypeDesc.find("./TypeDesc[@TypeID]")
-        if endTypeID >= typeID+1+nDimensions+0:
-            n3TypeDesc, n3FlatTypeID = \
-                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+1+nDimensions+0, po)
+        if len(flatTypeIDList) > 1+nDimensions+0:
+            n3FlatTypeID = flatTypeIDList[1+nDimensions+0]
+            n3TypeDesc = getConsolidatedFlatType(RSRC, n3FlatTypeID, po)
         else:
             n3TypeDesc, n3FlatTypeID = None, None
         if n3TypeDesc is not None and n3TypeDesc.get("Type") == "Array":
@@ -2353,22 +2380,22 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
             match = False
         if dcoSubTypeDesc is None or n3SubTypeDesc is None or dcoSubTypeDesc.get("TypeID") != n3SubTypeDesc.get("TypeID"):
             match = False
-        if endTypeID >= typeID+1+nDimensions+1:
-            n4TypeDesc, n4FlatTypeID = \
-                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+1+nDimensions+1, po)
+        if len(flatTypeIDList) > 1+nDimensions+1:
+            n4FlatTypeID = flatTypeIDList[1+nDimensions+1]
+            n4TypeDesc = getConsolidatedFlatType(RSRC, n4FlatTypeID, po)
         else:
             n4TypeDesc, n4FlatTypeID = None, None
         if n4TypeDesc is None or n4TypeDesc.get("Type") not in ("NumUInt32","NumFloat64","NumComplex128",):
             match = False
-        if endTypeID >= typeID+1+nDimensions+2:
-            n5TypeDesc, n5FlatTypeID = \
-                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+1+nDimensions+2, po)
+        if len(flatTypeIDList) > 1+nDimensions+2:
+            n5FlatTypeID = flatTypeIDList[1+nDimensions+2]
+            n5TypeDesc = getConsolidatedFlatType(RSRC, n5FlatTypeID, po)
         else:
             n5TypeDesc, n5FlatTypeID = None, None
         if dcoFlatTypeID != n5FlatTypeID:
             match = False
         if match:
-            DCOInfo = { 'fpClass': "typeDef", 'dcoTypeID': typeID, 'partTypeIDs': partTypeIDs, 'ddoTypeID': typeID+1+nDimensions+2, 'subTypeIDs': [] }
+            DCOInfo = { 'fpClass': "typeDef", 'dcoTypeID': 0, 'partTypeIDs': partTypeIDs, 'ddoTypeID': 1+nDimensions+2, 'subTypeIDs': [] }
             return 1+nDimensions+3, DCOInfo
     if dcoTypeDesc.get("Type") == "UnitUInt32" and dcoTypeDesc.get("Type") == n1TypeDesc.get("Type") and dcoFlatTypeID == n1FlatTypeID:
         # Controls from Boolean category: RabioButtons
@@ -2380,23 +2407,27 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
         subFlatTypeIDs = []
         match = True
         for i, dcoSubTypeEnLabel in enumerate(dcoSubTypeEnumLabels):
-            subTypeDesc, subFlatTypeID = \
-              getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+2+i, po)
+            if len(flatTypeIDList) <= i:
+                match = False
+                break
+            subFlatTypeID = flatTypeIDList[2+i]
+            subTypeDesc = getConsolidatedFlatType(RSRC, subFlatTypeID, po)
             if subTypeDesc is None or subTypeDesc.get("Type") != "Boolean":
                 match = False
                 break
             subFlatTypeIDs.append(subFlatTypeID)
-            subTypeIDs.append(typeID+2+i)
+            subTypeIDs.append(2+i)
         # The Flat Types inside needs to be unique for each radio button
         if len(subFlatTypeIDs) > len(set(subFlatTypeIDs)):
             match = False # Some types repeat - fail
         if match:
-            DCOInfo = { 'fpClass': "radioClust", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': subTypeIDs }
+            DCOInfo = { 'fpClass': "radioClust", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': subTypeIDs }
             return 2+len(dcoSubTypeEnumLabels), DCOInfo
     if dcoTypeDesc.get("Type") == "Cluster" and n1TypeDesc.get("Type") == "Cluster" and dcoFlatTypeID == n1FlatTypeID:
         # Controls from Array/Matrix/Cluster category: Cluster
         # Also matches control from Graph Datatypes category: Point, Rect, Text Alignment, User Font
-        # These use two Cluster TDs of same flat TD, followed by single TD for each item within the cluster.
+        # These use two Cluster TDs of same flat index, followed by TDs for each item within the cluster, but without DCO TDs.
+        # The items from inside cluster can be in different order than "master" types.
         dcoSubTypeDescMap = dcoTypeDesc.findall("./TypeDesc")
         dcoSubTypeDescList = []
         for TDTopMap in dcoSubTypeDescMap:
@@ -2409,14 +2440,14 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
         # TODO it would seem that the items may be in different order in sub-TDs than inside the main cluster; see "User Font" control for an example
         # TODO We should accept any order, as long as all types have a match.
         for i, expectSubTypeDesc in enumerate(reversed(dcoSubTypeDescList)):
-            subTypeDesc, subFlatTypeID = \
-              getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+2+i, po)
+            subFlatTypeID = flatTypeIDList[2+i]
+            subTypeDesc = getConsolidatedFlatType(RSRC, subFlatTypeID, po)
             if expectSubTypeDesc.get("Type") != subTypeDesc.get("Type"):
                 match = False
                 break
-            subTypeIDs.append(typeID+2+i)
+            subTypeIDs.append(2+i)
         if match:
-            DCOInfo = { 'fpClass': "stdClust", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': subTypeIDs }
+            DCOInfo = { 'fpClass': "stdClust", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': subTypeIDs }
             return 2+len(dcoSubTypeDescList), DCOInfo
     if dcoTypeDesc.get("Type") in ("Cluster","Array","NumFloat64",) and n1TypeDesc.get("Type") == "NumUInt32":
         # Controls from Graph category: Digital Waveform, Waveform Chart, Waveform Graph, XY Graph, Ex XY Graph
@@ -2475,10 +2506,10 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
         prop1TypeIDShift = 1
         # Verify TDs between DCO TD and DDO TD - constant part at start
         prop1TypeIDs = []
-        if endTypeID >= typeID+prop1TypeIDShift+3:
+        if len(flatTypeIDList) > prop1TypeIDShift+3:
             for i in range(3):
-                niTypeDesc, niFlatTypeID = \
-                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+prop1TypeIDShift+i, po)
+                niFlatTypeID = flatTypeIDList[prop1TypeIDShift+i]
+                niTypeDesc = getConsolidatedFlatType(RSRC, niFlatTypeID, po)
                 if niTypeDesc is None:
                     break
                 if   i == 0:
@@ -2492,16 +2523,16 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
                         break
                     niPartTypeDesc = niTypeDesc.findall("./TypeDesc[@TypeID]")
                     #TODO check the Cluster content
-                prop1TypeIDs.append(typeID+prop1TypeIDShift+i)
+                prop1TypeIDs.append(prop1TypeIDShift+i)
         if len(prop1TypeIDs) != 3:
             match = False
         prop2TypeIDShift = prop1TypeIDShift+len(prop1TypeIDs)
         # Verify TDs between DCO TD and DDO TD - optional middle part
         prop2TypeIDs = []
-        if endTypeID >= typeID+prop2TypeIDShift+6:
+        if len(flatTypeIDList) > prop2TypeIDShift+6:
             for i in range(6):
-                niTypeDesc, niFlatTypeID = \
-                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+prop2TypeIDShift+i, po)
+                niFlatTypeID = flatTypeIDList[prop2TypeIDShift+i]
+                niTypeDesc = getConsolidatedFlatType(RSRC, niFlatTypeID, po)
                 if niTypeDesc is None:
                     break
                 if   i == 0:
@@ -2521,17 +2552,17 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
                         break
                     niPartTypeDesc = niTypeDesc.findall("./TypeDesc[@TypeID]")
                     #TODO check the Cluster content
-                prop2TypeIDs.append(typeID+prop2TypeIDShift+i)
+                prop2TypeIDs.append(prop2TypeIDShift+i)
         # Optional part - if no match found, assume it's not there
         if len(prop2TypeIDs) != 6:
             prop2TypeIDs = [] # Continue as if nothing was matched
         prop3TypeIDShift = prop2TypeIDShift+len(prop2TypeIDs)
         # Verify TDs between DCO TD and DDO TD - constant part near end
         prop3TypeIDs = []
-        if endTypeID >= typeID+prop3TypeIDShift+10:
+        if len(flatTypeIDList) > prop3TypeIDShift+10:
             for i in range(10):
-                niTypeDesc, niFlatTypeID = \
-                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+prop3TypeIDShift+i, po)
+                niFlatTypeID = flatTypeIDList[prop3TypeIDShift+i]
+                niTypeDesc = getConsolidatedFlatType(RSRC, niFlatTypeID, po)
                 if niTypeDesc is None:
                     break
                 if   i == 0:
@@ -2551,22 +2582,22 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
                 elif i == 9:
                     if niTypeDesc.get("Type") != "Array":
                         break
-                prop3TypeIDs.append(typeID+prop3TypeIDShift+i)
+                prop3TypeIDs.append(prop3TypeIDShift+i)
         if len(prop3TypeIDs) != 10:
             match = False
         prop4TypeIDShift = prop3TypeIDShift+len(prop3TypeIDs)
         # Verify TDs between DCO TD and DDO TD - optional part at end
         prop4TypeIDs = []
-        if endTypeID >= typeID+prop4TypeIDShift+1:
+        if len(flatTypeIDList) > prop4TypeIDShift+1:
             for i in range(1):
-                niTypeDesc, niFlatTypeID = \
-                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+prop4TypeIDShift+i, po)
+                niFlatTypeID = flatTypeIDList[prop4TypeIDShift+i]
+                niTypeDesc = getConsolidatedFlatType(RSRC, niFlatTypeID, po)
                 if niTypeDesc is None:
                     break
                 if   i == 0: # Exists for: Digital Waveform
                     if niTypeDesc.get("Type") != "String":
                         break
-                prop4TypeIDs.append(typeID+prop4TypeIDShift+i)
+                prop4TypeIDs.append(prop4TypeIDShift+i)
         # Optional part - if no match found, assume it's not there
         if len(prop4TypeIDs) != 1:
             prop4TypeIDs = [] # Continue as if nothing was matched
@@ -2575,9 +2606,9 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
         partTypeIDs = prop1TypeIDs + prop2TypeIDs + prop3TypeIDs + prop4TypeIDs
 
         # Verify DDO TD
-        if endTypeID >= typeID+ddoTypeIDShift:
-            n21TypeDesc, n21FlatTypeID = \
-                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+ddoTypeIDShift, po)
+        if len(flatTypeIDList) > ddoTypeIDShift:
+            n21FlatTypeID = flatTypeIDList[ddoTypeIDShift]
+            n21TypeDesc = getConsolidatedFlatType(RSRC, n21FlatTypeID, po)
         else:
             n21TypeDesc, n21FlatTypeID = None, None
         if n21TypeDesc is None or n21TypeDesc.get("Type") != dcoTypeDesc.get("Type") or dcoFlatTypeID != n21FlatTypeID:
@@ -2587,9 +2618,9 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
         hasHistTD = True
         # For some controls, we have additional Cluster at end; detect it by content
         if hasHistTD:
-            if endTypeID >= typeID+ddoTypeIDShift+1:
-                histTypeDesc, histFlatTypeID = \
-                      getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+ddoTypeIDShift+1, po)
+            if len(flatTypeIDList) > ddoTypeIDShift+1:
+                histFlatTypeID = flatTypeIDList[ddoTypeIDShift+1]
+                histTypeDesc = getConsolidatedFlatType(RSRC, histFlatTypeID, po)
             else:
                 histTypeDesc, histFlatTypeID = None, None
             if histTypeDesc is not None and histTypeDesc.get("Type") == "Cluster":
@@ -2638,30 +2669,30 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
             else:
                 hasHistTD = False
         if hasHistTD:
-            subTypeIDs.append(typeID+ddoTypeIDShift+1)
+            subTypeIDs.append(ddoTypeIDShift+1)
         if match:
-            DCOInfo = { 'fpClass': "stdGraph", 'dcoTypeID': typeID, 'partTypeIDs': partTypeIDs, 'ddoTypeID': typeID+ddoTypeIDShift, 'subTypeIDs': subTypeIDs }
+            DCOInfo = { 'fpClass': "stdGraph", 'dcoTypeID': 0, 'partTypeIDs': partTypeIDs, 'ddoTypeID': ddoTypeIDShift, 'subTypeIDs': subTypeIDs }
             return ddoTypeIDShift+len(subTypeIDs)+1, DCOInfo
     if dcoTypeDesc.get("Type") == "UnitUInt32" and n1TypeDesc.get("Type") == "UnitUInt32" and dcoFlatTypeID != n1FlatTypeID:
         # Controls from Containers category: TabControl
         # These use four TDs, first and last pointing at the same flat TD; second has its own TD, of the same type; third is NumInt32.
         match = True
-        if endTypeID >= typeID+2:
-            n2TypeDesc, n2FlatTypeID = \
-                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+2, po)
+        if len(flatTypeIDList) > 2:
+            n2FlatTypeID = flatTypeIDList[2]
+            n2TypeDesc = getConsolidatedFlatType(RSRC, n2FlatTypeID, po)
         else:
             n2TypeDesc, n2FlatTypeID = None, None
         if n2TypeDesc is None or n2TypeDesc.get("Type") not in ("NumInt32",):
             match = False
-        if endTypeID >= typeID+3:
-            n3TypeDesc, n3FlatTypeID = \
-                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+3, po)
+        if len(flatTypeIDList) > 3:
+            n3FlatTypeID = flatTypeIDList[3]
+            n3TypeDesc = getConsolidatedFlatType(RSRC, n3FlatTypeID, po)
         else:
             n3TypeDesc, n3FlatTypeID = None, None
         if dcoFlatTypeID != n3FlatTypeID:
                 match = False
         if match:
-            DCOInfo = { 'fpClass': "tabControl", 'dcoTypeID': typeID, 'partTypeIDs': [ typeID+1, typeID+2 ], 'ddoTypeID': typeID+3, 'subTypeIDs': [] }
+            DCOInfo = { 'fpClass': "tabControl", 'dcoTypeID': 0, 'partTypeIDs': [ 1, 2 ], 'ddoTypeID': 3, 'subTypeIDs': [] }
             return 4, DCOInfo
 
     # Controls which use three or less FP TypeDefs are left below
@@ -2678,9 +2709,9 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
         if dcoSubTypeDesc.get("Type") != "Refnum" or dcoSubTypeDesc.get("RefType") not in ("UDClassInst",):
             match = False
         # Now check the third TD
-        if endTypeID >= typeID+2:
-            n2TypeDesc, n2FlatTypeID = \
-                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+2, po)
+        if len(flatTypeIDList) > 2:
+            n2FlatTypeID = flatTypeIDList[2]
+            n2TypeDesc = getConsolidatedFlatType(RSRC, n2FlatTypeID, po)
         else:
             n2TypeDesc, n2FlatTypeID = None, None
         if n2TypeDesc is not None and n2TypeDesc.get("Type") == "TypeDef":
@@ -2767,50 +2798,50 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
                     if stateTypeDesc.get("Type") != "NumUInt32":
                         match = False
         if match:
-            DCOInfo = { 'fpClass': "xControl", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [ typeID+2 ] }
+            DCOInfo = { 'fpClass': "xControl", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': [ 2 ] }
             return 3, DCOInfo
     if dcoTypeDesc.get("Type").startswith("Num") and dcoTypeDesc.get("Type") == n1TypeDesc.get("Type") and dcoFlatTypeID != n1FlatTypeID:
         # Controls from Numeric category: Dial, Gauge, Knob, Meter
         # We will also use it instead of "stdSlide", as there is no way to distinguish these
         # These use three TDs, first and last pointing at the same flat TD; second has its own TD, of the same type.
-        if endTypeID >= typeID+2:
-            n2TypeDesc, n2FlatTypeID = \
-                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+2, po)
+        if len(flatTypeIDList) > 2:
+            n2FlatTypeID = flatTypeIDList[2]
+            n2TypeDesc = getConsolidatedFlatType(RSRC, n2FlatTypeID, po)
         else:
             n2TypeDesc, n2FlatTypeID = None, None
         match = True
         if dcoFlatTypeID != n2FlatTypeID:
                 match = False
         if match:
-            DCOInfo = { 'fpClass': "stdKnob", 'dcoTypeID': typeID, 'partTypeIDs': [ typeID+1 ], 'ddoTypeID': typeID+2, 'subTypeIDs': [] }
+            DCOInfo = { 'fpClass': "stdKnob", 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'ddoTypeID': 2, 'subTypeIDs': [] }
             return 3, DCOInfo
     if dcoTypeDesc.get("Type") == "MeasureData" and dcoTypeDesc.get("Flavor") == "TimeStamp" and n1TypeDesc.get("Type") == "Boolean" and dcoFlatTypeID != n1FlatTypeID:
         # Controls from Numeric category: Timestamp Control, Timestamp Indicator
         # These use three TDs, first and last pointing at the same flat Measuredata TD; second has its own TD, of Boolean type.
-        if endTypeID >= typeID+2:
-            n2TypeDesc, n2FlatTypeID = \
-                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+2, po)
+        if len(flatTypeIDList) > 2:
+            n2FlatTypeID = flatTypeIDList[2]
+            n2TypeDesc = getConsolidatedFlatType(RSRC, n2FlatTypeID, po)
         else:
             n2TypeDesc, n2FlatTypeID = None, None
         match = True
         if dcoFlatTypeID != n2FlatTypeID:
                 match = False
         if match:
-            DCOInfo = { 'fpClass': "absTime", 'dcoTypeID': typeID, 'partTypeIDs': [ typeID+1 ], 'ddoTypeID': typeID+2, 'subTypeIDs': [] }
+            DCOInfo = { 'fpClass': "absTime", 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'ddoTypeID': 2, 'subTypeIDs': [] }
             return 3, DCOInfo
     if dcoTypeDesc.get("Type") == "Array" and n1TypeDesc.get("Type") == "NumUInt32" and dcoFlatTypeID != n1FlatTypeID:
         # Controls from Array/Matrix/Cluster category: Array
         # These use three TDs, first and last pointing at the same flat Array TD; second has its own TD, of NumUInt32 type.
-        if endTypeID >= typeID+2:
-            n2TypeDesc, n2FlatTypeID = \
-                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, typeID+2, po)
+        if len(flatTypeIDList) > 2:
+            n2FlatTypeID = flatTypeIDList[2]
+            n2TypeDesc = getConsolidatedFlatType(RSRC, n2FlatTypeID, po)
         else:
             n2TypeDesc, n2FlatTypeID = None, None
         match = True
         if dcoFlatTypeID != n2FlatTypeID:
                 match = False
         if match:
-            DCOInfo = { 'fpClass': "indArr", 'dcoTypeID': typeID, 'partTypeIDs': [ typeID+1 ], 'ddoTypeID': typeID+2, 'subTypeIDs': [] }
+            DCOInfo = { 'fpClass': "indArr", 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'ddoTypeID': 2, 'subTypeIDs': [] }
             return 3, DCOInfo
 
     # Controls which use two or less FP TypeDefs are left below
@@ -2818,32 +2849,32 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
         # Controls from Boolean category: Buttons, Switches and LEDs
         # These use two TDs, both pointing at the same flat index of Boolean TD.
         if True:
-            DCOInfo = { 'fpClass': "stdBool", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
+            DCOInfo = { 'fpClass': "stdBool", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     if dcoTypeDesc.get("Type").startswith("Num") and n1TypeDesc.get("Type").startswith("Num") and dcoFlatTypeID == n1FlatTypeID:
         # Controls from Numeric category: Numeric Control, Numeric Indicator
         # We will also use it instead of "stdColorNum" and "scrollbar", as there is no way to distinguish these
         # These use two TDs, both pointing at the same flat Number TD.
         if True:
-            DCOInfo = { 'fpClass': "stdNum", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
+            DCOInfo = { 'fpClass': "stdNum", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     if dcoTypeDesc.get("Type") == "String" and n1TypeDesc.get("Type") == "String" and dcoFlatTypeID == n1FlatTypeID:
         # Controls from String and Path category: String Control, String Indicator
         # These use two TDs, both pointing at the same flat index of String TD.
         if True:
-            DCOInfo = { 'fpClass': "stdString", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
+            DCOInfo = { 'fpClass': "stdString", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     if dcoTypeDesc.get("Type") == "Picture" and n1TypeDesc.get("Type") == "Picture" and dcoFlatTypeID == n1FlatTypeID:
         # Controls from Graph category: 2D Picture, Distribution Plot, Min Max Plot, Polar Plot, Radar Plot, Smith Plot
         # These use two TDs, both pointing at the same flat index of Picture TD.
         if True:
-            DCOInfo = { 'fpClass': "stdPict", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
+            DCOInfo = { 'fpClass': "stdPict", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     if dcoTypeDesc.get("Type") == "UnitUInt16" and dcoTypeDesc.get("Type") == n1TypeDesc.get("Type") and dcoFlatTypeID == n1FlatTypeID:
         # Controls from Graph DataType category: Font Enum
         # These use two Unit TDs; both Unit TDs are pointing at the same flat index of UnitUInt TD,
         if True:
-            DCOInfo = { 'fpClass': "stdRing", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
+            DCOInfo = { 'fpClass': "stdRing", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     if dcoTypeDesc.get("Type") == "Refnum" and n1TypeDesc.get("Type") == "Refnum" and dcoFlatTypeID == n1FlatTypeID:
         # Controls from Containers category: ActiveX Container, dotNET Container
@@ -2855,7 +2886,7 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
         if dcoTypeDesc.get("RefType") not in ("AutoRef","DotNet",):
             match = False
         if match:
-            DCOInfo = { 'fpClass': "stdCont", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
+            DCOInfo = { 'fpClass': "stdCont", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     if dcoTypeDesc.get("Type") == "Refnum" and n1TypeDesc.get("Type") == "Refnum" and dcoFlatTypeID == n1FlatTypeID:
         # Controls from 3D Graph category: 3D Picture
@@ -2864,7 +2895,7 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
         if dcoTypeDesc.get("RefType") != "LVObjCtl":
             match = False
         if match:
-            DCOInfo = { 'fpClass': "scenegraphdisplay", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID+1, 'subTypeIDs': [] }
+            DCOInfo = { 'fpClass': "scenegraphdisplay", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     if dcoTypeDesc.get("Type") == "Refnum":
         # Controls from Containers category, FP parts: Sub Panel
@@ -2875,7 +2906,7 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
         if dcoTypeDesc.get("RefType") not in ("LVObjCtl",):
             match = False
         if match:
-            DCOInfo = { 'fpClass': "grouper", 'dcoTypeID': typeID, 'partTypeIDs': [], 'ddoTypeID': typeID, 'subTypeIDs': [] }
+            DCOInfo = { 'fpClass': "grouper", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 0, 'subTypeIDs': [] }
             return 1, DCOInfo
 
     #TODO recognize BD part of Sub Panel (maybe separate function for BD recognition?)
