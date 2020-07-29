@@ -2429,26 +2429,31 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         # These use two Cluster TDs of same flat index, followed by TDs for each item within the cluster, but without DCO TDs.
         # The items from inside cluster can be in different order than "master" types.
         dcoSubTypeDescMap = dcoTypeDesc.findall("./TypeDesc")
-        dcoSubTypeDescList = []
+        dcoSubFlatTypeIDList = []
+        #dcoSubTypeDescList = []
         for TDTopMap in dcoSubTypeDescMap:
-            TypeDesc, _, _ = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, TDTopMap, po)
+            TypeDesc, _, FlatTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, TDTopMap, po)
             if TypeDesc is None: continue
-            dcoSubTypeDescList.append(TypeDesc)
+            #dcoSubTypeDescList.append(TypeDesc)
+            dcoSubFlatTypeIDList.append(FlatTypeID)
         # Following that, we expect types from inside the Cluster; make all are matching
         subTypeIDs = []
         match = True
         # TODO it would seem that the items may be in different order in sub-TDs than inside the main cluster; see "User Font" control for an example
-        # TODO We should accept any order, as long as all types have a match.
-        for i, expectSubTypeDesc in enumerate(reversed(dcoSubTypeDescList)):
-            subFlatTypeID = flatTypeIDList[2+i]
-            subTypeDesc = getConsolidatedFlatType(RSRC, subFlatTypeID, po)
-            if expectSubTypeDesc.get("Type") != subTypeDesc.get("Type"):
+        # TODO Verify that; if true, we should accept any order, as long as all types have a match.
+        tdShift = 2
+        for i, dcoFlatTypeID in enumerate(reversed(dcoSubFlatTypeIDList)):
+            flatSubTypeIDList = [ dcoFlatTypeID ] + flatTypeIDList[tdShift:]
+            tdSubCount, _ = DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatSubTypeIDList)
+            if tdSubCount < 2:
                 match = False
                 break
-            subTypeIDs.append(2+i)
+            tdShift += tdSubCount - 1
+        for typeID in range(2,tdShift):
+            subTypeIDs.append(typeID)
         if match:
             DCOInfo = { 'fpClass': "stdClust", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': subTypeIDs }
-            return 2+len(dcoSubTypeDescList), DCOInfo
+            return tdShift, DCOInfo
     if dcoTypeDesc.get("Type") in ("Cluster","Array","NumFloat64",) and n1TypeDesc.get("Type") == "NumUInt32":
         # Controls from Graph category: Digital Waveform, Waveform Chart, Waveform Graph, XY Graph, Ex XY Graph
         # These use over fifteen TDs, first and last pointing at the same flat TD of Cluster,Array or NumFloat64 type; inbetween there is
@@ -2842,6 +2847,20 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
                 match = False
         if match:
             DCOInfo = { 'fpClass': "indArr", 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'ddoTypeID': 2, 'subTypeIDs': [] }
+            return 3, DCOInfo
+    if dcoTypeDesc.get("Type") == "Path" and n1TypeDesc.get("Type") == "Boolean" and dcoFlatTypeID != n1FlatTypeID:
+        # Controls from String And Path category: Path
+        # These use three TDs, first and last pointing at the same flat Path TD; second has its own TD, of Boolean type.
+        if len(flatTypeIDList) > 2:
+            n2FlatTypeID = flatTypeIDList[2]
+            n2TypeDesc = getConsolidatedFlatType(RSRC, n2FlatTypeID, po)
+        else:
+            n2TypeDesc, n2FlatTypeID = None, None
+        match = True
+        if dcoFlatTypeID != n2FlatTypeID:
+                match = False
+        if match:
+            DCOInfo = { 'fpClass': "stdPath", 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'ddoTypeID': 2, 'subTypeIDs': [] }
             return 3, DCOInfo
 
     # Controls which use two or less FP TypeDefs are left below
