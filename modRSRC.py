@@ -3123,28 +3123,69 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         # Existence of Containers in the VI can be determined by existence of VINS block with multiple entries.
         match = True
         # Ref type is AutoRef for ActiveX Container, DotNet for dotNET Container
-        if dcoTypeDesc.get("RefType") not in ("AutoRef","DotNet",):
+        if   dcoTypeDesc.get("RefType") == "AutoRef" and dcoTypeDesc.get("Label").contains("ActiveX"):
+            pass
+        elif dcoTypeDesc.get("RefType") =="DotNet" and dcoTypeDesc.get("Label").contains("Container"):
+            pass
+        else:
             match = False
         if match:
             DCOInfo = { 'fpClass': "stdCont", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     if dcoTypeDesc.get("Type") == "Refnum" and n1TypeDesc.get("Type") == "Refnum" and dcoFlatTypeID == n1FlatTypeID:
-        # Controls from I/O category: IMAQ Session
-        # These use two TDs, both pointing at the same flat index of Refnum TD.
-        match = True
-        if dcoTypeDesc.get("RefType") != "Imaq" or dcoTypeDesc.get("Ident") != "IMAQ":
-            match = False
-        if match:
-            DCOInfo = { 'fpClass': "stdRefNum", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': [] }
-            return 2, DCOInfo
-    if dcoTypeDesc.get("Type") == "Refnum" and n1TypeDesc.get("Type") == "Refnum" and dcoFlatTypeID == n1FlatTypeID:
         # Controls from 3D Graph category: 3D Picture
         # These use two TDs, both pointing at the same flat index of Refnum TD.
+        # The figgerence between this and App Refnum is in CtlFlags
         match = True
         if dcoTypeDesc.get("RefType") != "LVObjCtl":
             match = False
+        CtlFlags = dcoTypeDesc.get("CtlFlags")
+        if CtlFlags is not None:
+            CtlFlags = int(CtlFlags,0)
+        if CtlFlags is None or ((CtlFlags & 0x0068) != 0x0068):
+            match = False
         if match:
             DCOInfo = { 'fpClass': "scenegraphdisplay", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': [] }
+            return 2, DCOInfo
+    if dcoTypeDesc.get("Type") == "Refnum" and n1TypeDesc.get("Type") == "Refnum" and dcoFlatTypeID == n1FlatTypeID:
+        # Controls from I/O category: IMAQ Session
+        # Controls from Refnum category: App Refnum, Automation Refnum, Bluetooth Refnum, Byte Stream Refnum,
+        #   Ctl Refnum, Data Log Refnum, DataSocket Refnum, dotNET Refnum, Event Callback, Irda Network,
+        #   Menu Refnum, Occurrence Refnum, TCP Network, UDP Network, VI Refnum
+        # These use two TDs, both pointing at the same flat index of Refnum TD.
+        match = True
+        if   dcoTypeDesc.get("RefType") == "Imaq" and dcoTypeDesc.get("Ident") == "IMAQ":
+            pass
+        elif dcoTypeDesc.get("RefType") == "LVObjCtl":
+            pass
+        elif dcoTypeDesc.get("RefType") == "AutoRef":
+            pass
+        elif dcoTypeDesc.get("RefType") == "BluetoothCon":
+            pass
+        elif dcoTypeDesc.get("RefType") == "ByteStream":
+            pass
+        elif dcoTypeDesc.get("RefType") == "DataLog":
+            pass
+        elif dcoTypeDesc.get("RefType") == "DataSocket":
+            pass
+        elif dcoTypeDesc.get("RefType") == "DotNet":
+            pass
+        elif dcoTypeDesc.get("RefType") == "Callback" and dcoTypeDesc.get("Ident") == "Event Callback":
+            pass
+        elif dcoTypeDesc.get("RefType") == "IrdaNetConn":
+            pass
+        elif dcoTypeDesc.get("RefType") == "Menu":
+            pass
+        elif dcoTypeDesc.get("RefType") == "Occurrence":
+            pass
+        elif dcoTypeDesc.get("RefType") == "TCPNetConn":
+            pass
+        elif dcoTypeDesc.get("RefType") == "UDPNetConn":
+            pass
+        else:
+            match = False
+        if match:
+            DCOInfo = { 'fpClass': "stdRefNum", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     if dcoTypeDesc.get("Type") == "LVVariant" and n1TypeDesc.get("Type") == "LVVariant" and dcoFlatTypeID == n1FlatTypeID:
         # Controls unknown - this is within clusters as LVVariant
