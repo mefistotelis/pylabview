@@ -2527,11 +2527,17 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
                     if not match:
                         break
         prop1TypeIDShift = 1
-        # Verify TDs between DCO TD and DDO TD - constant part at start
+        # Verify TDs between DCO TD and DDO TD - constant part at start, with optional copy
+        # (well, not exact copy - the 2nd one has different amount of Bool properties in a cluster)
         prop1TypeIDs = []
-        if len(flatTypeIDList) > prop1TypeIDShift+3:
+        for contentDescrNo in range(2):
+            prop2TypeIDShift = prop1TypeIDShift+len(prop1TypeIDs)
+            if len(flatTypeIDList) < prop2TypeIDShift+3:
+                break
+            flatClusterTypeIDList = []
+            niAddTypeIDs = []
             for i in range(3):
-                niFlatTypeID = flatTypeIDList[prop1TypeIDShift+i]
+                niFlatTypeID = flatTypeIDList[prop2TypeIDShift+i]
                 niTypeDesc = getConsolidatedFlatType(RSRC, niFlatTypeID, po)
                 if niTypeDesc is None:
                     break
@@ -2544,69 +2550,61 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
                 elif i == 2:
                     if niTypeDesc.get("Type") != "Cluster":
                         break
-                    niPartTypeDesc = niTypeDesc.findall("./TypeDesc[@TypeID]")
-                    #TODO check the Cluster content
-                prop1TypeIDs.append(prop1TypeIDShift+i)
-        if len(prop1TypeIDs) != 3:
-            match = False
-        prop2TypeIDShift = prop1TypeIDShift+len(prop1TypeIDs)
-        # Verify TDs between DCO TD and DDO TD - optional middle part
-        prop2TypeIDs = []
-        if len(flatTypeIDList) > prop2TypeIDShift+6:
-            for i in range(6):
-                niFlatTypeID = flatTypeIDList[prop2TypeIDShift+i]
-                niTypeDesc = getConsolidatedFlatType(RSRC, niFlatTypeID, po)
-                if niTypeDesc is None:
-                    break
-                if   i == 0:
-                    if niTypeDesc.get("Type") != "String":
+                    niPartTypeDescMapList = niTypeDesc.findall("./TypeDesc[@TypeID]")
+                    if len(niPartTypeDescMapList) < 3 or len(niPartTypeDescMapList) > 4:
                         break
-                elif i in (1,2,):
-                    if niTypeDesc.get("Type") != "Boolean":
+                    subMatch = True
+                    for si, niPartTypeDescMap in enumerate(niPartTypeDescMapList):
+                        niSubTypeDesc, _, niFlatSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, niPartTypeDescMap, po)
+                        if niSubTypeDesc is None:
+                            subMatch = False
+                            break
+                        if   si == 0:
+                            if niSubTypeDesc.get("Type") != "String":
+                                subMatch = False
+                        elif si >= 1:
+                            if niSubTypeDesc.get("Type") != "Boolean":
+                                subMatch = False
+                        flatClusterTypeIDList.append(niFlatSubTypeID)
+                    if not subMatch:
+                        flatClusterTypeIDList = []
                         break
-                elif i == 3:
-                    if niTypeDesc.get("Type") != "NumUInt32":
-                        break
-                elif i == 4:
-                    if niTypeDesc.get("Type") != "Array":
-                        break
-                elif i == 5:
-                    if niTypeDesc.get("Type") != "Cluster":
-                        break
-                    niPartTypeDesc = niTypeDesc.findall("./TypeDesc[@TypeID]")
-                    #TODO check the Cluster content
-                prop2TypeIDs.append(prop2TypeIDShift+i)
-        # Optional part - if no match found, assume it's not there
-        if len(prop2TypeIDs) != 6:
-            prop2TypeIDs = [] # Continue as if nothing was matched
-        prop3TypeIDShift = prop2TypeIDShift+len(prop2TypeIDs)
+                niAddTypeIDs.append(prop2TypeIDShift+i)
+            prop2TypeIDShift += len(niAddTypeIDs)
+            # Verify TDs between DCO TD and DDO TD - items from inside the Cluster following the Cluster
+            matchedTypeIDShift = DCO_recognize_TDs_after_cluster_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTypeIDList[prop2TypeIDShift:], flatClusterTypeIDList)
+            if matchedTypeIDShift is not None:
+                for i in range(matchedTypeIDShift):
+                    niAddTypeIDs.append(prop2TypeIDShift+i)
+            if len(niAddTypeIDs) > 3:
+                prop1TypeIDs.extend(niAddTypeIDs)
+            else:
+                if contentDescrNo == 0: # At least one match is required
+                    match = False
+                break
+        prop3TypeIDShift = prop1TypeIDShift+len(prop1TypeIDs)
+
         # Verify TDs between DCO TD and DDO TD - constant part near end
         prop3TypeIDs = []
-        if len(flatTypeIDList) > prop3TypeIDShift+10:
-            for i in range(10):
+        if len(flatTypeIDList) > prop3TypeIDShift+6:
+            for i in range(6):
                 niFlatTypeID = flatTypeIDList[prop3TypeIDShift+i]
                 niTypeDesc = getConsolidatedFlatType(RSRC, niFlatTypeID, po)
                 if niTypeDesc is None:
                     break
                 if   i == 0:
-                    if niTypeDesc.get("Type") != "String":
-                        break
-                elif i in (1,2,3,):
-                    if niTypeDesc.get("Type") != "Boolean":
-                        break
-                elif i == 4:
                     if niTypeDesc.get("Type") != "Cluster":
                         break
                     niPartTypeDesc = niTypeDesc.findall("./TypeDesc[@TypeID]")
                     #TODO check the Cluster content
-                elif i in (5,6,7,8,):
+                elif i in (1,2,3,4,):
                     if niTypeDesc.get("Type") != "Boolean":
                         break
-                elif i == 9:
+                elif i == 5:
                     if niTypeDesc.get("Type") != "Array":
                         break
                 prop3TypeIDs.append(prop3TypeIDShift+i)
-        if len(prop3TypeIDs) != 10:
+        if len(prop3TypeIDs) != 6:
             match = False
         prop4TypeIDShift = prop3TypeIDShift+len(prop3TypeIDs)
         # Verify TDs between DCO TD and DDO TD - optional part at end
@@ -2638,7 +2636,7 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
             prop4TypeIDs = [] # Continue as if nothing was matched
         ddoTypeIDShift = prop4TypeIDShift+len(prop4TypeIDs)
         # Make list of all part TypeIDs
-        partTypeIDs = prop1TypeIDs + prop2TypeIDs + prop3TypeIDs + prop4TypeIDs
+        partTypeIDs = prop1TypeIDs + prop3TypeIDs + prop4TypeIDs
 
         # Verify DDO TD
         if len(flatTypeIDList) > ddoTypeIDShift:
