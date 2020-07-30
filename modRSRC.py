@@ -2431,7 +2431,7 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         subFlatTypeIDs = []
         match = True
         for i, dcoSubTypeEnLabel in enumerate(dcoSubTypeEnumLabels):
-            if len(flatTypeIDList) <= i:
+            if len(flatTypeIDList) <= 2+i:
                 match = False
                 break
             subFlatTypeID = flatTypeIDList[2+i]
