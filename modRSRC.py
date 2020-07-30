@@ -2796,14 +2796,6 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         # Controls from Containers category: TabControl
         # These use four TDs, first and last pointing at the same flat TD; second has its own TD, of the same type; third is NumInt32.
         match = True
-        if True:
-            dcoSubTypeMap = dcoTypeDesc.find("./TypeDesc[@TypeID]")
-            if dcoSubTypeMap is not None:
-                dcoSubVarTypeDesc, _, dcoFlatClusterTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, dcoSubTypeMap, po)
-            else:
-                dcoSubVarTypeDesc, dcoFlatClusterTypeID = None, None
-            if dcoSubVarTypeDesc is None or dcoSubVarTypeDesc.get("Type") not in ("String",):
-                match = False
         if len(flatTypeIDList) > 2:
             n2FlatTypeID = flatTypeIDList[2]
             n2TypeDesc = getConsolidatedFlatType(RSRC, n2FlatTypeID, po)
@@ -2825,6 +2817,14 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         # Controls from List Table And Tree category: Table Control, Ex Table
         # These use four TDs, first and last pointing at the same flat TD; second and third are NumUInt32.
         match = True
+        if True:
+            dcoSubTypeMap = dcoTypeDesc.find("./TypeDesc[@TypeID]")
+            if dcoSubTypeMap is not None:
+                dcoSubVarTypeDesc, _, dcoFlatClusterTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, dcoSubTypeMap, po)
+            else:
+                dcoSubVarTypeDesc, dcoFlatClusterTypeID = None, None
+            if dcoSubVarTypeDesc is None or dcoSubVarTypeDesc.get("Type") not in ("String",):
+                match = False
         if len(flatTypeIDList) > 2:
             n2FlatTypeID = flatTypeIDList[2]
             n2TypeDesc = getConsolidatedFlatType(RSRC, n2FlatTypeID, po)
