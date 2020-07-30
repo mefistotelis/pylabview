@@ -2796,6 +2796,14 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         # Controls from Containers category: TabControl
         # These use four TDs, first and last pointing at the same flat TD; second has its own TD, of the same type; third is NumInt32.
         match = True
+        if True:
+            dcoSubTypeMap = dcoTypeDesc.find("./TypeDesc[@TypeID]")
+            if dcoSubTypeMap is not None:
+                dcoSubVarTypeDesc, _, dcoFlatClusterTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, dcoSubTypeMap, po)
+            else:
+                dcoSubVarTypeDesc, dcoFlatClusterTypeID = None, None
+            if dcoSubVarTypeDesc is None or dcoSubVarTypeDesc.get("Type") not in ("String",):
+                match = False
         if len(flatTypeIDList) > 2:
             n2FlatTypeID = flatTypeIDList[2]
             n2TypeDesc = getConsolidatedFlatType(RSRC, n2FlatTypeID, po)
@@ -2809,9 +2817,32 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         else:
             n3TypeDesc, n3FlatTypeID = None, None
         if dcoFlatTypeID != n3FlatTypeID:
-                match = False
+            match = False
         if match:
             DCOInfo = { 'fpClass': "tabControl", 'dcoTypeID': 0, 'partTypeIDs': [ 1, 2 ], 'ddoTypeID': 3, 'subTypeIDs': [] }
+            return 4, DCOInfo
+    if dcoTypeDesc.get("Type") == "Array" and n1TypeDesc.get("Type") == "NumUInt32" and dcoFlatTypeID != n1FlatTypeID:
+        # Controls from List Table And Tree category: Table Control, Ex Table
+        # These use four TDs, first and last pointing at the same flat TD; second and third are NumUInt32.
+        match = True
+        if len(flatTypeIDList) > 2:
+            n2FlatTypeID = flatTypeIDList[2]
+            n2TypeDesc = getConsolidatedFlatType(RSRC, n2FlatTypeID, po)
+        else:
+            n2TypeDesc, n2FlatTypeID = None, None
+        if n2TypeDesc is None or n2TypeDesc.get("Type") not in ("NumUInt32",):
+            match = False
+        if n2FlatTypeID != n1FlatTypeID:
+            match = False
+        if len(flatTypeIDList) > 3:
+            n3FlatTypeID = flatTypeIDList[3]
+            n3TypeDesc = getConsolidatedFlatType(RSRC, n3FlatTypeID, po)
+        else:
+            n3TypeDesc, n3FlatTypeID = None, None
+        if dcoFlatTypeID != n3FlatTypeID:
+            match = False
+        if match:
+            DCOInfo = { 'fpClass': "tableControl", 'dcoTypeID': 0, 'partTypeIDs': [ 1, 2 ], 'ddoTypeID': 3, 'subTypeIDs': [] }
             return 4, DCOInfo
 
     # Controls which use three or less FP TypeDefs are left below
@@ -3039,7 +3070,8 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
             return 2, DCOInfo
     if dcoTypeDesc.get("Type").startswith("Num") and n1TypeDesc.get("Type").startswith("Num") and dcoFlatTypeID == n1FlatTypeID:
         # Controls from Numeric category: Numeric Control, Numeric Indicator
-        # We will also use it instead of "stdColorNum" and "scrollbar", as there is no way to distinguish these
+        # We will also use it instead of fpClass="stdColorNum" and fpClass="scrollbar", as there is no way to distinguish these
+        # Also matches controls from List Table And Tree category: Listbox, Multicolumn Listbox (fpClass="listbox")
         # These use two TDs, both pointing at the same flat Number TD.
         if True:
             DCOInfo = { 'fpClass': "stdNum", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': [] }
