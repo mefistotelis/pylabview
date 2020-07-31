@@ -2965,6 +2965,23 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         if match:
             DCOInfo = { 'fpClass': "stdKnob", 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'ddoTypeID': 2, 'subTypeIDs': [] }
             return 3, DCOInfo
+    if dcoTypeDesc.get("Type") == "TypeDef" and n1TypeDesc.get("Type") == "String":
+        # Controls from TestStand UI category: Input Buffer
+        # These use three TDs, first and last pointing at the same flat TypeDef TD; second has its own TD, of String type.
+        dcoSubTypeDesc = dcoTypeDesc.find("./TypeDesc[@Type]")
+        if dcoSubTypeDesc.get("Type") != "String": # Input buffer
+            match = False
+        if len(flatTypeIDList) > 2:
+            n2FlatTypeID = flatTypeIDList[2]
+            n2TypeDesc = getConsolidatedFlatType(RSRC, n2FlatTypeID, po)
+        else:
+            n2TypeDesc, n2FlatTypeID = None, None
+        match = True
+        if dcoFlatTypeID != n2FlatTypeID:
+            match = False
+        if match:
+            DCOInfo = { 'fpClass': "typeDef", 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'ddoTypeID': 2, 'subTypeIDs': [] }
+            return 3, DCOInfo
     if dcoTypeDesc.get("Type") == "Refnum" and dcoTypeDesc.get("RefType") in ("IVIRef","VisaRef","UsrDefndTag",) and n1TypeDesc.get("Type") == "Tag" and dcoFlatTypeID != n1FlatTypeID:
         # Controls from I/O category: DAQmx Channel, DAQmx Task Name, FieldPoint IO, IVI Logical Name, Motion Resource,
         #   Shared Variable Control, System Configuration, VISA Resource
@@ -3134,12 +3151,18 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         # Controls from Containers category: ActiveX Container, dotNET Container
         # Also matches controls from dotNet and ActiveX category - specific control should be recognized later.
         # These use two TDs, both pointing at the same flat index of Refnum TD.
+        # And controls from TestStand UI category: Application Manager, Button Control, CheckBox Control,
+        #   ComboBox Control, ExecutionView Manager, ExpressionEdit Control, InsertionPalette Control,
+        #   Label Control, ListBar Control, ListBox Control, ReportView Control, SequenceFileView Manager,
+        #   SequenceView Control, StatusBar Control, VariablesView Control
         # Existence of Containers in the VI can be determined by existence of VINS block with multiple entries.
         match = True
         # Ref type is AutoRef for ActiveX Container, DotNet for dotNET Container
         if   dcoTypeDesc.get("RefType") == "AutoRef" and "ActiveX" in dcoTypeDesc.get("Label"):
             pass
         elif dcoTypeDesc.get("RefType") == "DotNet" and "Container" in dcoTypeDesc.get("Label"):
+            pass
+        elif dcoTypeDesc.get("RefType") == "AutoRef" and ("TestStand" in dcoTypeDesc.get("Label") or (int(dcoTypeDesc.get("Field20"),0) & 0x01) == 0x01):
             pass
         else:
             match = False
