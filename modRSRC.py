@@ -3256,12 +3256,12 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
             return 2, DCOInfo
     if dcoTypeDesc.get("Type") == "Refnum" and n1TypeDesc.get("Type") == "Refnum" and dcoFlatTypeID == n1FlatTypeID:
         # Controls from Containers category: ActiveX Container, dotNET Container
-        # Also matches controls from dotNet and ActiveX category - specific control should be recognized later.
-        # These use two TDs, both pointing at the same flat index of Refnum TD.
-        # And controls from TestStand UI category: Application Manager, Button Control, CheckBox Control,
+        # Controls from dotNet and ActiveX category - specific control should be recognized later.
+        # Controls from TestStand UI category: Application Manager, Button Control, CheckBox Control,
         #   ComboBox Control, ExecutionView Manager, ExpressionEdit Control, InsertionPalette Control,
         #   Label Control, ListBar Control, ListBox Control, ReportView Control, SequenceFileView Manager,
         #   SequenceView Control, StatusBar Control, VariablesView Control
+        # These use two TDs, both pointing at the same flat index of Refnum TD.
         # Existence of Containers in the VI can be determined by existence of VINS block with multiple entries.
         match = True
         # Ref type is AutoRef for ActiveX Container, DotNet for dotNET Container
@@ -3279,7 +3279,7 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
     if dcoTypeDesc.get("Type") == "Refnum" and n1TypeDesc.get("Type") == "Refnum" and dcoFlatTypeID == n1FlatTypeID:
         # Controls from 3D Graph category: 3D Picture
         # These use two TDs, both pointing at the same flat index of Refnum TD.
-        # The figgerence between this and App Refnum is in CtlFlags
+        # The difference between this and App Refnum is in CtlFlags
         match = True
         if dcoTypeDesc.get("RefType") != "LVObjCtl":
             match = False
@@ -3290,6 +3290,15 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
             match = False
         if match:
             DCOInfo = { 'fpClass': "scenegraphdisplay", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': [] }
+            return 2, DCOInfo
+    if dcoTypeDesc.get("Type") == "Refnum" and n1TypeDesc.get("Type") == "Refnum" and dcoFlatTypeID == n1FlatTypeID:
+        # Controls from Variant and Class category: LvObject
+        # These use two TDs, both pointing at the same flat index of Refnum TD.
+        match = True
+        if dcoTypeDesc.get("RefType") != "UDClassInst":
+            match = False
+        if match:
+            DCOInfo = { 'fpClass': "udClassDDO", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     if dcoTypeDesc.get("Type") == "Refnum" and n1TypeDesc.get("Type") == "Refnum" and dcoFlatTypeID == n1FlatTypeID:
         # Controls from I/O category: IMAQ Session
@@ -3332,10 +3341,10 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
             DCOInfo = { 'fpClass': "stdRefNum", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     if dcoTypeDesc.get("Type") == "LVVariant" and n1TypeDesc.get("Type") == "LVVariant" and dcoFlatTypeID == n1FlatTypeID:
-        # Controls unknown - this is within clusters as LVVariant
+        # Controls from Variant and Class category: LVVariant
         # These use two TDs, both pointing at the same flat index of LVVariant TD.
         if True:
-            DCOInfo = { 'fpClass': "unknownLVVariant", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': [] }
+            DCOInfo = { 'fpClass': "stdLvVariant", 'dcoTypeID': 0, 'partTypeIDs': [], 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     if dcoTypeDesc.get("Type") == "Refnum":
         # Controls from Containers category, FP parts: Sub Panel
