@@ -3032,6 +3032,20 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         if match:
             DCOInfo = { 'fpClass': "absTime", 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'ddoTypeID': 2, 'subTypeIDs': [] }
             return 3, DCOInfo
+    if dcoTypeDesc.get("Type") == "String" and n1TypeDesc.get("Type") == "NumInt32" and dcoFlatTypeID != n1FlatTypeID:
+        # Controls from String and Path category: ComboBox
+        # These use three TDs, first and last pointing at the same flat String TD; second has its own TD, of NumInt32 type.
+        if len(flatTypeIDList) > 2:
+            n2FlatTypeID = flatTypeIDList[2]
+            n2TypeDesc = getConsolidatedFlatType(RSRC, n2FlatTypeID, po)
+        else:
+            n2TypeDesc, n2FlatTypeID = None, None
+        match = True
+        if dcoFlatTypeID != n2FlatTypeID:
+                match = False
+        if match:
+            DCOInfo = { 'fpClass': "stdComboBox", 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'ddoTypeID': 2, 'subTypeIDs': [] }
+            return 3, DCOInfo
     if dcoTypeDesc.get("Type") == "Array" and n1TypeDesc.get("Type") == "NumUInt32" and dcoFlatTypeID != n1FlatTypeID:
         # Controls from Array/Matrix/Cluster category: Array
         # These use three TDs, first and last pointing at the same flat Array TD; second has its own TD, of NumUInt32 type.
@@ -3123,9 +3137,9 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         # Existence of Containers in the VI can be determined by existence of VINS block with multiple entries.
         match = True
         # Ref type is AutoRef for ActiveX Container, DotNet for dotNET Container
-        if   dcoTypeDesc.get("RefType") == "AutoRef" and dcoTypeDesc.get("Label").contains("ActiveX"):
+        if   dcoTypeDesc.get("RefType") == "AutoRef" and "ActiveX" in dcoTypeDesc.get("Label"):
             pass
-        elif dcoTypeDesc.get("RefType") =="DotNet" and dcoTypeDesc.get("Label").contains("Container"):
+        elif dcoTypeDesc.get("RefType") == "DotNet" and "Container" in dcoTypeDesc.get("Label"):
             pass
         else:
             match = False
