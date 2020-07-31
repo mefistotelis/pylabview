@@ -1972,6 +1972,36 @@ def getMaxIndexFromList(elemList, fo, po):
             val = max(val, elemIndex)
     return val
 
+def TypeDesc_equivalent(RSRC, fo, po, TypeDesc1, TypeDesc2):
+    """ Compares two type descriptions and returns whether they're equivalent
+    """
+    if TypeDesc1.get("Type") != TypeDesc2.get("Type"):
+        return False
+    if TypeDesc1.get("Type") == "Cluster":
+        td1SubTypeDescList = TypeDesc1.findall("./TypeDesc")
+        td2SubTypeDescList = TypeDesc2.findall("./TypeDesc")
+        if len(td1SubTypeDescList) != len(td2SubTypeDescList):
+            return False
+        for i, td1SubTypeDesc in enumerate(td1SubTypeDescList):
+            if not TypeDesc_equivalent(RSRC, fo, po, td1SubTypeDesc, td2SubTypeDescList[i]):
+                return False
+    elif TypeDesc1.get("Type") == "Refnum":
+        if TypeDesc1.get("RefType") != TypeDesc2.get("RefType"):
+            return False
+        td1SubItemList = TypeDesc1.findall("./Item")
+        td2SubItemList = TypeDesc2.findall("./Item")
+        if len(td1SubItemList) != len(td2SubItemList):
+            return False
+        for i, td1SubItem in enumerate(td1SubItemList):
+            td2SubItem_attrib = td2SubItemList[i].attrib
+            for td1AName, td1AVal in td1SubItem.attrib.items():
+                if td1AName not in td2SubItem_attrib:
+                    return False
+                if td2SubItem_attrib[td1AName] != td1AVal:
+                    return False
+    #TODO support more types
+    return True
+
 def TypeDesc_find_unused_ranges(RSRC, fo, po, skipRm=[], VCTP_TypeDescList=None, VCTP_FlatTypeDescList=None):
     """ Searches through all TDs, looking for unused items
 
@@ -2792,6 +2822,55 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         if match:
             DCOInfo = { 'fpClass': "stdMeasureData", 'dcoTypeID': 0, 'partTypeIDs': partTypeIDs, 'ddoTypeID': niTypeIDShift, 'subTypeIDs': [] }
             return niTypeIDShift+1, DCOInfo
+    if dcoTypeDesc.get("Type") == "TypeDef" and n1TypeDesc.get("Type") == "Cluster":
+        # Controls from TestStand UI category: Invocation Info
+        # These use nine TDs, first and last pointing at the same flat TypeDef TD; next there is a Cluster and after it - its content fields.
+        match = True
+        # Verify DCO Inner TypeDesc
+        dcoInnerTypeDesc = dcoTypeDesc.find("./TypeDesc[@Type]")
+        if dcoInnerTypeDesc is not None and dcoInnerTypeDesc.get("Type") == "Cluster":
+            dcoInnerTypeDescMap = dcoInnerTypeDesc.findall("./TypeDesc[@TypeID]")
+        else:
+            dcoInnerTypeDescMap = []
+        dcoFlatInnerTypeIDList = []
+        if True:
+            if len(dcoInnerTypeDescMap) != 5:
+                match = False
+            # Verify fields within Cluster
+            for i, dcoInnTypeMap in enumerate(dcoInnerTypeDescMap):
+                dcoInnTypeDesc, _, dcoFlatInnTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, dcoInnTypeMap, po)
+                if dcoInnTypeDesc is None:
+                    match = False
+                    break
+                if i in (0,1,): # UUT num, loop num
+                    if dcoInnTypeDesc.get("Type") != "NumInt32":
+                        match = False
+                elif i in (2,3,): # UUT Info, Test Name
+                    if dcoInnTypeDesc.get("Type") != "String":
+                        match = False
+                elif i in (4,): # Sequence Path
+                    if dcoInnTypeDesc.get("Type") != "Path":
+                        match = False
+                if not match:
+                    break
+                dcoFlatInnerTypeIDList.append(dcoFlatInnTypeID)
+        # The type following DCO TypeID should be the same as DCO Inner TypeDesc
+        if not TypeDesc_equivalent(RSRC, fo, po, dcoInnerTypeDesc, n1TypeDesc):
+            match = False
+        niTypeIDShift = 2
+        partTypeIDs = []
+        if True:
+            # Verify TDs between DCO TD and DDO TD - items from inside the Cluster following the Cluster
+            matchedTypeIDShift = DCO_recognize_TDs_after_cluster_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTypeIDList[niTypeIDShift:], dcoFlatInnerTypeIDList)
+            if matchedTypeIDShift is not None:
+                for i in range(matchedTypeIDShift):
+                    partTypeIDs.append(niTypeIDShift+i)
+            else:
+                match = False
+        ddoTypeIDShift = niTypeIDShift+len(partTypeIDs)
+        if match:
+            DCOInfo = { 'fpClass': "typeDef", 'dcoTypeID': 0, 'partTypeIDs': partTypeIDs, 'ddoTypeID': ddoTypeIDShift, 'subTypeIDs': [] }
+            return ddoTypeIDShift+1, DCOInfo
     if dcoTypeDesc.get("Type") == "UnitUInt32" and n1TypeDesc.get("Type") == "UnitUInt32" and dcoFlatTypeID != n1FlatTypeID:
         # Controls from Containers category: TabControl
         # These use four TDs, first and last pointing at the same flat TD; second has its own TD, of the same type; third is NumInt32.
@@ -2965,18 +3044,26 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         if match:
             DCOInfo = { 'fpClass': "stdKnob", 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'ddoTypeID': 2, 'subTypeIDs': [] }
             return 3, DCOInfo
-    if dcoTypeDesc.get("Type") == "TypeDef" and n1TypeDesc.get("Type") == "String":
-        # Controls from TestStand UI category: Input Buffer
+    if dcoTypeDesc.get("Type") == "TypeDef" and n1TypeDesc.get("Type") in ("String","Refnum",):
+        # Controls from TestStand UI category: Input Buffer, Sequence Context
         # These use three TDs, first and last pointing at the same flat TypeDef TD; second has its own TD, of String type.
-        dcoSubTypeDesc = dcoTypeDesc.find("./TypeDesc[@Type]")
-        if dcoSubTypeDesc.get("Type") != "String": # Input buffer
+        match = True
+        dcoInnerTypeDesc = dcoTypeDesc.find("./TypeDesc[@Type]")
+        if dcoInnerTypeDesc.get("Type") == "String": # Input buffer
+            pass
+        elif dcoInnerTypeDesc.get("Type") == "Refnum" and dcoInnerTypeDesc.get("RefType") == "AutoRef": # Sequence Context
+            pass
+        else:
             match = False
+        # The type following DCO TypeID should be the same as DCO Inner TypeDesc
+        if not TypeDesc_equivalent(RSRC, fo, po, dcoInnerTypeDesc, n1TypeDesc):
+            match = False
+        # Check the finishing DDO TypeID
         if len(flatTypeIDList) > 2:
             n2FlatTypeID = flatTypeIDList[2]
             n2TypeDesc = getConsolidatedFlatType(RSRC, n2FlatTypeID, po)
         else:
             n2TypeDesc, n2FlatTypeID = None, None
-        match = True
         if dcoFlatTypeID != n2FlatTypeID:
             match = False
         if match:
