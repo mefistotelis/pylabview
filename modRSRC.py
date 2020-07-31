@@ -2823,7 +2823,7 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
             DCOInfo = { 'fpClass': "stdMeasureData", 'dcoTypeID': 0, 'partTypeIDs': partTypeIDs, 'ddoTypeID': niTypeIDShift, 'subTypeIDs': [] }
             return niTypeIDShift+1, DCOInfo
     if dcoTypeDesc.get("Type") == "TypeDef" and n1TypeDesc.get("Type") == "Cluster":
-        # Controls from TestStand UI category: Invocation Info
+        # Controls from TestStand UI category: Invocation Info, Test Data
         # These use nine TDs, first and last pointing at the same flat TypeDef TD; next there is a Cluster and after it - its content fields.
         match = True
         # Verify DCO Inner TypeDesc
@@ -2832,28 +2832,48 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
             dcoInnerTypeDescMap = dcoInnerTypeDesc.findall("./TypeDesc[@TypeID]")
         else:
             dcoInnerTypeDescMap = []
-        dcoFlatInnerTypeIDList = []
-        if True:
-            if len(dcoInnerTypeDescMap) != 5:
-                match = False
-            # Verify fields within Cluster
+        gotSpecificMatch = False
+        # Verify fields within Cluster
+        if not gotSpecificMatch: # Try Invocation Info cluster
+            dcoFlatInnerTypeIDList = []
+            checkPassed = 0
             for i, dcoInnTypeMap in enumerate(dcoInnerTypeDescMap):
                 dcoInnTypeDesc, _, dcoFlatInnTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, dcoInnTypeMap, po)
                 if dcoInnTypeDesc is None:
-                    match = False
                     break
                 if i in (0,1,): # UUT num, loop num
-                    if dcoInnTypeDesc.get("Type") != "NumInt32":
-                        match = False
+                    if dcoInnTypeDesc.get("Type") == "NumInt32":
+                        checkPassed += 1
                 elif i in (2,3,): # UUT Info, Test Name
-                    if dcoInnTypeDesc.get("Type") != "String":
-                        match = False
+                    if dcoInnTypeDesc.get("Type") == "String":
+                        checkPassed += 1
                 elif i in (4,): # Sequence Path
-                    if dcoInnTypeDesc.get("Type") != "Path":
-                        match = False
-                if not match:
-                    break
+                    if dcoInnTypeDesc.get("Type") == "Path":
+                        checkPassed += 1
                 dcoFlatInnerTypeIDList.append(dcoFlatInnTypeID)
+            if checkPassed == 5:
+                gotSpecificMatch = True
+        if not gotSpecificMatch: # Try Test Data cluster
+            dcoFlatInnerTypeIDList = []
+            checkPassed = 0
+            for i, dcoInnTypeMap in enumerate(dcoInnerTypeDescMap):
+                dcoInnTypeDesc, _, dcoFlatInnTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, dcoInnTypeMap, po)
+                if dcoInnTypeDesc is None:
+                    break
+                if i in (0,): # PASS/FAIL Flag
+                    if dcoInnTypeDesc.get("Type") == "Boolean":
+                        checkPassed += 1
+                if i in (1,): # Numeric Measurement
+                    if dcoInnTypeDesc.get("Type") == "NumFloat64":
+                        checkPassed += 1
+                elif i in (2,3,): # String Measurement, Report Text
+                    if dcoInnTypeDesc.get("Type") == "String":
+                        checkPassed += 1
+                dcoFlatInnerTypeIDList.append(dcoFlatInnTypeID)
+            if checkPassed == 4:
+                gotSpecificMatch = True
+        if not gotSpecificMatch:
+            match = False
         # The type following DCO TypeID should be the same as DCO Inner TypeDesc
         if not TypeDesc_equivalent(RSRC, fo, po, dcoInnerTypeDesc, n1TypeDesc):
             match = False
