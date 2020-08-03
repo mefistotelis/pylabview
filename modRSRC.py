@@ -2292,6 +2292,33 @@ def TypeDesc_find_unused_ranges(RSRC, fo, po, skipRm=[], VCTP_TypeDescList=None,
                 .format(po.xml,unusedRanges))
     return unusedRanges
 
+def DCO_create_VCTP_heap_entries(RSRC, fo, po, dcoIndex, dcoTypeDesc, dcoFlatTypeID, \
+      dcoExTypeDesc, dcoFlatExTypeID, VCTP, VCTP_TopLevel, VCTP_FlatTypeDescList, indexShift):
+    nIndexShift = indexShift
+    # DCO TypeDesc
+    elem = ET.Element("TypeDesc")
+    elem.set("Index", str(nIndexShift))
+    elem.set("FlatTypeID", str(dcoFlatTypeID))
+    VCTP_TopLevel.append(elem)
+    nIndexShift += 1
+    # DDO TypeDesc
+    elem = ET.Element("TypeDesc")
+    elem.set("Index", str(nIndexShift))
+    elem.set("FlatTypeID", str(dcoFlatTypeID))
+    VCTP_TopLevel.append(elem)
+    nIndexShift += 1
+    # Sub-types
+    if dcoTypeDesc.get("Type") == "Cluster":
+        dcoSubTypeDescMap = list(filter(lambda f: f.tag is not ET.Comment, dcoTypeDesc.findall("./TypeDesc")))
+        for TDTopMap in reversed(dcoSubTypeDescMap):
+            dcoSubTypeDesc, _, dcoFlatSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, TDTopMap, po)
+            elem = ET.Element("TypeDesc")
+            elem.set("Index", str(nIndexShift))
+            elem.set("FlatTypeID", str(dcoFlatSubTypeID))
+            VCTP_TopLevel.append(elem)
+            nIndexShift += 1
+    return nIndexShift - indexShift
+
 def DCO_recognize_class_from_single_typeID(RSRC, fo, po, typeID):
     """ Recognizes DCO class using only TypeID of DCO as input
 
@@ -3521,7 +3548,8 @@ def DTHP_Fix(RSRC, DTHP, ver, fo, po):
     heapRanges = DTHP_TypeDesc_matching_ranges(RSRC, fo, po, \
           VCTP_TypeDescList=VCTP_TypeDescList, \
           VCTP_FlatTypeDescList=VCTP_FlatTypeDescList)
-    dcoDataTypes = getDCOMappingForIntField(RSRC, 'defaultDataTMI', po)
+    dcoDfDataTypesMap = getDCOMappingForIntField(RSRC, 'defaultDataTMI', po)
+    dcoExDataTypesMap = getDCOMappingForIntField(RSRC, 'extraDataTMI', po)
     minIndexShift = 0
     maxTdCount = 0
     if (po.verbose > 1):
@@ -3532,43 +3560,25 @@ def DTHP_Fix(RSRC, DTHP, ver, fo, po):
             continue
         minIndexShift = rng.min
         maxTdCount = rng.max - rng.min + 1
-    if maxTdCount <= 0 and len(dcoDataTypes) > 0:
-        # if range is empty but we have dcoDataTypes, then we can create new types for DTHP
+    if maxTdCount <= 0 and len(dcoDfDataTypesMap) > 0:
+        # if range is empty but we have dcoDfDataTypesMap, then we can create new types for DTHP
         if (po.verbose > 1):
             print("{:s}: No TypeDesc entries found for DTHP; need to re-create the entries"\
                 .format(po.xml))
         minIndexShift = getMaxIndexFromList(VCTP_TypeDescList, fo, po) + 1
         maxIndexShift = minIndexShift
-        # Flat types is dcoDataTypes should be used to re-create VCTP entries needed for DTHP
+        # Flat types in dco*DataTypesMap should be used to re-create VCTP entries needed for DTHP
         VCTP_TopLevel = VCTP.find("TopLevel")
-        for dcoIndex, dcoTypeID in reversed(dcoDataTypes.items()):
+        for dcoIndex, dcoTypeID in reversed(dcoDfDataTypesMap.items()):
             dcoTypeDesc, dcoFlatTypeID = \
                   getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, dcoTypeID, po)
+            dcoExTypeDesc, dcoFlatExTypeID = \
+                  getTypeDescFromIDUsingLists(VCTP_TypeDescList, VCTP_FlatTypeDescList, dcoExDataTypesMap[dcoIndex], po)
             if (po.verbose > 1):
-                print("{:s}: Re-creating DTHP entries for DCO{} using FlatTypeID {}"\
-                    .format(po.xml,dcoIndex,dcoFlatTypeID))
-            # DCO TypeDesc
-            elem = ET.Element("TypeDesc")
-            elem.set("Index", str(maxIndexShift))
-            elem.set("FlatTypeID", str(dcoFlatTypeID))
-            VCTP_TopLevel.append(elem)
-            maxIndexShift += 1
-            # DDO TypeDesc
-            elem = ET.Element("TypeDesc")
-            elem.set("Index", str(maxIndexShift))
-            elem.set("FlatTypeID", str(dcoFlatTypeID))
-            VCTP_TopLevel.append(elem)
-            maxIndexShift += 1
-            # Sub-types
-            if dcoTypeDesc.get("Type") == "Cluster":
-                dcoSubTypeDescMap = list(filter(lambda f: f.tag is not ET.Comment, dcoTypeDesc.findall("./TypeDesc")))
-                for TDTopMap in reversed(dcoSubTypeDescMap):
-                    dcoSubTypeDesc, _, dcoFlatSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, TDTopMap, po)
-                    elem = ET.Element("TypeDesc")
-                    elem.set("Index", str(maxIndexShift))
-                    elem.set("FlatTypeID", str(dcoFlatSubTypeID))
-                    VCTP_TopLevel.append(elem)
-                    maxIndexShift += 1
+                print("{:s}: Re-creating DTHP entries for DCO{} using FlatTypeID {} Type {}"\
+                    .format(po.xml,dcoIndex,dcoFlatTypeID,dcoTypeDesc.get("Type")))
+            maxIndexShift += DCO_create_VCTP_heap_entries(RSRC, fo, po, dcoIndex, dcoTypeDesc, dcoFlatTypeID, \
+                dcoExTypeDesc, dcoFlatExTypeID, VCTP, VCTP_TopLevel, VCTP_FlatTypeDescList, maxIndexShift)
         maxTdCount = maxIndexShift - minIndexShift
     elif maxTdCount <= 0:
         if (po.verbose > 1):
@@ -3818,7 +3828,7 @@ def icl8_genDefaultIcon(title, po):
     img_data = bytes.fromhex(imageHex)
     image.putdata(img_data)
     draw = ImageDraw.Draw(image)
-    font = ImageFont.load("./assets/tom-thumb.pil")
+    font = ImageFont.load(os.path.join(sys.path[0], 'assets', 'tom-thumb.pil'))
     short_title = title
     if len(short_title) > 7:
         short_title = re.sub('[^A-Za-z0-9{}=-]', '', short_title)[:7]

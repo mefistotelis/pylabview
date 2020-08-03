@@ -372,7 +372,7 @@ class DCO(LVmisc.RSRCStructure):
       ('copyFromRtnIdx', c_uint8),
       ('misclFlags', c_uint8),
       ('unusedFillerByte', c_uint8),
-      ('subTypeDSO', c_int32),
+      ('subTypeDSO', c_int32), # Sub-Type Data Space Offset
       ('customCopyFromOffset', c_uint8 * 4),
       ('customCopyToOffset', c_uint8 * 4),
       ('customCopyOffset', c_uint8 * 4),
