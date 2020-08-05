@@ -204,12 +204,18 @@ class TM_FLAGS(enum.IntEnum):
 class TAG_TYPE(enum.Enum):
     """ Type of tag
     """
-    Unknown0 = 0
-    Unknown1 = 1
-    Unknown2 = 2
-    Unknown3 = 3
-    Unknown4 = 4
-    UserDefined = 5
+    Unknown0 =	0
+    Unknown1 =	1
+    DAQChannelOld =		2
+    Unknown3 =	3
+    Unknown4 =	4
+    UserDefined =		5
+    DAQmxScaleName =	11
+    DAQmxDeviceName =	12
+    DAQmxTerminal =		13
+    DAQmxPhysChannel =	14
+    DAQmxUnkn15 =		15
+    DAQmxSwitch =		16
 
 
 class EXT_DATA_TYPE_KIND(enum.Enum):

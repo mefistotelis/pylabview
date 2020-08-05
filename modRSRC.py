@@ -2775,8 +2775,19 @@ def DCO_recognize_fpVlass_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeD
         # These use two TDs, both pointing at the same flat index of Tag TD.
         match = True
         controlNames = []
-        # Unknown2: Traditional DAQ Channel, 11: DAQmx Scale Name, 12: DAQmx Device Name, 13: DAQmx Terminal, 14: DAQmx Physical Channel, 16: DAQmx Switch
-        if dcoTypeDesc.get("TagType") not in ("Unknown2","11","12","13","14","16",):
+        if   dcoTypeDesc.get("TagType") == "DAQChannelOld":
+            controlNames.append("Traditional DAQ Channel")
+        elif dcoTypeDesc.get("TagType") == "DAQmxScaleName":
+            controlNames.append("DAQmx Scale Name")
+        elif dcoTypeDesc.get("TagType") == "DAQmxDeviceName":
+            controlNames.append("DAQmx Device Name")
+        elif dcoTypeDesc.get("TagType") == "DAQmxTerminal":
+            controlNames.append("DAQmx Terminal")
+        elif dcoTypeDesc.get("TagType") == "DAQmxPhysChannel":
+            controlNames.append("DAQmx Physical Channel")
+        elif dcoTypeDesc.get("TagType") == "DAQmxSwitch":
+            controlNames.append("DAQmx Switch")
+        else:
             match = False
         tagDataType = dcoTypeDesc.find("./LVVariant/DataType[@Type='Void']")
         if tagDataType is None:
@@ -2794,13 +2805,22 @@ def DCO_recognize_fpVlass_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeD
         #   SequenceView Control, StatusBar Control, VariablesView Control
         match = True
         controlNames = []
-        # Ref type is AutoRef for ActiveX Container, DotNet for dotNET Container
         if   dcoTypeDesc.get("RefType") == "AutoRef" and "ActiveX" in dcoTypeDesc.get("Label"):
-            pass
-        elif dcoTypeDesc.get("RefType") == "DotNet" and "Container" in dcoTypeDesc.get("Label"):
-            pass
+            controlNames.append("ActiveX Container")
+        elif dcoTypeDesc.get("RefType") == "DotNet":
+            dNetTypeName = dcoTypeDesc.get("dNetTypeName")
+            if dNetTypeName is not None and "System.Windows.Forms.PictureBox" in dNetTypeName:
+                controlNames.append("plat-PictureBox.ctl")
+            elif dNetTypeName is not None and "System.Windows.Forms.RichTextBox" in dNetTypeName:
+                controlNames.append("plat-RichTextBox.ctl")
+            elif False:#TODO
+                controlNames.append("plat-Windows Media Player.ctl")
+            elif False:#TODO
+                controlNames.append("plat-Microsoft Web Browser.ctl")
+            else:
+                controlNames.append(".NET Container")
         elif dcoTypeDesc.get("RefType") == "AutoRef" and ("TestStand" in dcoTypeDesc.get("Label") or (int(dcoTypeDesc.get("Field20"),0) & 0x01) == 0x01):
-            pass
+            pass#TODO add controlNames
         else:
             match = False
         if match:
