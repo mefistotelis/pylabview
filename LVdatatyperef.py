@@ -497,7 +497,7 @@ class RefnumAutoRef(RefnumBase):
             items[i].classID0 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             items[i].classID4 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
             items[i].classID6 = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-            items[i].classID8 = bldata.read(8)
+            items[i].classID8 = int.from_bytes(bldata.read(8), byteorder='big', signed=False)
         if ref_flags != 0:
             self.td_obj.field20 = int.from_bytes(bldata.read(4), byteorder='big', signed=True)
             self.td_obj.field24 = int.from_bytes(bldata.read(4), byteorder='big', signed=True)
@@ -510,17 +510,17 @@ class RefnumAutoRef(RefnumBase):
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
-        data_buf += int(self.td_obj.ref_flags).to_bytes(1, byteorder='big')
-        data_buf += int(len(self.td_obj.items)).to_bytes(1, byteorder='big')
+        data_buf += int(self.td_obj.ref_flags).to_bytes(1, byteorder='big', signed=False)
+        data_buf += len(self.td_obj.items).to_bytes(1, byteorder='big', signed=False)
         for guid in self.td_obj.items:
             data_buf += int(guid.uid).to_bytes(4, byteorder='big')
-            data_buf += int(guid.classID0).to_bytes(4, byteorder='big')
-            data_buf += int(guid.classID4).to_bytes(2, byteorder='big')
-            data_buf += int(guid.classID6).to_bytes(2, byteorder='big')
-            data_buf += guid.classID8[:8]
+            data_buf += int(guid.classID0).to_bytes(4, byteorder='big', signed=False)
+            data_buf += int(guid.classID4).to_bytes(2, byteorder='big', signed=False)
+            data_buf += int(guid.classID6).to_bytes(2, byteorder='big', signed=False)
+            data_buf += int(guid.classID8).to_bytes(8, byteorder='big', signed=False)
         if self.td_obj.ref_flags != 0:
-            data_buf += int(self.td_obj.field20).to_bytes(4, byteorder='big')
-            data_buf += int(self.td_obj.field24).to_bytes(4, byteorder='big')
+            data_buf += int(self.td_obj.field20).to_bytes(4, byteorder='big', signed=True)
+            data_buf += int(self.td_obj.field24).to_bytes(4, byteorder='big', signed=True)
         return data_buf
 
     def expectedRSRCSize(self):
@@ -538,10 +538,19 @@ class RefnumAutoRef(RefnumBase):
 
     def initWithXMLItem(self, item, conn_subelem):
         item.uid = int(conn_subelem.get("UID"), 0)
-        item.classID0 = int(conn_subelem.get("ClassID0"), 0)
-        item.classID4 = int(conn_subelem.get("ClassID4"), 0)
-        item.classID6 = int(conn_subelem.get("ClassID6"), 0)
-        item.classID8 = bytes.fromhex(conn_subelem.get("ClassID8"))
+        classIdStr = conn_subelem.get("ClassID")
+        if classIdStr is not None:
+            classIdParts = classIdStr.split('-')
+        else:
+            classIdParts = []
+        if len(classIdParts) > 0:
+            item.classID0 = int(classIdParts[0], 16)
+        if len(classIdParts) > 1:
+            item.classID4 = int(classIdParts[1], 16)
+        if len(classIdParts) > 2:
+            item.classID6 = int(classIdParts[2], 16)
+        if len(classIdParts) > 3:
+            item.classID8 = int(classIdParts[3], 16)
         pass
 
     def exportXML(self, conn_elem, fname_base):
@@ -552,10 +561,8 @@ class RefnumAutoRef(RefnumBase):
 
     def exportXMLItem(self, item, conn_subelem, fname_base):
         conn_subelem.set("UID", "0x{:02X}".format(item.uid))
-        conn_subelem.set("ClassID0", "0x{:02X}".format(item.classID0))
-        conn_subelem.set("ClassID4", "0x{:02X}".format(item.classID4))
-        conn_subelem.set("ClassID6", "0x{:02X}".format(item.classID6))
-        conn_subelem.set("ClassID8", item.classID8.hex())
+        conn_subelem.set("ClassID", "{:08X}-{:04X}-{:04X}-{:016X}"\
+              .format(item.classID0,item.classID4,item.classID6,item.classID8))
         pass
 
 
