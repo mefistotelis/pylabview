@@ -2641,37 +2641,45 @@ def DCO_recognize_fpVlass_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeD
         controlNames = []
         dcoSubTDMap = dcoTypeDesc.find("./TypeDesc[@TypeID]")
         dcoSubTypeDesc, _, dcoFlatSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, dcoSubTDMap, po)
-        #TODO check these tags
         if   dcoTypeDesc.get("RefType") == "UsrDefndTag" and dcoTypeDesc.get("TypeName") == "DSC":
-            # 1: Shared Variable Control
-            if dcoSubTypeDesc.get("TagType") not in ("Unknown1",):
+            if dcoSubTypeDesc.get("TagType") == "SharedVarCtl":
+                controlNames.append("Shared Variable Control")
+            else:
                 match = False
         elif dcoTypeDesc.get("RefType") == "UsrDefndTag" and dcoTypeDesc.get("TypeName") == "NIDAQ":
-            # 9: DAQmx Task Name, 10: DAQmx Channel
-            if dcoSubTypeDesc.get("TagType") not in ("9","10",):
+            if dcoSubTypeDesc.get("TagType") == "DAQmxTaskName":
+                controlNames.append("DAQmx Task Name")
+            elif dcoSubTypeDesc.get("TagType") == "DAQmxChannel":
+                controlNames.append("DAQmx Channel")
+            else:
                 match = False
         elif dcoTypeDesc.get("RefType") == "UsrDefndTag" and dcoTypeDesc.get("TypeName") == "FieldPoint":
-            # 7: FieldPoint IO Point
-            if dcoSubTypeDesc.get("TagType") not in ("7",):
+            if dcoSubTypeDesc.get("TagType") == "FldPointIOPoint":
+                controlNames.append("FieldPoint IO Point")
+            else:
                 match = False
         elif dcoTypeDesc.get("RefType") == "UsrDefndTag" and dcoTypeDesc.get("TypeName") == "Motion":
-            # 8: Motion Resource
-            if dcoSubTypeDesc.get("TagType") not in ("8",):
+            if dcoSubTypeDesc.get("TagType") == "MotionResource":
+                controlNames.append("Motion Resource")
+            else:
                 match = False
         elif dcoTypeDesc.get("RefType") == "UsrDefndTag" and dcoTypeDesc.get("TypeName") == "nisyscfg":
-            # nisyscfg: System Configuration
             if dcoSubTypeDesc.get("TagType") not in ("UserDefined",):
                 match = False
-            n1SubIdent = dcoSubTypeDesc.find("./Ident")
-            if n1SubIdent is not None and n1SubIdent.text not in ("nisyscfg",):
+            dcoSubIdent = dcoSubTypeDesc.find("./Ident")
+            if dcoSubIdent is not None and dcoSubIdent.text in ("nisyscfg",):
+                controlNames.append("nisyscfg.ctl")
+            else:
                 match = False
         elif dcoTypeDesc.get("RefType") == "VisaRef":
-            # Unknown4: VISA resource name
-            if dcoSubTypeDesc.get("TagType") not in ("Unknown4",):
+            if dcoSubTypeDesc.get("TagType") == "VISArsrcName":
+                controlNames.append("VISA resource name")
+            else:
                 match = False
         elif dcoTypeDesc.get("RefType") == "IVIRef":
-            # Unknown3: IVI Logical Name
-            if dcoSubTypeDesc.get("TagType") not in ("Unknown3",):
+            if dcoSubTypeDesc.get("TagType") == "IVILogicalName":
+                controlNames.append("IVI Logical Name")
+            else:
                 match = False
         else:
             match = False
@@ -3727,45 +3735,12 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         # Controls from I/O category: DAQmx Channel, DAQmx Task Name, FieldPoint IO, IVI Logical Name, Motion Resource,
         #   Shared Variable Control, System Configuration, VISA Resource
         # These use three TDs, first and last pointing at the same flat Refnum TD; second has its own TD, of Tag type.
+        match = True
         if len(flatTypeIDList) > 2:
             n2FlatTypeID = flatTypeIDList[2]
             n2TypeDesc = getConsolidatedFlatType(RSRC, n2FlatTypeID, po)
         else:
             n2TypeDesc, n2FlatTypeID = None, None
-        match = True
-        if   dcoTypeDesc.get("RefType") == "UsrDefndTag" and dcoTypeDesc.get("TypeName") == "DSC":
-            # 1: Shared Variable Control
-            if n1TypeDesc.get("TagType") not in ("Unknown1",):
-                match = False
-        elif dcoTypeDesc.get("RefType") == "UsrDefndTag" and dcoTypeDesc.get("TypeName") == "NIDAQ":
-            # 9: DAQmx Task Name, 10: DAQmx Channel
-            if n1TypeDesc.get("TagType") not in ("9","10",):
-                match = False
-        elif dcoTypeDesc.get("RefType") == "UsrDefndTag" and dcoTypeDesc.get("TypeName") == "FieldPoint":
-            # 7: FieldPoint IO Point
-            if n1TypeDesc.get("TagType") not in ("7",):
-                match = False
-        elif dcoTypeDesc.get("RefType") == "UsrDefndTag" and dcoTypeDesc.get("TypeName") == "Motion":
-            # 8: Motion Resource
-            if n1TypeDesc.get("TagType") not in ("8",):
-                match = False
-        elif dcoTypeDesc.get("RefType") == "UsrDefndTag" and dcoTypeDesc.get("TypeName") == "nisyscfg":
-            # nisyscfg: System Configuration
-            if n1TypeDesc.get("TagType") not in ("UserDefined",):
-                match = False
-            n1SubIdent = n1TypeDesc.find("./Ident")
-            if n1SubIdent is not None and n1SubIdent.text not in ("nisyscfg",):
-                match = False
-        elif dcoTypeDesc.get("RefType") == "VisaRef":
-            # Unknown4: VISA resource name
-            if n1TypeDesc.get("TagType") not in ("Unknown4",):
-                match = False
-        elif dcoTypeDesc.get("RefType") == "IVIRef":
-            # Unknown3: IVI Logical Name
-            if n1TypeDesc.get("TagType") not in ("Unknown3",):
-                match = False
-        else:
-            match = False
         dcoSubTDMap = dcoTypeDesc.find("./TypeDesc[@TypeID]")
         dcoSubTypeDesc, _, dcoFlatSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, dcoSubTDMap, po)
         if dcoFlatSubTypeID != n1FlatTypeID:

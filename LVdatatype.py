@@ -205,11 +205,15 @@ class TAG_TYPE(enum.Enum):
     """ Type of tag
     """
     Unknown0 =	0
-    Unknown1 =	1
+    SharedVarCtl =		1
     DAQChannelOld =		2
-    Unknown3 =	3
-    Unknown4 =	4
+    IVILogicalName =	3
+    VISArsrcName =		4
     UserDefined =		5
+    FldPointIOPoint =	7
+    MotionResource =	8
+    DAQmxTaskName =		9
+    DAQmxChannel =		10
     DAQmxScaleName =	11
     DAQmxDeviceName =	12
     DAQmxTerminal =		13
