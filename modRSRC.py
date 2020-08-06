@@ -2796,58 +2796,115 @@ def DCO_recognize_fpVlass_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeD
             for controlName in controlNames:
                 matchingClasses.append("stdTag:"+controlName)
             matchingClasses.append("stdTag")
-    if dcoTypeDesc.get("Type") == "Refnum":
-        # Controls from Containers category: ActiveX Container, dotNET Container
-        # Controls from dotNet and ActiveX category - specific control should be recognized later.
+    if dcoTypeDesc.get("Type") == "Refnum" and dcoTypeDesc.get("RefType") == "DotNet":
+        # Controls from Containers category: dotNET Container
+        # Controls from dotNet and ActiveX category: Web Browser, Media Player
+        match = True
+        controlNames = []
+        dNetTypeName = dcoTypeDesc.get("dNetTypeName")
+        if True:
+            if dNetTypeName is not None and "System.Windows.Forms.PictureBox" in dNetTypeName:
+                controlNames.append("plat-PictureBox.ctl")
+            elif dNetTypeName is not None and "System.Windows.Forms.RichTextBox" in dNetTypeName:
+                controlNames.append("plat-RichTextBox.ctl")
+            else:
+                controlNames.append(".NET Container")
+        if match:
+            for controlName in controlNames:
+                matchingClasses.append("stdCont:"+controlName)
+            matchingClasses.append("stdCont")
+    if dcoTypeDesc.get("Type") == "Refnum" and dcoTypeDesc.get("RefType") == "AutoRef":
+        # Controls from Containers category: ActiveX Container
         # Controls from TestStand UI category: Application Manager, Button Control, CheckBox Control,
         #   ComboBox Control, ExecutionView Manager, ExpressionEdit Control, InsertionPalette Control,
         #   Label Control, ListBar Control, ListBox Control, ReportView Control, SequenceFileView Manager,
         #   SequenceView Control, StatusBar Control, VariablesView Control
         match = True
         controlNames = []
-        if   dcoTypeDesc.get("RefType") == "AutoRef" and "ActiveX" in dcoTypeDesc.get("Label"):
-            controlNames.append("ActiveX Container")
-        elif dcoTypeDesc.get("RefType") == "DotNet":
-            dNetTypeName = dcoTypeDesc.get("dNetTypeName")
-            if dNetTypeName is not None and "System.Windows.Forms.PictureBox" in dNetTypeName:
-                controlNames.append("plat-PictureBox.ctl")
-            elif dNetTypeName is not None and "System.Windows.Forms.RichTextBox" in dNetTypeName:
-                controlNames.append("plat-RichTextBox.ctl")
-            elif False:#TODO
-                controlNames.append("plat-Windows Media Player.ctl")
-            elif False:#TODO
+        dcoTypeItemList = dcoTypeDesc.findall("./Item[@ClassID]")
+        if True:
+            if   "D30C1661-CDAF-11D0-8A3E00C04FC9E26E" in [ itm.get("ClassID") for itm in dcoTypeItemList ]: # IWebBrowser2
                 controlNames.append("plat-Microsoft Web Browser.ctl")
+            elif "EAB22AC0-30C1-11CF-A7EB0000C05BAE0B" in [ itm.get("ClassID") for itm in dcoTypeItemList ]: # Microsoft Internet Controls
+                controlNames.append("plat-Microsoft Web Browser.ctl")
+            elif "6BF52A50-394A-11D3-B15300C04F79FAA6" in [ itm.get("ClassID") for itm in dcoTypeItemList ]: # WMPLib
+                controlNames.append("plat-Windows Media Player.ctl")
+            elif "03B81820-510E-42C6-93B8CFA253794662" in [ itm.get("ClassID") for itm in dcoTypeItemList ]: # TestStand User Interface
+                if "D0743B7D-50BF-409D-87DF49983721DFDC" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                    controlNames.append("TestStand UI Application Manager.ctl")
+                elif "A6FA998E-98EF-11D2-93B700A02411EBE6" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                    controlNames.append("TestStand UI Button Control.ctl")
+                elif "661BD29B-11CC-4666-B4B8C9DE53E5F1AB" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                    controlNames.append("TestStand UI CheckBox Control.ctl")
+                elif "BE676080-61AC-11D5-8EFA0050DAC50018" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                    controlNames.append("TestStand UI ComboBox Control.ctl")
+                elif "0B2D723F-0A05-40FE-A0FC362EF92A1DCB" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                    controlNames.append("TestStand UI ExecutionView Manager.ctl")
+                elif "FDD24392-1132-424D-BF4B77F0F0801F7A" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                    controlNames.append("TestStand UI ExpressionEdit Control.ctl")
+                elif "7575ABC2-9520-4EF4-9DF82C33B6DA18BC" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                    controlNames.append("TestStand UI InsertionPalette Control.ctl")
+                elif "C50FD121-99BF-11D2-93B700A02411EBE6" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                    controlNames.append("TestStand UI Label Control.ctl")
+                elif "5CA55AC1-A7F1-470C-90943DBEEFE0ACF9" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                    controlNames.append("TestStand UI ListBar Control.ctl")
+                elif "A6FA998B-98EF-11D2-93B700A02411EBE6" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                    controlNames.append("TestStand UI ListBox Control.ctl")
+                elif "F54F4EBA-497C-11D5-8EEB0050DAC50018" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                    controlNames.append("TestStand UI ReportView Control.ctl")
+                elif "817D7C9A-8F4B-4BB7-AEA6E118CEB0F823" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                    controlNames.append("TestStand UI SequenceFileView Manager.ctl")
+                elif "34B7E073-5533-4A8A-A6511230C0E6500A" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                    controlNames.append("TestStand UI SequenceView Control.ctl")
+                elif "9CE1ADA4-09A8-4158-B1E2F3489316E12B" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                    controlNames.append("TestStand UI StatusBar Control.ctl")
+                elif "AABDF204-CD20-4FDF-822E5DB98192A4B9" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                    controlNames.append("TestStand UI VariablesView Control.ctl")
+                else:
+                    controlNames.append("TestStand UI Unknown Control.ctl") # Not a real thing
             else:
-                controlNames.append(".NET Container")
-        elif dcoTypeDesc.get("RefType") == "AutoRef" and ("TestStand" in dcoTypeDesc.get("Label") or (int(dcoTypeDesc.get("Field20"),0) & 0x01) == 0x01):
-            pass#TODO add controlNames
-        else:
-            match = False
+                controlNames.append("ActiveX Container")
         if match:
             for controlName in controlNames:
                 matchingClasses.append("stdCont:"+controlName)
             matchingClasses.append("stdCont")
-    if dcoTypeDesc.get("Type") == "Refnum":
+    if dcoTypeDesc.get("Type") == "Refnum" and dcoTypeDesc.get("RefType") == "LVObjCtl":
         # Controls from 3D Graph category: 3D Picture
-        # The difference between this and App Refnum is in CtlFlags
+        # Controls from Refnum category: Application Refnum, Control Refnum, VI Refnum
+        # The difference between these is in CtlFlags
         match = True
         controlNames = []
-        if dcoTypeDesc.get("RefType") != "LVObjCtl":
-            match = False
         CtlFlags = dcoTypeDesc.get("CtlFlags")
         if CtlFlags is not None:
             CtlFlags = int(CtlFlags,0)
-        if CtlFlags is None or ((CtlFlags & 0x0068) != 0x0068):
-            match = False
+        else:
+            CtlFlags = 0
         if match:
-            for controlName in controlNames:
-                matchingClasses.append("scenegraphdisplay:"+controlName)
-            matchingClasses.append("scenegraphdisplay")
+            if ((CtlFlags & 0x006e) == 0x0068):
+                controlNames.append("3D Picture")
+                for controlName in controlNames:
+                    matchingClasses.append("scenegraphdisplay:"+controlName)
+                matchingClasses.append("scenegraphdisplay")
+            else:
+                if ((CtlFlags & 0x006e) == 0x0006):
+                    controlNames.append("Control Refnum")
+                elif ((CtlFlags & 0x006e) == 0x0002):
+                    controlNames.append("VI Refnum")
+                else:
+                    controlNames.append("Application Refnum")
+                for controlName in controlNames:
+                    matchingClasses.append("stdRefNum:"+controlName)
+                matchingClasses.append("stdRefNum")
     if dcoTypeDesc.get("Type") == "Refnum":
         # Controls from Variant and Class category: LvObject
         match = True
         controlNames = []
         if dcoTypeDesc.get("RefType") != "UDClassInst":
+            match = False
+        dcoTypeItemList = dcoTypeDesc.findall("./Item")
+        if   "LabVIEW Object" in [ itm.get("Text") for itm in dcoTypeItemList ]:
+            controlNames.append("LabVIEW Object")
+        else:
             match = False
         if match:
             for controlName in controlNames:
@@ -2855,39 +2912,37 @@ def DCO_recognize_fpVlass_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeD
             matchingClasses.append("udClassDDO")
     if dcoTypeDesc.get("Type") == "Refnum":
         # Controls from I/O category: IMAQ Session
-        # Controls from Refnum category: App Refnum, Automation Refnum, Bluetooth Refnum, Byte Stream Refnum,
-        #   Ctl Refnum, Data Log Refnum, DataSocket Refnum, dotNET Refnum, Event Callback, Irda Network,
-        #   Menu Refnum, Occurrence Refnum, TCP Network, UDP Network, VI Refnum
+        # Controls from Refnum category: Automation Refnum, Bluetooth Refnum, Byte Stream Refnum,
+        #   Data Log Refnum, DataSocket Refnum, dotNET Refnum, Event Callback, Irda Network,
+        #   Menu Refnum, Occurrence Refnum, TCP Network, UDP Network
         match = True
         controlNames = []
         if   dcoTypeDesc.get("RefType") == "Imaq" and dcoTypeDesc.get("Ident") == "IMAQ":
-            pass
-        elif dcoTypeDesc.get("RefType") == "LVObjCtl":
-            pass
+            controlNames.append("IMAQ Session")
         elif dcoTypeDesc.get("RefType") == "AutoRef":
-            pass
+            controlNames.append("Automation Refnum")
         elif dcoTypeDesc.get("RefType") == "BluetoothCon":
-            pass
+            controlNames.append("Bluetooth Network Connection Refnum")
         elif dcoTypeDesc.get("RefType") == "ByteStream":
-            pass
+            controlNames.append("Byte Stream File Refnum")
         elif dcoTypeDesc.get("RefType") == "DataLog":
-            pass
+            controlNames.append("Data Log File Refnum")
         elif dcoTypeDesc.get("RefType") == "DataSocket":
-            pass
+            controlNames.append("DataSocket Refnum")
         elif dcoTypeDesc.get("RefType") == "DotNet":
-            pass
+            controlNames.append(".NET Refnum")
         elif dcoTypeDesc.get("RefType") == "Callback" and dcoTypeDesc.get("Ident") == "Event Callback":
-            pass
+            controlNames.append("Event Callback Refnum")
         elif dcoTypeDesc.get("RefType") == "IrdaNetConn":
-            pass
+            controlNames.append("IrDA Network Connection Refnum")
         elif dcoTypeDesc.get("RefType") == "Menu":
-            pass
+            controlNames.append("Menu Refnum")
         elif dcoTypeDesc.get("RefType") == "Occurrence":
-            pass
+            controlNames.append("Occurrence Refnum")
         elif dcoTypeDesc.get("RefType") == "TCPNetConn":
-            pass
+            controlNames.append("TCP Network Connection Refnum")
         elif dcoTypeDesc.get("RefType") == "UDPNetConn":
-            pass
+            controlNames.append("UDP Network Connection Refnum")
         else:
             match = False
         if match:
@@ -2898,12 +2953,14 @@ def DCO_recognize_fpVlass_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeD
         # Controls from Variant and Class category: LVVariant
         match = True
         controlNames = []
+        controlNames.append("Variant")
         if match:
             for controlName in controlNames:
                 matchingClasses.append("stdLvVariant:"+controlName)
             matchingClasses.append("stdLvVariant")
     if dcoTypeDesc.get("Type") == "Refnum":
         # Controls from Containers category, FP parts: Sub Panel
+        #TODO This has NO DCO - how can we support it?
         match = True
         controlNames = []
         if dcoTypeDesc.get("RefType") not in ("LVObjCtl",):
