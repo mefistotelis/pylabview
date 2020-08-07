@@ -1521,8 +1521,8 @@ def FPHb_elemCheckOrCreate_zPlaneList_DCO(RSRC, paneHierarchy_zPlaneList, fo, po
         corBR = [corTL[0],corTL[1]]
         dco_elem = None
         ddo_partsList = None
-        eprint("{:s}: Warning: Heap dcoTypeDesc '{}' {} is not supported"\
-          .format(po.xml,dcoTypeDesc.get("Type"),typeCtlOrInd))
+        eprint("{:s}: Warning: Heap DCO '{}' creation from dcoTypeDesc '{}' {} is not supported"\
+          .format(po.xml,fpClass,dcoTypeDesc.get("Type"),typeCtlOrInd))
 
     if defineDDO: # DDO level - order components horizontally
         if corBR[0] < 1066: # TODO this needs to be done without hard-coding width
@@ -1750,7 +1750,7 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
         else:
             eprint("{:s}: Warning: Heap TypeDesc {} expected for DCO{} does not match known TD patterns"\
               .format(po.xml,usedTypeID,DCO['dcoIndex']))
-            DCOInfo = { 'fpClass': "stdNum", 'dcoTypeID': usedTypeID, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': usedTypeID, 'subTypeIDs': [] }
+            DCOInfo = { 'fpClass': "stdNum", 'dcoName': None, 'dcoTypeID': usedTypeID, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': usedTypeID, 'subTypeIDs': [] }
             dcoTDCount = 1
         # Store the values inside DCO
         DCO.update(DCOInfo)
@@ -3087,7 +3087,7 @@ def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescLis
     subTypeIDs = [ typeID + typeIndex for typeIndex in DCOShiftInfo['subTypeIDs'] ]
     extraTypeID = (typeID + DCOShiftInfo['extraTypeID']) if DCOShiftInfo['extraTypeID'] is not None else None
     ddoTypeID = typeID + DCOShiftInfo['ddoTypeID']
-    DCOTopInfo = { 'fpClass': DCOShiftInfo['fpClass'], 'dcoTypeID': dcoTypeID, 'partTypeIDs': partTypeIDs, 'extraTypeID': extraTypeID, 'ddoTypeID': ddoTypeID, 'subTypeIDs': subTypeIDs }
+    DCOTopInfo = { 'fpClass': DCOShiftInfo['fpClass'], 'dcoName': DCOShiftInfo['dcoName'], 'dcoTypeID': dcoTypeID, 'partTypeIDs': partTypeIDs, 'extraTypeID': extraTypeID, 'ddoTypeID': ddoTypeID, 'subTypeIDs': subTypeIDs }
     return tdCount, DCOTopInfo
 
 def DCO_recognize_TDs_after_cluster_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTypeIDList, flatClusterTypeIDList):
@@ -3188,7 +3188,8 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         if dcoFlatTypeID != n5FlatTypeID:
             match = False
         if match:
-            DCOInfo = { 'fpClass': "typeDef", 'dcoTypeID': 0, 'partTypeIDs': partTypeIDs, 'extraTypeID': 1+nDimensions+0, 'ddoTypeID': 1+nDimensions+2, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': partTypeIDs, 'extraTypeID': 1+nDimensions+0, 'ddoTypeID': 1+nDimensions+2, 'subTypeIDs': [] }
             return 1+nDimensions+3, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("radioClust:Radio Buttons",)]
     if len(dcoClass) > 0 and dcoTypeDesc.get("Type") == n1TypeDesc.get("Type") and dcoFlatTypeID == n1FlatTypeID:
@@ -3214,7 +3215,8 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         if len(subFlatTypeIDs) > len(set(subFlatTypeIDs)):
             match = False # Some types repeat - fail
         if match:
-            DCOInfo = { 'fpClass': "radioClust", 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': subTypeIDs }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': subTypeIDs }
             return 2+len(dcoSubTypeEnumLabels), DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("tabControl:Tab Control",)]
     if len(dcoClass) > 0 and n1TypeDesc.get("Type") == "UnitUInt32" and dcoFlatTypeID != n1FlatTypeID:
@@ -3235,7 +3237,8 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         if dcoFlatTypeID != n3FlatTypeID:
             match = False
         if match:
-            DCOInfo = { 'fpClass': "tabControl", 'dcoTypeID': 0, 'partTypeIDs': [ 1, 2 ], 'extraTypeID': None, 'ddoTypeID': 3, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [ 1, 2 ], 'extraTypeID': None, 'ddoTypeID': 3, 'subTypeIDs': [] }
             return 4, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("typeDef:LabVIEW Test - Invocation Info.ctl","typeDef:LabVIEW Test - Test Data.ctl",)]
     if len(dcoClass) > 0 and n1TypeDesc.get("Type") == "Cluster":
@@ -3269,7 +3272,8 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
                 match = False
         ddoTypeIDShift = niTypeIDShift+len(partTypeIDs)
         if match:
-            DCOInfo = { 'fpClass': "typeDef", 'dcoTypeID': 0, 'partTypeIDs': partTypeIDs, 'extraTypeID': None, 'ddoTypeID': ddoTypeIDShift, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': partTypeIDs, 'extraTypeID': None, 'ddoTypeID': ddoTypeIDShift, 'subTypeIDs': [] }
             return ddoTypeIDShift+1, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("stdGraph:Digital Waveform Graph","stdGraph:Waveform Graph", \
           "stdGraph:Intensity Chart","stdGraph:XY Graph","stdGraph:Express XY Graph","stdGraph:Waveform Chart",)]
@@ -3493,7 +3497,8 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         if hasHistTD:
             subTypeIDs.append(ddoTypeIDShift+1)
         if match:
-            DCOInfo = { 'fpClass': "stdGraph", 'dcoTypeID': 0, 'partTypeIDs': partTypeIDs, 'extraTypeID': None, 'ddoTypeID': ddoTypeIDShift, 'subTypeIDs': subTypeIDs }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': partTypeIDs, 'extraTypeID': None, 'ddoTypeID': ddoTypeIDShift, 'subTypeIDs': subTypeIDs }
             return ddoTypeIDShift+len(subTypeIDs)+1, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("stdClust:Cluster",)]
     if len(dcoClass) > 0 and n1TypeDesc.get("Type") == "Cluster" and dcoFlatTypeID == n1FlatTypeID:
@@ -3517,7 +3522,8 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         else:
             match = False
         if match:
-            DCOInfo = { 'fpClass': "stdClust", 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': subTypeIDs }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': subTypeIDs }
             return tdShift, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("stdMeasureData:Digital Waveform.ctl","stdMeasureData:Waveform",)]
     if len(dcoClass) > 0 and n1TypeDesc.get("Type") == "Cluster":
@@ -3603,7 +3609,8 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         if dcoFlatTypeID != ddoFlatTypeID:
                 match = False
         if match:
-            DCOInfo = { 'fpClass': "stdMeasureData", 'dcoTypeID': 0, 'partTypeIDs': partTypeIDs, 'extraTypeID': None, 'ddoTypeID': niTypeIDShift, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': partTypeIDs, 'extraTypeID': None, 'ddoTypeID': niTypeIDShift, 'subTypeIDs': [] }
             return niTypeIDShift+1, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("tableControl:Table Control","tableControl:mergeTable.vi",)]
     if len(dcoClass) > 0 and n1TypeDesc.get("Type") == "NumUInt32" and dcoFlatTypeID != n1FlatTypeID:
@@ -3627,7 +3634,8 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         if dcoFlatTypeID != n3FlatTypeID:
             match = False
         if match:
-            DCOInfo = { 'fpClass': "tableControl", 'dcoTypeID': 0, 'partTypeIDs': [ 1, 2 ], 'extraTypeID': None, 'ddoTypeID': 3, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [ 1, 2 ], 'extraTypeID': None, 'ddoTypeID': 3, 'subTypeIDs': [] }
             return 4, DCOInfo
 
     # Controls which use three or less FP TypeDefs are left below
@@ -3733,7 +3741,8 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
                     if stateTypeDesc.get("Type") != "NumUInt32":
                         match = False
         if match:
-            DCOInfo = { 'fpClass': "xControl", 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [ 2 ] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [ 2 ] }
             return 3, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("stdKnob:Knob","stdKnob:Dial","stdKnob:Gauge","stdKnob:Meter",)]
     if len(dcoClass) > 0 and dcoTypeDesc.get("Type") == n1TypeDesc.get("Type") and dcoFlatTypeID != n1FlatTypeID:
@@ -3747,7 +3756,8 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         if dcoFlatTypeID != n2FlatTypeID:
                 match = False
         if match:
-            DCOInfo = { 'fpClass': "stdKnob", 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'extraTypeID': None, 'ddoTypeID': 2, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'extraTypeID': None, 'ddoTypeID': 2, 'subTypeIDs': [] }
             return 3, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("stdSlide:Slide","stdSlide:Bar","stdSlide:Tank","stdSlide:Thermometer",)]
     if len(dcoClass) > 0 and dcoTypeDesc.get("Type") == n1TypeDesc.get("Type") and dcoFlatTypeID != n1FlatTypeID:
@@ -3761,7 +3771,8 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         if dcoFlatTypeID != n2FlatTypeID:
                 match = False
         if match:
-            DCOInfo = { 'fpClass': "stdSlide", 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'extraTypeID': None, 'ddoTypeID': 2, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'extraTypeID': None, 'ddoTypeID': 2, 'subTypeIDs': [] }
             return 3, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("typeDef:LabVIEW Test - Input Buffer.ctl","typeDef:LabVIEW Test - Sequence Context.ctl",)]
     if len(dcoClass) > 0 and n1TypeDesc.get("Type") in ("String","Refnum",):
@@ -3780,7 +3791,8 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         if dcoFlatTypeID != n2FlatTypeID:
             match = False
         if match:
-            DCOInfo = { 'fpClass': "typeDef", 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'extraTypeID': None, 'ddoTypeID': 2, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'extraTypeID': None, 'ddoTypeID': 2, 'subTypeIDs': [] }
             return 3, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("stdRefNum:Shared Variable Control","stdRefNum:DAQmx Task Name",\
           "stdRefNum:DAQmx Channel","stdRefNum:FieldPoint IO Point","stdRefNum:Motion Resource",\
@@ -3798,7 +3810,8 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         if dcoFlatSubTypeID != n1FlatTypeID:
             match = False
         if match:
-            DCOInfo = { 'fpClass': "stdRefNum", 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'extraTypeID': None, 'ddoTypeID': 2, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'extraTypeID': None, 'ddoTypeID': 2, 'subTypeIDs': [] }
             return 3, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("absTime:Time Stamp",)]
     if len(dcoClass) > 0 and n1TypeDesc.get("Type") == "Boolean" and dcoFlatTypeID != n1FlatTypeID:
@@ -3812,7 +3825,8 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         if dcoFlatTypeID != n2FlatTypeID:
                 match = False
         if match:
-            DCOInfo = { 'fpClass': "absTime", 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'extraTypeID': None, 'ddoTypeID': 2, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'extraTypeID': None, 'ddoTypeID': 2, 'subTypeIDs': [] }
             return 3, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("stdComboBox:Combo Box",)]
     if len(dcoClass) > 0 and n1TypeDesc.get("Type") == "NumInt32" and dcoFlatTypeID != n1FlatTypeID:
@@ -3826,7 +3840,8 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         if dcoFlatTypeID != n2FlatTypeID:
                 match = False
         if match:
-            DCOInfo = { 'fpClass': "stdComboBox", 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'extraTypeID': None, 'ddoTypeID': 2, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'extraTypeID': None, 'ddoTypeID': 2, 'subTypeIDs': [] }
             return 3, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("indArr:Array",)]
     if len(dcoClass) > 0 and n1TypeDesc.get("Type") == "NumUInt32" and dcoFlatTypeID != n1FlatTypeID:
@@ -3840,7 +3855,8 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         if dcoFlatTypeID != n2FlatTypeID:
                 match = False
         if match:
-            DCOInfo = { 'fpClass': "indArr", 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'extraTypeID': None, 'ddoTypeID': 2, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'extraTypeID': None, 'ddoTypeID': 2, 'subTypeIDs': [] }
             return 3, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("stdPath:File Path",)]
     if len(dcoClass) > 0 and n1TypeDesc.get("Type") == "Boolean" and dcoFlatTypeID != n1FlatTypeID:
@@ -3854,7 +3870,8 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         if dcoFlatTypeID != n2FlatTypeID:
                 match = False
         if match:
-            DCOInfo = { 'fpClass': "stdPath", 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'extraTypeID': None, 'ddoTypeID': 2, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [ 1 ], 'extraTypeID': None, 'ddoTypeID': 2, 'subTypeIDs': [] }
             return 3, DCOInfo
 
     # Controls which use two or less FP TypeDefs are left below
@@ -3863,53 +3880,61 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
     if len(dcoClass) > 0 and n1TypeDesc.get("Type") == "Boolean" and dcoFlatTypeID == n1FlatTypeID:
         # These use two TDs, both pointing at the same flat index of Boolean TD.
         if True:
-            DCOInfo = { 'fpClass': "stdBool", 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("stdNum:Numeric","stdColorNum:Framed Color Box",
           "scrollbar:Scrollbar","listbox:Listbox","listbox:Multicolumn Listbox",)]
     if len(dcoClass) > 0 and n1TypeDesc.get("Type").startswith("Num") and dcoFlatTypeID == n1FlatTypeID:
         # These use two TDs, both pointing at the same flat Number TD.
         if True:
-            DCOInfo = { 'fpClass': "stdNum", 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("stdString:String",)]
     if len(dcoClass) > 0 and n1TypeDesc.get("Type") == "String" and dcoFlatTypeID == n1FlatTypeID:
         # These use two TDs, both pointing at the same flat index of String TD.
         if True:
-            DCOInfo = { 'fpClass': "stdString", 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("stdPict:2D Picture","stdPict:Distribution Plot", \
           "stdPict:Min-Max Plot","stdPict:Polar Plot","stdPict:Radar Plot","stdPict:Smith Plot",)]
     if len(dcoClass) > 0 and n1TypeDesc.get("Type") == "Picture" and dcoFlatTypeID == n1FlatTypeID:
         # These use two TDs, both pointing at the same flat index of Picture TD.
         if True:
-            DCOInfo = { 'fpClass': "stdPict", 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("digitalTable:Digital Data",)]
     if len(dcoClass) > 0 and n1TypeDesc.get("Type") == "MeasureData" and dcoFlatTypeID == n1FlatTypeID:
         # These use two TDs, both pointing at the same flat index of Tag TD.
         if True:
-            DCOInfo = { 'fpClass': "digitalTable", 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("stdRing:Font Enum.ctl",)]
     if len(dcoClass) > 0 and dcoTypeDesc.get("Type") == n1TypeDesc.get("Type") and dcoFlatTypeID == n1FlatTypeID:
         # These use two Unit TDs; both Unit TDs are pointing at the same flat index of UnitUInt TD.
         if True:
-            DCOInfo = { 'fpClass': "stdRing", 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("stdTag:Traditional DAQ Channel","stdTag:DAQmx Scale Name", \
           "stdTag:DAQmx Device Name","stdTag:DAQmx Terminal","stdTag:DAQmx Physical Channel","stdTag:DAQmx Switch",)]
     if len(dcoClass) > 0 and n1TypeDesc.get("Type") == "Tag" and dcoFlatTypeID == n1FlatTypeID:
         # These use two TDs, both pointing at the same flat index of Tag TD.
         if True:
-            DCOInfo = { 'fpClass': "stdTag", 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("stdCont:plat-PictureBox.ctl","stdCont:plat-RichTextBox.ctl","stdCont:.NET Container",)]
     if len(dcoClass) > 0 and n1TypeDesc.get("Type") == "Refnum" and dcoFlatTypeID == n1FlatTypeID:
         # These use two TDs, both pointing at the same flat index of Refnum TD.
         # Existence of Containers in the VI can be determined by existence of VINS block with multiple entries.
         if True:
-            DCOInfo = { 'fpClass': "stdCont", 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("stdCont:ActiveX Container", \
           "stdCont:plat-Microsoft Web Browser.ctl","stdCont:plat-Microsoft Web Browser.ctl", \
@@ -3926,26 +3951,30 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         # These use two TDs, both pointing at the same flat index of Refnum TD.
         # Existence of Containers in the VI can be determined by existence of VINS block with multiple entries.
         if True:
-            DCOInfo = { 'fpClass': "stdCont", 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("scenegraphdisplay:3D Picture",)]
     if len(dcoClass) > 0 and n1TypeDesc.get("Type") == "Refnum" and dcoFlatTypeID == n1FlatTypeID:
         # These use two TDs, both pointing at the same flat index of Refnum TD.
         if True:
-            DCOInfo = { 'fpClass': "scenegraphdisplay", 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("stdRefNum:Control Refnum","stdRefNum:VI Refnum","stdRefNum:Application Refnum",)]
     if len(dcoClass) > 0 and n1TypeDesc.get("Type") == "Refnum" and dcoFlatTypeID == n1FlatTypeID:
         # These use two TDs, both pointing at the same flat index of Refnum TD.
         if True:
-            DCOInfo = { 'fpClass': "stdRefNum", 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("udClassDDO:LabVIEW Object",)]
     if len(dcoClass) > 0 and n1TypeDesc.get("Type") == "Refnum" and dcoFlatTypeID == n1FlatTypeID:
         # Controls from Variant and Class category: LvObject
         # These use two TDs, both pointing at the same flat index of Refnum TD.
         if True:
-            DCOInfo = { 'fpClass': "udClassDDO", 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("stdRefNum:IMAQ Session","stdRefNum:Automation Refnum", \
           "stdRefNum:Bluetooth Network Connection Refnum","stdRefNum:Byte Stream File Refnum", \
@@ -3960,14 +3989,16 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         #   Menu Refnum, Occurrence Refnum, TCP Network, UDP Network, VI Refnum
         # These use two TDs, both pointing at the same flat index of Refnum TD.
         if True:
-            DCOInfo = { 'fpClass': "stdRefNum", 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("stdLvVariant:Variant",)]
     if len(dcoClass) > 0 and n1TypeDesc.get("Type") == "LVVariant" and dcoFlatTypeID == n1FlatTypeID:
         # Controls from Variant and Class category: LVVariant
         # These use two TDs, both pointing at the same flat index of LVVariant TD.
         if True:
-            DCOInfo = { 'fpClass': "stdLvVariant", 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 1, 'subTypeIDs': [] }
             return 2, DCOInfo
     dcoClass = [itm for itm in matchingClasses if itm in ("grouper:Sub Panel",)]
     if len(dcoClass) > 0:
@@ -3976,7 +4007,8 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
         # These controls have FP TypeIDs and BD TypeIDs - this will match the FP part only.
         # We're using only one TD entry here, but we've requested 2 - that's not an issue, since this DCO enforces a lot of following BD heap TDs
         if True:
-            DCOInfo = { 'fpClass': "grouper", 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 0, 'subTypeIDs': [] }
+            dcoProps = dcoClass[0].split(':',2)
+            DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': [], 'extraTypeID': None, 'ddoTypeID': 0, 'subTypeIDs': [] }
             return 1, DCOInfo
 
     #TODO recognize BD part of Sub Panel (maybe separate function for BD recognition?)
