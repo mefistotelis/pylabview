@@ -2495,7 +2495,7 @@ def DCO_recognize_fpVlass_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeD
             matchingClasses.append("stdGraph")
     if dcoTypeDesc.get("Type") == "Cluster":
         # Controls from Array/Matrix/Cluster category: Cluster
-        #TODO Also matches control from Graph Datatypes category: Point, Rect, Text Alignment, User Font
+        # Controls from Graph Datatypes category: Point, Rect, Text Alignment, User Font
         match = True
         controlNames = []
         dcoSubTypeDescMap = dcoTypeDesc.findall("./TypeDesc")
@@ -2505,7 +2505,108 @@ def DCO_recognize_fpVlass_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeD
             # The types inside come from a DCO, so its type needs to be supported as well
             if len(DCO_recognize_fpVlass_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeDescList, dcoSubTypeDesc)) < 1:
                 match = False
-        controlNames.append("Cluster")
+        if len(controlNames) < 1:
+            innerMatch = True
+            if len(dcoSubTypeDescMap) != 8:
+                innerMatch = False
+            for i, TDTopMap in enumerate(dcoSubTypeDescMap):
+                dcoSubTypeDesc, _, dcoFlatSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, TDTopMap, po)
+                if dcoSubTypeDesc is None:
+                    innerMatch = False
+                elif i in (0,):
+                    if dcoSubTypeDesc.get("Type") != "String":
+                        innerMatch = False
+                elif i in (1,):
+                    if dcoSubTypeDesc.get("Type") != "NumInt16":
+                        innerMatch = False
+                elif i >= 2:
+                    if dcoSubTypeDesc.get("Type") != "Boolean":
+                        innerMatch = False
+                if not innerMatch:
+                    break
+            if innerMatch:
+                controlNames.append("User Font.ctl")
+        if len(controlNames) < 1:
+            innerMatch = True
+            if len(dcoSubTypeDescMap) != 2:
+                innerMatch = False
+            for i, TDTopMap in enumerate(dcoSubTypeDescMap):
+                dcoSubTypeDesc, _, dcoFlatSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, TDTopMap, po)
+                if dcoSubTypeDesc is None:
+                    innerMatch = False
+                elif i in (0,):
+                    if dcoSubTypeDesc.get("Type") != "UnitUInt16":
+                        innerMatch = False
+                    dcoSubTypeEnumLabels = dcoSubTypeDesc.findall("./EnumLabel")
+                    if [elem.text for elem in dcoSubTypeEnumLabels] != ["left","center","right"]:
+                        innerMatch = False
+                elif i in (1,):
+                    if dcoSubTypeDesc.get("Type") != "UnitUInt16":
+                        innerMatch = False
+                    dcoSubTypeEnumLabels = dcoSubTypeDesc.findall("./EnumLabel")
+                    if [elem.text for elem in dcoSubTypeEnumLabels] != ["top","center","bottom"]:
+                        innerMatch = False
+                if not innerMatch:
+                    break
+            if innerMatch:
+                controlNames.append("Text Alignment.ctl")
+        if len(controlNames) < 1:
+            innerMatch = True
+            if len(dcoSubTypeDescMap) != 4:
+                innerMatch = False
+            for i, TDTopMap in enumerate(dcoSubTypeDescMap):
+                dcoSubTypeDesc, _, dcoFlatSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, TDTopMap, po)
+                if dcoSubTypeDesc is None:
+                    innerMatch = False
+                elif i in (0,):
+                    if dcoSubTypeDesc.get("Type") != "NumInt16":
+                        innerMatch = False
+                    if dcoSubTypeDesc.get("Label") != "left":
+                        innerMatch = False
+                elif i in (1,):
+                    if dcoSubTypeDesc.get("Type") != "NumInt16":
+                        innerMatch = False
+                    if dcoSubTypeDesc.get("Label") != "top":
+                        innerMatch = False
+                elif i in (2,):
+                    if dcoSubTypeDesc.get("Type") != "NumInt16":
+                        innerMatch = False
+                    if dcoSubTypeDesc.get("Label") != "right":
+                        innerMatch = False
+                elif i in (3,):
+                    if dcoSubTypeDesc.get("Type") != "NumInt16":
+                        innerMatch = False
+                    if dcoSubTypeDesc.get("Label") != "bottom":
+                        innerMatch = False
+                if not innerMatch:
+                    break
+            if innerMatch:
+                controlNames.append("Rect.ctl")
+        if len(controlNames) < 1:
+            innerMatch = True
+            if len(dcoSubTypeDescMap) != 2:
+                innerMatch = False
+            for i, TDTopMap in enumerate(dcoSubTypeDescMap):
+                dcoSubTypeDesc, _, dcoFlatSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, TDTopMap, po)
+                if dcoSubTypeDesc is None:
+                    innerMatch = False
+                elif i in (0,):
+                    if dcoSubTypeDesc.get("Type") != "NumInt16":
+                        innerMatch = False
+                    if dcoSubTypeDesc.get("Label") != "x":
+                        innerMatch = False
+                elif i in (1,):
+                    if dcoSubTypeDesc.get("Type") != "NumInt16":
+                        innerMatch = False
+                    if dcoSubTypeDesc.get("Label") != "y":
+                        innerMatch = False
+                if not innerMatch:
+                    break
+            if innerMatch:
+                controlNames.append("Point.ctl")
+        # If speciifc cluster type was not recognized, set the control type to generic cluster
+        if len(controlNames) < 1:
+            controlNames.append("Cluster")
         if match:
             for controlName in controlNames:
                 matchingClasses.append("stdClust:"+controlName)
@@ -3500,7 +3601,8 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
             dcoProps = dcoClass[0].split(':',2)
             DCOInfo = { 'fpClass': dcoProps[0], 'dcoName': dcoProps[1], 'dcoTypeID': 0, 'partTypeIDs': partTypeIDs, 'extraTypeID': None, 'ddoTypeID': ddoTypeIDShift, 'subTypeIDs': subTypeIDs }
             return ddoTypeIDShift+len(subTypeIDs)+1, DCOInfo
-    dcoClass = [itm for itm in matchingClasses if itm in ("stdClust:Cluster",)]
+    dcoClass = [itm for itm in matchingClasses if itm in ("stdClust:Cluster","stdClust:User Font.ctl", \
+          "stdClust:Text Alignment.ctl","stdClust:Rect.ctl","stdClust:Point.ctl",)]
     if len(dcoClass) > 0 and n1TypeDesc.get("Type") == "Cluster" and dcoFlatTypeID == n1FlatTypeID:
         # These use two Cluster TDs of same flat index, followed by TDs for each item within the cluster, but without DCO TDs.
         # The items from inside cluster can be in different order than "master" types.
