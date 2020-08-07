@@ -2981,42 +2981,42 @@ def DCO_recognize_fpVlass_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeD
         controlNames = []
         dcoTypeItemList = dcoTypeDesc.findall("./Item[@ClassID]")
         if True:
-            if   "D30C1661-CDAF-11D0-8A3E00C04FC9E26E" in [ itm.get("ClassID") for itm in dcoTypeItemList ]: # IWebBrowser2
+            if   "d30c1661-cdaf-11d0-8a3e00c04fc9e26e" in [ itm.get("ClassID").lower() for itm in dcoTypeItemList ]: # IWebBrowser2
                 controlNames.append("plat-Microsoft Web Browser.ctl")
-            elif "EAB22AC0-30C1-11CF-A7EB0000C05BAE0B" in [ itm.get("ClassID") for itm in dcoTypeItemList ]: # Microsoft Internet Controls
+            elif "eab22ac0-30c1-11cf-a7eb0000c05bae0b" in [ itm.get("ClassID").lower() for itm in dcoTypeItemList ]: # Microsoft Internet Controls
                 controlNames.append("plat-Microsoft Web Browser.ctl")
-            elif "6BF52A50-394A-11D3-B15300C04F79FAA6" in [ itm.get("ClassID") for itm in dcoTypeItemList ]: # WMPLib
+            elif "6bf52a50-394a-11d3-b15300c04f79faa6" in [ itm.get("ClassID").lower() for itm in dcoTypeItemList ]: # WMPLib
                 controlNames.append("plat-Windows Media Player.ctl")
-            elif "03B81820-510E-42C6-93B8CFA253794662" in [ itm.get("ClassID") for itm in dcoTypeItemList ]: # TestStand User Interface
-                if "D0743B7D-50BF-409D-87DF49983721DFDC" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+            elif "03b81820-510e-42c6-93b8cfa253794662" in [ itm.get("ClassID").lower() for itm in dcoTypeItemList ]: # TestStand User Interface
+                if "d0743b7d-50bf-409d-87df49983721dfdc" in [ itm.get("ClassID").lower() for itm in dcoTypeItemList ]:
                     controlNames.append("TestStand UI Application Manager.ctl")
-                elif "A6FA998E-98EF-11D2-93B700A02411EBE6" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                elif "a6fa998e-98ef-11d2-93b700a02411ebe6" in [ itm.get("ClassID").lower() for itm in dcoTypeItemList ]:
                     controlNames.append("TestStand UI Button Control.ctl")
-                elif "661BD29B-11CC-4666-B4B8C9DE53E5F1AB" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                elif "661bd29b-11cc-4666-b4b8c9de53e5f1ab" in [ itm.get("ClassID").lower() for itm in dcoTypeItemList ]:
                     controlNames.append("TestStand UI CheckBox Control.ctl")
-                elif "BE676080-61AC-11D5-8EFA0050DAC50018" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                elif "be676080-61ac-11d5-8efa0050dac50018" in [ itm.get("ClassID").lower() for itm in dcoTypeItemList ]:
                     controlNames.append("TestStand UI ComboBox Control.ctl")
-                elif "0B2D723F-0A05-40FE-A0FC362EF92A1DCB" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                elif "0b2d723f-0a05-40fe-a0fc362ef92a1dcb" in [ itm.get("ClassID").lower() for itm in dcoTypeItemList ]:
                     controlNames.append("TestStand UI ExecutionView Manager.ctl")
-                elif "FDD24392-1132-424D-BF4B77F0F0801F7A" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                elif "fdd24392-1132-424d-bf4b77f0f0801f7a" in [ itm.get("ClassID").lower() for itm in dcoTypeItemList ]:
                     controlNames.append("TestStand UI ExpressionEdit Control.ctl")
-                elif "7575ABC2-9520-4EF4-9DF82C33B6DA18BC" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                elif "7575abc2-9520-4ef4-9df82c33b6da18bc" in [ itm.get("ClassID").lower() for itm in dcoTypeItemList ]:
                     controlNames.append("TestStand UI InsertionPalette Control.ctl")
-                elif "C50FD121-99BF-11D2-93B700A02411EBE6" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                elif "c50fd121-99bf-11d2-93b700a02411ebe6" in [ itm.get("ClassID").lower() for itm in dcoTypeItemList ]:
                     controlNames.append("TestStand UI Label Control.ctl")
-                elif "5CA55AC1-A7F1-470C-90943DBEEFE0ACF9" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                elif "5ca55ac1-a7f1-470c-90943dbeefe0acf9" in [ itm.get("ClassID").lower() for itm in dcoTypeItemList ]:
                     controlNames.append("TestStand UI ListBar Control.ctl")
-                elif "A6FA998B-98EF-11D2-93B700A02411EBE6" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                elif "a6fa998b-98ef-11d2-93b700a02411ebe6" in [ itm.get("ClassID").lower() for itm in dcoTypeItemList ]:
                     controlNames.append("TestStand UI ListBox Control.ctl")
-                elif "F54F4EBA-497C-11D5-8EEB0050DAC50018" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                elif "f54f4eba-497c-11d5-8eeb0050dac50018" in [ itm.get("ClassID").lower() for itm in dcoTypeItemList ]:
                     controlNames.append("TestStand UI ReportView Control.ctl")
-                elif "817D7C9A-8F4B-4BB7-AEA6E118CEB0F823" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                elif "817d7c9a-8f4b-4bb7-aea6e118ceb0f823" in [ itm.get("ClassID").lower() for itm in dcoTypeItemList ]:
                     controlNames.append("TestStand UI SequenceFileView Manager.ctl")
-                elif "34B7E073-5533-4A8A-A6511230C0E6500A" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                elif "34b7e073-5533-4a8a-a6511230c0e6500a" in [ itm.get("ClassID").lower() for itm in dcoTypeItemList ]:
                     controlNames.append("TestStand UI SequenceView Control.ctl")
-                elif "9CE1ADA4-09A8-4158-B1E2F3489316E12B" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                elif "9ce1ada4-09a8-4158-b1e2f3489316e12b" in [ itm.get("ClassID").lower() for itm in dcoTypeItemList ]:
                     controlNames.append("TestStand UI StatusBar Control.ctl")
-                elif "AABDF204-CD20-4FDF-822E5DB98192A4B9" in [ itm.get("ClassID") for itm in dcoTypeItemList ]:
+                elif "aabdf204-cd20-4fdf-822e5db98192a4b9" in [ itm.get("ClassID").lower() for itm in dcoTypeItemList ]:
                     controlNames.append("TestStand UI VariablesView Control.ctl")
                 else:
                     controlNames.append("TestStand UI Unknown Control.ctl") # Not a real thing
