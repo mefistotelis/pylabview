@@ -1354,7 +1354,7 @@ def checkOrCreateParts_stdClust_control(RSRC, partsList, parentObjFlags, labelTe
     return contentArea
 
 
-def FPHb_elemCheckOrCreate_zPlaneList_DCO_size(RSRC, fo, po, heapTypeMap, corTL, fpClass, \
+def FPHb_elemCheckOrCreate_zPlaneList_DCO_size(RSRC, fo, po, heapTypeMap, corTL, fpClass, dcoName, \
       dcoTypeID, partTypeIDs, ddoTypeID, subTypeIDs, isIndicator):
     """ Gives expected size of the GUI element representing given types
     """
@@ -1375,9 +1375,9 @@ def FPHb_elemCheckOrCreate_zPlaneList_DCO_size(RSRC, fo, po, heapTypeMap, corTL,
         corBR = [corTL[0]+4,corTL[1]+4]
         corBR1 = corBR[1]
         for subTypeID in subTypeIDs:
-            fpSubClass = DCO_recognize_fpClass_from_dcoTypeID(RSRC, fo, po, subTypeID)
+            fpSubClass, dcoSubName = DCO_recognize_fpClass_dcoName_from_dcoTypeID(RSRC, fo, po, subTypeID)
             corBR_end = FPHb_elemCheckOrCreate_zPlaneList_DCO_size(RSRC, fo, po, heapTypeMap, \
-                  corBR, fpSubClass, subTypeID, [], subTypeID, [], isIndicator)
+                  corBR, fpSubClass, dcoSubName, subTypeID, [], subTypeID, [], isIndicator)
             corBR = [corBR_end[0],corBR[1]]
             corBR1 = max(corBR1,corBR_end[1])
         corBR = [corBR[0]+4,corBR1+4]
@@ -1386,7 +1386,7 @@ def FPHb_elemCheckOrCreate_zPlaneList_DCO_size(RSRC, fo, po, heapTypeMap, corTL,
     return corBR
 
 def FPHb_elemCheckOrCreate_zPlaneList_DCO(RSRC, paneHierarchy_zPlaneList, fo, po, \
-      heapTypeMap, corTL, defineDDO, fpClass, \
+      heapTypeMap, corTL, defineDDO, fpClass, dcoName, \
       dcoTypeID, partTypeIDs, ddoTypeID, subTypeIDs, dcoConNum, isIndicator, dataSrcIdent):
     """ Checks or creates Front Panel componennt which represents specific DCO
     """
@@ -1450,48 +1450,48 @@ def FPHb_elemCheckOrCreate_zPlaneList_DCO(RSRC, paneHierarchy_zPlaneList, fo, po
           aeTypeID=dcoTypeID, aeObjFlags=dcoObjFlags_val, aeDdoClass=ddoClass_val, aeConNum=dcoConNum, aeTermListLength=1)
 
     if fpClass == "stdBool" and isIndicator == 0:
-        corBR = FPHb_elemCheckOrCreate_zPlaneList_DCO_size(RSRC, fo, po, heapTypeMap, corTL, fpClass, dcoTypeID, partTypeIDs, ddoTypeID, subTypeIDs, isIndicator)
+        corBR = FPHb_elemCheckOrCreate_zPlaneList_DCO_size(RSRC, fo, po, heapTypeMap, corTL, fpClass, dcoName, dcoTypeID, partTypeIDs, ddoTypeID, subTypeIDs, isIndicator)
         ddo_partsList, _ = elemCheckOrCreate_ddo_content(ddo_elem, fo, po, aeDdoObjFlags=ddoObjFlags_val,
           aeBounds=corTL+corBR, hasParts=True, aeDdoTypeID=ddoTypeID, \
           aeMouseWheelSupport=0, aeMinButSize=[50,21], valueType=dcoTypeDesc.get("Type"))
         checkOrCreateParts_stdBool_control(RSRC, ddo_partsList, ddoObjFlags_val, labelText, fo, po)
     elif fpClass == "stdBool" and isIndicator != 0:
         corTL_mv = [corTL[0],corTL[1]+32] # Bool indicator LED is moved strongly towards the left
-        corBR = FPHb_elemCheckOrCreate_zPlaneList_DCO_size(RSRC, fo, po, heapTypeMap, corTL_mv, fpClass, dcoTypeID, partTypeIDs, ddoTypeID, subTypeIDs, isIndicator)
+        corBR = FPHb_elemCheckOrCreate_zPlaneList_DCO_size(RSRC, fo, po, heapTypeMap, corTL_mv, fpClass, dcoName, dcoTypeID, partTypeIDs, ddoTypeID, subTypeIDs, isIndicator)
         ddo_partsList, _ = elemCheckOrCreate_ddo_content(ddo_elem, fo, po, aeDdoObjFlags=ddoObjFlags_val,
           aeBounds=corTL_mv+corBR, hasParts=True, aeDdoTypeID=ddoTypeID, \
           aeMouseWheelSupport=0, aeMinButSize=[17,17], valueType=dcoTypeDesc.get("Type"))
         checkOrCreateParts_stdBool_indicator(RSRC, ddo_partsList, ddoObjFlags_val, labelText, fo, po)
     elif fpClass == "stdNum" and isIndicator == 0:
         corTL_mv = [corTL[0],corTL[1]+16] # Numeric control has arrows before component bounds
-        corBR = FPHb_elemCheckOrCreate_zPlaneList_DCO_size(RSRC, fo, po, heapTypeMap, corTL_mv, fpClass, dcoTypeID, partTypeIDs, ddoTypeID, subTypeIDs, isIndicator)
+        corBR = FPHb_elemCheckOrCreate_zPlaneList_DCO_size(RSRC, fo, po, heapTypeMap, corTL_mv, fpClass, dcoName, dcoTypeID, partTypeIDs, ddoTypeID, subTypeIDs, isIndicator)
         ddo_partsList, _ = elemCheckOrCreate_ddo_content(ddo_elem, fo, po, aeDdoObjFlags=ddoObjFlags_val, \
           aeBounds=corTL_mv+corBR, hasParts=True, aeDdoTypeID=ddoTypeID, \
           aeMouseWheelSupport=2, aeMinButSize=None, valueType=dcoTypeDesc.get("Type"), \
           aeStdNumMin=stdNumMin, aeStdNumMax=stdNumMax, aeStdNumInc=stdNumInc)
         checkOrCreateParts_stdNum_control(RSRC, ddo_partsList, ddoObjFlags_val, labelText, fo, po)
     elif fpClass == "stdNum" and isIndicator != 0:
-        corBR = FPHb_elemCheckOrCreate_zPlaneList_DCO_size(RSRC, fo, po, heapTypeMap, corTL, fpClass, dcoTypeID, partTypeIDs, ddoTypeID, subTypeIDs, isIndicator)
+        corBR = FPHb_elemCheckOrCreate_zPlaneList_DCO_size(RSRC, fo, po, heapTypeMap, corTL, fpClass, dcoName, dcoTypeID, partTypeIDs, ddoTypeID, subTypeIDs, isIndicator)
         ddo_partsList, _ = elemCheckOrCreate_ddo_content(ddo_elem, fo, po, aeDdoObjFlags=ddoObjFlags_val, \
           aeBounds=corTL+corBR, hasParts=True, aeDdoTypeID=ddoTypeID, \
           aeMouseWheelSupport=2, aeMinButSize=None, valueType=dcoTypeDesc.get("Type"), \
           aeStdNumMin=stdNumMin, aeStdNumMax=stdNumMax, aeStdNumInc=stdNumInc)
         checkOrCreateParts_stdNum_indicator(RSRC, ddo_partsList, ddoObjFlags_val, labelText, fo, po)
     elif fpClass == "stdString" and isIndicator == 0:
-        corBR = FPHb_elemCheckOrCreate_zPlaneList_DCO_size(RSRC, fo, po, heapTypeMap, corTL, fpClass, dcoTypeID, partTypeIDs, ddoTypeID, subTypeIDs, isIndicator)
+        corBR = FPHb_elemCheckOrCreate_zPlaneList_DCO_size(RSRC, fo, po, heapTypeMap, corTL, fpClass, dcoName, dcoTypeID, partTypeIDs, ddoTypeID, subTypeIDs, isIndicator)
         ddo_partsList, _ = elemCheckOrCreate_ddo_content(ddo_elem, fo, po, aeDdoObjFlags=ddoObjFlags_val, \
           aeBounds=corTL+corBR, hasParts=True, aeDdoTypeID=ddoTypeID, \
           aeMouseWheelSupport=3, aeMinButSize=None, valueType=dcoTypeDesc.get("Type"))
         checkOrCreateParts_stdString_control(RSRC, ddo_partsList, ddoObjFlags_val, labelText, fo, po)
     elif fpClass == "stdString" and isIndicator != 0:
-        corBR = FPHb_elemCheckOrCreate_zPlaneList_DCO_size(RSRC, fo, po, heapTypeMap, corTL, fpClass, dcoTypeID, partTypeIDs, ddoTypeID, subTypeIDs, isIndicator)
+        corBR = FPHb_elemCheckOrCreate_zPlaneList_DCO_size(RSRC, fo, po, heapTypeMap, corTL, fpClass, dcoName, dcoTypeID, partTypeIDs, ddoTypeID, subTypeIDs, isIndicator)
         ddo_partsList, _ = elemCheckOrCreate_ddo_content(ddo_elem, fo, po, aeDdoObjFlags=ddoObjFlags_val, \
           aeBounds=corTL+corBR, hasParts=True, aeDdoTypeID=ddoTypeID, \
           aeMouseWheelSupport=3, aeMinButSize=None, valueType=dcoTypeDesc.get("Type"))
         checkOrCreateParts_stdString_indicator(RSRC, ddo_partsList, ddoObjFlags_val, labelText, fo, po)
     elif fpClass == "stdClust": # Same code for Control and indicator
         corTL_mv = [corTL[0],corTL[1]+4] # Cluster panel frame
-        corBR = FPHb_elemCheckOrCreate_zPlaneList_DCO_size(RSRC, fo, po, heapTypeMap, corTL_mv, fpClass, dcoTypeID, partTypeIDs, ddoTypeID, subTypeIDs, isIndicator)
+        corBR = FPHb_elemCheckOrCreate_zPlaneList_DCO_size(RSRC, fo, po, heapTypeMap, corTL_mv, fpClass, dcoName, dcoTypeID, partTypeIDs, ddoTypeID, subTypeIDs, isIndicator)
         corSz = [corBR[0]-corTL_mv[0]+21, corBR[1]-corTL_mv[1]+12]
         ddo_partsList, ddo_paneHierarchy = elemCheckOrCreate_ddo_content(ddo_elem, fo, po, aeDdoObjFlags=ddoObjFlags_val, \
           aeBounds=corTL_mv+[corBR[0]+21,corBR[1]], hasParts=True, aeDdoTypeID=ddoTypeID, \
@@ -1508,14 +1508,15 @@ def FPHb_elemCheckOrCreate_zPlaneList_DCO(RSRC, paneHierarchy_zPlaneList, fo, po
         corCtBL = [corBR[0]-corTL_mv[0]-21, corTL_mv[1]-4]
         corCtBL = [corCtBL[0]-4, corCtBL[1]]
         for subTypeID in subTypeIDs:
-            fpSubClass = DCO_recognize_fpClass_from_dcoTypeID(RSRC, fo, po, subTypeID)
-            corBR = FPHb_elemCheckOrCreate_zPlaneList_DCO_size(RSRC, fo, po, heapTypeMap, [0,0], fpSubClass, \
+            fpSubClass, dcoSubName = DCO_recognize_fpClass_dcoName_from_dcoTypeID(RSRC, fo, po, subTypeID)
+            corBR = FPHb_elemCheckOrCreate_zPlaneList_DCO_size(RSRC, fo, po, heapTypeMap, [0,0], fpSubClass, dcoSubName, \
                   dcoTypeID=subTypeID, partTypeIDs=[], ddoTypeID=subTypeID, subTypeIDs=[], isIndicator=isIndicator)
             corCtBL = [corCtBL[0]-corBR[0], corCtBL[1]]
             corCtBL_mv = [corCtBL[0], corCtBL[1]] # Make a copy to be sure coords are not modified by the function
             FPHb_elemCheckOrCreate_zPlaneList_DCO(RSRC, ddo_ph_zPlaneList, fo, po, heapTypeMap, corCtBL_mv, \
-                  defineDDO=False, fpClass=fpSubClass, dcoTypeID=subTypeID, partTypeIDs=[], ddoTypeID=subTypeID, subTypeIDs=[], \
-                  dcoConNum=dcoConNum, isIndicator=isIndicator, dataSrcIdent="{}.{}".format(dataSrcIdent,dcoTypeDesc.get("Type")))
+                  defineDDO=False, fpClass=fpSubClass, dcoName=dcoSubName, dcoTypeID=subTypeID, partTypeIDs=[], \
+                  ddoTypeID=subTypeID, subTypeIDs=[], dcoConNum=dcoConNum, isIndicator=isIndicator, \
+                  dataSrcIdent="{}.{}".format(dataSrcIdent,dcoTypeDesc.get("Type")))
     else:
         #TODO add more types
         corBR = [corTL[0],corTL[1]]
@@ -1759,7 +1760,7 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
     corTL = [0,0] # Coordinates top left
     for DCO in reversed(FpDCOList):
         FPHb_elemCheckOrCreate_zPlaneList_DCO(RSRC, paneHierarchy_zPlaneList, fo, po, heapTypeMap, corTL, \
-              defineDDO=True, fpClass=DCO['fpClass'], dcoTypeID=DCO['dcoTypeID'], \
+              defineDDO=True, fpClass=DCO['fpClass'], dcoName=DCO['dcoName'], dcoTypeID=DCO['dcoTypeID'], \
               partTypeIDs=DCO['partTypeIDs'], ddoTypeID=DCO['ddoTypeID'], subTypeIDs=DCO['subTypeIDs'], \
               dcoConNum=DCO['conNum'], isIndicator=DCO['isIndicator'], dataSrcIdent="DCO{}".format(DCO['dcoIndex']))
 
@@ -2319,11 +2320,12 @@ def DCO_create_VCTP_heap_entries(RSRC, fo, po, dcoIndex, dcoTypeDesc, dcoFlatTyp
             nIndexShift += 1
     return nIndexShift - indexShift
 
-def DCO_recognize_fpVlass_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeDescList, dcoTypeDesc):
+def DCO_recognize_fpClassEx_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeDescList, dcoTypeDesc):
     """ Recognizes DCO class using only TypeID of DCO as input
 
     This should be used only if more info on the DCO is not available.
-    Returns a list of matching DCO class names, some with specific control names after a colon (fpClass:ControlName).
+    Returns a list of matching DCO extended class names, meaning class names followed by
+    specific control names after a colon (fpClass:ControlName).
     """
     # Repare a list for classes
     matchingClasses = []
@@ -2345,7 +2347,7 @@ def DCO_recognize_fpVlass_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeD
         else:
             dcoSubTypeDesc, dcoFlatSubTypeID = None, None
         # The type inside come from a DCO, so its type needs to be supported as well
-        if dcoSubTypeDesc is None or len(DCO_recognize_fpVlass_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeDescList, dcoSubTypeDesc)) < 1:
+        if dcoSubTypeDesc is None or len(DCO_recognize_fpClassEx_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeDescList, dcoSubTypeDesc)) < 1:
             match = False
         if match and dcoSubTypeDesc.get("Type") in ("NumFloat64",):
             controlNames.append("RealMatrix.ctl")
@@ -2503,7 +2505,7 @@ def DCO_recognize_fpVlass_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeD
             dcoSubTypeDesc, _, dcoFlatSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, TDTopMap, po)
             if dcoSubTypeDesc is None: continue
             # The types inside come from a DCO, so its type needs to be supported as well
-            if len(DCO_recognize_fpVlass_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeDescList, dcoSubTypeDesc)) < 1:
+            if len(DCO_recognize_fpClassEx_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeDescList, dcoSubTypeDesc)) < 1:
                 match = False
         if len(controlNames) < 1:
             innerMatch = True
@@ -3138,7 +3140,7 @@ def DCO_recognize_fpVlass_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeD
     # Place most common items at start
     return mClasses
 
-def DCO_recognize_fpClass_from_dcoTypeID(RSRC, fo, po, dcoTypeID):
+def DCO_recognize_fpClass_dcoName_from_dcoTypeID(RSRC, fo, po, dcoTypeID):
     """ Recognizes DCO class using only Heap typeID of the DCO as input
 
     This function may sometimes return fpClass different that the one used, because
@@ -3150,7 +3152,7 @@ def DCO_recognize_fpClass_from_dcoTypeID(RSRC, fo, po, dcoTypeID):
         if DTHP_indexShift is not None:
             DTHP_indexShift = int(DTHP_indexShift, 0)
     if DTHP_indexShift is None:
-        return None
+        return None, None
     typeID = DTHP_indexShift+dcoTypeID-1
     # Get list of flat types for the recognition finction
     VCTP = RSRC.find("./VCTP/Section")
@@ -3159,10 +3161,12 @@ def DCO_recognize_fpClass_from_dcoTypeID(RSRC, fo, po, dcoTypeID):
         VCTP_FlatTypeDescList = VCTP.findall("TypeDesc")
     # Get DCO TypeDesc
     dcoTypeDesc = getConsolidatedTopType(RSRC, typeID, po)
-    matchingClasses = DCO_recognize_fpVlass_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeDescList, dcoTypeDesc)
+    matchingClasses = DCO_recognize_fpClassEx_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeDescList, dcoTypeDesc)
     if len(matchingClasses) < 1:
-        return None
-    return matchingClasses[0]
+        return None, None
+    if ':' not in matchingClasses[0]:
+        return matchingClasses[0], None
+    return matchingClasses[0].split(':',2)
 
 def DCO_recognize_from_typeIDs(RSRC, fo, po, typeID, endTypeID, VCTP_TypeDescList, VCTP_FlatTypeDescList):
     """ Recognizes DCO from its data space, starting at given typeID
@@ -3230,7 +3234,7 @@ def DCO_recognize_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, flatTy
     n1FlatTypeID = flatTypeIDList[1]
     n1TypeDesc = getConsolidatedFlatType(RSRC, n1FlatTypeID, po)
     # Recognize matching classes by DCO TypeDesc
-    matchingClasses = DCO_recognize_fpVlass_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeDescList, dcoTypeDesc)
+    matchingClasses = DCO_recognize_fpClassEx_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeDescList, dcoTypeDesc)
 
     # Recognize the DCO - start with Controls which use four or more FP TypeDescs, or the amount is dynamic
     dcoClass = [itm for itm in matchingClasses if itm in ("typeDef:RealMatrix.ctl","typeDef:ComplexMatrix.ctl",)]
