@@ -21,6 +21,7 @@ import re
 import os
 import argparse
 import enum
+import copy
 from types import SimpleNamespace
 from PIL import Image
 
@@ -1973,18 +1974,21 @@ def getMaxIndexFromList(elemList, fo, po):
             val = max(val, elemIndex)
     return val
 
-def TypeDesc_equivalent(RSRC, fo, po, TypeDesc1, TypeDesc2):
+def TypeDesc_equivalent(RSRC, fo, po, TypeDesc1, TypeDesc2, sameLabels=False):
     """ Compares two type descriptions and returns whether they're equivalent
     """
     if TypeDesc1.get("Type") != TypeDesc2.get("Type"):
         return False
-    if TypeDesc1.get("Type") == "Cluster":
+    if sameLabels:
+        if TypeDesc1.get("Label") != TypeDesc2.get("Label"):
+            return False
+    if TypeDesc1.get("Type") in ("Cluster","Array",):
         td1SubTypeDescList = TypeDesc1.findall("./TypeDesc")
         td2SubTypeDescList = TypeDesc2.findall("./TypeDesc")
         if len(td1SubTypeDescList) != len(td2SubTypeDescList):
             return False
         for i, td1SubTypeDesc in enumerate(td1SubTypeDescList):
-            if not TypeDesc_equivalent(RSRC, fo, po, td1SubTypeDesc, td2SubTypeDescList[i]):
+            if not TypeDesc_equivalent(RSRC, fo, po, td1SubTypeDesc, td2SubTypeDescList[i], sameLabels=sameLabels):
                 return False
     elif TypeDesc1.get("Type") == "Refnum":
         if TypeDesc1.get("RefType") != TypeDesc2.get("RefType"):
@@ -2293,21 +2297,125 @@ def TypeDesc_find_unused_ranges(RSRC, fo, po, skipRm=[], VCTP_TypeDescList=None,
                 .format(po.xml,unusedRanges))
     return unusedRanges
 
+def VCTP_add_TypeDesc_copy(RSRC, fo, po, srcTypeDesc, VCTP=None):
+    """ Adds a copy of given TD to the VCTP Flat Types List
+
+    Returns FlatTypeID of the new TD, and the TD itself.
+    The function uses deep copy of given TD element, but this really results
+    in shallow copy of the Type - elements inside still reference the same
+    flat TDs. So in logical sense, this function adds a shallow copy.
+    """
+    if VCTP is None:
+        VCTP = RSRC.find("./VCTP/Section")
+    if VCTP is None:
+        return None, None
+    VCTP_FlatTypeDescList = VCTP.findall("./TypeDesc")
+    dstTypeDesc = copy.deepcopy(srcTypeDesc)
+    # Place the new TD tag at proper position, not at end; this is only visual improvement
+    proper_flatPos = list(VCTP).index(VCTP_FlatTypeDescList[-1]) + 1
+    VCTP.insert(proper_flatPos,dstTypeDesc)
+    return dstTypeDesc, len(VCTP_FlatTypeDescList)
+
+def VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, srcTypeDesc, VCTP=None):
+    if VCTP is None:
+        VCTP = RSRC.find("./VCTP/Section")
+    if VCTP is None:
+        return None, None
+    dstTypeDesc, dstTypeID = None, None
+    VCTP_FlatTypeDescList = VCTP.findall("TypeDesc")
+    for cmpTypeID, cmpTypeDesc in enumerate(VCTP_FlatTypeDescList):
+        if (TypeDesc_equivalent(RSRC, fo, po, cmpTypeDesc, srcTypeDesc, sameLabels=True)):
+            dstTypeDesc, dstTypeID = cmpTypeDesc, cmpTypeID
+            break
+    if dstTypeDesc is None:
+        dstTypeDesc, dstTypeID = VCTP_add_TypeDesc_copy(RSRC, fo, po, srcTypeDesc, VCTP=VCTP)
+    return dstTypeDesc, dstTypeID
+
+def VCTP_add_TopTypeDesc(RSRC, fo, po, srcFlatTypeID, nTopTDIndex=None, VCTP_TopLevel=None):
+    """ Adds given TD to Top Types List
+    """
+    if VCTP_TopLevel is None:
+        VCTP = RSRC.find("./VCTP/Section")
+        if VCTP is not None:
+            VCTP_TopLevel = VCTP.find("TopLevel")
+    if VCTP_TopLevel is None:
+            return None, None
+    if nTopTDIndex is None:
+        VCTP_TypeDescList = VCTP.findall("TopLevel/TypeDesc")
+        nTopTDIndex = getMaxIndexFromList(VCTP_TypeDescList, fo, po) + 1
+    elem = ET.Element("TypeDesc")
+    elem.set("Index", str(nTopTDIndex))
+    elem.set("FlatTypeID", str(srcFlatTypeID))
+    VCTP_TopLevel.append(elem)
+    return nTopTDIndex, srcFlatTypeID
+
+def VCTP_add_TopTypeDesc_for_DTHP(RSRC, fo, po, srcTypeDesc, srcFlatTypeID, nTopTDIndex=None, VCTP_FlatTypeDescList=None, VCTP_TopLevel=None):
+    """ Adds given TD to Top Types List, with sub-types
+
+    Adds not only the given TD to Top Types List, but also its sub-TDs, in the form they're needed
+    for DCO definition within within DTHP.
+    Returns first and last Top TD Index used.
+    """
+    firstTopTDIndex, _ = VCTP_add_TopTypeDesc(RSRC, fo, po, srcFlatTypeID, nTopTDIndex=nTopTDIndex, VCTP_TopLevel=VCTP_TopLevel)
+    currTopTDIndex =firstTopTDIndex + 1
+    srcTDMapList = srcTypeDesc.findall("./TypeDesc[@TypeID]")
+    for subTDMap in srcTDMapList:
+        subTypeDesc, _, subFlatTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, subTDMap, po)
+        _, currTopTDIndex = VCTP_add_TopTypeDesc_for_DTHP(RSRC, fo, po, subTypeDesc, subFlatTypeID, \
+              nTopTDIndex=currTopTDIndex, VCTP_FlatTypeDescList=VCTP_FlatTypeDescList, VCTP_TopLevel=VCTP_TopLevel)
+        currTopTDIndex += 1
+    return firstTopTDIndex, currTopTDIndex - 1
+
 def DCO_create_VCTP_heap_entries(RSRC, fo, po, dcoIndex, dcoTypeDesc, dcoFlatTypeID, \
       dcoExTypeDesc, dcoFlatExTypeID, VCTP, VCTP_TopLevel, VCTP_FlatTypeDescList, indexShift):
+    """ For a single DCO, re-creates VCTP entries with Heap Data Types, to be used for DTHP
+
+    Given TypeDesc elements from DCO definition, it prepares required TypeDesc range
+    with TDs to be used in Front Panel Heap.
+    """
     nIndexShift = indexShift
-    # DCO TypeDesc
-    elem = ET.Element("TypeDesc")
-    elem.set("Index", str(nIndexShift))
-    elem.set("FlatTypeID", str(dcoFlatTypeID))
-    VCTP_TopLevel.append(elem)
-    nIndexShift += 1
+    # Get class name for this DCO
+    matchingClasses = DCO_recognize_fpClassEx_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTypeDescList, dcoTypeDesc)
+    if len(matchingClasses) < 1: # A default to avoid the function crashing
+        matchingClasses.append("stdNum:Numeric")
+    # Almost every entry starts with DCO TypeDesc
+    hasDcoTd = not any(fpClassEx in ("grouper:Sub Panel",) for fpClassEx in matchingClasses)
+    # All have DDO TypeDesc
+    hasDdoTd = True
+    if hasDcoTd:
+        VCTP_add_TopTypeDesc(RSRC, fo, po, dcoFlatTypeID, nTopTDIndex=nIndexShift)
+        nIndexShift += 1
+    # Between DCO and DDO TypeDescs, there are extra types
+    if any(fpClassEx in ("typeDef:RealMatrix.ctl","typeDef:ComplexMatrix.ctl",) for fpClassEx in matchingClasses):
+        dcoInnerTypeDesc = dcoTypeDesc.find("./TypeDesc[@Type]")
+        nDimensions = len(dcoInnerTypeDesc.findall("./Dimension"))
+        dcoSubDMap = dcoInnerTypeDesc.find("./TypeDesc[@TypeID]")
+        dcoExTDMapList = dcoExTypeDesc.findall("./TypeDesc[@TypeID]")
+        dcoExArrTypeDesc = None
+        for dcoExTDMap in dcoExTDMapList:
+            dcoExSubTypeDesc, _, dcoFlatExSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, dcoExTDMap, po)
+            if dcoExSubTypeDesc.get("Type") == "Array":
+                dcoExArrTypeDesc = dcoExSubTypeDesc
+        if True:
+            tmpTypeDesc = ET.Element("TypeDesc")
+            tmpTypeDesc.set("Type","NumUInt32")
+            tmpTypeDesc.set("Prop1",str(0))
+            tmpTypeDesc.set("Format","inline")
+            newIdxTypeDesc, newIdxFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        # Add a copy of the Array from ExtraTD
+        newArrTypeDesc, newArrFlatTypeID = VCTP_add_TypeDesc_copy(RSRC, fo, po, dcoExArrTypeDesc)
+        # Create Top Types
+        for ndim in range(nDimensions):
+            _, nIndexShift = VCTP_add_TopTypeDesc_for_DTHP(RSRC, fo, po, newIdxTypeDesc, newIdxFlatTypeID, \
+                  nTopTDIndex=nIndexShift, VCTP_FlatTypeDescList=VCTP_FlatTypeDescList, VCTP_TopLevel=VCTP_TopLevel)
+            nIndexShift += 1
+        _, nIndexShift = VCTP_add_TopTypeDesc_for_DTHP(RSRC, fo, po, newArrTypeDesc, newArrFlatTypeID, \
+              nTopTDIndex=nIndexShift, VCTP_FlatTypeDescList=VCTP_FlatTypeDescList, VCTP_TopLevel=VCTP_TopLevel)
+        nIndexShift += 1
     # DDO TypeDesc
-    elem = ET.Element("TypeDesc")
-    elem.set("Index", str(nIndexShift))
-    elem.set("FlatTypeID", str(dcoFlatTypeID))
-    VCTP_TopLevel.append(elem)
-    nIndexShift += 1
+    if hasDdoTd:
+        VCTP_add_TopTypeDesc(RSRC, fo, po, dcoFlatTypeID, nTopTDIndex=nIndexShift)
+        nIndexShift += 1
     # Sub-types
     if dcoTypeDesc.get("Type") == "Cluster":
         dcoSubTypeDescMap = list(filter(lambda f: f.tag is not ET.Comment, dcoTypeDesc.findall("./TypeDesc")))
