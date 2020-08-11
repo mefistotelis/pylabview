@@ -2485,8 +2485,9 @@ def DCO_create_VCTP_heap_entries(RSRC, fo, po, dcoIndex, dcoTypeDesc, dcoFlatTyp
             dcoSubTypeDesc, _, dcoFlatSubTypeID = getTypeDescFromMapUsingList(VCTP_FlatTypeDescList, SubTDMap, po)
             VCTP_add_TopTypeDesc(RSRC, fo, po, dcoFlatSubTypeID, nTopTDIndex=nIndexShift, VCTP_TopLevel=VCTP_TopLevel)
             nIndexShift += 1
-    filterClasses = [fpClassEx for fpClassEx in matchingClasses if fpClassEx in ("stdGraph:Digital Waveform Graph","stdGraph:Waveform Graph", \
-          "stdGraph:Intensity Chart","stdGraph:XY Graph","stdGraph:Express XY Graph","stdGraph:Waveform Chart",)]
+    filterClasses = [fpClassEx for fpClassEx in matchingClasses if fpClassEx in ("stdGraph:Digital Waveform Graph", \
+          "stdGraph:Waveform Graph","stdGraph:Intensity Chart","stdGraph:XY Graph","stdGraph:Express XY Graph", \
+          "stdGraph:Waveform Chart",)]
     if len(filterClasses) > 0:
         matchingClasses = filterClasses
         # Find or add a few basic types we will use
@@ -2508,7 +2509,10 @@ def DCO_create_VCTP_heap_entries(RSRC, fo, po, dcoIndex, dcoTypeDesc, dcoFlatTyp
             tmpTypeDesc.set("Format","inline")
             newBoolTypeDesc, newBoolFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
         # Now construct and add the compound types
-        if True:
+        filterClasses = [fpClassEx for fpClassEx in matchingClasses if fpClassEx in ("stdGraph:Digital Waveform Graph", \
+              "stdGraph:Waveform Graph","stdGraph:XY Graph","stdGraph:Express XY Graph","stdGraph:Waveform Chart",)]
+        if len(filterClasses) > 0:
+            matchingClasses = filterClasses
             tmpTypeDesc = ET.Element("TypeDesc")
             tmpTypeDesc.set("Type","Cluster")
             tmpTypeDesc.set("Format","inline")
@@ -2542,7 +2546,7 @@ def DCO_create_VCTP_heap_entries(RSRC, fo, po, dcoIndex, dcoTypeDesc, dcoFlatTyp
                 tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
                 tmpTDSub.set("TypeID",str(newBoolFlatTypeID))
             newClust2TypeDesc, newClust2FlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
-        if newClust1TypeDesc is not None:
+        if newClust2TypeDesc is not None:
             tmpTypeDesc = ET.Element("TypeDesc")
             tmpTypeDesc.set("Type","Array")
             tmpTypeDesc.set("Format","inline")
@@ -2591,14 +2595,29 @@ def DCO_create_VCTP_heap_entries(RSRC, fo, po, dcoIndex, dcoTypeDesc, dcoFlatTyp
                   nTopTDIndex=nIndexShift, VCTP_FlatTypeDescList=VCTP_FlatTypeDescList, VCTP_TopLevel=VCTP_TopLevel)
             nIndexShift += 1
         if newArr4TypeDesc is not None:
-            _, nIndexShift = VCTP_add_TopTypeDesc_for_DTHP(RSRC, fo, po, newArr4TypeDesc, newArr4FlatTypeID, \
-                  nTopTDIndex=nIndexShift, VCTP_FlatTypeDescList=VCTP_FlatTypeDescList, VCTP_TopLevel=VCTP_TopLevel)
+            # Some controls only have array, others have array followed by content TD
+            if any(fpClassEx in ("stdGraph:Digital Waveform Graph",) for fpClassEx in matchingClasses):
+                _, nIndexShift = VCTP_add_TopTypeDesc_for_DTHP(RSRC, fo, po, newArr4TypeDesc, newArr4FlatTypeID, \
+                      nTopTDIndex=nIndexShift, VCTP_FlatTypeDescList=VCTP_FlatTypeDescList, VCTP_TopLevel=VCTP_TopLevel)
+            else: # "stdGraph:Waveform Graph", "stdGraph:Intensity Chart"
+                nIndexShift, _ = VCTP_add_TopTypeDesc(RSRC, fo, po, newArr4FlatTypeID, nTopTDIndex=nIndexShift)
             nIndexShift += 1
+        if any(fpClassEx in ("stdGraph:Intensity Chart",) for fpClassEx in matchingClasses):
+            for ndim in range(2):
+                _, nIndexShift = VCTP_add_TopTypeDesc_for_DTHP(RSRC, fo, po, newNumUTypeDesc, newNumUFlatTypeID, \
+                      nTopTDIndex=nIndexShift, VCTP_FlatTypeDescList=VCTP_FlatTypeDescList, VCTP_TopLevel=VCTP_TopLevel)
+                nIndexShift += 1
+    filterClasses = [fpClassEx for fpClassEx in matchingClasses if fpClassEx in ("stdMeasureData:Digital Waveform.ctl", \
+          "stdMeasureData:Waveform",)]
+    if len(filterClasses) > 0:
+        matchingClasses = filterClasses
     # DDO TypeDesc
     if hasDdoTd:
-        if any(fpClassEx in ("stdClust:Cluster",) for fpClassEx in matchingClasses):
+        filterClasses = [fpClassEx for fpClassEx in matchingClasses if fpClassEx in ("stdGraph:Digital Waveform Graph",)]
+        if len(filterClasses) > 0:
             _, nIndexShift = VCTP_add_TopTypeDesc_for_DTHP(RSRC, fo, po, dcoTypeDesc, dcoFlatTypeID, \
                   nTopTDIndex=nIndexShift, VCTP_FlatTypeDescList=VCTP_FlatTypeDescList, VCTP_TopLevel=VCTP_TopLevel)
+            matchingClasses = filterClasses
         else:
             nIndexShift, _ = VCTP_add_TopTypeDesc(RSRC, fo, po, dcoFlatTypeID, nTopTDIndex=nIndexShift)
         nIndexShift += 1
@@ -2618,6 +2637,86 @@ def DCO_create_VCTP_heap_entries(RSRC, fo, po, dcoIndex, dcoTypeDesc, dcoFlatTyp
         for newTypeInfo in newFlatTypeInfoList:
             _, nIndexShift = VCTP_add_TopTypeDesc_for_DTHP(RSRC, fo, po, newTypeInfo[1], newTypeInfo[0], \
                   nTopTDIndex=nIndexShift, VCTP_FlatTypeDescList=VCTP_FlatTypeDescList, VCTP_TopLevel=VCTP_TopLevel)
+            nIndexShift += 1
+    # Some controls have histTD type at end; if it should be used, we expect the proper TypeDesc to be already in list
+    # So try to re-use existing TDs when creating it
+    hasHistTD = any(fpClassEx in ("stdGraph:Intensity Chart","stdGraph:Waveform Chart",) for fpClassEx in matchingClasses)
+    if hasHistTD:
+        if True:
+            tmpTypeDesc = ET.Element("TypeDesc")
+            tmpTypeDesc.set("Type","NumInt32")
+            tmpTypeDesc.set("Prop1",str(0))
+            tmpTypeDesc.set("Format","inline")
+            newInt32TypeDesc, newInt32FlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        if True:
+            tmpTypeDesc = ET.Element("TypeDesc")
+            tmpTypeDesc.set("Type","NumFloat64")
+            tmpTypeDesc.set("Prop1",str(0))
+            tmpTypeDesc.set("Format","inline")
+            newFltTypeDesc, newFltFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        if True:
+            tmpTypeDesc = ET.Element("TypeDesc")
+            tmpTypeDesc.set("Type","Array")
+            tmpTypeDesc.set("Format","inline")
+            if True:
+                tmpTDSub = ET.SubElement(tmpTypeDesc, "Dimension")
+                tmpTDSub.set("Flags","0x{:02X}".format(0x80))
+                tmpTDSub.set("FixedSize","0x{:04X}".format(0x000080))
+            if True:
+                tmpTDSub = ET.SubElement(tmpTypeDesc, "Dimension")
+                tmpTDSub.set("Flags","0x{:02X}".format(0xFF))
+                tmpTDSub.set("FixedSize","0x{:04X}".format(0xFFFFFF))
+            if True:
+                tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+                tmpTDSub.set("TypeID",str(newFltFlatTypeID))
+            newArrFlTypeDesc, newArrFlFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        if True:
+            tmpTypeDesc = ET.Element("TypeDesc")
+            tmpTypeDesc.set("Type","Cluster")
+            tmpTypeDesc.set("Format","inline")
+            for i in range(3):
+                tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+                tmpTDSub.set("TypeID",str(newInt32FlatTypeID))
+            if True:
+                tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+                tmpTDSub.set("TypeID",str(newArrFlFlatTypeID))
+            newClustIIIATypeDesc, newClustIIIAFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        if True:
+            tmpTypeDesc = ET.Element("TypeDesc")
+            tmpTypeDesc.set("Type","NumInt16")
+            tmpTypeDesc.set("Prop1",str(0))
+            tmpTypeDesc.set("Format","inline")
+            newInt16TypeDesc, newInt16FlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        if True:
+            tmpTypeDesc = ET.Element("TypeDesc")
+            tmpTypeDesc.set("Type","NumUInt32")
+            tmpTypeDesc.set("Prop1",str(0))
+            tmpTypeDesc.set("Format","inline")
+            newUInt32TypeDesc, newUInt32FlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        if True:
+            tmpTypeDesc = ET.Element("TypeDesc")
+            tmpTypeDesc.set("Type","Cluster")
+            tmpTypeDesc.set("Format","inline")
+            if True:
+                tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+                tmpTDSub.set("TypeID",str(newClustIIIAFlatTypeID))
+            if True:
+                tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+                tmpTDSub.set("TypeID",str(newInt32FlatTypeID))
+            for i in range(2):
+                tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+                tmpTDSub.set("TypeID",str(newInt16FlatTypeID))
+            if True:
+                tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+                tmpTDSub.set("TypeID",str(newUInt32FlatTypeID))
+            if True:
+                tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+                tmpTDSub.set("TypeID",str(newClustIIIAFlatTypeID))
+            newHistTypeDesc, newHistFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        # Create Top Type
+        VCTP_FlatTypeDescList = VCTP.findall("TypeDesc")
+        if newHistFlatTypeID is not None:
+            nIndexShift, _ = VCTP_add_TopTypeDesc(RSRC, fo, po, newHistFlatTypeID, nTopTDIndex=nIndexShift)
             nIndexShift += 1
     return nIndexShift - indexShift
 
