@@ -2375,6 +2375,46 @@ def VCTP_add_TopTypeDesc_for_DTHP(RSRC, fo, po, srcTypeDesc, srcFlatTypeID, nTop
         currTopTDIndex += 1
     return firstTopTDIndex, currTopTDIndex - 1
 
+def VCTP_add_ErrorClustTD_for_DTHP(RSRC, fo, po, VCTP=None):
+    """ Adds Error Cluster TD to VCTP and Top Types List
+    """
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Boolean")
+        tmpTypeDesc.set("Label","status")
+        tmpTypeDesc.set("Format","inline")
+        newStatusTypeDesc, newStatusFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumInt32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","code")
+        tmpTypeDesc.set("Format","inline")
+        newCodeTypeDesc, newCodeFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","String")
+        tmpTypeDesc.set("Prop1","0x{:04X}".format(0xFFFFFFFF))
+        tmpTypeDesc.set("Label","source")
+        tmpTypeDesc.set("Format","inline")
+        newSrcTypeDesc, newSrcFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Label","error")
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newStatusFlatTypeID))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newCodeFlatTypeID))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newSrcFlatTypeID))
+        newErrClustTypeDesc, newErrClustFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    return newErrClustTypeDesc, newErrClustFlatTypeID
+
 def DCO_recognize_fpClassEx_list_from_dco_and_ex_TypeDesc(RSRC, fo, po, dcoTypeDesc, dcoFlatTypeID, \
       dcoExTypeDesc, dcoFlatExTypeID, VCTP_FlatTypeDescList=None):
     """ Recognizes DCO class using DCO and Ex typeIDs of the DCO as input
@@ -2611,9 +2651,80 @@ def DCO_create_VCTP_heap_entries(RSRC, fo, po, dcoIndex, dcoTypeDesc, dcoFlatTyp
           "stdMeasureData:Waveform",)]
     if len(filterClasses) > 0:
         matchingClasses = filterClasses
+        if True:
+            tmpTypeDesc = ET.Element("TypeDesc")
+            tmpTypeDesc.set("Type","MeasureData")
+            tmpTypeDesc.set("Flavor","TimeStamp")
+            tmpTypeDesc.set("Label","t0")
+            tmpTypeDesc.set("Format","inline")
+            newT0TypeDesc, newT0FlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        if True:
+            tmpTypeDesc = ET.Element("TypeDesc")
+            tmpTypeDesc.set("Type","NumFloat64")
+            tmpTypeDesc.set("Prop1",str(0))
+            tmpTypeDesc.set("Label","dt")
+            tmpTypeDesc.set("Format","inline")
+            newDtTypeDesc, newDtFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        if True:
+            tmpTypeDesc = ET.Element("TypeDesc")
+            tmpTypeDesc.set("Type","MeasureData")
+            tmpTypeDesc.set("Flavor","Digitaldata")
+            tmpTypeDesc.set("Label","Y")
+            tmpTypeDesc.set("Format","inline")
+            newYTypeDesc, newYFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        newErrClustTypeDesc, newErrClustFlatTypeID = VCTP_add_ErrorClustTD_for_DTHP(RSRC, fo, po, VCTP=VCTP)
+        if True:
+            tmpTypeDesc = ET.Element("TypeDesc")
+            tmpTypeDesc.set("Type","LVVariant")
+            tmpTypeDesc.set("Label","attributes")
+            tmpTypeDesc.set("Format","inline")
+            newAttrTypeDesc, newAttrFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        if True:
+            tmpTypeDesc = ET.Element("TypeDesc")
+            tmpTypeDesc.set("Type","Cluster")
+            tmpTypeDesc.set("Format","inline")
+            if True:
+                tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+                tmpTDSub.set("TypeID",str(newT0FlatTypeID))
+            if True:
+                tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+                tmpTDSub.set("TypeID",str(newDtFlatTypeID))
+            if True:
+                tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+                tmpTDSub.set("TypeID",str(newYFlatTypeID))
+            if True:
+                tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+                tmpTDSub.set("TypeID",str(newErrClustFlatTypeID))
+            if True:
+                tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+                tmpTDSub.set("TypeID",str(newAttrFlatTypeID))
+            newClust3TypeDesc, newClust3FlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        # Create Top Types
+        VCTP_FlatTypeDescList = VCTP.findall("TypeDesc")
+        if newClust3TypeDesc is not None:
+            _, nIndexShift = VCTP_add_TopTypeDesc_for_DTHP(RSRC, fo, po, newClust3TypeDesc, newClust3FlatTypeID, \
+                  nTopTDIndex=nIndexShift, VCTP_FlatTypeDescList=VCTP_FlatTypeDescList, VCTP_TopLevel=VCTP_TopLevel)
+            nIndexShift += 1
+    filterClasses = [fpClassEx for fpClassEx in matchingClasses if fpClassEx in ("tableControl:Table Control", \
+          "tableControl:mergeTable.vi",)]
+    if len(filterClasses) > 0:
+        matchingClasses = filterClasses
+        if True:
+            tmpTypeDesc = ET.Element("TypeDesc")
+            tmpTypeDesc.set("Type","NumUInt32")
+            tmpTypeDesc.set("Prop1",str(0))
+            tmpTypeDesc.set("Format","inline")
+            newNumUTypeDesc, newNumUFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        # Create Top Types
+        VCTP_FlatTypeDescList = VCTP.findall("TypeDesc")
+        for i in range(2):
+            _, nIndexShift = VCTP_add_TopTypeDesc_for_DTHP(RSRC, fo, po, newNumUTypeDesc, newNumUFlatTypeID, \
+                  nTopTDIndex=nIndexShift, VCTP_FlatTypeDescList=VCTP_FlatTypeDescList, VCTP_TopLevel=VCTP_TopLevel)
+            nIndexShift += 1
     # DDO TypeDesc
     if hasDdoTd:
-        filterClasses = [fpClassEx for fpClassEx in matchingClasses if fpClassEx in ("stdGraph:Digital Waveform Graph",)]
+        filterClasses = [fpClassEx for fpClassEx in matchingClasses if fpClassEx in ("stdClust:Cluster","stdClust:User Font.ctl", \
+          "stdClust:Text Alignment.ctl","stdClust:Rect.ctl","stdClust:Point.ctl","stdGraph:Digital Waveform Graph",)]
         if len(filterClasses) > 0:
             _, nIndexShift = VCTP_add_TopTypeDesc_for_DTHP(RSRC, fo, po, dcoTypeDesc, dcoFlatTypeID, \
                   nTopTDIndex=nIndexShift, VCTP_FlatTypeDescList=VCTP_FlatTypeDescList, VCTP_TopLevel=VCTP_TopLevel)
@@ -2638,6 +2749,14 @@ def DCO_create_VCTP_heap_entries(RSRC, fo, po, dcoIndex, dcoTypeDesc, dcoFlatTyp
             _, nIndexShift = VCTP_add_TopTypeDesc_for_DTHP(RSRC, fo, po, newTypeInfo[1], newTypeInfo[0], \
                   nTopTDIndex=nIndexShift, VCTP_FlatTypeDescList=VCTP_FlatTypeDescList, VCTP_TopLevel=VCTP_TopLevel)
             nIndexShift += 1
+    if any(fpClassEx in ("xControl:3D Line Graph.vi","xControl:3D Parametric Graph.vi",
+          "xControl:3D Surface Graph.vi","xControl:2D Error Bar Plot.vi","xControl:2D Feather Plot.vi",
+          "xControl:3D_Bar_Plot_Merge_VI.vi","xControl:3D_Comet_Plot_Merge_VI.vi","xControl:3D_Contour_Plot_Merge_VI.vi",
+          "xControl:3D_Mesh_Plot_Merge_VI.vi","xControl:3D_Pie_Plot_Merge_VI.vi","xControl:3D_Quiver_Plot_Merge_VI.vi",
+          "xControl:3D_Ribbon_Plot_Merge_VI.vi","xControl:3D_Scatter_Plot_Merge_VI.vi","xControl:3D_Stem_Plot_Merge_VI.vi",
+          "xControl:3D_Surface_Plot_Merge_VI.vi","xControl:3D_Waterfall_Plot_Merge_VI.vi","xControl:XY Plot Matrix.vi",) \
+          for fpClassEx in matchingClasses):
+        pass#TODO
     # Some controls have histTD type at end; if it should be used, we expect the proper TypeDesc to be already in list
     # So try to re-use existing TDs when creating it
     hasHistTD = any(fpClassEx in ("stdGraph:Intensity Chart","stdGraph:Waveform Chart",) for fpClassEx in matchingClasses)
