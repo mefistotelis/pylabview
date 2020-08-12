@@ -2375,7 +2375,7 @@ def VCTP_add_TopTypeDesc_for_DTHP(RSRC, fo, po, srcTypeDesc, srcFlatTypeID, nTop
         currTopTDIndex += 1
     return firstTopTDIndex, currTopTDIndex - 1
 
-def VCTP_add_ErrorClustTD_for_DTHP(RSRC, fo, po, VCTP=None):
+def VCTP_add_ErrorClustTD_for_DTHP(RSRC, fo, po, VCTP):
     """ Adds Error Cluster TD to VCTP and Top Types List
     """
     if True:
@@ -2409,6 +2409,593 @@ def VCTP_add_ErrorClustTD_for_DTHP(RSRC, fo, po, VCTP=None):
         if True:
             tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
             tmpTDSub.set("TypeID",str(newCodeFlatTypeID))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newSrcFlatTypeID))
+        newErrClustTypeDesc, newErrClustFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    return newErrClustTypeDesc, newErrClustFlatTypeID
+
+def VCTP_add_BaseDatatypeTD_for_DTHP(RSRC, fo, po, fpClassEx, VCTP):
+    """ Adds Base Datatype TD to VCTP and Top Types List
+    """
+    newSrcFlatTypeID = 0 #TODO
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Label","error")
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newSrcFlatTypeID))
+        newErrClustTypeDesc, newErrClustFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    return newErrClustTypeDesc, newErrClustFlatTypeID
+
+def VCTP_add_2DPlotDatatypeTD_for_DTHP(RSRC, fo, po, fpClassEx, VCTP):
+    """ Adds 2D Plot Datatype TD to VCTP and Top Types List
+    """
+    if   fpClassEx in ("xControl:2D Error Bar Plot.vi",):
+        dcoUDCRefClass = "2D Error Bar"
+    elif fpClassEx in ("xControl:2D Feather Plot.vi",):
+        dcoUDCRefClass = "2D Feather"
+    elif fpClassEx in ("xControl:2D Compass",):
+        dcoUDCRefClass = "2D Compass"
+    else:
+        raise RuntimeError("Unsupported fpClassEx")
+    dcoFpColorProps = ["Main Frame Color","Plot Legend Color"]
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Refnum")
+        tmpTypeDesc.set("RefType","UDClassInst")
+        tmpTypeDesc.set("Field0","0x{:04X}".format(0))
+        tmpTypeDesc.set("MultiItem",str(1))
+        tmpTypeDesc.set("Label","{}.lvclass".format(dcoUDCRefClass))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "Item")
+            tmpTDSub.set("Text","{}.lvclass".format(dcoUDCRefClass))
+        newUDCRefTypeDesc, newUDCRefFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumFloat64")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","X")
+        tmpTypeDesc.set("Format","inline")
+        newFltXTypeDesc, newFltXFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if newFltXTypeDesc is not None:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Array")
+        tmpTypeDesc.set("Label","Vertex X Array")
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "Dimension")
+            tmpTDSub.set("Flags","0x{:02X}".format(0xFF))
+            tmpTDSub.set("FixedSize","0x{:06X}".format(0xFFFFFF))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newFltXTypeDesc))
+        newArr1XTypeDesc, newArr1XFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        tmpTypeDesc.set("Label","Vertex Y Array")
+        newArr1YTypeDesc, newArr1YFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if newArr1YTypeDesc is not None:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Label","Vertex Cluster")
+        tmpTypeDesc.set("Format","inline")
+        for newFlatTypeID in (newArr1XFlatTypeID,newArr1YFlatTypeID,):
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newFlatTypeID))
+        newVertClustTypeDesc, newVertClustFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if newVertClustTypeDesc is not None:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Array")
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "Dimension")
+            tmpTDSub.set("Flags","0x{:02X}".format(0xFF))
+            tmpTDSub.set("FixedSize","0x{:06X}".format(0xFFFFFF))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newVertClustFlatTypeID))
+        newVertClustArrTypeDesc, newVertClustArrFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Refnum")
+        tmpTypeDesc.set("RefType","LVObjCtl")
+        tmpTypeDesc.set("CtlFlags","0x{:04X}".format(0x0053))
+        tmpTypeDesc.set("HasItem",str(0))
+        tmpTypeDesc.set("Label","Plot Area Ref")
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newVertClustArrFlatTypeID))
+        newLVOb1RefTypeDesc, newLVOb1RefFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        tmpTypeDesc.set("Label","Z Axis Ref")
+        newLVOb2RefTypeDesc, newLVOb2RefFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","String")
+        tmpTypeDesc.set("Prop1",str(0xFFFFFFFF))
+        tmpTypeDesc.set("Label","String")
+        tmpTypeDesc.set("Format","inline")
+        newStrTypeDesc, newStrFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Picture")
+        tmpTypeDesc.set("Prop1",str(0xFFFFFFFF))
+        tmpTypeDesc.set("Label","Picture")
+        tmpTypeDesc.set("Format","inline")
+        newPictTypeDesc, newPictFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Label","Color Pair")
+        tmpTypeDesc.set("Format","inline")
+        for newFlatTypeID in (newStrFlatTypeID,newPictFlatTypeID,):
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newFlatTypeID))
+        newColrPairTypeDesc, newColrPairFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if newColrPairTypeDesc is not None:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Array")
+        tmpTypeDesc.set("Label","Color Pair Array")
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "Dimension")
+            tmpTDSub.set("Flags","0x{:02X}".format(0xFF))
+            tmpTDSub.set("FixedSize","0x{:06X}".format(0xFFFFFF))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newColrPairFlatTypeID))
+        newColPaArrTypeDesc, newColPaArrFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if newColPaArrTypeDesc is not None:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Format","inline")
+        for newFlatTypeID in (newColPaArrFlatTypeID,):
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newFlatTypeID))
+        newColPaAClustTypeDesc, newColPaAClustFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if newColPaAClustTypeDesc:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Refnum")
+        tmpTypeDesc.set("RefType","LVObjCtl")
+        tmpTypeDesc.set("CtlFlags","0x{:04X}".format(0x001E))
+        tmpTypeDesc.set("HasItem",str(0))
+        tmpTypeDesc.set("Label","Legend Ref")
+        tmpTypeDesc.set("Format","inline")
+        for newFlatTypeID in (newColPaAClustFlatTypeID,):
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newFlatTypeID))
+        newLVOb3RefTypeDesc, newLVOb3RefFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Refnum")
+        tmpTypeDesc.set("RefType","LVObjCtl")
+        tmpTypeDesc.set("CtlFlags","0x{:04X}".format(0x0006))
+        tmpTypeDesc.set("HasItem",str(0))
+        tmpTypeDesc.set("Label","XControl Ref")
+        tmpTypeDesc.set("Format","inline")
+        newLVOb4RefTypeDesc, newLVOb4RefFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Refnum")
+        tmpTypeDesc.set("RefType","LVObjCtl")
+        tmpTypeDesc.set("CtlFlags","0x{:04X}".format(0x004F))
+        tmpTypeDesc.set("HasItem",str(0))
+        tmpTypeDesc.set("Label","Facade Ref")
+        tmpTypeDesc.set("Format","inline")
+        newLVOb5RefTypeDesc, newLVOb5RefFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0x0))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","UnitUInt16")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Prop1",str(0))
+            tmpTDSub.set("Label","Display State Change Class")
+            tmpTDSub.set("Format","inline")
+        for labelStr in ("Update All (Undo)","Update General","Update Appearance", \
+              "Update Format","Update Scale","Update Marker","Update Cursor","None",):
+            tmpLabel = ET.SubElement(tmpTDSub, "EnumLabel")
+            tmpLabel.text = labelStr
+        if True:
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text","2DMathPlot State Class.ctl")
+        newTDDiStChClTypeDesc, newTDDiStChClFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0x0))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Control Ref Cluster")
+            tmpTDSub.set("Format","inline")
+        for newFlatTypeID in (newLVOb1RefFlatTypeID,newLVOb2RefFlatTypeID,newLVOb3RefFlatTypeID,
+              newLVOb4RefFlatTypeID,newLVOb5RefFlatTypeID,newTDDiStChClFlatTypeID,):
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newFlatTypeID))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "Label")
+            tmpTDSub.set("Text","2DMathPlot Ctrl Act Cluster.ctl")
+        newTDCtlRefTypeDesc, newTDCtlRefFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0x0))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Refnum")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("RefType","Queue")
+            tmpTDSub.set("Label","Control Ref Queue")
+            tmpTDSub.set("Format","inline")
+        if True:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(newTDCtlRefFlatTypeID))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "Label")
+            tmpTDSub.set("Text","2DMathPlot Ctrl Act Queue.ctl")
+        newTDDiStChClTypeDesc, newTDDiStChClFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    stateSubFlatTypeIDList = [newUDCRefFlatTypeID, newTDDiStChClFlatTypeID]
+    for labelStr in dcoFpColorProps:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumUInt32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        newTmpTypeDesc, newTmpFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        stateSubFlatTypeIDList.append(newTmpFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0x0))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","State")
+            tmpTDSub.set("Format","inline")
+        for newTmpFlatTypeID in stateSubFlatTypeIDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(newTmpFlatTypeID))
+        if True:
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text","{}.xctl".format(dcoUDCRefClass))
+        if True:
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text","State.ctl")
+        newStateTypeDesc, newStateFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    return newStateTypeDesc, newStateFlatTypeID
+
+def VCTP_add_3DPlotDatatypeTD_for_DTHP(RSRC, fo, po, fpClassEx, VCTP):
+    """ Adds 3D Plot Datatype TD to VCTP and Top Types List
+    """
+    if   fpClassEx in ("xControl:3D_Bar_Plot_Merge_VI.vi",):
+        dcoUDCRefClass = "3D Bar"
+    elif fpClassEx in ("xControl:3D_Comet_Plot_Merge_VI.vi",):
+        dcoUDCRefClass = "3D Comet"
+    elif fpClassEx in ("xControl:3D_Contour_Plot_Merge_VI.vi",):
+        dcoUDCRefClass = "3D Contour"
+    elif fpClassEx in ("xControl:3D_Mesh_Plot_Merge_VI.vi",):
+        dcoUDCRefClass = "3D Mesh"
+    elif fpClassEx in ("xControl:3D_Pie_Plot_Merge_VI.vi",):
+        dcoUDCRefClass = "3D Pie"
+    elif fpClassEx in ("xControl:3D_Quiver_Plot_Merge_VI.vi",):
+        dcoUDCRefClass = "3D Quiver"
+    elif fpClassEx in ("xControl:3D_Ribbon_Plot_Merge_VI.vi",):
+        dcoUDCRefClass = "3D Ribbon"
+    elif fpClassEx in ("xControl:3D_Scatter_Plot_Merge_VI.vi",):
+        dcoUDCRefClass = "3D Scatter"
+    elif fpClassEx in ("xControl:3D_Stem_Plot_Merge_VI.vi",):
+        dcoUDCRefClass = "3D Stem"
+    elif fpClassEx in ("xControl:3D_Surface_Plot_Merge_VI.vi",):
+        dcoUDCRefClass = "3D Surface"
+    elif fpClassEx in ("xControl:3D_Waterfall_Plot_Merge_VI.vi",):
+        dcoUDCRefClass = "3D Waterfall"
+    else:
+        raise RuntimeError("Unsupported fpClassEx")
+    dcoFpColorProps = ["Main Frame Color","Ramp Palette Color","Projection Palette Color"]
+    if fpClassEx in ("xControl:3D_Bar_Plot_Merge_VI.vi","xControl:3D_Pie_Plot_Merge_VI.vi",):
+        dcoFpColorProps.insert(0,"Plot Width")
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Refnum")
+        tmpTypeDesc.set("RefType","UDClassInst")
+        tmpTypeDesc.set("Field0","0x{:04X}".format(0))
+        tmpTypeDesc.set("MultiItem",str(1))
+        tmpTypeDesc.set("Label","{}.lvclass".format(dcoUDCRefClass))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "Item")
+            tmpTDSub.set("Text","{}.lvclass".format(dcoUDCRefClass))
+        newUDCRefTypeDesc, newUDCRefFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Refnum")
+        tmpTypeDesc.set("RefType","LVObjCtl")
+        tmpTypeDesc.set("CtlFlags","0x{:04X}".format(0x0068))
+        tmpTypeDesc.set("HasItem",str(0))
+        tmpTypeDesc.set("Format","inline")
+        newLVOb1SubRefTypeDesc, newLVOb1SubRefFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Refnum")
+        tmpTypeDesc.set("RefType","LVObjCtl")
+        tmpTypeDesc.set("CtlFlags","0x{:04X}".format(0x0064))
+        tmpTypeDesc.set("HasItem",str(0))
+        tmpTypeDesc.set("Label","3D Picture Control")
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newLVOb1SubRefFlatTypeID))
+        newLVOb1RefTypeDesc, newLVOb1RefFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Refnum")
+        tmpTypeDesc.set("RefType","LVObjCtl")
+        tmpTypeDesc.set("CtlFlags","0x{:04X}".format(0x0054))
+        tmpTypeDesc.set("HasItem",str(0))
+        tmpTypeDesc.set("Format","inline")
+        newLVOb2SubRefTypeDesc, newLVOb2SubRefFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Refnum")
+        tmpTypeDesc.set("RefType","LVObjCtl")
+        tmpTypeDesc.set("CtlFlags","0x{:04X}".format(0x003B))
+        tmpTypeDesc.set("HasItem",str(0))
+        tmpTypeDesc.set("Label","Render Window Refnum")
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newLVOb2SubRefFlatTypeID))
+        newLVOb2RefTypeDesc, newLVOb2RefFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumFloat64")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        newFltTypeDesc, newFltFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if newFltTypeDesc is not None:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Format","inline")
+        for i in range(2):
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newFltFlatTypeID))
+        newArrInnerTypeDesc, newArrInnerFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if newArrInnerTypeDesc is not None:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Array")
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "Dimension")
+            tmpTDSub.set("Flags","0x{:02X}".format(0xFF))
+            tmpTDSub.set("FixedSize","0x{:06X}".format(0xFFFFFF))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newArrInnerFlatTypeID))
+        newArr3TypeDesc, newArr3FlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Refnum")
+        tmpTypeDesc.set("RefType","LVObjCtl")
+        tmpTypeDesc.set("CtlFlags","0x{:04X}".format(0x0053))
+        tmpTypeDesc.set("HasItem",str(0))
+        tmpTypeDesc.set("Label","XY Graph")
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newArr3FlatTypeID))
+        newLVOb3RefTypeDesc, newLVOb3RefFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Array")
+        tmpTypeDesc.set("Format","inline")
+        for i in range(2):
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "Dimension")
+            tmpTDSub.set("Flags","0x{:02X}".format(0xFF))
+            tmpTDSub.set("FixedSize","0x{:06X}".format(0xFFFFFF))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newFltFlatTypeID))
+        newArr4TypeDesc, newArr4FlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Refnum")
+        tmpTypeDesc.set("RefType","LVObjCtl")
+        tmpTypeDesc.set("CtlFlags","0x{:04X}".format(0x001A))
+        tmpTypeDesc.set("HasItem",str(0))
+        tmpTypeDesc.set("Label","Intensity Graph")
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newArr4FlatTypeID))
+        newLVOb4RefTypeDesc, newLVOb4RefFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Refnum")
+        tmpTypeDesc.set("RefType","LVObjCtl")
+        tmpTypeDesc.set("CtlFlags","0x{:04X}".format(0x001E))
+        tmpTypeDesc.set("HasItem",str(0))
+        tmpTypeDesc.set("Label","Color Legend Palette")
+        tmpTypeDesc.set("Format","inline")
+        newLVOb5RefTypeDesc, newLVOb5RefFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Refnum")
+        tmpTypeDesc.set("RefType","LVObjCtl")
+        tmpTypeDesc.set("CtlFlags","0x{:04X}".format(0x001E))
+        tmpTypeDesc.set("HasItem",str(0))
+        tmpTypeDesc.set("Label","Projection Palette")
+        tmpTypeDesc.set("Format","inline")
+        newLVOb6RefTypeDesc, newLVOb6RefFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Refnum")
+        tmpTypeDesc.set("RefType","LVObjCtl")
+        tmpTypeDesc.set("CtlFlags","0x{:04X}".format(0x0006))
+        tmpTypeDesc.set("HasItem",str(0))
+        tmpTypeDesc.set("Label","XControl  Ref")
+        tmpTypeDesc.set("Format","inline")
+        newLVOb7RefTypeDesc, newLVOb7RefFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Refnum")
+        tmpTypeDesc.set("RefType","LVObjCtl")
+        tmpTypeDesc.set("CtlFlags","0x{:04X}".format(0x004F))
+        tmpTypeDesc.set("HasItem",str(0))
+        tmpTypeDesc.set("Label","Facade Ref")
+        tmpTypeDesc.set("Format","inline")
+        newLVOb8RefTypeDesc, newLVOb8RefFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Refnum")
+        tmpTypeDesc.set("RefType","LVObjCtl")
+        tmpTypeDesc.set("CtlFlags","0x{:04X}".format(0x000F))
+        tmpTypeDesc.set("HasItem",str(0))
+        tmpTypeDesc.set("Label","Export Image Ref")
+        tmpTypeDesc.set("Format","inline")
+        newLVOb9RefTypeDesc, newLVOb9RefFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Boolean")
+        tmpTypeDesc.set("Label","Clear Data Flag")
+        tmpTypeDesc.set("Format","inline")
+        newClrDtFlgTypeDesc, newClrDtFlgFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0x0))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","UnitUInt16")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Prop1",str(0))
+            tmpTDSub.set("Label","Display State Change Class")
+            tmpTDSub.set("Format","inline")
+        for labelStr in ("Update All Objects (Undo)","Update Light Object Only","Update Axis Object Only", \
+              "Update Plot Object Only","Update Cursor Object Only","Update Axis Plot Cursor Objects","No Update",):
+            tmpLabel = ET.SubElement(tmpTDSub, "EnumLabel")
+            tmpLabel.text = labelStr
+        if True:
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text","3DMathPlot State Class.ctl")
+        newTDDiStChClTypeDesc, newTDDiStChClFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0x0))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Control Ref Cluster")
+            tmpTDSub.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newLVOb1RefFlatTypeID))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newLVOb2RefFlatTypeID))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newLVOb3RefFlatTypeID))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newLVOb4RefFlatTypeID))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newLVOb5RefFlatTypeID))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newLVOb6RefFlatTypeID))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newLVOb7RefFlatTypeID))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newLVOb8RefFlatTypeID))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newLVOb9RefFlatTypeID))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newClrDtFlgFlatTypeID))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newTDDiStChClFlatTypeID))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "Label")
+            tmpTDSub.set("Text","3DMathPlot Ctrl Act Cluster.ctl")
+        newTDCtlRefTypeDesc, newTDCtlRefFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0x0))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Refnum")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("RefType","Queue")
+            tmpTDSub.set("Label","Control Ref Queue")
+            tmpTDSub.set("Format","inline")
+        if True:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(newTDCtlRefFlatTypeID))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "Label")
+            tmpTDSub.set("Text","3DMathPlot Ctrl Act Queue.ctl")
+        newTDDiStChClTypeDesc, newTDDiStChClFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    stateSubFlatTypeIDList = [newUDCRefFlatTypeID, newTDDiStChClFlatTypeID]
+    for labelStr in dcoFpColorProps:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumUInt32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        newTmpTypeDesc, newTmpFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        stateSubFlatTypeIDList.append(newTmpFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0x0))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","State")
+            tmpTDSub.set("Format","inline")
+        for newTmpFlatTypeID in stateSubFlatTypeIDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(newTmpFlatTypeID))
+        if True:
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text","{}.xctl".format(dcoUDCRefClass))
+        if True:
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text","State.ctl")
+        newStateTypeDesc, newStateFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    return newStateTypeDesc, newStateFlatTypeID
+
+def VCTP_add_XYPlotMatrixTD_for_DTHP(RSRC, fo, po, fpClassEx, VCTP):
+    """ Adds Base Datatype TD to VCTP and Top Types List
+    """
+    newSrcFlatTypeID = 0 #TODO
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Label","error")
+        tmpTypeDesc.set("Format","inline")
         if True:
             tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
             tmpTDSub.set("TypeID",str(newSrcFlatTypeID))
@@ -2733,7 +3320,9 @@ def DCO_create_VCTP_heap_entries(RSRC, fo, po, dcoIndex, dcoTypeDesc, dcoFlatTyp
             nIndexShift, _ = VCTP_add_TopTypeDesc(RSRC, fo, po, dcoFlatTypeID, nTopTDIndex=nIndexShift)
         nIndexShift += 1
     # Sub-types
-    if any(fpClassEx in ("radioClust:Radio Buttons",) for fpClassEx in matchingClasses):
+    filterClasses = [fpClassEx for fpClassEx in matchingClasses if fpClassEx in ("radioClust:Radio Buttons",)]
+    if len(filterClasses) > 0:
+        matchingClasses = filterClasses
         enumLabelList = dcoTypeDesc.findall("./EnumLabel")
         newFlatTypeInfoList = []
         if True:
@@ -2749,14 +3338,36 @@ def DCO_create_VCTP_heap_entries(RSRC, fo, po, dcoIndex, dcoTypeDesc, dcoFlatTyp
             _, nIndexShift = VCTP_add_TopTypeDesc_for_DTHP(RSRC, fo, po, newTypeInfo[1], newTypeInfo[0], \
                   nTopTDIndex=nIndexShift, VCTP_FlatTypeDescList=VCTP_FlatTypeDescList, VCTP_TopLevel=VCTP_TopLevel)
             nIndexShift += 1
-    if any(fpClassEx in ("xControl:3D Line Graph.vi","xControl:3D Parametric Graph.vi",
-          "xControl:3D Surface Graph.vi","xControl:2D Error Bar Plot.vi","xControl:2D Feather Plot.vi",
-          "xControl:3D_Bar_Plot_Merge_VI.vi","xControl:3D_Comet_Plot_Merge_VI.vi","xControl:3D_Contour_Plot_Merge_VI.vi",
-          "xControl:3D_Mesh_Plot_Merge_VI.vi","xControl:3D_Pie_Plot_Merge_VI.vi","xControl:3D_Quiver_Plot_Merge_VI.vi",
-          "xControl:3D_Ribbon_Plot_Merge_VI.vi","xControl:3D_Scatter_Plot_Merge_VI.vi","xControl:3D_Stem_Plot_Merge_VI.vi",
-          "xControl:3D_Surface_Plot_Merge_VI.vi","xControl:3D_Waterfall_Plot_Merge_VI.vi","xControl:XY Plot Matrix.vi",) \
-          for fpClassEx in matchingClasses):
-        pass#TODO
+    # Controls with UDClassInst References have additional state cluster; it is removed with FP on build
+    newStateFlatTypeID = None
+    filterClasses = [fpClassEx for fpClassEx in matchingClasses if fpClassEx in ("xControl:3D Line Graph.vi", \
+          "xControl:3D Parametric Graph.vi","xControl:3D Surface Graph.vi",)]
+    if len(filterClasses) > 0:
+        matchingClasses = filterClasses
+        newStateTypeDesc, newStateFlatTypeID = VCTP_add_BaseDatatypeTD_for_DTHP(RSRC, fo, po, filterClasses[0], VCTP)
+    filterClasses = [fpClassEx for fpClassEx in matchingClasses if fpClassEx in ("xControl:2D Error Bar Plot.vi", \
+          "xControl:2D Feather Plot.vi","xControl:2D Compass",)]
+    if len(filterClasses) > 0:
+        matchingClasses = filterClasses
+        newStateTypeDesc, newStateFlatTypeID = VCTP_add_2DPlotDatatypeTD_for_DTHP(RSRC, fo, po, filterClasses[0], VCTP)
+    filterClasses = [fpClassEx for fpClassEx in matchingClasses if fpClassEx in ("xControl:3D_Bar_Plot_Merge_VI.vi", \
+          "xControl:3D_Comet_Plot_Merge_VI.vi","xControl:3D_Contour_Plot_Merge_VI.vi","xControl:3D_Mesh_Plot_Merge_VI.vi", \
+          "xControl:3D_Pie_Plot_Merge_VI.vi","xControl:3D_Quiver_Plot_Merge_VI.vi","xControl:3D_Ribbon_Plot_Merge_VI.vi", \
+          "xControl:3D_Scatter_Plot_Merge_VI.vi","xControl:3D_Stem_Plot_Merge_VI.vi","xControl:3D_Surface_Plot_Merge_VI.vi", \
+          "xControl:3D_Waterfall_Plot_Merge_VI.vi",)]
+    if len(filterClasses) > 0:
+        matchingClasses = filterClasses
+        newStateTypeDesc, newStateFlatTypeID = VCTP_add_3DPlotDatatypeTD_for_DTHP(RSRC, fo, po, filterClasses[0], VCTP)
+    filterClasses = [fpClassEx for fpClassEx in matchingClasses if fpClassEx in ("xControl:XY Plot Matrix.vi",)]
+    if len(filterClasses) > 0:
+        matchingClasses = filterClasses
+        newStateTypeDesc, newStateFlatTypeID = VCTP_add_XYPlotMatrixTD_for_DTHP(RSRC, fo, po, filterClasses[0], VCTP)
+    if newStateFlatTypeID is not None:
+        # Create Top Types
+        VCTP_FlatTypeDescList = VCTP.findall("TypeDesc")
+        if newStateFlatTypeID is not None:
+            nIndexShift, _ = VCTP_add_TopTypeDesc(RSRC, fo, po, newStateFlatTypeID, nTopTDIndex=nIndexShift)
+            nIndexShift += 1
     # Some controls have histTD type at end; if it should be used, we expect the proper TypeDesc to be already in list
     # So try to re-use existing TDs when creating it
     hasHistTD = any(fpClassEx in ("stdGraph:Intensity Chart","stdGraph:Waveform Chart",) for fpClassEx in matchingClasses)
@@ -3191,6 +3802,7 @@ def DCO_recognize_fpClassEx_list_from_single_TypeDesc(RSRC, fo, po, VCTP_FlatTyp
         elif "2D Plot Datatype.lvclass" in [ itm.get("Text") for itm in dcoSubTDItemList ]:
             controlNames.append("2D Error Bar Plot.vi")
             controlNames.append("2D Feather Plot.vi")
+            controlNames.append("2D Compass")
         elif "3D Plot Datatype.lvclass" in [ itm.get("Text") for itm in dcoSubTDItemList ]:
             controlNames.append("3D_Bar_Plot_Merge_VI.vi")
             controlNames.append("3D_Comet_Plot_Merge_VI.vi")
@@ -4265,7 +4877,7 @@ def DCO_recognize_heap_TDs_from_flat_list(RSRC, fo, po, VCTP_FlatTypeDescList, f
 
     # Controls which use three or less FP TypeDefs are left below
     dcoClass = [itm for itm in matchingClasses if itm in ("xControl:3D Line Graph.vi","xControl:3D Parametric Graph.vi",
-          "xControl:3D Surface Graph.vi","xControl:2D Error Bar Plot.vi","xControl:2D Feather Plot.vi",
+          "xControl:3D Surface Graph.vi","xControl:2D Error Bar Plot.vi","xControl:2D Feather Plot.vi","xControl:2D Compass",
           "xControl:3D_Bar_Plot_Merge_VI.vi","xControl:3D_Comet_Plot_Merge_VI.vi","xControl:3D_Contour_Plot_Merge_VI.vi",
           "xControl:3D_Mesh_Plot_Merge_VI.vi","xControl:3D_Pie_Plot_Merge_VI.vi","xControl:3D_Quiver_Plot_Merge_VI.vi",
           "xControl:3D_Ribbon_Plot_Merge_VI.vi","xControl:3D_Scatter_Plot_Merge_VI.vi","xControl:3D_Stem_Plot_Merge_VI.vi",
