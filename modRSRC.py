@@ -2418,17 +2418,1487 @@ def VCTP_add_ErrorClustTD_for_DTHP(RSRC, fo, po, VCTP):
 def VCTP_add_BaseDatatypeTD_for_DTHP(RSRC, fo, po, fpClassEx, VCTP):
     """ Adds Base Datatype TD to VCTP and Top Types List
     """
-    newSrcFlatTypeID = 0 #TODO
+    dcoUDCRefClass = "2D Error Bar"
+    allPropsClustTDList = []
+    # Preparing newGraphPropsFlatTypeID
+    graphPropsFlatTypeIDList = []
     if True:
         tmpTypeDesc = ET.Element("TypeDesc")
-        tmpTypeDesc.set("Type","Cluster")
-        tmpTypeDesc.set("Label","error")
+        tmpTypeDesc.set("Type","UnitUInt16")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","Projection Mode")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Orthographic","Perspective",):
+            tmpLabel = ET.SubElement(tmpTDSub, "EnumLabel")
+            tmpLabel.text = labelStr
+        newProjModeTypeDesc, newProjModeFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        graphPropsFlatTypeIDList.append(newProjModeFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","UnitUInt16")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","View Direction")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Towards X-Y Plane","Towards Y-Z Plane","Towards X-Z Plane","User Define",):
+            tmpLabel = ET.SubElement(tmpTDSub, "EnumLabel")
+            tmpLabel.text = labelStr
+        newViwDircTypeDesc, newViwDircFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        graphPropsFlatTypeIDList.append(newViwDircFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumUInt32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","Plot Area Color")
+        tmpTypeDesc.set("Format","inline")
+        newPltArColTypeDesc, newPltArColFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        graphPropsFlatTypeIDList.append(newPltArColFlatTypeID)
+    for labelStr in ("Fast Draw","X-Y","Y-Z","X-Z","Lighting",):
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Boolean")
+        tmpTypeDesc.set("Label",labelStr)
+        tmpTypeDesc.set("Format","inline")
+        newTmpTypeDesc, newTmpFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        graphPropsFlatTypeIDList.append(newTmpFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Refnum")
+        tmpTypeDesc.set("RefType","LVObjCtl")
+        tmpTypeDesc.set("CtlFlags","0x{:04X}".format(0x0068))
+        tmpTypeDesc.set("HasItem",str(0))
+        tmpTypeDesc.set("Format","inline")
+        newLVOb1SubRefTypeDesc, newLVOb1SubRefFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Refnum")
+        tmpTypeDesc.set("RefType","LVObjCtl")
+        tmpTypeDesc.set("CtlFlags","0x{:04X}".format(0x0064))
+        tmpTypeDesc.set("HasItem",str(0))
+        tmpTypeDesc.set("Label","3D Picture Control")
         tmpTypeDesc.set("Format","inline")
         if True:
             tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
-            tmpTDSub.set("TypeID",str(newSrcFlatTypeID))
-        newErrClustTypeDesc, newErrClustFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
-    return newErrClustTypeDesc, newErrClustFlatTypeID
+            tmpTDSub.set("TypeID",str(newLVOb1SubRefFlatTypeID))
+        newLVOb1RefTypeDesc, newLVOb1RefFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        graphPropsFlatTypeIDList.append(newLVOb1RefFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0x0C3CFF6F8))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Graph Properties")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in graphPropsFlatTypeIDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_graph.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newGraphPropsTypeDesc, newGraphPropsFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        allPropsClustTDList.append(newGraphPropsFlatTypeID)
+    # Preparing newPACPropsFlatTypeID - part newPlotPropsArrFlatTypeID
+    plotPropsClustTDList = []
+    projPropClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Boolean")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Draw XY","Draw YZ","Draw XZ",):
+            tmpTypeDesc.set("Label",labelStr)
+            newDrawTypeDesc, newDrawFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            projPropClustTDList.append(newDrawFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC0F57580))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Projection Properties")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in projPropClustTDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_plot_projection.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newProjPropTypeDesc, newProjPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        plotPropsClustTDList.append(newProjPropFlatTypeID)
+    surfPropsClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Boolean")
+        tmpTypeDesc.set("Label","Draw surface")
+        tmpTypeDesc.set("Format","inline")
+        newDrwSurfTypeDesc, newDrwSurfFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        surfPropsClustTDList.append(newDrwSurfFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumFloat64")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","Opacity")
+        tmpTypeDesc.set("Format","inline")
+        newOpactTypeDesc, newOpactFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        surfPropsClustTDList.append(newOpactFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Boolean")
+        tmpTypeDesc.set("Label","Shading")
+        tmpTypeDesc.set("Format","inline")
+        newShadingTypeDesc, newShadingFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        surfPropsClustTDList.append(newShadingFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumInt32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","Specular")
+        tmpTypeDesc.set("Format","inline")
+        newSpclrTypeDesc, newSpclrFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        surfPropsClustTDList.append(newSpclrFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumFloat64")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        newFltTypeDesc, newFltFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumUInt32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        newUIntTypeDesc, newUIntFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Format","inline")
+        for flatTypeID in (newFltFlatTypeID,newUIntFlatTypeID,):
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(flatTypeID))
+        newColMapClustTypeDesc, newColMapClustFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if newArrInnerTypeDesc is not None:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Array")
+        tmpTypeDesc.set("Label","Color Map")
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "Dimension")
+            tmpTDSub.set("Flags","0x{:02X}".format(0xFF))
+            tmpTDSub.set("FixedSize","0x{:06X}".format(0xFFFFFF))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newColMapClustFlatTypeID))
+        newColMapTypeDesc, newColMapFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        surfPropsClustTDList.append(newColMapFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Boolean")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Interpolate Color","Absolute Colormap",):
+            tmpTypeDesc.set("Label",labelStr)
+            newDrawTypeDesc, newDrawFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            surfPropsClustTDList.append(newDrawFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC8065020))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Surface Properties")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in surfPropsClustTDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_plot_surface.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newSurfPropsTypeDesc, newSurfPropsFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        plotPropsClustTDList.append(newSurfPropsFlatTypeID)
+    contrPropsClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumUInt32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","Contour color")
+        tmpTypeDesc.set("Format","inline")
+        newContrColTypeDesc, newContrColFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        contrPropsClustTDList.append(newContrColFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","UnitUInt16")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","Axis")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("X","Y","Z",):
+            tmpLabel = ET.SubElement(tmpTDSub, "EnumLabel")
+            tmpLabel.text = labelStr
+        newAxisTypeDesc, newAxisFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        contrPropsClustTDList.append(newAxisFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Boolean")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Draw contour","Antialias",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            contrPropsClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumFloat32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","Line Width")
+        tmpTypeDesc.set("Format","inline")
+        newLnWidthTypeDesc, newLnWidthFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        contrPropsClustTDList.append(newLnWidthFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","UnitUInt16")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","Contour Line Style")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Solid","Dash","Dot","Dash Dot",):
+            tmpLabel = ET.SubElement(tmpTDSub, "EnumLabel")
+            tmpLabel.text = labelStr
+        newLnStyleTypeDesc, newLnStyleFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        contrPropsClustTDList.append(newLnStyleFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","UnitUInt16")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","Mode")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Levels","Intervals","Level List",):
+            tmpLabel = ET.SubElement(tmpTDSub, "EnumLabel")
+            tmpLabel.text = labelStr
+        newModeTypeDesc, newModeFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        contrPropsClustTDList.append(newModeFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumFloat32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Levels","Intervals","Anchored At",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            contrPropsClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Boolean")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Anchored",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            contrPropsClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Array")
+        tmpTypeDesc.set("Label","Level List")
+        tmpTypeDesc.set("Format","inline")
+        for i in range(1):
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "Dimension")
+            tmpTDSub.set("Flags","0x{:02X}".format(0xFF))
+            tmpTDSub.set("FixedSize","0x{:06X}".format(0xFFFFFF))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newFltFlatTypeID))
+        newLvListTypeDesc, newLvListFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        contrPropsClustTDList.append(newLvListFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC3D7AD43))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Contour Properties")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in contrPropsClustTDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_plot_contour.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newContrPropsTypeDesc, newContrPropsFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        plotPropsClustTDList.append(newContrPropsFlatTypeID)
+    normlPropsClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumUInt32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","Normal color")
+        tmpTypeDesc.set("Format","inline")
+        newNormColTypeDesc, newNormColFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        normlPropsClustTDList.append(newNormColFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumFloat32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","Normal Length")
+        tmpTypeDesc.set("Format","inline")
+        newNormLenTypeDesc, newNormLenFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        normlPropsClustTDList.append(newNormLenFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumFloat32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","Normal Width")
+        tmpTypeDesc.set("Format","inline")
+        newNormWidthTypeDesc, newNormWidthFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        normlPropsClustTDList.append(newNormWidthFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Boolean")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Draw Normal","Antialiasing",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            normlPropsClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC0F575EC))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Normal Properties")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in normlPropsClustTDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_plot_normal.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newNormlPropsTypeDesc, newNormlPropsFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        plotPropsClustTDList.append(newNormlPropsFlatTypeID)
+    # Preparing newPACPropsFlatTypeID - part newPlotPropsArrFlatTypeID
+    pacPropsFlatTypeIDList = []
+    ptLnPropsClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumUInt32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","Color")
+        tmpTypeDesc.set("Format","inline")
+        newPtLnColTypeDesc, newPtLnColColFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        ptLnPropsClustTDList.append(newPtLnColColFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumFloat32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","Point Size")
+        tmpTypeDesc.set("Format","inline")
+        newPtSizeTypeDesc, newPtSizeFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        ptLnPropsClustTDList.append(newPtSizeFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","UnitUInt16")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","Points / Lines")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("None","Points","Lines","Both",):
+            tmpLabel = ET.SubElement(tmpTDSub, "EnumLabel")
+            tmpLabel.text = labelStr
+        newPtLnVisTypeDesc, newPtLnVisFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        ptLnPropsClustTDList.append(newPtLnVisFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","UnitUInt16")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","Point Style")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Point","EmptySquare","Asterisk","Diamond","EmptyCircle","Circle","X",):
+            tmpLabel = ET.SubElement(tmpTDSub, "EnumLabel")
+            tmpLabel.text = labelStr
+        newPtStyleTypeDesc, newPtStyleFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        ptLnPropsClustTDList.append(newPtStyleFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","UnitUInt16")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","Line Style")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Solid","Dash","Dot","Dash Dot",):
+            tmpLabel = ET.SubElement(tmpTDSub, "EnumLabel")
+            tmpLabel.text = labelStr
+        newLnStyleTypeDesc, newLnStyleFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        ptLnPropsClustTDList.append(newLnStyleFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC3BBD8A7))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Points/Lines Properties")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in ptLnPropsClustTDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_plot_point_line.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newPtLnPropsTypeDesc, newPtLnPropsFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        plotPropsClustTDList.append(newPtLnPropsFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumUInt32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","Plot ID")
+        tmpTypeDesc.set("Format","inline")
+        newPlotIdTypeDesc, newPlotIdFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        plotPropsClustTDList.append(newPlotIdFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","UnitUInt16")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","Coordinate System")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Cartesian","Cylindrical","Spherical",):
+            tmpLabel = ET.SubElement(tmpTDSub, "EnumLabel")
+            tmpLabel.text = labelStr
+        newCoordSystTypeDesc, newCoordSystFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        plotPropsClustTDList.append(newCoordSystFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC8065029))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Plot Properties")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in plotPropsClustTDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_plot_all.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newPlotPropsTypeDesc, newPlotPropsFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC806503D))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Array")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Plot Properties Array")
+            tmpTDSub.set("Format","inline")
+        for i in range(1):
+            tmpTDSSub = ET.SubElement(tmpTDSub, "Dimension")
+            tmpTDSSub.set("Flags","0x{:02X}".format(0xFF))
+            tmpTDSSub.set("FixedSize","0x{:06X}".format(0xFFFFFF))
+        if True:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(newPlotPropsFlatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_plot_all_array.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newPlotPropsArrTypeDesc, newPlotPropsArrFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        pacPropsFlatTypeIDList.append(newPlotPropsArrFlatTypeID)
+    # Preparing newPACPropsFlatTypeID - part newValPairPropsFlatTypeID
+    xValPairsClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumFloat32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","Value")
+        tmpTypeDesc.set("Format","inline")
+        newFltValueTypeDesc, newFltValueFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumInt32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","Index")
+        tmpTypeDesc.set("Format","inline")
+        newIntIndexTypeDesc, newIntIndexFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","String")
+        tmpTypeDesc.set("Prop1","0x{:04X}".format(0xFFFFFFFF))
+        tmpTypeDesc.set("Label","Name")
+        tmpTypeDesc.set("Format","inline")
+        newStrNameTypeDesc, newStrNameFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Format","inline")
+        for flatTypeID in (newFltValueFlatTypeID,newIntIndexFlatTypeID,newStrNameFlatTypeID,):
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        newXValInnerTypeDesc, newXValInnerFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Array")
+        tmpTypeDesc.set("Label","Data Array")
+        tmpTypeDesc.set("Format","inline")
+        for i in range(1):
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "Dimension")
+            tmpTDSub.set("Flags","0x{:02X}".format(0xFF))
+            tmpTDSub.set("FixedSize","0x{:06X}".format(0xFFFFFF))
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(newXValInnerFlatTypeID))
+        newXValDataArrTypeDesc, newXValDataArrFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        xValPairsClustTDList.append(newDrawFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Boolean")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Show ticks","Show grid lines",):
+            tmpTypeDesc.set("Label",labelStr)
+            newDrawTypeDesc, newDrawFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            xValPairsClustTDList.append(newDrawFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","UnitUInt16")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Label","Labels")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Value","None","Name",):
+            tmpLabel = ET.SubElement(tmpTDSub, "EnumLabel")
+            tmpLabel.text = labelStr
+        newLabelsUntTypeDesc, newLabelsUntFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        xValPairsClustTDList.append(newLabelsUntFlatTypeID)
+    if True:
+        # For some reason, X have no typedef around it
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Label","X Value Pairs")
+        tmpTypeDesc.set("Format","inline")
+        for flatTypeID in xValPairsClustTDList:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(flatTypeID))
+        newXValPairsTypeDesc, newXValPairsFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC0F5766F))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Y Value Pairs")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in xValPairsClustTDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_value_pair_1d.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newYValPairsTypeDesc, newYValPairsFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC0F5766F))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Z Value Pairs")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in xValPairsClustTDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_value_pair_1d.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newZValPairsTypeDesc, newZValPairsFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC342AF5A))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Value Pair Properties")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in (newXValPairsFlatTypeID,newYValPairsFlatTypeID,newZValPairsFlatTypeID):
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_value_pair_all.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newValPairPropsTypeDesc, newValPairPropsFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        pacPropsFlatTypeIDList.append(newValPairPropsFlatTypeID)
+    # Preparing newPACPropsFlatTypeID - part newAxesPropsFlatTypeID
+    gridVisibleClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Boolean")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Draw X-grid","Draw Y-grid","Draw Z-grid",):
+            tmpTypeDesc.set("Label",labelStr)
+            newDrawTypeDesc, newDrawFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            gridVisibleClustTDList.append(newDrawFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Label","Grid Visible")
+        tmpTypeDesc.set("Format","inline")
+        for flatTypeID in gridVisibleClustTDList:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(flatTypeID))
+        newGridVisibTypeDesc, newGridVisibFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    gridColClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumUInt32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Color X","Color Y","Color Z",):
+            tmpTypeDesc.set("Label",labelStr)
+            newDrawTypeDesc, newDrawFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            gridColClustTDList.append(newDrawFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Label","Grid Color")
+        tmpTypeDesc.set("Format","inline")
+        for flatTypeID in gridColClustTDList:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(flatTypeID))
+        newGridColTypeDesc, newGridColFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC0F576AC))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Grid  Properties")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in (newGridVisibFlatTypeID,newGridColFlatTypeID,):
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_axes_grid.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newValPairPropsTypeDesc, newValPairPropsFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    minorCntClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumInt32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("X","Y","Z",):
+            tmpTypeDesc.set("Label",labelStr)
+            newAxIntTypeDesc, newAxIntFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            minorCntClustTDList.append(newAxIntFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Label","Minor Count")
+        tmpTypeDesc.set("Format","inline")
+        for flatTypeID in minorCntClustTDList:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(flatTypeID))
+        newMinorCntColTypeDesc, newMinorCntColFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Label","Major Count")
+        tmpTypeDesc.set("Format","inline")
+        for flatTypeID in minorCntClustTDList:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(flatTypeID))
+        newMajorCntColTypeDesc, newMajorCntColFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    mTickVisibClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Boolean")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("X","Y","Z",):
+            tmpTypeDesc.set("Label",labelStr)
+            newAxBoolTypeDesc, newAxBoolFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            mTickVisibClustTDList.append(newAxBoolFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Label","Major Ticks Visible")
+        tmpTypeDesc.set("Format","inline")
+        for flatTypeID in mTickVisibClustTDList:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(flatTypeID))
+        newMajorTickVisTypeDesc, newMajorTickVisFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Label","Minor Ticks Visible")
+        tmpTypeDesc.set("Format","inline")
+        for flatTypeID in mTickVisibClustTDList:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(flatTypeID))
+        newMinorTickVisTypeDesc, newMinorTickVisFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Label","Tick Color")
+        tmpTypeDesc.set("Format","inline")
+        for flatTypeID in gridColClustTDList:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(flatTypeID))
+        newTickColTypeDesc, newTickColFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC0F576D7))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Ticks Properties")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in (newMajorCntColFlatTypeID,newMinorCntColFlatTypeID,newMajorTickVisFlatTypeID,newMinorTickVisFlatTypeID,newTickColFlatTypeID,):
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_axes_ticks.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newValPairPropsTypeDesc, newValPairPropsFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    minMaxRangeTDList = []
+    minMaxClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumFloat32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Min","Max",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPartTypeDesc, newPartFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        minMaxClustTDList.append(newPartFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC0F57F25))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in minMaxClustTDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("min_max.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        for labelStr in ("X","Y","Z","Amplitude",):
+            tmpTDSub.set("Label",labelStr)
+            newMinMaxTypeDesc, newMinMaxFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            minMaxRangeTDList.append(newMinMaxFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xCD273844))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","from/to cluster")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in minMaxRangeTDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("range_cluster.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newMinMaxRngTypeDesc, newMinMaxRngFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    showCaptnsClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Boolean")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Show X Caption","Show Z Caption","Show Y Caption","Show Opposite X Caption","Show Opposite Y Caption","Show Opposite Z Caption",):
+            tmpTypeDesc.set("Label",labelStr)
+            newDrawTypeDesc, newDrawFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            showCaptnsClustTDList.append(newDrawFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Label","Show Captions")
+        tmpTypeDesc.set("Format","inline")
+        for flatTypeID in showCaptnsClustTDList:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(flatTypeID))
+        newShowCaptnsTypeDesc, newShowCaptnsFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    captnStrClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","String")
+        tmpTypeDesc.set("Prop1","0x{:04X}".format(0xFFFFFFFF))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Caption X","Caption Y","Caption Z",):
+            tmpTypeDesc.set("Label",labelStr)
+            newDrawTypeDesc, newDrawFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            captnStrClustTDList.append(newDrawFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Label","Captions")
+        tmpTypeDesc.set("Format","inline")
+        for flatTypeID in captnStrClustTDList:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(flatTypeID))
+        newCaptnStrsTypeDesc, newCaptnStrsFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Label","Caption Color")
+        tmpTypeDesc.set("Format","inline")
+        for flatTypeID in gridColClustTDList:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(flatTypeID))
+        newGridColTypeDesc, newGridColFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    captnFntSzClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumInt16")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Font Size X","Font Size Y","Font Size Z",):
+            tmpTypeDesc.set("Label",labelStr)
+            newDrawTypeDesc, newDrawFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            captnFntSzClustTDList.append(newDrawFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Label","Caption Font Size")
+        tmpTypeDesc.set("Format","inline")
+        for flatTypeID in captnFntSzClustTDList:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(flatTypeID))
+        newCaptnFntSzTypeDesc, newCaptnFntSzFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC0F57723))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Caption Properties")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in (newShowCaptnsFlatTypeID,newCaptnStrsFlatTypeID,newGridColFlatTypeID,newCaptnFntSzFlatTypeID,):
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_axes_captions.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newMinMaxRngTypeDesc, newMinMaxRngFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    labelVisbClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Boolean")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Show X Labels","Show Y Labels","Show Z Labels","Show Opposite X Labels","Show Opposite Y Labels","Show Opposite Z Labels",):
+            tmpTypeDesc.set("Label",labelStr)
+            newBoolTypeDesc, newBoolFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            labelVisbClustTDList.append(newBoolFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Label","Label Visible")
+        tmpTypeDesc.set("Format","inline")
+        for flatTypeID in labelVisbClustTDList:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(flatTypeID))
+        newLabelVisbTypeDesc, newLabelVisbFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Label","Label Color")
+        tmpTypeDesc.set("Format","inline")
+        for flatTypeID in gridColClustTDList:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(flatTypeID))
+        newLabelColTypeDesc, newLabelColFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Label","Label Font Size")
+        tmpTypeDesc.set("Format","inline")
+        for flatTypeID in captnFntSzClustTDList:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("TypeID",str(flatTypeID))
+        newLabelFntSzTypeDesc, newLabelFntSzFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC28B6545))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Labels Properties")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in (newLabelVisbFlatTypeID,newLabelColFlatTypeID,newLabelFntSzFlatTypeID,):
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_axes_labels.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newMinMaxRngTypeDesc, newMinMaxRngFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC0F57746))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Auto Range On")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in mTickVisibClustTDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_axes_autorange.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newAutoRangeTypeDesc, newAutoRangeFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xCD274C5E))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Axes Properties")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in (newValPairPropsFlatTypeID,newValPairPropsFlatTypeID,newMinMaxRngFlatTypeID,newMinMaxRngFlatTypeID,
+              newAutoRangeFlatTypeID,newAutoRangeFlatTypeID,):
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_axes_all.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newAxesPropsTypeDesc, newAxesPropsFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        pacPropsFlatTypeIDList.append(newAxesPropsFlatTypeID)
+    # Preparing newPACPropsFlatTypeID - part newCursrPropsArrFlatTypeID
+    cursrPropsClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Boolean")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Cursor Visible","Cursor Enable",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            cursrPropsClustTDList.append(newPropFlatTypeID)
+    cursrPtClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumUInt32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Point Color",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            cursrPtClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumFloat64")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Point Size",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            cursrPtClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Boolean")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Point Visible",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            cursrPtClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC0F577A1))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Cursor Point")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in cursrPtClustTDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_cursor_point.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newCursrPtTypeDesc, newCursrPtFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        cursrPropsClustTDList.append(newCursrPtFlatTypeID)
+    cursrPositClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumFloat64")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Position X","Position Y","Position Z",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            cursrPositClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTDSub.set("Type","UnitUInt16")
+        tmpTDSub.set("Prop1",str(0))
+        tmpTDSub.set("Label","Position Snap To")
+        tmpTDSub.set("Format","inline")
+        for labelStr in ("Fixed","Nearest Plot","Snap to Plot",):
+            tmpLabel = ET.SubElement(tmpTDSub, "EnumLabel")
+            tmpLabel.text = labelStr
+        newPosSnapToTypeDesc, newPosSnapToFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        cursrPositClustTDList.append(newPosSnapToFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumUInt16")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Polsition Pick Plot",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPoPickPlotTypeDesc, newPoPickPlotFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            cursrPositClustTDList.append(newPoPickPlotFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumInt32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Position Column","Position Row",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            cursrPositClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC0F577B1))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Cursor Position")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in cursrPositClustTDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_cursor_position.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newCursrPropsClustTypeDesc, newCursrPropsClustFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    cursrLineClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumUInt32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Line Color",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            cursrLineClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumFloat64")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Line Width",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            cursrLineClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Boolean")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Line Visible",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            cursrLineClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC0F577C4))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Cursor Line")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in cursrLineClustTDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_cursor_line.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newCursrLineClustTypeDesc, newCursrLineClustFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    cursrPlaneClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumFloat64")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Plane Opacity",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            cursrPlaneClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumUInt32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Plane Color",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            cursrPlaneClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Boolean")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Plane YZ","Plane XZ","Plane XY",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            cursrPlaneClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC0F577DC))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Cursor Plane")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in cursrPlaneClustTDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_cursor_plane.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newCursrPlaneClustTypeDesc, newCursrPlaneClustFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    cursrTextClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","String")
+        tmpTypeDesc.set("Prop1","0x{:04X}".format(0xFFFFFFFF))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Cursor Name",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            cursrTextClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumInt32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Font Size",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            cursrTextClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Boolean")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Show Position","Show Name",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            cursrTextClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumUInt32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Text Color","Back Color",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            cursrTextClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumFloat64")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Opacity",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            cursrTextClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC0F577FD))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Cursor Text")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in cursrTextClustTDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_cursor_text.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newCursrTextClustTypeDesc, newCursrTextClustFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Label","Cursor Properties")
+        tmpTypeDesc.set("Format","inline")
+        for flatTypeID in newCursrTextClustTypeDesc:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        newCursrPropsClustTypeDesc, newCursrPropsClustFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC342AF5A))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Array")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Cursor Properties Array")
+            tmpTDSub.set("Format","inline")
+        for i in range(1):
+            tmpTDSSub = ET.SubElement(tmpTDSub, "Dimension")
+            tmpTDSSub.set("Flags","0x{:02X}".format(0xFF))
+            tmpTDSSub.set("FixedSize","0x{:06X}".format(0xFFFFFF))
+        for flatTypeID in (newCursrPropsClustFlatTypeID,):
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_cursor_all_array.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newCursrPropsArrTypeDesc, newCursrPropsArrFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        pacPropsFlatTypeIDList.append(newCursrPropsArrFlatTypeID)
+    # Preparing newPACPropsFlatTypeID - part newFmtStrClustFlatTypeID
+    fmtStrClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","String")
+        tmpTypeDesc.set("Prop1","0x{:04X}".format(0xFFFFFFFF))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("XAxis","YAxis","ZAxis",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            fmtStrClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC2C2B1EA))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Format strings")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in fmtStrClustTDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_format.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newFmtStrClustTypeDesc, newFmtStrClustFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        pacPropsFlatTypeIDList.append(newFmtStrClustFlatTypeID)
+    # Preparing newPACPropsFlatTypeID - part newLightPropsClustFlatTypeID
+    lightPropsClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumInt32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Brightness",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            lightPropsClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumFloat64")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Focus","Linear Attenuation","Quadratic Attenuation",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            lightPropsClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xC2EC3091))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Lighting Properties")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in lightPropsClustTDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","prop_lighting.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newLightPropsClustTypeDesc, newLightPropsClustFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        pacPropsFlatTypeIDList.append(newLightPropsClustFlatTypeID)
+    lightsClustTDList = []
+    xyzCoordClustTDList = []
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumFloat32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("X","Y","Z",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            xyzCoordClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Format","inline")
+        for flatTypeID in xyzCoordClustTDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("Position","Direction",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            lightsClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Cluster")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Label","Cluster")
+        tmpTypeDesc.set("Format","inline")
+        for flatTypeID in lightsClustTDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        newLightsClustTypeDesc, newLightsClustFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Array")
+        tmpTypeDesc.set("Nested","True")
+        tmpTypeDesc.set("Label","Lights")
+        tmpTypeDesc.set("Format","inline")
+        for i in range(1):
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "Dimension")
+            tmpTDSub.set("Flags","0x{:02X}".format(0xFF))
+            tmpTDSub.set("FixedSize","0x{:06X}".format(0xFFFFFF))
+        for flatTypeID in (newLightsClustFlatTypeID,):
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        newLightsArrTypeDesc, newLightsArrFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        pacPropsFlatTypeIDList.append(newLightsArrFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:04X}".format(0xCD274C5E))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","Plot/Axes/Cursor Properties")
+            tmpTDSub.set("Format","inline")
+        for newTmpFlatTypeID in pacPropsFlatTypeIDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(newTmpFlatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","all_non_graph_prop.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+        allPropsClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","NumInt32")
+        tmpTypeDesc.set("Prop1",str(0))
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Active Plot","Active Axis","Active Cursor",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            allPropsClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","Boolean")
+        tmpTypeDesc.set("Format","inline")
+        for labelStr in ("Disable Updates",):
+            tmpTypeDesc.set("Label",labelStr)
+            newPropTypeDesc, newPropFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+            allPropsClustTDList.append(newPropFlatTypeID)
+    if True:
+        tmpTypeDesc = ET.Element("TypeDesc")
+        tmpTypeDesc.set("Type","TypeDef")
+        tmpTypeDesc.set("Flag1","0x{:X}".format(0))
+        tmpTypeDesc.set("Format","inline")
+        if True:
+            tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
+            tmpTDSub.set("Type","Cluster")
+            tmpTDSub.set("Nested","True")
+            tmpTDSub.set("Label","All Properties")
+            tmpTDSub.set("Format","inline")
+        for flatTypeID in allPropsClustTDList:
+            tmpTDSSub = ET.SubElement(tmpTDSub, "TypeDesc")
+            tmpTDSSub.set("TypeID",str(flatTypeID))
+        for labelStr in ("3DPC_SurfacePlot.xctl","State.ctl",):
+            tmpLabel = ET.SubElement(tmpTypeDesc, "Label")
+            tmpLabel.set("Text",labelStr)
+        newAllPropsClustTypeDesc, newAllPropsClustFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
+    return newAllPropsClustTypeDesc, newAllPropsClustFlatTypeID
 
 def VCTP_add_2DPlotDatatypeTD_for_DTHP(RSRC, fo, po, fpClassEx, VCTP):
     """ Adds 2D Plot Datatype TD to VCTP and Top Types List
