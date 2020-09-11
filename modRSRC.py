@@ -2430,7 +2430,7 @@ def VCTP_add_BaseDatatypeTD_for_DTHP(RSRC, fo, po, fpClassEx, VCTP):
         tmpTypeDesc.set("Label","Projection Mode")
         tmpTypeDesc.set("Format","inline")
         for labelStr in ("Orthographic","Perspective",):
-            tmpLabel = ET.SubElement(tmpTDSub, "EnumLabel")
+            tmpLabel = ET.SubElement(tmpTypeDesc, "EnumLabel")
             tmpLabel.text = labelStr
         newProjModeTypeDesc, newProjModeFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
         graphPropsFlatTypeIDList.append(newProjModeFlatTypeID)
@@ -2442,7 +2442,7 @@ def VCTP_add_BaseDatatypeTD_for_DTHP(RSRC, fo, po, fpClassEx, VCTP):
         tmpTypeDesc.set("Label","View Direction")
         tmpTypeDesc.set("Format","inline")
         for labelStr in ("Towards X-Y Plane","Towards Y-Z Plane","Towards X-Z Plane","User Define",):
-            tmpLabel = ET.SubElement(tmpTDSub, "EnumLabel")
+            tmpLabel = ET.SubElement(tmpTypeDesc, "EnumLabel")
             tmpLabel.text = labelStr
         newViwDircTypeDesc, newViwDircFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
         graphPropsFlatTypeIDList.append(newViwDircFlatTypeID)
@@ -2582,7 +2582,7 @@ def VCTP_add_BaseDatatypeTD_for_DTHP(RSRC, fo, po, fpClassEx, VCTP):
             tmpTDSub = ET.SubElement(tmpTypeDesc, "TypeDesc")
             tmpTDSub.set("TypeID",str(flatTypeID))
         newColMapClustTypeDesc, newColMapClustFlatTypeID = VCTP_find_or_add_TypeDesc_copy(RSRC, fo, po, tmpTypeDesc, VCTP=VCTP)
-    if newArrInnerTypeDesc is not None:
+    if newColMapClustFlatTypeID is not None:
         tmpTypeDesc = ET.Element("TypeDesc")
         tmpTypeDesc.set("Type","Array")
         tmpTypeDesc.set("Label","Color Map")
