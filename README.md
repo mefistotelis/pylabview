@@ -88,8 +88,9 @@ to thousands of VI files, without the need of clicking through LabVIEW GUI.
 
 You can look into internals of a compiled VI project. You can also, to some
 extent, convert the EXE cack to source form. Though at the moment, the tools
-will not allow you to automatically recover Block Diagram and Front Panel,
-which are lost during VIs compilation process.
+will not allow you to automatically recover Block Diagram which is lost during
+VIs compilation process. There is a script which recovers Front Panel from
+a VI which had it removed.
 
 It is possible to write a tool which recovers these items, though.
 
@@ -109,13 +110,26 @@ or some data added - you will have to do it manually.
 
 # Reversing EXE back to buildable project
 
-While it is possible to reverse the EXE built with LabVIEW to its source, there are no tools to automate such conversion at the moment. When VI files are being build, some elements are removed from them:
-- Block Diagram is removed, leaving only compiled version. The compiled version is kind of OBJ file, which can only run on a specific CPU, and specific version of labVIEW Runtime Environment (LVRT).
+While it is possible to reverse the EXE built with LabVIEW to its source, there
+are no tools to automate such conversion at the moment. When VI files are being
+build, some elements are removed from them:
+- Block Diagram is removed, leaving only compiled version. The compiled version
+ is kind of OBJ file, which can only run on a specific CPU, and specific
+ version of LabVIEW Runtime Environment (LVRT).
 - If GUI of the VI file is never shown, the unused VI Front Panel is also removed.
 
-The missing elements can be re-created, and doing so with use of the XML format is much easier than doing that directly with binary form of the VI files. A script which reads the XML and re-constructs missing parts is totally possible to make.
+The missing elements can be re-created, and doing so with use of the XML format
+is much easier than doing that directly with binary form of the VI files.
+A script which reads the XML and re-constructs missing parts is in the project,
+though it currently reconstructs only Front Panel. The reconstructing script
+is not as thoroughly tested as the XML extractor, so may require some tweaks to
+work with a specific project.
 
-Even without the VIs fully reversed so source form, it is possible to extract the EXE back to a project, which then can be re-built with the same version of LabView which was originally used. It is then possible to start replacing single VIs with a newly created ones, while retaining useability of the whole project.
+Even without the VIs fully reversed so source form, it is possible to extract
+the EXE back to a project, which then can be re-built with the same version of
+LabView which was originally used. It is then possible to start replacing
+single VIs with a newly created ones, while retaining useability of the whole
+project.
 
 In order to reverse an executable back to LabView project:
 
@@ -183,6 +197,9 @@ If you encounter further errors, fix them. If you've solved the "Missing items",
 
 Now you have a LabVIEW project which allows you to re-build the EXE.
 
+You may look into converting to XML all the VIs which are missing Front Panel,
+and recovering these Front Panels.
+
 # Text Code Pages
 
 The RSRC files use various code pages, depending on OS on which the file was created.
@@ -212,6 +229,10 @@ Example code pages you could use:
 | cp949        | Windows Korean Hangul |
 | cp950        | Windows Chinese (traditional) |
 | utf-8        | Universal encoding, used by everyone except NI for decades |
+
+Note that changing text code pages of VI files will not influence extraction
+of ZIP files which were stored inside RSRC sections, and the code pages of
+file names within the ZIP. Use proper `unzip` switches to change these.
 
 # File format
 
