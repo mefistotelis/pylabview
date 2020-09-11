@@ -92,7 +92,7 @@ will not allow you to automatically recover Block Diagram which is lost during
 VIs compilation process. There is a script which recovers Front Panel from
 a VI which had it removed.
 
-It is possible to write a tool which recovers these items, though.
+It is possible to write a tool which recovers these items completely, though.
 
 ### Fix damaged VI files
 
@@ -135,7 +135,11 @@ In order to reverse an executable back to LabView project:
 
 ### 1. Extract RSRC file from the executable
 
-Use any tool you see fit. In case of Windows `PE` executable, you may use [Resource Hacker](https://en.wikipedia.org/wiki/Resource_Hacker). You may also just find `RSRC` in file content and copy the data starting from that position, using `dd`. Any method should work, as long as you receive the file with `RSRC` header.
+Use any tool you see fit. In case of Windows `PE` executable, you may use
+`wrestool`, or if you prefer GUIs, [Resource Hacker](https://en.wikipedia.org/wiki/Resource_Hacker).
+You may also just find `RSRC` in file content and copy the data starting from
+that position, using `dd`. Any method should work, as long as you receive the
+file with `RSRC` header.
 
 ### 2. Decrypt the ZIP from within RSRC file
 
