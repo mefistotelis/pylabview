@@ -2621,6 +2621,7 @@ class TDObjectFixedPoint(TDObject):
     """
     def __init__(self, *args):
         super().__init__(*args)
+        self.rangeFormat = 0
         self.ranges = []
 
     def parseRSRCData(self, bldata):
