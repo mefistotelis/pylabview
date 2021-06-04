@@ -7469,8 +7469,9 @@ def makeUidsUnique(FPHP, BDHP, ver, fo, po):
     # Now re-create required entries in branches which content we have in not_unique_elems
     # Refilling of ddoList - it should have entries for all DDOs
     # There is one root ddoList, and controls which are containers for other controls also have their nested lists
+    # For the root, we will still use findall() to support the case where there is no such path
     allDDOsWithLists = []
-    allDDOsWithLists.append( FPHP.find("./SL__rootObject/root/ddoList/..") )
+    allDDOsWithLists.extend( FPHP.findall("./SL__rootObject/root/ddoList/..") )
     allDDOsWithLists.extend( FPHP.findall(".//SL__arrayElement/ddo/ddoList/..") )
     for ddo in allDDOsWithLists:
         zPlaneList_elems = ddo.findall("./paneHierarchy/zPlaneList/SL__arrayElement[@class][@uid]")
