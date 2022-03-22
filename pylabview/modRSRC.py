@@ -7126,7 +7126,7 @@ def icl8_genDefaultIcon(title, po):
     img_data = bytes.fromhex(imageHex)
     image.putdata(img_data)
     draw = ImageDraw.Draw(image)
-    font = ImageFont.load(os.path.join(sys.path[0], 'assets', 'tom-thumb.pil'))
+    font = ImageFont.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets', 'tom-thumb.pil'))
     short_title = title
     if len(short_title) > 7:
         short_title = re.sub('[^A-Za-z0-9{}=-]', '', short_title)[:7]
