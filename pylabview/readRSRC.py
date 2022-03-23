@@ -21,11 +21,9 @@ import re
 import os
 import argparse
 
-import LVxml as ET
-import LVblock
-import LVdatatype
-from LVrsrcontainer import *
-from LVmisc import eprint
+import pylabview.LVxml as ET
+from pylabview.LVrsrcontainer import *
+from pylabview.LVmisc import eprint
 
 
 def main():

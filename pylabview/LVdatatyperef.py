@@ -19,10 +19,9 @@ from io import BytesIO
 from types import SimpleNamespace
 from ctypes import *
 
-from LVmisc import *
-import LVclasses
-import LVheap
-import LVdatatype
+from pylabview.LVmisc import *
+import pylabview.LVclasses as LVclasses
+import pylabview.LVheap as LVheap
 
 class REFNUM_TYPE(enum.IntEnum):
     Generic =	0

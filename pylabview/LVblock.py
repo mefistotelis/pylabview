@@ -22,17 +22,16 @@ from hashlib import md5
 from types import SimpleNamespace
 from ctypes import *
 
-from LVmisc import *
-import LVxml as ET
-from LVdatatype import *
-from LVinstrument import *
-import LVclasses
-import LVdatafill
-import LVlinkinfo
-import LVheap
-import LVparts
-import LVcode
-import LVrsrcontainer
+from pylabview.LVmisc import *
+import pylabview.LVxml as ET
+from pylabview.LVdatatype import *
+from pylabview.LVinstrument import *
+import pylabview.LVclasses as LVclasses
+import pylabview.LVdatafill as LVdatafill
+import pylabview.LVlinkinfo as LVlinkinfo
+import pylabview.LVheap as LVheap
+import pylabview.LVcode as LVcode
+import pylabview.LVrsrcontainer as LVrsrcontainer
 
 class BLOCK_CODING(enum.Enum):
     NONE = 0
@@ -5874,8 +5873,8 @@ class TypeDescListBase(CompleteBlock):
                 continue
             flatRange.append(flatIdx)
         # Now find the special types
-        from LVdatatype import TD_FULL_TYPE
-        from LVparts import DSINIT, DCO
+        from pylabview.LVdatatype import TD_FULL_TYPE
+        from pylabview.LVparts import DSINIT, DCO
         # Find DSInit
         tdDSInit = None
         for flatIdx in flatRange:

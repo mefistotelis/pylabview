@@ -20,11 +20,11 @@ from io import BytesIO
 from types import SimpleNamespace
 from ctypes import *
 
-import LVdatatype
-import LVdatafill
-import LVmisc
-from LVmisc import eprint
-import LVxml as ET
+import pylabview.LVdatatype as LVdatatype
+import pylabview.LVdatafill as LVdatafill
+import pylabview.LVmisc as LVmisc
+from pylabview.LVmisc import eprint
+import pylabview.LVxml as ET
 
 class HEAP_FORMAT(enum.Enum):
     """ Heap storage formats
@@ -1961,7 +1961,7 @@ class HeapNodeTDDataFill(HeapNode):
     @staticmethod
     def parseRSRCContentDirect(bldata, tdType):
         val = None
-        from LVdatatype import TD_FULL_TYPE
+        from pylabview.LVdatatype import TD_FULL_TYPE
         # Signed integer values are sign-extended automatically and no further processing is needed
         if tdType in (TD_FULL_TYPE.NumInt8,):
             val = int.from_bytes(bldata.read(1), byteorder='big', signed=True)
@@ -1995,7 +1995,7 @@ class HeapNodeTDDataFill(HeapNode):
     @staticmethod
     def prepareRSRCContentDirect(val, tdType):
         content = None
-        from LVdatatype import TD_FULL_TYPE
+        from pylabview.LVdatatype import TD_FULL_TYPE
         # Signed integer values
         if tdType in (TD_FULL_TYPE.NumInt8,):
             tmpbt = int(val).to_bytes(1, byteorder='big', signed=True)
@@ -2037,7 +2037,7 @@ class HeapNodeTDDataFill(HeapNode):
     def parseRSRCContentTree(self):
         ret = False
         tdType = self.td.fullType()
-        from LVdatatype import TD_FULL_TYPE
+        from pylabview.LVdatatype import TD_FULL_TYPE
         if tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,\
               TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,\
               TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
@@ -2048,7 +2048,7 @@ class HeapNodeTDDataFill(HeapNode):
     def prepareRSRCContentTree(self):
         ret = False
         tdType = self.td.fullType()
-        from LVdatatype import TD_FULL_TYPE
+        from pylabview.LVdatatype import TD_FULL_TYPE
         if tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,\
               TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,\
               TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
@@ -2104,7 +2104,7 @@ class HeapNodeTDDataFill(HeapNode):
         text = ""
         ret = False
         tdType = self.td.fullType()
-        from LVdatatype import TD_FULL_TYPE
+        from pylabview.LVdatatype import TD_FULL_TYPE
         tmpText = LVdatatype.numericToStringUnequivocal(self.value, tdType)
         if tmpText is not None:
             text = tmpText
@@ -2140,7 +2140,7 @@ class HeapNodeTDDataFill(HeapNode):
         ret = False
         val = None
         tdType = self.td.fullType()
-        from LVdatatype import TD_FULL_TYPE
+        from pylabview.LVdatatype import TD_FULL_TYPE
         val = LVdatatype.stringUnequivocalToNumeric(text, tdType)
         if val is not None:
             ret = True
@@ -2170,7 +2170,7 @@ class HeapNodeTDDataFillLeaf(HeapNode):
     @staticmethod
     def parseRSRCContentDirect(bldata, tdType):
         val = None
-        from LVdatatype import TD_FULL_TYPE
+        from pylabview.LVdatatype import TD_FULL_TYPE
         if tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,\
               TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,\
               TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
@@ -2207,7 +2207,7 @@ class HeapNodeTDDataFillLeaf(HeapNode):
             return
         ret = False
         tdType = self.parent.td.fullType()
-        from LVdatatype import TD_FULL_TYPE
+        from pylabview.LVdatatype import TD_FULL_TYPE
         content = None
         try:
             if tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
@@ -2234,7 +2234,7 @@ class HeapNodeTDDataFillLeaf(HeapNode):
         text = ""
         ret = False
         tdType = self.parent.td.fullType()
-        from LVdatatype import TD_FULL_TYPE
+        from pylabview.LVdatatype import TD_FULL_TYPE
         if tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
             tmpText = LVdatatype.numericToStringUnequivocal(self.value, TD_FULL_TYPE.NumFloat32)
             if tmpText is not None:
@@ -2275,7 +2275,7 @@ class HeapNodeTDDataFillLeaf(HeapNode):
         val = None
         try:
             tdType = self.parent.td.fullType()
-            from LVdatatype import TD_FULL_TYPE
+            from pylabview.LVdatatype import TD_FULL_TYPE
             if tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
                 val = LVdatatype.stringUnequivocalToNumeric(text, TD_FULL_TYPE.NumFloat32)
             elif tdType in (TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,):

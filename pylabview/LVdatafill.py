@@ -21,11 +21,11 @@ from io import BytesIO
 from types import SimpleNamespace
 from ctypes import *
 
-from LVmisc import *
-import LVxml as ET
-import LVclasses
-import LVdatatype
-import LVdatatyperef
+from pylabview.LVmisc import *
+import pylabview.LVxml as ET
+import pylabview.LVclasses as LVclasses
+import pylabview.LVdatatype as LVdatatype
+import pylabview.LVdatatyperef as LVdatatyperef
 
 
 class DataFill:
@@ -46,7 +46,7 @@ class DataFill:
     def isRefnumTag(self, td):
         """ Returns if given refnum td is a tag type.
         """
-        from LVdatatyperef import REFNUM_TYPE
+        from pylabview.LVdatatyperef import REFNUM_TYPE
         if td.refType() in (REFNUM_TYPE.IVIRef,REFNUM_TYPE.VisaRef,\
           REFNUM_TYPE.UsrDefTagFlt,REFNUM_TYPE.UsrDefndTag,):
             return True
@@ -54,7 +54,7 @@ class DataFill:
 
     def isSpecialDSTMClusterElement(self, idx, tm_flags):
         ver = self.vi.getFileVersion()
-        from LVdatatype import TM_FLAGS
+        from pylabview.LVdatatype import TM_FLAGS
 
         if (tm_flags & TM_FLAGS.TMFBit2) != 0:
             if isSmallerVersion(ver, 10,0,0,2):
@@ -104,8 +104,8 @@ class DataFill:
         return type(self).__name__ + pformat(d, indent=0, compact=True, width=512)
 
     def getXMLTagName(self):
-        from LVdatatype import TD_FULL_TYPE, tdEnToName, mdFlavorEnToName
-        from LVdatatyperef import refnumEnToName
+        from pylabview.LVdatatype import TD_FULL_TYPE, tdEnToName, mdFlavorEnToName
+        from pylabview.LVdatatyperef import refnumEnToName
         if self.tdType == TD_FULL_TYPE.MeasureData:
             tagName = mdFlavorEnToName(self.tdSubType)
         elif self.tdType == TD_FULL_TYPE.Refnum:
@@ -194,7 +194,7 @@ class DataFillInt(DataFill):
     def __init__(self, *args):
         super().__init__(*args)
         self.base = 10
-        from LVdatatype import TD_FULL_TYPE
+        from pylabview.LVdatatype import TD_FULL_TYPE
         if self.tdType in (TD_FULL_TYPE.NumInt8,):
             self.size = 1
             self.signed = True
@@ -252,7 +252,7 @@ class DataFillInt(DataFill):
 
 class DataFillFloat(DataFill):
     def initWithRSRCParse(self, bldata):
-        from LVdatatype import TD_FULL_TYPE
+        from pylabview.LVdatatype import TD_FULL_TYPE
         if self.tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
             self.value = struct.unpack('>f', bldata.read(4))[0]
         elif self.tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
@@ -265,7 +265,7 @@ class DataFillFloat(DataFill):
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
-        from LVdatatype import TD_FULL_TYPE
+        from pylabview.LVdatatype import TD_FULL_TYPE
         if self.tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
             data_buf += struct.pack('>f', self.value)
         elif self.tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
@@ -279,7 +279,7 @@ class DataFillFloat(DataFill):
 
     def expectedRSRCSize(self):
         exp_whole_len = 0
-        from LVdatatype import TD_FULL_TYPE
+        from pylabview.LVdatatype import TD_FULL_TYPE
         if self.tdType in (TD_FULL_TYPE.NumFloat32,TD_FULL_TYPE.UnitFloat32,):
             exp_whole_len += 4
         elif self.tdType in (TD_FULL_TYPE.NumFloat64,TD_FULL_TYPE.UnitFloat64,):
@@ -308,7 +308,7 @@ class DataFillComplex(DataFill):
         self.value = (None,None,)
 
     def getComponentType(self):
-        from LVdatatype import TD_FULL_TYPE
+        from pylabview.LVdatatype import TD_FULL_TYPE
         tdcType = None
         if self.tdType in (TD_FULL_TYPE.NumComplex64,):
             tdcType = TD_FULL_TYPE.NumFloat32
@@ -325,7 +325,7 @@ class DataFillComplex(DataFill):
         return tdcType
 
     def initWithRSRCParse(self, bldata):
-        from LVdatatype import TD_FULL_TYPE
+        from pylabview.LVdatatype import TD_FULL_TYPE
         if self.tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
             self.value = struct.unpack('>ff', bldata.read(8))
         elif self.tdType in (TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,):
@@ -338,7 +338,7 @@ class DataFillComplex(DataFill):
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = b''
-        from LVdatatype import TD_FULL_TYPE
+        from pylabview.LVdatatype import TD_FULL_TYPE
         if self.tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
             data_buf += struct.pack('>ff', self.value[0], self.value[1])
         elif self.tdType in (TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,):
@@ -353,7 +353,7 @@ class DataFillComplex(DataFill):
 
     def expectedRSRCSize(self):
         exp_whole_len = 0
-        from LVdatatype import TD_FULL_TYPE
+        from pylabview.LVdatatype import TD_FULL_TYPE
         if self.tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
             exp_whole_len += 8
         elif self.tdType in (TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,):
@@ -391,7 +391,7 @@ class DataFillBool(DataFill):
     def initVersion(self):
         """ Initialization part which requires access to version
         """
-        from LVdatatype import TD_FULL_TYPE
+        from pylabview.LVdatatype import TD_FULL_TYPE
         if self.tdType in (TD_FULL_TYPE.BooleanU16,):
             self.size = 2
         elif self.tdType in (TD_FULL_TYPE.Boolean,):
@@ -561,7 +561,7 @@ class DataFillArray(DataFill):
         for cli_idx, td_idx, td_obj, td_flags in self.td.clientsEnumerate():
                 sub_td = td_obj
         if smartContentKind in ("RSRC","Data",):
-            from LVdatatype import TD_FULL_TYPE, newTDObject
+            from pylabview.LVdatatype import TD_FULL_TYPE, newTDObject
             smart_td = newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.Block, self.po)
             repeatRealCount = self.countTotalItems()
             smart_td.blkSize = repeatRealCount * sub_td.constantSizeFill()
@@ -626,7 +626,7 @@ class DataFillArray(DataFill):
                   .format(self.getXMLTagName(), repeatRealCount, clientsLimit, bldata.tell()))
         smartContentKind = self.smartContentUsed()
         if smartContentKind in ("RSRC","Data",):
-            from LVdatatype import TD_FULL_TYPE, newTDObject
+            from pylabview.LVdatatype import TD_FULL_TYPE, newTDObject
             smart_td = newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.Block, self.po)
             smart_td.blkSize = repeatRealCount * sub_td.constantSizeFill()
             try:
@@ -854,7 +854,7 @@ class DataFillMeasureData(DataFill):
         """ Initialization part which requires access to version
         """
         ver = self.vi.getFileVersion()
-        from LVdatatype import MEASURE_DATA_FLAVOR, TD_FULL_TYPE, newTDObject,\
+        from pylabview.LVdatatype import MEASURE_DATA_FLAVOR, TD_FULL_TYPE, newTDObject,\
           newDigitalTableCluster, newDigitalWaveformCluster, newDynamicTableCluster,\
           newAnalogWaveformCluster, newOldFloat64WaveformCluster
 
@@ -1127,7 +1127,7 @@ class DataFillBlock(DataFill):
         """
         smartContentKind = self.smartContentUsed()
         if smartContentKind in ("RSRC","Data",):
-            from LVrsrcontainer import RSRCHeader
+            from pylabview.LVrsrcontainer import RSRCHeader
             chunksA = { 0: [len(buf),"Hex"] } # { chunk_offset: [chunk_length,storage_type] }
             chunksB = { }
             for pos, chunk in chunksA.items():
@@ -1467,7 +1467,7 @@ class DataFillUDTagRefnum(DataFill):
         return d
 
     def initWithRSRCParse(self, bldata):
-        from LVdatatyperef import REFNUM_TYPE
+        from pylabview.LVdatatyperef import REFNUM_TYPE
         ver = self.vi.getFileVersion()
         self.usrdef1 = None
         self.usrdef2 = None
@@ -1487,7 +1487,7 @@ class DataFillUDTagRefnum(DataFill):
             self.usrdef4 = bldata.read(strlen)
 
     def prepareRSRCData(self, avoid_recompute=False):
-        from LVdatatyperef import REFNUM_TYPE
+        from pylabview.LVdatatyperef import REFNUM_TYPE
         ver = self.vi.getFileVersion()
         data_buf = b''
         data_buf += len(self.value).to_bytes(4, byteorder='big', signed=False)
@@ -1505,7 +1505,7 @@ class DataFillUDTagRefnum(DataFill):
         return data_buf
 
     def expectedRSRCSize(self):
-        from LVdatatyperef import REFNUM_TYPE
+        from pylabview.LVdatatyperef import REFNUM_TYPE
         ver = self.vi.getFileVersion()
         exp_whole_len = 0
         exp_whole_len += 4 + len(self.value)
@@ -1852,7 +1852,7 @@ class SpecialDSTMCluster(DataFillCluster):
         return "SpecialDSTMCluster"
 
     def tdClientsWithDefltDataEnumerate(self):
-        from LVdatatype import TM_FLAGS
+        from pylabview.LVdatatype import TM_FLAGS
         skipNextEntry = ((self.tm_flags & TM_FLAGS.TMFBit9) != 0)
         for cli_idx, td_idx, sub_td, td_flags in self.td.clientsEnumerate():
             if not self.isSpecialDSTMClusterElement(cli_idx, self.tm_flags):
@@ -1898,7 +1898,7 @@ class SpecialDSTMCluster(DataFillCluster):
 def newSpecialDSTMClusterWithTD(vi, blockref, idx, tm_flags, td, po):
     """ Creates and returns new data fill object with given parameters
     """
-    from LVdatatype import TD_FULL_TYPE
+    from pylabview.LVdatatype import TD_FULL_TYPE
     tdType = td.fullType()
     tdSubType = None
     df = SpecialDSTMCluster(vi, blockref, tdType, tdSubType, po)
@@ -1908,7 +1908,7 @@ def newSpecialDSTMClusterWithTD(vi, blockref, idx, tm_flags, td, po):
 def newSpecialDSTMClusterWithTag(vi, blockref, tagName, po):
     """ Creates and returns new data fill object from given XML tag name
     """
-    from LVdatatype import TD_FULL_TYPE
+    from pylabview.LVdatatype import TD_FULL_TYPE
     tdType = TD_FULL_TYPE.Cluster
     tdSubType = None
     df = SpecialDSTMCluster(vi, blockref, tdType, tdSubType, po)
@@ -1917,7 +1917,7 @@ def newSpecialDSTMClusterWithTag(vi, blockref, tagName, po):
 def newDataFillRefnum(vi, blockref, tdType, tdSubType, po):
     """ Creates and returns new data fill object for refnum with given parameters
     """
-    from LVdatatyperef import REFNUM_TYPE
+    from pylabview.LVdatatyperef import REFNUM_TYPE
     refType = tdSubType
     ctor = {
         REFNUM_TYPE.IVIRef: DataFillIORefnum,
@@ -1937,7 +1937,7 @@ def newDataFillRefnum(vi, blockref, tdType, tdSubType, po):
 def newDataFillObject(vi, blockref, tdType, tdSubType, po):
     """ Creates and returns new data fill object with given parameters
     """
-    from LVdatatype import TD_FULL_TYPE
+    from pylabview.LVdatatype import TD_FULL_TYPE
     ctor = {
         TD_FULL_TYPE.Void: DataFillVoid,
         TD_FULL_TYPE.NumInt8: DataFillInt,
@@ -2003,7 +2003,7 @@ def newDataFillObject(vi, blockref, tdType, tdSubType, po):
 def newDataFillObjectWithTD(vi, blockref, idx, tm_flags, td, po, expectContentKind="auto"):
     """ Creates and returns new data fill object with given parameters
     """
-    from LVdatatype import TD_FULL_TYPE
+    from pylabview.LVdatatype import TD_FULL_TYPE
     tdType = td.fullType()
     if tdType == TD_FULL_TYPE.MeasureData:
         tdSubType = td.dtFlavor()
@@ -2019,8 +2019,8 @@ def newDataFillObjectWithTD(vi, blockref, idx, tm_flags, td, po, expectContentKi
 def newDataFillObjectWithTag(vi, blockref, tagName, po):
     """ Creates and returns new data fill object from given XML tag name
     """
-    from LVdatatype import TD_FULL_TYPE, tdNameToEnum, mdFlavorNameToEnum
-    from LVdatatyperef import refnumNameToEnum
+    from pylabview.LVdatatype import TD_FULL_TYPE, tdNameToEnum, mdFlavorNameToEnum
+    from pylabview.LVdatatyperef import refnumNameToEnum
     tdType = tdNameToEnum(tagName)
     if tdType is None:
         raise AttributeError("Data Fill creation encountered unexpected tag '{}'".format(tagName))

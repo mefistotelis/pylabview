@@ -14,8 +14,7 @@
 import enum
 from ctypes import *
 
-import LVmisc
-from LVheap import ENUM_TAGS
+from pylabview.LVheap import ENUM_TAGS
 
 class VICodePtrs_LV5(ENUM_TAGS):
     """ List of VI Code Pointers from LV5
@@ -335,7 +334,7 @@ def getVICodeProcName(viCodeItem):
     return fullName
 
 def getVICodePtrs(ver):
-    from LVmisc import isGreaterOrEqVersion
+    from pylabview.LVmisc import isGreaterOrEqVersion
     if isGreaterOrEqVersion(ver, 13,0,0,0):
         return VICodePtrs_LV13
     elif isGreaterOrEqVersion(ver, 12,0,0,0):

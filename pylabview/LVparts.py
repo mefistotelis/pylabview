@@ -14,7 +14,7 @@
 import enum
 from ctypes import *
 
-import LVmisc
+import pylabview.LVmisc as LVmisc
 
 class PARTID(enum.IntEnum):
     """ Part identifiers
