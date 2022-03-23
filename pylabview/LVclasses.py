@@ -18,10 +18,10 @@ from io import BytesIO
 from types import SimpleNamespace
 from ctypes import *
 
-from LVmisc import *
-import LVxml as ET
-import LVdatatype
-import LVdatafill
+from pylabview.LVmisc import *
+import pylabview.LVxml as ET
+import pylabview.LVdatatype as LVrsrcontainer
+import pylabview.LVdatafill as LVdatafill
 
 
 class LVObject:

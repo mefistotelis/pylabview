@@ -20,12 +20,12 @@ from io import BytesIO
 from types import SimpleNamespace
 from ctypes import *
 
-from LVmisc import *
-import LVxml as ET
-import LVclasses
-import LVheap
-import LVdatatyperef
-from LVdatatyperef import REFNUM_TYPE
+from pylabview.LVmisc import *
+import pylabview.LVxml as ET
+import pylabview.LVclasses as LVclasses
+import pylabview.LVheap as LVheap
+import pylabview.LVdatatyperef as LVdatatyperef
+from pylabview.LVdatatyperef import REFNUM_TYPE
 
 
 class TD_MAIN_TYPE(enum.IntEnum):
@@ -3300,7 +3300,7 @@ def numericToStringSimple(val, tdType):
     takes place.
     """
     text = None
-    from LVdatatype import TD_FULL_TYPE
+    from pylabview.LVdatatype import TD_FULL_TYPE
     if tdType in (TD_FULL_TYPE.NumInt8,TD_FULL_TYPE.NumInt16,TD_FULL_TYPE.NumInt32,TD_FULL_TYPE.NumInt64,):
         text = "{:d}".format(val)
     elif tdType in (TD_FULL_TYPE.NumUInt8,TD_FULL_TYPE.UnitUInt8,TD_FULL_TYPE.NumUInt16,TD_FULL_TYPE.UnitUInt16,\
@@ -3322,7 +3322,7 @@ def numericToStringUnequivocal(val, tdType):
     Integers are simpler - the formatted value is unequivocal already.
     """
     text = None
-    from LVdatatype import TD_FULL_TYPE
+    from pylabview.LVdatatype import TD_FULL_TYPE
     if tdType in (TD_FULL_TYPE.NumInt8,TD_FULL_TYPE.NumInt16,TD_FULL_TYPE.NumInt32,TD_FULL_TYPE.NumInt64,):
         text = "{:d}".format(val)
     elif tdType in (TD_FULL_TYPE.NumUInt8,TD_FULL_TYPE.UnitUInt8,TD_FULL_TYPE.NumUInt16,TD_FULL_TYPE.UnitUInt16,\
@@ -3346,7 +3346,7 @@ def stringUnequivocalToNumeric(text, tdType):
     """ Converts a string (including unequivocal one) back to numeric value
     """
     val = None
-    from LVdatatype import TD_FULL_TYPE
+    from pylabview.LVdatatype import TD_FULL_TYPE
     if tdType in (TD_FULL_TYPE.NumInt8,TD_FULL_TYPE.NumInt16,TD_FULL_TYPE.NumInt32,TD_FULL_TYPE.NumInt64,):
         val = int(text.strip(),0)
     elif tdType in (TD_FULL_TYPE.NumUInt8,TD_FULL_TYPE.UnitUInt8,TD_FULL_TYPE.NumUInt16,TD_FULL_TYPE.UnitUInt16,\

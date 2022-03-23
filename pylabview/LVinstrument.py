@@ -18,7 +18,7 @@ from io import BytesIO
 from types import SimpleNamespace
 from ctypes import *
 
-from LVmisc import *
+from pylabview.LVmisc import *
 
 
 class VI_TYPE(enum.Enum):

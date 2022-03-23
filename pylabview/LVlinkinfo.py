@@ -18,12 +18,12 @@ from io import BytesIO
 from types import SimpleNamespace
 from ctypes import *
 
-from LVmisc import *
-import LVxml as ET
-import LVclasses
-import LVheap
-import LVdatatype
-import LVdatafill
+from pylabview.LVmisc import *
+import pylabview.LVxml as ET
+import pylabview.LVclasses as LVclasses
+import pylabview.LVheap as LVheap
+import pylabview.LVdatatype as LVdatatype
+import pylabview.LVdatafill as LVdatafill
 
 
 class LinkObjBase:
@@ -1097,7 +1097,7 @@ class LinkObjBase:
         pass
 
     def clearCCSymbolLinkRefInfo(self):
-        from LVdatatype import TD_FULL_TYPE
+        from pylabview.LVdatatype import TD_FULL_TYPE
         stringTd = LVdatatype.newTDObject(self.vi, self.blockref, -1, 0, TD_FULL_TYPE.String, self.po)
         self.ccSymbolStrDf = LVdatafill.newDataFillObjectWithTD(self.vi, self.blockref, -1, 0, stringTd, self.po)
         self.ccSymbolLinkBool = 0

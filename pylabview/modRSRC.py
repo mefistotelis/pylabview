@@ -25,10 +25,10 @@ import copy
 from types import SimpleNamespace
 from PIL import Image
 
-import LVparts
-from LVparts import PARTID, DSINIT
-import LVxml as ET
-from LVmisc import eprint
+import pylabview.LVparts as LVparts
+from pylabview.LVparts import PARTID, DSINIT
+import pylabview.LVxml as ET
+from pylabview.LVmisc import eprint
 
 class FUNC_OPTS(enum.IntEnum):
     changed = 0
@@ -7115,7 +7115,7 @@ def icl8_genDefaultIcon(title, po):
     from PIL import ImageFont, ImageDraw
     image = Image.new("P", (32, 32))
     if True:
-        from LVmisc import LABVIEW_COLOR_PALETTE_256
+        from pylabview.LVmisc import LABVIEW_COLOR_PALETTE_256
         img_palette = [ 0 ] * (3*256)
         lv_color_palette = LABVIEW_COLOR_PALETTE_256
         for i, rgb in enumerate(lv_color_palette):
@@ -7134,7 +7134,7 @@ def icl8_genDefaultIcon(title, po):
     return image
 
 def icon_changePalette(RSRC, src_image, bpp, fo, po):
-    from LVmisc import LABVIEW_COLOR_PALETTE_256, LABVIEW_COLOR_PALETTE_16, LABVIEW_COLOR_PALETTE_2
+    from pylabview.LVmisc import LABVIEW_COLOR_PALETTE_256, LABVIEW_COLOR_PALETTE_16, LABVIEW_COLOR_PALETTE_2
     img_palette = [ 0 ] * (3*(2**bpp))
     if bpp == 8:
         lv_color_palette = LABVIEW_COLOR_PALETTE_256

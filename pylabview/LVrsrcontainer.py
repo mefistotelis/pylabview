@@ -20,10 +20,10 @@ import binascii
 from ctypes import *
 from hashlib import md5
 
-import LVblock
-import LVdatatype
-import LVxml as ET
-from LVmisc import *
+import pylabview.LVblock as LVblock
+import pylabview.LVdatatype as LVdatatype
+import pylabview.LVxml as ET
+from pylabview.LVmisc import *
 
 class FILE_FMT_TYPE(enum.Enum):
     NONE = 0
