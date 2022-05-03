@@ -20,7 +20,7 @@ from ctypes import *
 
 from pylabview.LVmisc import *
 import pylabview.LVxml as ET
-import pylabview.LVdatatype as LVrsrcontainer
+import pylabview.LVdatatype as LVdatatype
 import pylabview.LVdatafill as LVdatafill
 
 
