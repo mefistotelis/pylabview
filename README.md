@@ -50,6 +50,19 @@ between actual data (this tool uses zeros for padding).
 
 A few example files are included in the project.
 
+# Tests
+
+The tool comes with a few simple tests. Run them from `bash`:
+
+```
+cd tests
+./recreate-vi_lib-llb.sh ../examples
+./recreate-vi_lib-vis.sh ../examples
+
+```
+
+The output files and logs will be stored in `test_out` directory.
+
 # Use cases
 
 The general intended use of the tools is as follows:
