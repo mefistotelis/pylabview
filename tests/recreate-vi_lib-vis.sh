@@ -18,7 +18,7 @@ fi
 STORE_EXTRACTED_FILES=true
 
 mkdir -p ../test_out
-cd ../test_out
+pushd ../test_out
 
 echo | tee log-vi_lib-vi-1extr.txt
 echo | tee log-vi_lib-vi-2creat.txt
@@ -49,7 +49,7 @@ while IFS= read -r rsrc_fn; do
         rsrc_out_dir="."
     fi
 
-    (../readRSRC.py -vv -x -i "${rsrc_fn}" -m "${rsrc_out_dir}/${xml_fn}") 2>&1 | tee -a log-vi_lib-vi-1extr.txt
+    (export PYTHONPATH=".."; ../pylabview/readRSRC.py -vv -x -i "${rsrc_fn}" -m "${rsrc_out_dir}/${xml_fn}") 2>&1 | tee -a log-vi_lib-vi-1extr.txt
     #mv "${rsrc_fn}" "${rsrc_fn}.orig"
 
     # Now some fixups for XML parser not meeting standards; will be fixed in Python 3.9
@@ -79,7 +79,7 @@ while IFS= read -r rsrc_fn; do
         sed -i 's/"\(.* HShk[.]\)&#10;\([\(][A-Z]\+[\)]\)"/"\1\&#13;\2"/' "${rsrc_out_dir}/${xml_fn}"
     fi
 
-    (../readRSRC.py -vv -c -m "${rsrc_out_dir}/${xml_fn}" -i "${rsrc_out_fn}") 2>&1 | tee -a log-vi_lib-vi-2creat.txt
+    (export PYTHONPATH=".."; ../pylabview/readRSRC.py -vv -c -m "${rsrc_out_dir}/${xml_fn}" -i "${rsrc_out_fn}") 2>&1 | tee -a log-vi_lib-vi-2creat.txt
 
     # Get version of LabVIEW from the XML file
     rsrc_lvver=$(grep -A30 '^[ \t]*<vers>$' "${rsrc_out_dir}/${xml_fn}" | grep -B30 '^[ \t]*</vers>$' | sed -n 's/^[ \t]*<Version[ \t]\+.*Major="\([0-9]\+\)".*Minor="\([0-9]\+\)".*$/\1.\2/p' | head -n 1)
@@ -104,7 +104,7 @@ while IFS= read -r rsrc_fn; do
     fi
 done < log-vi_lib-vi-0list.txt
 
-cd ../tests
+popd
 
 sed -n 's/^.*\(Warning: .*\)$/\1/p' ../test_out/log-vi_lib-vi-1extr.txt | sort | uniq -c | sort > ../test_out/log-vi_lib-vi-1extr-warns.txt
 
