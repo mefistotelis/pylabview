@@ -66,7 +66,7 @@ offset2: _RSRC Data Offset_ + _RSRC Data Size_
       6 | string  | "RSRC\r\n" Magic ID
       2 | uint16  | Format version
       4 | string  | "LVIN" File type (ie. LabVIEW Instrument)
-      4 | string  | "LBVW" (LabVIEW?)
+      4 | string  | "LBVW" Creator (always LabVIEW)
       4 | uint32  | RSRC Info Offset
       4 | uint32  | RSRC Info Size
       4 | uint32  | RSRC Data Offset
