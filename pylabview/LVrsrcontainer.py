@@ -48,12 +48,12 @@ class FILE_FMT_TYPE(enum.Enum):
 
 class RSRCHeader(RSRCStructure):
     _fields_ = [('rsrc_id1', c_ubyte * 6),		#0
-                ('rsrc_fmtver', c_ushort),			#6
+                ('rsrc_fmtver', c_ushort),		#6 File format version
                 ('rsrc_type', c_ubyte * 4),		#8 4-byte identifier of file type
-                ('rsrc_id4', c_ubyte * 4),		#12
+                ('rsrc_creator', c_ubyte * 4),	#12 File creator FourCC
                 ('rsrc_info_offset', c_uint32),	#16 Offset from beginning of the file to RSRC header before the Info part
                 ('rsrc_info_size', c_uint32),	#20
-                ('rsrc_data_offset', c_uint32),#24 Offset from beginning of the file to RSRC header before the Data part
+                ('rsrc_data_offset', c_uint32),	#24 Offset from beginning of the file to RSRC header before the Data part
                 ('rsrc_data_size', c_uint32),	#28, sizeof is 32
     ]
 
@@ -65,7 +65,7 @@ class RSRCHeader(RSRCStructure):
         else:
             self.rsrc_id1 = (c_ubyte * sizeof(self.rsrc_id1)).from_buffer_copy(b'RSRC\0\0')
         self.rsrc_type = (c_ubyte * sizeof(self.rsrc_type)).from_buffer_copy(b'LVIN')
-        self.rsrc_id4 = (c_ubyte * sizeof(self.rsrc_id4)).from_buffer_copy(b'LBVW')
+        self.rsrc_creator = (c_ubyte * sizeof(self.rsrc_creator)).from_buffer_copy(b'LBVW')
         self.ftype = FILE_FMT_TYPE.NONE
         self.rsrc_data_offset = sizeof(self)
         self.starts = []
@@ -85,16 +85,16 @@ class RSRCHeader(RSRCStructure):
             if (self.po.verbose > 0):
                 eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.rsrc,'rsrc_type',bytes(self.rsrc_type)))
             ret = False
-        if bytes(self.rsrc_id4) == b'LBVW':
+        if bytes(self.rsrc_creator) == b'LBVW':
             pass
-        elif self.ftype == FILE_FMT_TYPE.RFilesOld and bytes(self.rsrc_id4) == b'ResC':
+        elif self.ftype == FILE_FMT_TYPE.RFilesOld and bytes(self.rsrc_creator) == b'ResC':
             pass
-        elif self.rsrc_fmtver <= 2 and bytes(self.rsrc_id4) == b'\0\0\0\0':
+        elif self.rsrc_fmtver <= 2 and bytes(self.rsrc_creator) == b'\0\0\0\0':
             # VI format from LV2.5
             pass
         else:
             if (self.po.verbose > 0):
-                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.rsrc,'id4',bytes(self.rsrc_id4)))
+                eprint("{:s}: RSRC Header field '{:s}' has unexpected value: {}".format(self.po.rsrc,'id4',bytes(self.rsrc_creator)))
             ret = False
         if self.rsrc_data_offset < sizeof(self):
             if (self.po.verbose > 0):
@@ -516,12 +516,12 @@ class VI():
         rsrchead = RSRCHeader(self.po, fmtver=self.fmtver)
         rsrchead.rsrc_type = (c_ubyte * sizeof(rsrchead.rsrc_type)).from_buffer_copy(rsrc_type_id)
         if self.fmtver <= 2 and self.ftype == FILE_FMT_TYPE.VI:
-            rsrchead.rsrc_id4 = (c_ubyte * sizeof(rsrchead.rsrc_id4)).from_buffer_copy(b'\0\0\0\0')
+            rsrchead.rsrc_creator = (c_ubyte * sizeof(rsrchead.rsrc_creator)).from_buffer_copy(b'\0\0\0\0')
         self.rsrc_headers.append(rsrchead)
         rsrchead = RSRCHeader(self.po, fmtver=self.fmtver)
         rsrchead.rsrc_type = (c_ubyte * sizeof(rsrchead.rsrc_type)).from_buffer_copy(rsrc_type_id)
         if self.fmtver <= 2 and self.ftype == FILE_FMT_TYPE.VI:
-            rsrchead.rsrc_id4 = (c_ubyte * sizeof(rsrchead.rsrc_id4)).from_buffer_copy(b'\0\0\0\0')
+            rsrchead.rsrc_creator = (c_ubyte * sizeof(rsrchead.rsrc_creator)).from_buffer_copy(b'\0\0\0\0')
         self.rsrc_headers.append(rsrchead)
 
         self.binflsthead = BlockInfoListHeader(self.po)
