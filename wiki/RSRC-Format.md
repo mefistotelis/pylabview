@@ -63,15 +63,16 @@ offset2: _RSRC Data Offset_ + _RSRC Data Size_
 ```
  Length | Type    | Value
 --------+---------+-------
-      6 | string  | "RSRC\r\n"
-      2 |         | ?
-      4 | string  | "LVIN" (LabVIEW Instrument?)
+      6 | string  | "RSRC\r\n" Magic ID
+      2 | uint16  | Format version
+      4 | string  | "LVIN" File type (ie. LabVIEW Instrument)
       4 | string  | "LBVW" (LabVIEW?)
       4 | uint32  | RSRC Info Offset
       4 | uint32  | RSRC Info Size
       4 | uint32  | RSRC Data Offset
       4 | uint32  | RSRC Data Size
 ```
+For more information, see `RSRCHeader` class declaration within _pylabview_ source.
 
 ### Block Info List Header
 
@@ -82,10 +83,12 @@ offset: _RSRC Info Offset_
 --------+---------+-------
       4 |         | ?
       4 |         | ?
-      4 |         | ?
+      4 | uint32  | size of `RSRCHeader`
       4 | uint32  | Block Info Offset
       4 | uint32  | Block Info Size
 ```
+
+For more information, see `BlockInfoListHeader` class declaration within _pylabview_ source.
 
 ### Blocks Info
 
@@ -98,6 +101,8 @@ offset: _RSRC Info Offset_ + _Block Info Offset_
         |         | Block data
 ```
 
+For more information, see `BlockInfoHeader` class declaration within _pylabview_ source.
+
 ### Block Header
 
 ``` 
@@ -107,6 +112,8 @@ offset: _RSRC Info Offset_ + _Block Info Offset_
       4 | uint32  | Count (+1)  (I think?)
       4 | uint32  | Info Offset
 ```
+
+For more information, see `BlockHeader` class declaration within _pylabview_ source.
 
 ### Block Section Info
 
@@ -121,6 +128,8 @@ offset: _Info Offset_ + _Block Offset_
       4 | uint32  | Section Data Offset
       4 | int32   | ?
 ```
+
+For more information, see ` BlockSectionStart` class declaration within _pylabview_ source.
 
 ### Block Section Data
 
