@@ -3882,7 +3882,7 @@ class vers(Block):
                     ver['bugfix'] = int(subelem.get("Bugfix"), 0)
                     ver['stage_text'] = subelem.get("Stage")
                     ver['build'] = int(subelem.get("Build"), 0)
-                    ver['flags'] = int(subelem.get("Flags"), 0)
+                    ver['flags'] = 0
                     section.version_text = subelem.get("Text").encode(self.vi.textEncoding)
                     section.version_info = subelem.get("Info").encode(self.vi.textEncoding)
                     section.comment = subelem.get("Comment").encode(self.vi.textEncoding)
@@ -3905,7 +3905,6 @@ class vers(Block):
         subelem.set("Bugfix", "{:d}".format(section.version['bugfix']))
         subelem.set("Stage", "{:s}".format(section.version['stage_text']))
         subelem.set("Build", "{:d}".format(section.version['build']))
-        subelem.set("Flags", "0x{:X}".format(section.version['flags']))
         subelem.set("Text", "{:s}".format(section.version_text.decode(self.vi.textEncoding)))
         subelem.set("Info", "{:s}".format(section.version_info.decode(self.vi.textEncoding)))
         subelem.set("Comment", "{:s}".format(section.comment.decode(self.vi.textEncoding)))
