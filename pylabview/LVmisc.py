@@ -144,8 +144,13 @@ def decodeVersion(vcode):
     ver['minor'] = (vcode >> 20) & 0x0F
     ver['bugfix'] = (vcode >> 16) & 0x0F
     ver['stage'] = (vcode >> 13) & 0x07
-    ver['flags'] = (vcode >> 8) & 0x1F  # 5 bit??
-    ver['build'] = ((vcode >> 4) & 0x0F) * 10 + ((vcode >> 0) & 0x0F)
+    ver['flags'] = 0
+    ver['build'] = (
+        ((vcode >> 12) & 0x01) * 1000
+        + ((vcode >> 8) & 0x0F) * 100
+        + ((vcode >> 4) & 0x0F) * 10
+        + ((vcode >> 0) & 0x0F)
+    )
     ver['stage_text'] = stringFromValEnumOrInt(LABVIEW_VERSION_STAGE, ver['stage'])
 
     return ver
@@ -163,7 +168,8 @@ def encodeVersion(ver):
     vcode |= (ver['minor']  & 0x0F) << 20
     vcode |= (ver['bugfix']  & 0x0F) << 16
     vcode |= (ver['stage']  & 0x07) << 13
-    vcode |= (ver['flags']  & 0x1F) << 8
+    vcode |= ((ver['build']  // 1000) & 0x01) << 12
+    vcode |= ((ver['build'] // 100) & 0x0F) << 8
     vcode |= ((ver['build'] // 10) & 0x0F) << 4
     vcode |= ((ver['build'] % 10) & 0x0F) << 0
     return vcode
