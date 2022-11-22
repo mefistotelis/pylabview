@@ -11,7 +11,7 @@ def get_long_description():
 
 setup(
     name="pylabview",
-    version="0.1.1",
+    version="0.1.2",
 
     description="Python LabVIEW File Type Parser",
     long_description=get_long_description(),
