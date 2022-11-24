@@ -360,7 +360,27 @@ See [[Version Bits]] for details.
 --------+---------+-------
       4 | uint32  | Version Bits
       1 | uint8   | String length
+      2 | uint16  | Language
+      1 | uint8   | Text length
       * | string  | Text
-      1 | uint8   | String length
+      1 | uint8   | Info length
       * | string  | Info
 ```
+
+#### Language
+
+```plain
+ Value  | Language
+--------+---------
+      0 | English
+      1 | French
+      3 | German
+     14 | Japanese
+     23 | Korean
+     33 | Chinese
+```
+
+While these codes seem to originate from
+[old Macintosh codes in script.h](https://github.com/phracker/MacOSX-SDKs/blob/master/MacOSX10.6.sdk/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/CarbonCore.framework/Versions/A/Headers/Script.h)
+only the above values have been seen.
+Non-zero Language code has been seen in versions 8.0.0f5 through 19.0.0f5.
