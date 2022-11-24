@@ -3814,7 +3814,7 @@ class vers(Block):
     def createSection(self):
         section = super().createSection()
         section.version = []
-        section.version_text = b''
+        section.lanuage = 0
         section.version_info = b''
         section.comment = b''
         return section
@@ -3823,13 +3823,7 @@ class vers(Block):
         section = self.sections[section_num]
 
         section.version = decodeVersion(int.from_bytes(bldata.read(4), byteorder='big', signed=False))
-        version_text_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        section.version_text = bldata.read(version_text_len)
-        # TODO Is the string null-terminated? or that's length of another string?
-        version_unk_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
-        if version_unk_len != 0:
-            raise AttributeError("Block {} section {} always zero value 1 is {} instead of {}"\
-             .format(self.ident,section_num,version_unk_len,0))
+        section.language = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         version_info_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         section.version_info = bldata.read(version_info_len)
         comment_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
@@ -3844,13 +3838,11 @@ class vers(Block):
         section = self.sections[section_num]
 
         data_buf = int(encodeVersion(section.version)).to_bytes(4, byteorder='big')
-        data_buf += preparePStr(section.version_text, 1, self.po)
-        data_buf += b'\0'
+        data_buf += section.language.to_bytes(2, byteorder='big')
         data_buf += preparePStr(section.version_info, 1, self.po)
         data_buf += preparePStr(section.comment, 1, self.po)
 
-        if len(data_buf) != 4 + 1+len(section.version_text) + 1 +\
-          1+len(section.version_info) + 1+len(section.comment):
+        if len(data_buf) != 4 + 2 + 1+len(section.version_info) + 1+len(section.comment):
             raise RuntimeError("Block {} section {} generated binary data of invalid size"\
               .format(self.ident,section_num))
 
@@ -3883,7 +3875,7 @@ class vers(Block):
                     ver['stage_text'] = subelem.get("Stage")
                     ver['build'] = int(subelem.get("Build"), 0)
                     ver['flags'] = 0
-                    section.version_text = subelem.get("Text").encode(self.vi.textEncoding)
+                    section.language = int(subelem.get("Language"), 0)
                     section.version_info = subelem.get("Info").encode(self.vi.textEncoding)
                     section.comment = subelem.get("Comment").encode(self.vi.textEncoding)
                     section.version = ver
@@ -3905,7 +3897,7 @@ class vers(Block):
         subelem.set("Bugfix", "{:d}".format(section.version['bugfix']))
         subelem.set("Stage", "{:s}".format(section.version['stage_text']))
         subelem.set("Build", "{:d}".format(section.version['build']))
-        subelem.set("Text", "{:s}".format(section.version_text.decode(self.vi.textEncoding)))
+        subelem.set("Language", "{:d}".format(section.language))
         subelem.set("Info", "{:s}".format(section.version_info.decode(self.vi.textEncoding)))
         subelem.set("Comment", "{:s}".format(section.comment.decode(self.vi.textEncoding)))
 
@@ -3919,11 +3911,14 @@ class vers(Block):
         return section.version
 
     def getVerText(self, section_num=None):
+        return ""  # There never was a VerText
+
+    def getVerLanguage(self, section_num=None):
         if section_num is None:
             section_num = self.active_section_num
         section = self.sections[section_num]
         self.parseData(section_num=section_num)
-        return section.version_text
+        return section.language
 
     def getVerInfo(self, section_num=None):
         if section_num is None:
