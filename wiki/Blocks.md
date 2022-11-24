@@ -359,7 +359,6 @@ See [[Version Bits]] for details.
  Length | Type    | Value
 --------+---------+-------
       4 | uint32  | Version Bits
-      1 | uint8   | String length
       2 | uint16  | Language
       1 | uint8   | Text length
       * | string  | Text
