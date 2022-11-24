@@ -51,7 +51,7 @@ All guesses at the acronyms are that. Guesses.
 
 ### BDH_
 
-<b>B</b>lock <b>D</b>iagram <b>H</b>eap  
+<b>B</b>lock <b>D</b>iagram <b>H</b>eap
 Compressed
 
 Depending on LV version, the full name is one of: BDHP, BDHb, BDHc.
@@ -69,7 +69,7 @@ See [[Block Diagram Heap Format]] for content explanation.
 
 ### BDPW
 
-<b>B</b>lock <b>D</b>iagram <b>P</b>ass<b>w</b>ord  
+<b>B</b>lock <b>D</b>iagram <b>P</b>ass<b>w</b>ord
 
 ```
  Length | Type    | Value
@@ -119,7 +119,7 @@ See [[Block Diagram Heap Format]] for content explanation.
 
 ### CPC2
 
-2 bytes  
+2 bytes
 Not in Controls
 
 ```
@@ -139,7 +139,7 @@ Not in Controls
 
 ### DLDR
 
-28 bytes?  
+28 bytes?
 Not in Polymorphic VIs or Controls
 
 ```
@@ -160,7 +160,7 @@ Not in Polymorphic VIs or Controls
 
 ### FPH_
 
-<b>F</b>ront <b>P</b>anel <b>H</b>eap  
+<b>F</b>ront <b>P</b>anel <b>H</b>eap
 Compressed
 
 Stores the actual Front Panel data
@@ -180,7 +180,7 @@ Depending on LV version, the full name is one of: FPHP, FPHb, FPHc.
 
 ### FPTD
 
-2 bytes  
+2 bytes
 Not in Polymorphic VIs or Controls
 
 ```
@@ -191,7 +191,7 @@ Not in Polymorphic VIs or Controls
 
 ### FTAB
 
-<b>F</b>ont <b>Tab</b>le 
+<b>F</b>ont <b>Tab</b>le
 
 See [[Font Table Format]] for content explanation.
 
@@ -209,21 +209,21 @@ See [[Font Table Format]] for content explanation.
 
 ### HIST
 
-<b>Hist</b>ory 
+<b>Hist</b>ory
 See [[Revision History]]
 
 ***
 
 ### icl_
 
-<b>ic</b>on <b>l</b>arge <b>4/8</b> (bit) 
+<b>ic</b>on <b>l</b>arge <b>4/8</b> (bit)
 See [[Icon Format]]
 
 ***
 
 ### ICON
 
-<b>ICON</b> 1bpp image 
+<b>ICON</b> 1bpp image
 See [[Icon Format]]
 
 ***
@@ -245,7 +245,7 @@ Contains name of a file
 
 ### LIBN
 
-<b>Lib</b>rary <b>N</b>ames  
+<b>Lib</b>rary <b>N</b>ames
 
 ```
  Length | Type    | Value
@@ -265,7 +265,7 @@ Only in polymorphic VIs. Lists VIs included.
 
 ### LVSR
 
-LabVIEW Save Record  
+LabVIEW Save Record
 See [[Version Bits]]
 
 ```
@@ -306,7 +306,7 @@ Flags:
 
 ### PRT
 
-<b>PR</b>in<b>t</b> Settings  
+<b>PR</b>in<b>t</b> Settings
 
 See [[Print Settings]] for details.
 
@@ -350,8 +350,8 @@ See [[Print Settings]] for details.
 
 ### vers
 
-<b>vers</b>ion  
-12 bytes  
+<b>vers</b>ion
+12 bytes
 
 See [[Version Bits]] for details.
 
@@ -360,7 +360,27 @@ See [[Version Bits]] for details.
 --------+---------+-------
       4 | uint32  | Version Bits
       1 | uint8   | String length
+      2 | uint16  | Language
+      1 | uint8   | Text length
       * | string  | Text
-      1 | uint8   | String length
+      1 | uint8   | Info length
       * | string  | Info
 ```
+
+#### Language
+
+```plain
+ Value  | Language
+--------+---------
+      0 | English
+      1 | French
+      3 | German
+     14 | Japanese
+     23 | Korean
+     33 | Chinese
+```
+
+While these codes seem to originate from
+[old Macintosh codes in script.h](https://github.com/phracker/MacOSX-SDKs/blob/master/MacOSX10.6.sdk/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/CarbonCore.framework/Versions/A/Headers/Script.h)
+only the above values have been seen.
+Non-zero Language code has been seen in versions 8.0.0f5 through 19.0.0f5.
