@@ -144,7 +144,6 @@ def decodeVersion(vcode):
     ver['minor'] = (vcode >> 20) & 0x0F
     ver['bugfix'] = (vcode >> 16) & 0x0F
     ver['stage'] = (vcode >> 13) & 0x07
-    ver['flags'] = 0
     ver['build'] = (
         ((vcode >> 12) & 0x01) * 1000
         + ((vcode >> 8) & 0x0F) * 100
