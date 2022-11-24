@@ -58,7 +58,7 @@ It is not fully known why there is the division to sections. Each section of a b
 ### RSRC Header
 
 offset1: 0
-offset2: _RSRC Data Offset_ + _RSRC Data Size_
+offset2: _RSRC Data Offset_
 
 ```
  Length | Type    | Value
@@ -76,7 +76,7 @@ For more information, see `RSRCHeader` class declaration within _pylabview_ sour
 
 ### Block Info List Header
 
-offset: _RSRC Info Offset_
+offset: _RSRC Info Offset_ + _RSRC Header Size_
 
 ```
  Length | Type    | Value
@@ -109,7 +109,7 @@ For more information, see `BlockInfoHeader` class declaration within _pylabview_
  Length | Type    | Value
 --------+---------+-------
       4 | string  | Name
-      4 | uint32  | Count (+1)  (I think?)
+      4 | uint32  | Count (+1)
       4 | uint32  | Info Offset
 ```
 
