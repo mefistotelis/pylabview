@@ -7,7 +7,8 @@ Version is stored as a 32-bit number
      20 |      4 | Minor
      16 |      4 | Bugfix
      13 |      3 | Stage
-      8 |      5 | Flags (5 bits?)
+     12 |      1 | Build (thousands)
+      8 |      4 | Build (hundreds)
       4 |      4 | Build (tens)
       0 |      4 | Build (ones)
 ```
