@@ -1700,7 +1700,7 @@ class HeapNodeStdInt(HeapNode):
         if tagParse is None:
             raise AttributeError("Tag '{}' of Class '{}' has content with bad Integer value"\
               .format(self.tagEn.name, parentTopClassEn(self.parent).name))
-        self.value = int(tagParse[1], 0)
+        self.value = int(tagParse.group(1), 0)
         self.updateContent()
 
 
@@ -1718,7 +1718,7 @@ class HeapNodeTypeId(HeapNodeStdInt):
         if tagParse is None:
             raise AttributeError("Tag '{}' of Class '{}' has content with bad TypeID value"\
               .format(self.tagEn.name, parentTopClassEn(self.parent).name))
-        self.value = int(tagParse[1], 0)
+        self.value = int(tagParse.group(1), 0)
         self.updateContent()
 
 
@@ -1755,10 +1755,10 @@ class HeapNodeRect(HeapNode):
         if tagParse is None:
             raise AttributeError("Tag '{}' of Class '{}' has content which does not match Rect definition"\
               .format(self.tagEn.name, parentTopClassEn(self.parent).name))
-        self.left = int(tagParse[1], 0)
-        self.top = int(tagParse[2], 0)
-        self.right = int(tagParse[3], 0)
-        self.bottom = int(tagParse[4], 0)
+        self.left = int(tagParse.group(1), 0)
+        self.top = int(tagParse.group(2), 0)
+        self.right = int(tagParse.group(3), 0)
+        self.bottom = int(tagParse.group(4), 0)
         self.updateContent()
 
 
@@ -1789,8 +1789,8 @@ class HeapNodePoint(HeapNode):
         if tagParse is None:
             raise AttributeError("Tag '{}' of Class '{}' has content which does not match Point definition"\
               .format(self.tagEn.name, parentTopClassEn(self.parent).name))
-        self.y = int(tagParse[1], 0)
-        self.x = int(tagParse[2], 0)
+        self.y = int(tagParse.group(1), 0)
+        self.x = int(tagParse.group(2), 0)
         self.updateContent()
 
 
@@ -1811,7 +1811,7 @@ class HeapNodeString(HeapNode):
         tagParse = re.match("^\"(.*)\"$", tagText, re.MULTILINE|re.DOTALL)
         if tagParse is not None:
             # The text may have been in cdata tag, there is no way to know; so unescape anyway
-            valText = ET.unescape_cdata_control_chars(tagParse[1])
+            valText = ET.unescape_cdata_control_chars(tagParse.group(1))
             self.content = valText.encode(self.vi.textEncoding)
         elif tagText == "[NULL]":
             self.content = False
@@ -1864,7 +1864,7 @@ class HeapNodePStrList(HeapNode):
         count = None
         tagParse = re.match(r"^[(]([0-9A-Fx]+)[)](\".*\")$", tagText, re.MULTILINE|re.DOTALL)
         if tagParse is not None:
-            count = int(tagParse[1], 0)
+            count = int(tagParse.group(1), 0)
         if count is None:
             raise AttributeError("Tag '{}' of Class '{}' has content with no string list length"\
               .format(self.tagEn.name, parentTopClassEn(self.parent).name))
@@ -1904,7 +1904,7 @@ class HeapNodeBool(HeapNode):
         if tagParse is None:
             raise AttributeError("Tag '{}' of Class '{}' has content with bad boolean value"\
               .format(self.tagEn.name, parentTopClassEn(self.parent).name))
-        self.value = (tagParse[1] == "True")
+        self.value = (tagParse.group(1) == "True")
         self.updateContent()
 
 
@@ -2666,7 +2666,7 @@ def tagNameToEnum(tagName, parentNode):
     if tagEn is None:
         tagParse = re.match("^Tag([0-9A-F]{4,8})$", tagName)
         if tagParse is not None:
-            tagEn = UNRECOGNIZED_TAG(int(tagParse[1], 16))
+            tagEn = UNRECOGNIZED_TAG(int(tagParse.group(1), 16))
 
     return tagEn
 
@@ -2683,7 +2683,7 @@ def attributeNameToId(attrName):
     else:
         nameParse = re.match("^Prop([0-9A-F]{4,8})$", attrName)
         if nameParse is not None:
-            attrId = int(nameParse[1], 16)
+            attrId = int(nameParse.group(1), 16)
         else:
             attrId = None
     return attrId
@@ -2718,7 +2718,7 @@ def classNameToEnum(className):
     else:
         classParse = re.match("^Class([0-9A-F]{4,8})$", className)
         if classParse is not None:
-            classId = int(classParse[1], 16)
+            classId = int(classParse.group(1), 16)
             classEn = UNRECOGNIZED_CLASS(classId)
     return classEn
 

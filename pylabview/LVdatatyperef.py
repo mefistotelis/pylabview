@@ -1336,7 +1336,7 @@ def refnumNameToEnum(refnName):
     if refnumEn is None:
         tagParse = re.match("^Refnum([0-9A-F]{2,4})$", refnName)
         if tagParse is not None:
-            refnumEn = int(tagParse[1], 16)
+            refnumEn = int(tagParse.group(1), 16)
 
     return refnumEn
 

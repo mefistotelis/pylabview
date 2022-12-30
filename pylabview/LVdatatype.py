@@ -2910,7 +2910,7 @@ def tdNameToEnum(tdName):
     if tagEn is None:
         tagParse = re.match("^TD([0-9A-F]{2,4})$", tdName)
         if tagParse is not None:
-            tagEn = int(tagParse[1], 16)
+            tagEn = int(tagParse.group(1), 16)
 
     return tagEn
 
@@ -2943,7 +2943,7 @@ def mdFlavorNameToEnum(flavName):
     if flavorEn is None:
         tagParse = re.match("^MeasureData([0-9A-F]{2,4})$", flavName)
         if tagParse is not None:
-            flavorEn = int(tagParse[1], 16)
+            flavorEn = int(tagParse.group(1), 16)
 
     return flavorEn
 
