@@ -23,8 +23,6 @@ from ctypes import *
 
 from pylabview.LVmisc import *
 import pylabview.LVxml as ET
-import pylabview.LVclasses as LVclasses
-import pylabview.LVdatatype as LVdatatype
 
 
 class DataFill:
@@ -290,14 +288,16 @@ class DataFillFloat(DataFill):
         return exp_whole_len
 
     def initWithXML(self, df_elem):
-        self.value = LVdatatype.stringUnequivocalToNumeric(df_elem.text, self.tdType)
+        from pylabview.LVdatatype import stringUnequivocalToNumeric
+        self.value = stringUnequivocalToNumeric(df_elem.text, self.tdType)
         pass
 
     def exportXML(self, df_elem, fname_base):
+        from pylabview.LVdatatype import numericToStringUnequivocal, numericToStringSimple
         if math.isnan(self.value):
-            df_elem.text = LVdatatype.numericToStringUnequivocal(self.value, self.tdType)
+            df_elem.text = numericToStringUnequivocal(self.value, self.tdType)
         else:
-            df_elem.text = LVdatatype.numericToStringSimple(self.value, self.tdType)
+            df_elem.text = numericToStringSimple(self.value, self.tdType)
         pass
 
 
@@ -364,21 +364,23 @@ class DataFillComplex(DataFill):
         return exp_whole_len
 
     def initWithXML(self, df_elem):
+        from pylabview.LVdatatype import stringUnequivocalToNumeric
         tdcType = self.getComponentType()
-        valRe = LVdatatype.stringUnequivocalToNumeric(df_elem.find('real').text, tdcType)
-        valIm = LVdatatype.stringUnequivocalToNumeric(df_elem.find('imaginary').text, tdcType)
+        valRe = stringUnequivocalToNumeric(df_elem.find('real').text, tdcType)
+        valIm = stringUnequivocalToNumeric(df_elem.find('imaginary').text, tdcType)
         self.value = (valRe,valIm,)
         pass
 
     def exportXML(self, df_elem, fname_base):
+        from pylabview.LVdatatype import numericToStringUnequivocal, numericToStringSimple
         tags = ('real', 'imaginary',)
         for i, val in enumerate(self.value):
             subelem = ET.SubElement(df_elem, tags[i])
             tdcType = self.getComponentType()
             if math.isnan(val):
-                subelem.text = LVdatatype.numericToStringUnequivocal(val, tdcType)
+                subelem.text = numericToStringUnequivocal(val, tdcType)
             else:
-                subelem.text = LVdatatype.numericToStringSimple(val, tdcType)
+                subelem.text = numericToStringSimple(val, tdcType)
         pass
 
 
@@ -462,12 +464,13 @@ class DataFillString(DataFill):
 
 class DataFillPath(DataFill):
     def initWithRSRCParse(self, bldata):
+        from pylabview.LVclasses import LVPath0, LVPath1
         startPos = bldata.tell()
         clsident = bldata.read(4)
         if clsident == b'PTH0':
-            self.value = LVclasses.LVPath0(self.vi, self.blockref, self.po)
+            self.value = LVPath0(self.vi, self.blockref, self.po)
         elif clsident in (b'PTH1', b'PTH2',):
-            self.value = LVclasses.LVPath1(self.vi, self.blockref, self.po)
+            self.value = LVPath1(self.vi, self.blockref, self.po)
         else:
             raise RuntimeError("Data fill {} contains path data of unrecognized class {}"\
               .format(self.getXMLTagName(),clsident))
@@ -484,11 +487,12 @@ class DataFillPath(DataFill):
         return exp_whole_len
 
     def initWithXML(self, df_elem):
+        from pylabview.LVclasses import LVPath0, LVPath1
         clsident = df_elem.get("Ident")
         if clsident == 'PTH0':
-            self.value = LVclasses.LVPath0(self.vi, self.blockref, self.po)
+            self.value = LVPath0(self.vi, self.blockref, self.po)
         elif clsident in ('PTH1', 'PTH2',):
-            self.value = LVclasses.LVPath1(self.vi, self.blockref, self.po)
+            self.value = LVPath1(self.vi, self.blockref, self.po)
         else:
             raise RuntimeError("Data fill {} contains path data of unrecognized class {}"\
           .format(self.getXMLTagName(),clsident))
@@ -808,12 +812,13 @@ class DataFillLVVariant(DataFill):
         self.useConsolidatedTypes = True
 
     def initWithRSRCParse(self, bldata):
+        from pylabview.LVclasses import LVVariant, OleVariant
         ver = self.vi.getFileVersion()
         if isGreaterOrEqVersion(ver, 6,0,0,2):
-            self.value = LVclasses.LVVariant(0, self.vi, self.blockref, self.po, allowFillValue=True,
+            self.value = LVVariant(0, self.vi, self.blockref, self.po, allowFillValue=True,
               useConsolidatedTypes=self.useConsolidatedTypes, expectContentKind=self.expectContentKind)
         else:
-            self.value = LVclasses.OleVariant(0, self.vi, self.blockref, self.po)
+            self.value = OleVariant(0, self.vi, self.blockref, self.po)
         self.value.parseRSRCData(bldata)
 
     def prepareRSRCData(self, avoid_recompute=False):
@@ -826,11 +831,12 @@ class DataFillLVVariant(DataFill):
         return exp_whole_len
 
     def initWithXML(self, df_elem):
-        if df_elem.tag == LVclasses.LVVariant.__name__:
-            self.value = LVclasses.LVVariant(0, self.vi, self.blockref, self.po, allowFillValue=True,
+        from pylabview.LVclasses import LVVariant, OleVariant
+        if df_elem.tag == LVVariant.__name__:
+            self.value = LVVariant(0, self.vi, self.blockref, self.po, allowFillValue=True,
               useConsolidatedTypes=self.useConsolidatedTypes, expectContentKind=self.expectContentKind)
-        elif df_elem.tag == LVclasses.OleVariant.__name__:
-            self.value = LVclasses.OleVariant(0, self.vi, self.blockref, self.po)
+        elif df_elem.tag == OleVariant.__name__:
+            self.value = OleVariant(0, self.vi, self.blockref, self.po)
         else:
             raise AttributeError("Class {} encountered unexpected tag '{}'".format(type(self).__name__, df_elem.tag))
         self.value.initWithXML(df_elem)
@@ -852,10 +858,10 @@ class DataFillMeasureData(DataFill):
     def initVersion(self):
         """ Initialization part which requires access to version
         """
-        ver = self.vi.getFileVersion()
         from pylabview.LVdatatype import MEASURE_DATA_FLAVOR, TD_FULL_TYPE, newTDObject,\
           newDigitalTableCluster, newDigitalWaveformCluster, newDynamicTableCluster,\
           newAnalogWaveformCluster, newOldFloat64WaveformCluster
+        ver = self.vi.getFileVersion()
 
         if isSmallerVersion(ver, 7,0,0,2):
             raise NotImplementedError("MeasureData {} default value read is not implemented for versions below LV7"\
@@ -2024,7 +2030,7 @@ def newDataFillObjectWithTag(vi, blockref, tagName, po):
     if tdType is None:
         raise AttributeError("Data Fill creation encountered unexpected tag '{}'".format(tagName))
     if tdType == TD_FULL_TYPE.MeasureData:
-        tdSubType = LVdatatype.mdFlavorNameToEnum(tagName)
+        tdSubType = mdFlavorNameToEnum(tagName)
     elif tdType == TD_FULL_TYPE.Refnum:
         tdSubType = refnumNameToEnum(tagName)
     else:

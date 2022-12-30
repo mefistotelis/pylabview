@@ -20,7 +20,6 @@ from types import SimpleNamespace
 from ctypes import *
 
 from pylabview.LVmisc import *
-import pylabview.LVclasses as LVclasses
 import pylabview.LVheap as LVheap
 
 class REFNUM_TYPE(enum.IntEnum):
@@ -262,12 +261,13 @@ class RefnumBase_RC(RefnumBase):
         pass
 
     def parseRSRCData(self, bldata):
+        from pylabview.LVclasses import LVVariant
         ver = self.vi.getFileVersion()
         self.parseRSRCTypeOMId(bldata)
         # The next thing to read here is LVVariant
         if isGreaterOrEqVersion(ver, 8,5,0,4) and \
           (isSmallerVersion(ver, 8,5,1,1) or isGreaterOrEqVersion(ver, 8,6,0,1)):
-            obj = LVclasses.LVVariant(len(self.td_obj.objects), self.vi, self.blockref, self.po)
+            obj = LVVariant(len(self.td_obj.objects), self.vi, self.blockref, self.po)
             self.td_obj.objects.append(obj)
             obj.parseRSRCData(bldata)
         pass
@@ -277,6 +277,7 @@ class RefnumBase_RC(RefnumBase):
         return data_buf
 
     def prepareRSRCData(self, avoid_recompute=False):
+        from pylabview.LVclasses import LVVariant
         if not avoid_recompute:
             ver = self.vi.getFileVersion()
         else:
@@ -286,7 +287,7 @@ class RefnumBase_RC(RefnumBase):
         if isGreaterOrEqVersion(ver, 8,5,0,4) and \
           (isSmallerVersion(ver, 8,5,1,1) or isGreaterOrEqVersion(ver, 8,6,0,1)):
             for obj in self.td_obj.objects:
-                if not isinstance(obj, LVclasses.LVVariant):
+                if not isinstance(obj, LVVariant):
                     continue
                 data_buf += obj.prepareRSRCData(avoid_recompute=avoid_recompute)
                 break
@@ -297,6 +298,7 @@ class RefnumBase_RC(RefnumBase):
         return exp_whole_len
 
     def expectedRSRCSize(self):
+        from pylabview.LVclasses import LVVariant
         ver = self.vi.getFileVersion()
 
         exp_whole_len = self.expectedRSRCTypeOMIdSize()
@@ -304,7 +306,7 @@ class RefnumBase_RC(RefnumBase):
         if isGreaterOrEqVersion(ver, 8,5,0,4) and \
           (isSmallerVersion(ver, 8,5,1,1) or isGreaterOrEqVersion(ver, 8,6,0,1)):
             for obj in self.td_obj.objects:
-                if not isinstance(obj, LVclasses.LVVariant):
+                if not isinstance(obj, LVVariant):
                     continue
                 exp_whole_len += obj.expectedRSRCSize()
                 break

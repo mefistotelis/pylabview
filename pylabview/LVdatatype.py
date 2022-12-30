@@ -22,7 +22,6 @@ from ctypes import *
 
 from pylabview.LVmisc import *
 import pylabview.LVxml as ET
-import pylabview.LVclasses as LVclasses
 import pylabview.LVheap as LVheap
 import pylabview.LVdatatyperef as LVdatatyperef
 from pylabview.LVdatatyperef import REFNUM_TYPE
@@ -1354,6 +1353,7 @@ class TDObjectTag(TDObject):
         self.ident = None
 
     def parseRSRCData(self, bldata):
+        from pylabview.LVclasses import LVVariant
         ver = self.vi.getFileVersion()
         # Fields oflags,otype are set at constructor, but no harm in setting them again
         self.otype, self.oflags, obj_len = TDObject.parseRSRCDataHeader(bldata)
@@ -1362,7 +1362,7 @@ class TDObjectTag(TDObject):
         self.tagType = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         if isGreaterOrEqVersion(ver, 8,2,1) and \
           (isSmallerVersion(ver, 8,2,2) or isGreaterOrEqVersion(ver, 8,5,1)):
-            obj = LVclasses.LVVariant(0, self.vi, self.blockref, self.po)
+            obj = LVVariant(0, self.vi, self.blockref, self.po)
             self.variobj = obj
             obj.parseRSRCData(bldata)
 
@@ -1413,6 +1413,7 @@ class TDObjectTag(TDObject):
         return exp_whole_len
 
     def initWithXML(self, td_elem):
+        from pylabview.LVclasses import LVVariant
         fmt = td_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
@@ -1433,7 +1434,7 @@ class TDObjectTag(TDObject):
                         self.ident = identStr.encode(self.vi.textEncoding)
                 elif (subelem.tag == "LVVariant"):
                     i = int(subelem.get("Index"), 0)
-                    obj = LVclasses.LVVariant(i, self.vi, self.blockref, self.po)
+                    obj = LVVariant(i, self.vi, self.blockref, self.po)
                     obj.initWithXML(subelem)
                     self.variobj = obj
                 else:
@@ -2356,6 +2357,7 @@ class TDObjectRef(TDObjectContainer):
         return exp_whole_len
 
     def initWithXML(self, conn_elem):
+        from pylabview.LVclasses import LVVariant
         fmt = conn_elem.get("Format")
         if fmt == "inline": # Format="inline" - the content is stored as subtree of this xml
             if (self.po.verbose > 2):
@@ -2387,7 +2389,7 @@ class TDObjectRef(TDObjectContainer):
                     self.items.append(item)
                 elif (subelem.tag == "LVVariant"):
                     i = int(subelem.get("Index"), 0)
-                    obj = LVclasses.LVVariant(i, self.vi, self.blockref, self.po)
+                    obj = LVVariant(i, self.vi, self.blockref, self.po)
                     # Grow the list if needed (the objects may be in wrong order)
                     if i >= len(self.objects):
                         self.objects.extend([None] * (i - len(self.objects) + 1))
@@ -2879,6 +2881,7 @@ def tdEnToName(tdEn):
     return tdName
 
 def tdNameToEnum(tdName):
+    from pylabview.LVclasses import LVVariant, OleVariant
     tagEn = None
 
     if LV_INTERNAL_TD_NAMES.has_name(tdName):
@@ -2886,9 +2889,9 @@ def tdNameToEnum(tdName):
         tagEn = TD_FULL_TYPE(lvtdEn.value)
 
     if tagEn is None:
-        if tdName == LVclasses.LVVariant.__name__:
+        if tdName == LVVariant.__name__:
             tagEn = TD_FULL_TYPE.LVVariant
-        elif tdName == LVclasses.OleVariant.__name__:
+        elif tdName == OleVariant.__name__:
             tagEn = TD_FULL_TYPE.LVVariant
 
     if tagEn is None:

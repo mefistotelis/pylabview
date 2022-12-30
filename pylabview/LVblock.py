@@ -31,7 +31,6 @@ import pylabview.LVdatafill as LVdatafill
 import pylabview.LVlinkinfo as LVlinkinfo
 import pylabview.LVheap as LVheap
 import pylabview.LVcode as LVcode
-import pylabview.LVrsrcontainer as LVrsrcontainer
 
 class BLOCK_CODING(enum.Enum):
     NONE = 0
@@ -807,6 +806,7 @@ class Block(object):
 
         All sections are exported by this method.
         """
+        from pylabview.LVrsrcontainer import FILE_FMT_TYPE
         ver = self.vi.getFileVersion()
         pretty_ident = getPrettyStrFromRsrcType(self.ident)
 
@@ -818,7 +818,7 @@ class Block(object):
             section_elem = ET.SubElement(elem,"Section")
             section_elem.set("Index", str(snum))
 
-            if self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.LLB or isSmallerVersion(ver, 8,0,0):
+            if self.vi.ftype == FILE_FMT_TYPE.LLB or isSmallerVersion(ver, 8,0,0):
                 # Vefied to be non-zero in LV7.1 files, is zero in LV8.6 files
                 block_int5 = section.start.int5
             else:
@@ -1424,7 +1424,8 @@ class CONP(CompleteBlock):
         return section
 
     def isSingleTDIndex(self):
-        return self.vi.ftype != LVrsrcontainer.FILE_FMT_TYPE.LLB
+        from pylabview.LVrsrcontainer import FILE_FMT_TYPE
+        return self.vi.ftype != FILE_FMT_TYPE.LLB
 
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
@@ -1883,12 +1884,14 @@ class STR(SingleStringBlock):
         return section
 
     def isSingleShortString(self):
+        from pylabview.LVrsrcontainer import FILE_FMT_TYPE
         ver = self.vi.getFileVersion()
-        return (self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.LLB) or isSmallerVersion(ver, 8,0,0)
+        return (self.vi.ftype == FILE_FMT_TYPE.LLB) or isSmallerVersion(ver, 8,0,0)
 
     def isSingleLVVariant(self):
+        from pylabview.LVrsrcontainer import FILE_FMT_TYPE
         ver = self.vi.getFileVersion()
-        return (self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.VI) and isGreaterOrEqVersion(ver, 8,0,0)
+        return (self.vi.ftype == FILE_FMT_TYPE.VI) and isGreaterOrEqVersion(ver, 8,0,0)
 
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
@@ -2169,7 +2172,8 @@ class LSTsh(StringListBlock):
         # but lvapp from LV11 which has vers set to LV0.0 does have it
         # LVRS files which don't have version block at all, go without padding
         # Some MNU files from LV14 also have no vers block and no padding
-        if self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.RFilesService:
+        from pylabview.LVrsrcontainer import FILE_FMT_TYPE
+        if self.vi.ftype == FILE_FMT_TYPE.RFilesService:
             return 1
         vers = self.vi.get('vers')
         if vers is None:
@@ -4768,8 +4772,9 @@ class DATA(VarCodingBlock):
         return section
 
     def setDefaultEncoding(self, section_num):
+        from pylabview.LVrsrcontainer import FILE_FMT_TYPE
         section = self.sections[section_num]
-        if self.vi.ftype == LVrsrcontainer.FILE_FMT_TYPE.PackedProjLib:
+        if self.vi.ftype == FILE_FMT_TYPE.PackedProjLib:
             if section_num == 0:
                 section.block_coding = BLOCK_CODING.ZLIB
             else:
@@ -5548,6 +5553,7 @@ class UCRF(VarCodingBlock):
         section.block_coding = BLOCK_CODING.NONE
 
     def exportXMLSection(self, section_elem, snum, section, fname_base):
+        from pylabview.LVrsrcontainer import RSRCHeader, getFileExtByType
         fext = "rsrc"
         if self.po.keep_names:
             fname_split = os.path.splitext(section.name_text.decode(self.vi.textEncoding, errors="ignore"))
@@ -5560,10 +5566,10 @@ class UCRF(VarCodingBlock):
                 fext = fext_try
         bldata = self.getData(section_num=snum)
         # Check what kind of RSRC file we have, to give it proper extension
-        rsrchead = LVrsrcontainer.RSRCHeader(self.po)
+        rsrchead = RSRCHeader(self.po)
         if bldata.readinto(rsrchead) == sizeof(rsrchead):
             if rsrchead.checkSanity():
-                fext = LVrsrcontainer.getFileExtByType(rsrchead.ftype)
+                fext = getFileExtByType(rsrchead.ftype)
         bldata.seek(0)
         block_fname = "{:s}.{:s}".format(fname_base,fext)
         with open(block_fname, "wb") as block_fh:

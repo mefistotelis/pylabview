@@ -20,7 +20,6 @@ from io import BytesIO
 from types import SimpleNamespace
 from ctypes import *
 
-import pylabview.LVdatatype as LVdatatype
 import pylabview.LVdatafill as LVdatafill
 import pylabview.LVmisc as LVmisc
 from pylabview.LVmisc import eprint
@@ -2104,8 +2103,8 @@ class HeapNodeTDDataFill(HeapNode):
         text = ""
         ret = False
         tdType = self.td.fullType()
-        from pylabview.LVdatatype import TD_FULL_TYPE
-        tmpText = LVdatatype.numericToStringUnequivocal(self.value, tdType)
+        from pylabview.LVdatatype import TD_FULL_TYPE, numericToStringUnequivocal
+        tmpText = numericToStringUnequivocal(self.value, tdType)
         if tmpText is not None:
             text = tmpText
             ret = True
@@ -2140,8 +2139,8 @@ class HeapNodeTDDataFill(HeapNode):
         ret = False
         val = None
         tdType = self.td.fullType()
-        from pylabview.LVdatatype import TD_FULL_TYPE
-        val = LVdatatype.stringUnequivocalToNumeric(text, tdType)
+        from pylabview.LVdatatype import TD_FULL_TYPE, stringUnequivocalToNumeric
+        val = stringUnequivocalToNumeric(text, tdType)
         if val is not None:
             ret = True
         elif tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,\
@@ -2234,19 +2233,19 @@ class HeapNodeTDDataFillLeaf(HeapNode):
         text = ""
         ret = False
         tdType = self.parent.td.fullType()
-        from pylabview.LVdatatype import TD_FULL_TYPE
+        from pylabview.LVdatatype import TD_FULL_TYPE, numericToStringUnequivocal
         if tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
-            tmpText = LVdatatype.numericToStringUnequivocal(self.value, TD_FULL_TYPE.NumFloat32)
+            tmpText = numericToStringUnequivocal(self.value, TD_FULL_TYPE.NumFloat32)
             if tmpText is not None:
                 text = tmpText
                 ret = True
         elif tdType in (TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,):
-            tmpText = LVdatatype.numericToStringUnequivocal(self.value, TD_FULL_TYPE.NumFloat64)
+            tmpText = numericToStringUnequivocal(self.value, TD_FULL_TYPE.NumFloat64)
             if tmpText is not None:
                 text = tmpText
                 ret = True
         elif tdType in (TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
-            tmpText = LVdatatype.numericToStringUnequivocal(self.value, TD_FULL_TYPE.NumFloatExt)
+            tmpText = numericToStringUnequivocal(self.value, TD_FULL_TYPE.NumFloatExt)
             if tmpText is not None:
                 text = tmpText
                 ret = True
@@ -2275,13 +2274,13 @@ class HeapNodeTDDataFillLeaf(HeapNode):
         val = None
         try:
             tdType = self.parent.td.fullType()
-            from pylabview.LVdatatype import TD_FULL_TYPE
+            from pylabview.LVdatatype import TD_FULL_TYPE, stringUnequivocalToNumeric
             if tdType in (TD_FULL_TYPE.NumComplex64,TD_FULL_TYPE.UnitComplex64,):
-                val = LVdatatype.stringUnequivocalToNumeric(text, TD_FULL_TYPE.NumFloat32)
+                val = stringUnequivocalToNumeric(text, TD_FULL_TYPE.NumFloat32)
             elif tdType in (TD_FULL_TYPE.NumComplex128,TD_FULL_TYPE.UnitComplex128,):
-                val = LVdatatype.stringUnequivocalToNumeric(text, TD_FULL_TYPE.NumFloat64)
+                val = stringUnequivocalToNumeric(text, TD_FULL_TYPE.NumFloat64)
             elif tdType in (TD_FULL_TYPE.NumComplexExt,TD_FULL_TYPE.UnitComplexExt,):
-                val = LVdatatype.stringUnequivocalToNumeric(text, TD_FULL_TYPE.NumFloatExt)
+                val = stringUnequivocalToNumeric(text, TD_FULL_TYPE.NumFloatExt)
             else:
                 raise RuntimeError("Class {} used for unexpected type {}"\
                   .format(type(self).__name__, tdType))
