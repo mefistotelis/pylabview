@@ -1604,6 +1604,7 @@ def FPHb_Fix(RSRC, FPHP, ver, fo, po):
     block_name = "FPHb"
 
     attribGetOrSetDefault(FPHP, "Index", 0, fo, po)
+    sect_index = FPHP.get("Index")
     sect_format = FPHP.get("Format")
     if sect_format not in ("xml",):
         FPHP.set("Format","xml")
@@ -1885,7 +1886,7 @@ def intRangesOneContaining(iRanges, leaveIndex):
     for rng in iRanges:
         if leaveIndex < rng.min or leaveIndex > rng.max:
             continue
-        nRanges.append(nRng)
+        nRanges.append(rng)
     if len(nRanges) < 1:
         return iRanges
     return nRanges
@@ -7040,6 +7041,7 @@ def BDHb_Fix(RSRC, BDHP, ver, fo, po):
     block_name = "BDHb"
 
     attribGetOrSetDefault(BDHP, "Index", 0, fo, po)
+    sect_index = BDHP.get("Index")
     sect_format = BDHP.get("Format")
     if sect_format not in ("xml",):
         BDHP.set("Format","xml")
