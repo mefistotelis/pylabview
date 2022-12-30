@@ -40,16 +40,16 @@ def test_readRSRC_repack_llb(rsrc_inp_fn):
     rsrc_path, rsrc_filename = os.path.split(rsrc_inp_fn)
     rsrc_path = pathlib.Path(rsrc_path)
     rsrc_basename, rsrc_fileext = os.path.splitext(rsrc_filename)
-    xml_fn = f"{rsrc_basename}.xml"
+    xml_fn = "{:s}.xml".format(rsrc_basename)
     if len(rsrc_path.parts) > 1:
-        rsrc_out_path = os.sep.join(["test_out", *rsrc_path.parts[1:]])
+        rsrc_out_path = os.sep.join(["test_out"] + rsrc_path.parts[1:])
     else:
         rsrc_out_path = "test_out"
-    rsrc_out_fn = os.sep.join([rsrc_out_path, f"{rsrc_basename}{rsrc_fileext}"])
-    single_vi_path_extr1 = os.sep.join([rsrc_out_path, f"{rsrc_basename}_extr1"])
+    rsrc_out_fn = os.sep.join([rsrc_out_path, "{:s}{:s}".format(rsrc_basename, rsrc_fileext)])
+    single_vi_path_extr1 = os.sep.join([rsrc_out_path, "{:s}_extr1".format(rsrc_basename)])
     if not os.path.exists(single_vi_path_extr1):
         os.makedirs(single_vi_path_extr1)
-    single_vi_path_extr2 = os.sep.join([rsrc_out_path, f"{rsrc_basename}_extr2"])
+    single_vi_path_extr2 = os.sep.join([rsrc_out_path, "{:s}_extr2".format(rsrc_basename)])
     if not os.path.exists(single_vi_path_extr2):
         os.makedirs(single_vi_path_extr2)
     # Extract the LLB file
@@ -70,7 +70,7 @@ def test_readRSRC_repack_llb(rsrc_inp_fn):
     assert len(dirs_cmp.right_only) == 0
     assert len(dirs_cmp.funny_files) == 0
     (match, mismatch, errors) =  filecmp.cmpfiles(single_vi_path_extr1, single_vi_path_extr2, dirs_cmp.common_files, shallow=False)
-    assert len(mismatch) == 0, f"Mismatched files: {mismatch}"
-    assert len(errors) == 0, f"Errors in files: {errors}"
+    assert len(mismatch) == 0, "Mismatched files: {:s}".format(mismatch)
+    assert len(errors) == 0, "Errors in files: {:s}".format(errors)
     # We should have an XML file and at least one extracted section file
     assert len(match) >= 2
