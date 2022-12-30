@@ -11,9 +11,6 @@
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
 
-import enum
-from ctypes import *
-
 from pylabview.LVheap import ENUM_TAGS
 
 class VICodePtrs_LV5(ENUM_TAGS):

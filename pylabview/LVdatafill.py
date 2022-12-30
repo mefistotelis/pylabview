@@ -25,7 +25,6 @@ from pylabview.LVmisc import *
 import pylabview.LVxml as ET
 import pylabview.LVclasses as LVclasses
 import pylabview.LVdatatype as LVdatatype
-import pylabview.LVdatatyperef as LVdatatyperef
 
 
 class DataFill:
@@ -1997,7 +1996,7 @@ def newDataFillObject(vi, blockref, tdType, tdSubType, po):
     }.get(tdType, None)
     if ctor is None:
         raise RuntimeError("Data type {}: No known way to read default data"\
-          .format(enumOrIntToName(tdType),str(e)))
+          .format(enumOrIntToName(tdType)))
     return ctor(vi, blockref, tdType, tdSubType, po)
 
 def newDataFillObjectWithTD(vi, blockref, idx, tm_flags, td, po, expectContentKind="auto"):

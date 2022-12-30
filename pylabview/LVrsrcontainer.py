@@ -21,7 +21,6 @@ from ctypes import *
 from hashlib import md5
 
 import pylabview.LVblock as LVblock
-import pylabview.LVdatatype as LVdatatype
 import pylabview.LVxml as ET
 from pylabview.LVmisc import *
 
