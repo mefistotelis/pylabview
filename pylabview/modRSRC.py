@@ -2306,6 +2306,7 @@ def TypeDesc_find_unused_ranges(RSRC, fo, po, skipRm=[], VCTP_TypeDescList=None,
                 .format(po.xml,unusedRanges))
     return unusedRanges
 
+
 def VCTP_add_TypeDesc_copy(RSRC, fo, po, srcTypeDesc, VCTP=None):
     """ Adds a copy of given TD to the VCTP Flat Types List
 
@@ -6900,21 +6901,27 @@ def DTHP_Fix(RSRC, DTHP, ver, fo, po):
         fo[FUNC_OPTS.changed] = True
     return fo[FUNC_OPTS.changed]
 
+
 def DFDS_Fix(RSRC, DFDS, ver, fo, po):
     return fo[FUNC_OPTS.changed]
+
 
 def BDPW_Fix(RSRC, BDPW, ver, fo, po):
     return fo[FUNC_OPTS.changed]
 
+
 def LVSR_Fix(RSRC, LVSR, ver, fo, po):
     return fo[FUNC_OPTS.changed]
+
 
 def VCTP_Fix(RSRC, VCTP, ver, fo, po):
     return fo[FUNC_OPTS.changed]
 
+
 def CONP_Fix(RSRC, CONP, ver, fo, po):
     #TODO CONP can be re-created from DSInit
     return fo[FUNC_OPTS.changed]
+
 
 def CPC2_TypeDesc_matching_ranges(RSRC, fo, po, VCTP_TypeDescList=None, VCTP_FlatTypeDescList=None):
     """ Finds possible ranges of TypeDesc for CPC2
@@ -7135,6 +7142,7 @@ def icl8_genDefaultIcon(title, po):
     draw.text((2,24), short_title, font=font, fill=(0xff))
     return image
 
+
 def icon_changePalette(RSRC, src_image, bpp, fo, po):
     from pylabview.LVmisc import LABVIEW_COLOR_PALETTE_256, LABVIEW_COLOR_PALETTE_16, LABVIEW_COLOR_PALETTE_2
     img_palette = [ 0 ] * (3*(2**bpp))
@@ -7153,6 +7161,7 @@ def icon_changePalette(RSRC, src_image, bpp, fo, po):
     rgb_image = src_image.convert('RGB')
     dst_image = rgb_image.quantize(colors=len(lv_color_palette), palette=palimage)
     return dst_image
+
 
 def icon_readImage(RSRC, icon_elem, fo, po):
     """ Reads icon image from section
@@ -7177,6 +7186,7 @@ def icon_readImage(RSRC, icon_elem, fo, po):
             fileOk = False
             image = None
     return image, icon_fname, fileOk
+
 
 def icl8_Fix(RSRC, icl8, ver, fo, po):
     icl8_Format = icl8.get("Format")
@@ -7295,6 +7305,7 @@ def getFirstSection(block_names, RSRC, po):
         return all_sections[0]
     return None
 
+
 def getVersionElement(RSRC, po):
     # Get LV version
     # Find all blocks, regardless of version we expect them in
@@ -7316,6 +7327,7 @@ def getVersionElement(RSRC, po):
         ver_elem.set("Flags", "0x0")
     return ver_elem
 
+
 def versionGreaterOrEq(ver, major,minor,bugfix):
     ver_major = int(ver.get("Major"), 0)
     if ver_major < major: return False
@@ -7324,6 +7336,7 @@ def versionGreaterOrEq(ver, major,minor,bugfix):
     ver_bugfix = int(ver.get("Bugfix"), 0)
     if ver_bugfix < bugfix: return False
     return True
+
 
 def getOrMakeSection(section_def, RSRC, ver, po, allowCreate=True):
     # Find all blocks, regardless of version we expect them in
@@ -7354,6 +7367,7 @@ def getOrMakeSection(section_def, RSRC, ver, po, allowCreate=True):
     section_elem.set("Format","inline")
     return section_elem
 
+
 def getOrMakeSectionVersion(section_def, RSRC, ver, po):
     # Find all blocks, regardless of version we expect them in
     all_sections = []
@@ -7374,6 +7388,7 @@ def getOrMakeSectionVersion(section_def, RSRC, ver, po):
     section_elem.set("Index","0")
     section_elem.set("Format","inline")
     return section_elem
+
 
 def fixSection(section_def, RSRC, section_elem, ver, po):
     fo = 1 * [None]
@@ -7397,6 +7412,7 @@ def fixSection(section_def, RSRC, section_elem, ver, po):
             print("{:s}: Block <{}> section already valid"\
               .format(po.xml,sec_d[0]))
     return fo[FUNC_OPTS.changed]
+
 
 def makeUidsUnique(FPHP, BDHP, ver, fo, po):
     """ Makes 'uid' values unique in FP and BD
