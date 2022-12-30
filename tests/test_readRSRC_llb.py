@@ -16,11 +16,7 @@ import os
 import sys
 import pathlib
 import pytest
-try:
-    # python 3.4+ should use builtin unittest.mock not mock package
-    from unittest.mock import patch
-except ImportError:
-    from mock import patch
+from unittest.mock import patch
 
 # Import the functions to be tested
 from pylabview.readRSRC import main as readRSRC_main

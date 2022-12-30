@@ -20,7 +20,7 @@ setup(
     author="mefistotelis",
 
     install_requires=["Pillow"],
-    python_requires=">=3.4",
+    python_requires=">=3.5",
 
     url="https://github.com/mefistotelis/pylabview",
     license="MIT",
