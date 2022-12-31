@@ -31,6 +31,12 @@ def test_readRSRC_repack_vi(rsrc_inp_fn):
     random values for padding, or LLB files) same as original on binary level. Extracting and
     re-packing such file should result in receiving a binary-identical copy of the file.
     """
+    # Only some files can be successfully tested in Python < 3.8, as XML parser was
+    # improved in that version to preserve order of attributes.
+    if sys.version_info < (3,8) and (
+      rsrc_inp_fn.endswith("empty_vifile.vi")):
+        pytest.skip("this file will not produce identical binary in python <= 3.8")
+
     rsrc_path, rsrc_filename = os.path.split(rsrc_inp_fn)
     rsrc_path = pathlib.Path(rsrc_path)
     rsrc_basename, rsrc_fileext = os.path.splitext(rsrc_filename)
