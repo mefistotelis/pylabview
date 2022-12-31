@@ -33,6 +33,15 @@ created in previous versions down to LabVIEW 8.6.
 But the actual development was made with LabVIEW 2014 in mind. Other versions may get
 less resources converted to XML, or may require some tweaks to work.
 
+As for Python versions best suited to run these scripts - newer should be better.
+It is recommended to use at least Python 3.8, as XML parser is older versions does
+not preserve order of attributes. Without this feature the tool will still work
+(down to 3.5), but generated binary data will be different due to reordering
+of some tags. It is uncertain whether the different ordering has impact on stability
+of the created binary files. Some fixes to the XML parser from Python 3.9 can also
+affect generated files, due to better handling of non-text ASCII codes within values
+of attributes.
+
 # Verification
 
 If you want to verify whrther your specific file will be handled correctly by the tool, try:
