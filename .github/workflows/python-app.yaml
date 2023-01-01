@@ -8,6 +8,11 @@ on:
   push:
     branches:
       - master
+    paths:
+      - pylabview/**
+      - tests/**
+      - examples/**
+      - .github/**
 
 permissions:
   contents: read

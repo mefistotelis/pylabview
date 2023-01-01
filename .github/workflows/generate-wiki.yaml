@@ -4,7 +4,9 @@ on:
   push:
     branches: 
       - master
-
+    paths:
+      - wiki/**
+      - .github/**
 jobs:
   build:
     runs-on: ubuntu-latest
