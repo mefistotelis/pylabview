@@ -30,7 +30,7 @@ from pylabview.readRSRC import main as readRSRC_main
 LOGGER = logging.getLogger(__name__)
 
 
-@pytest.mark.parametrize("rsrc_inp_fn", itertools.chain.from_iterable([ glob.glob(e, recursive=True) for e in (
+@pytest.mark.parametrize("rsrc_inp_fn", [fn for fn in itertools.chain.from_iterable([ glob.glob(e, recursive=True) for e in (
     './examples/**/*.vi',
     './examples/**/*.ctl',
     './examples/**/*.vit',
@@ -39,7 +39,7 @@ LOGGER = logging.getLogger(__name__)
     './examples/**/*.uir',
     './examples/**/*.lsb',
     './examples/**/*.rsc',
-  ) ]))
+  ) ]) if os.path.isfile(fn)] )
 def test_readRSRC_repack_vi(rsrc_inp_fn):
     """ Test extraction and re-creation of VI/CTL/RSC files.
 
@@ -77,10 +77,9 @@ def test_readRSRC_repack_vi(rsrc_inp_fn):
     match =  filecmp.cmp(rsrc_inp_fn, rsrc_out_fn, shallow=False)
     assert match, "Re-created file different: {:s}".format(rsrc_inp_fn)
 
-
-@pytest.mark.parametrize("rsrc_inp_fn", glob.glob(
+@pytest.mark.parametrize("rsrc_inp_fn", [fn for fn in itertools.chain.from_iterable([ glob.glob(e, recursive=True) for e in (
     './examples/**/*.llb',
-  recursive=True))
+  ) ]) if os.path.isfile(fn)] )
 def test_readRSRC_repack_llb(rsrc_inp_fn):
     """ Test extraction and re-creation of LLB files.
 
