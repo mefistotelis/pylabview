@@ -73,8 +73,14 @@ cd tests
 The output files and logs will be stored in `test_out` directory.
 
 There is also a second set of tests, implementing the same thing in [pytest](https://docs.pytest.org).
-To execute these, just run `pytest` in home folder of the project. These are
-the tests executed after each commit, providing Continous Integration for the project.
+To execute these, just run in home folder of the project:
+
+```
+pytest tests -o log_cli=true
+```
+
+These are the tests executed after each commit, providing Continous Integration
+for the project.
 
 # Use cases
 
