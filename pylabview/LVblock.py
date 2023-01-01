@@ -351,11 +351,18 @@ class Block(object):
         minSize = self.vi.rsrc_headers[-1].rsrc_data_size
         # Do the minimalizing job only if all section have the position set
         if None not in [ section.block_pos for section in self.sections.values() ]:
-            self_min_section_block_pos = min(section.block_pos for section in self.sections.values())
-            for ident, block in self.vi.blocks.items():
-                block_min_section_block_pos = min(section.block_pos for section in block.sections.values())
-                if (self != block) and (block_min_section_block_pos > self_min_section_block_pos):
-                    minSize = min(minSize, block_min_section_block_pos - self_min_section_block_pos)
+            # Prepare an array with sizes of all sections in this block
+            section_sizes = []
+            for curSection in self.sections.values():
+                minSectSize = minSize if minSize is not None else 0xffffffff
+                for ident, block in self.vi.blocks.items():
+                    if self == block: continue
+                    for nexSection in block.sections.values():
+                        if nexSection.block_pos <= curSection.block_pos: continue
+                        minSectSize = min(minSectSize, nexSection.block_pos - curSection.block_pos)
+                section_sizes.append(minSectSize)
+            # Sum the sizes of the sections, to possibly decrease the expected size of whole block
+            minSize = min(minSize, sum(section_sizes))
         self.size = minSize
         if self.po.verbose > 1:
             if (self.size is not None):
@@ -1085,6 +1092,8 @@ class CompleteBlock(Block):
         storage_format = section.storage_format
         if section.parse_failed:
             storage_format = "raw"
+            print("{}: XXX parse_failed set block {} section {:d}"\
+                      .format(self.vi.src_fname, self.ident, section_num))
 
         try:
             if storage_format == "inline":
