@@ -20,6 +20,7 @@ import re
 import sys
 import pathlib
 import pytest
+import xml.etree.ElementTree as ET
 from unittest.mock import patch
 
 # Import the functions to be tested
@@ -123,17 +124,26 @@ def test_readRSRC_repack_llb(rsrc_inp_fn):
         readRSRC_main()
     # Compare files from first extraction to the ones from second extraction
     dirs_cmp = filecmp.dircmp(single_vi_path_extr1, single_vi_path_extr2)
-    assert len(dirs_cmp.left_only) == 0
-    assert len(dirs_cmp.right_only) == 0
-    assert len(dirs_cmp.funny_files) == 0
+    assert len(dirs_cmp.left_only) == 0, "Files exist only in 1st extraction: {:s}".format(', '.join(dirs_cmp.left_only))
+    assert len(dirs_cmp.right_only) == 0, "Files exist only in 2nd extraction: {:s}".format(', '.join(dirs_cmp.right_only))
+    assert len(dirs_cmp.funny_files) == 0, "Some funny files encountered: {:s}".format(', '.join(dirs_cmp.funny_files))
     (match, mismatch, errors) =  filecmp.cmpfiles(single_vi_path_extr1, single_vi_path_extr2, dirs_cmp.common_files, shallow=False)
     # Ignore some expected differences
     if len(mismatch) > 0:
         # Some LLB files contain ordering of items not supported by pylabview, resulting in different order of items in re-extracted XML
         # Ignore such XML differences, as it was a design decision to not care for ordering in such cases
-        if re.match(r'^.*lv14f1[/\\]empty_libfile[.]llb$', rsrc_inp_fn):
-            LOGGER.warning("Ignoring expected ordering issues in XML from: {}".format(rsrc_inp_fn))
-            mismatch = [fn for fn in mismatch if not fn.endswith(".xml")]
+        if xml_fn in mismatch:
+            LOGGER.warning("XML not identical - ignoring expected ordering changes in extraction from: {}".format(rsrc_inp_fn))
+            tree_extr1 = ET.parse(os.sep.join([single_vi_path_extr1, xml_fn]))
+            tree_extr2 = ET.parse(os.sep.join([single_vi_path_extr2, xml_fn]))
+            for root in [tree_extr1.getroot(), tree_extr2.getroot()]:
+                for elem in root.findall('SpecialOrder'):
+                    root.remove(elem)
+            canonic_extr1 = ET.canonicalize(ET.tostring(tree_extr1.getroot()), strip_text=True)
+            canonic_extr2 = ET.canonicalize(ET.tostring(tree_extr2.getroot()), strip_text=True)
+            assert canonic_extr1 == canonic_extr2, "Re-extracted XML different even after ordering ignore: {:s}".format(xml_fn)
+            mismatch = [fn for fn in mismatch if not fn.endswith(xml_fn)]
+
     assert len(mismatch) == 0, "Re-extracted files different: {:s}".format(', '.join(mismatch))
     assert len(errors) == 0, "Errors reading files: {:s}".format(', '.join(errors))
     # We should have an XML file and at least one extracted section file
