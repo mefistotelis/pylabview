@@ -12,7 +12,11 @@
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
 import filecmp
+import glob
+import itertools
+import logging
 import os
+import re
 import sys
 import pathlib
 import pytest
@@ -21,9 +25,20 @@ from unittest.mock import patch
 # Import the functions to be tested
 from pylabview.readRSRC import main as readRSRC_main
 
-@pytest.mark.parametrize("rsrc_inp_fn", [
-    os.path.join("examples", "lv14f1", "empty_vifile.vi"),
-])
+
+LOGGER = logging.getLogger(__name__)
+
+
+@pytest.mark.parametrize("rsrc_inp_fn", itertools.chain.from_iterable([ glob.glob(e, recursive=True) for e in (
+    './examples/**/*.vi',
+    './examples/**/*.ctl',
+    './examples/**/*.vit',
+    './examples/**/*.mnu',
+    './examples/**/*.ctt',
+    './examples/**/*.uir',
+    './examples/**/*.lsb',
+    './examples/**/*.rsc',
+  ) ]))
 def test_readRSRC_repack_vi(rsrc_inp_fn):
     """ Test extraction and re-creation of VI/CTL/RSC files.
 
@@ -50,7 +65,7 @@ def test_readRSRC_repack_vi(rsrc_inp_fn):
     if not os.path.exists(single_vi_path_extr1):
         os.makedirs(single_vi_path_extr1)
     # Extract the VI file
-    command = [os.path.join("pylabview", "readRSRC.py"), "-vv", "-x", "--keep-names", "-i", rsrc_inp_fn, "-m", os.sep.join([single_vi_path_extr1, xml_fn])]
+    command = [os.path.join("pylabview", "readRSRC.py"), "-vv", "-x", "-i", rsrc_inp_fn, "-m", os.sep.join([single_vi_path_extr1, xml_fn])]
     with patch.object(sys, 'argv', command):
         readRSRC_main()
     # Re-create the VI file
@@ -59,12 +74,12 @@ def test_readRSRC_repack_vi(rsrc_inp_fn):
         readRSRC_main()
     # Compare repackaged file and the original
     match =  filecmp.cmp(rsrc_inp_fn, rsrc_out_fn, shallow=False)
-    assert match, "Mismatched file: {:s}".format(rsrc_inp_fn)
+    assert match, "Re-created file different: {:s}".format(rsrc_inp_fn)
 
-#    os.path.join("examples", "lv14f1", "empty_libfile.llb"), -- currently fails because icon sections are re-ordered
-@pytest.mark.parametrize("rsrc_inp_fn", [
-    os.path.join("examples", "blank_project1_extr_from_exe_lv14f1.llb"),
-])
+
+@pytest.mark.parametrize("rsrc_inp_fn", glob.glob(
+    './examples/**/*.llb',
+  recursive=True))
 def test_readRSRC_repack_llb(rsrc_inp_fn):
     """ Test extraction and re-creation of LLB files.
 
@@ -96,6 +111,12 @@ def test_readRSRC_repack_llb(rsrc_inp_fn):
     command = [os.path.join("pylabview", "readRSRC.py"), "-vv", "-c", "-m", os.sep.join([single_vi_path_extr1, xml_fn]), "-i", rsrc_out_fn]
     with patch.object(sys, 'argv', command):
         readRSRC_main()
+    # Check if re-created file size roughly matches the original
+    rsrc_inp_fsize = os.path.getsize(rsrc_inp_fn)
+    rsrc_out_fsize = os.path.getsize(rsrc_out_fn)
+    assert rsrc_out_fsize >= int(rsrc_inp_fsize * 0.95), "Re-created file too small: {:s}".format(rsrc_inp_fn)
+    assert rsrc_out_fsize <= int(rsrc_inp_fsize * 1.05), "Re-created file too large: {:s}".format(rsrc_inp_fn)
+
     # Re-extract the LLB file
     command = [os.path.join("pylabview", "readRSRC.py"), "-vv", "-x", "--keep-names", "-i", rsrc_out_fn, "-m", os.sep.join([single_vi_path_extr2, xml_fn])]
     with patch.object(sys, 'argv', command):
@@ -106,7 +127,14 @@ def test_readRSRC_repack_llb(rsrc_inp_fn):
     assert len(dirs_cmp.right_only) == 0
     assert len(dirs_cmp.funny_files) == 0
     (match, mismatch, errors) =  filecmp.cmpfiles(single_vi_path_extr1, single_vi_path_extr2, dirs_cmp.common_files, shallow=False)
-    assert len(mismatch) == 0, "Mismatched files: {:s}".format(mismatch)
-    assert len(errors) == 0, "Errors in files: {:s}".format(errors)
+    # Ignore some expected differences
+    if len(mismatch) > 0:
+        # Some LLB files contain ordering of items not supported by pylabview, resulting in different order of items in re-extracted XML
+        # Ignore such XML differences, as it was a design decision to not care for ordering in such cases
+        if re.match(r'^.*lv14f1[/\\]empty_libfile[.]llb$', rsrc_inp_fn):
+            LOGGER.warning("Ignoring expected ordering issues in XML from: {}".format(rsrc_inp_fn))
+            mismatch = [fn for fn in mismatch if not fn.endswith(".xml")]
+    assert len(mismatch) == 0, "Re-extracted files different: {:s}".format(', '.join(mismatch))
+    assert len(errors) == 0, "Errors reading files: {:s}".format(', '.join(errors))
     # We should have an XML file and at least one extracted section file
     assert len(match) >= 2
