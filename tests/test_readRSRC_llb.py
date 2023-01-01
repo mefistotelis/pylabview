@@ -139,8 +139,13 @@ def test_readRSRC_repack_llb(rsrc_inp_fn):
             for root in [tree_extr1.getroot(), tree_extr2.getroot()]:
                 for elem in root.findall('SpecialOrder'):
                     root.remove(elem)
-            canonic_extr1 = ET.canonicalize(ET.tostring(tree_extr1.getroot()), strip_text=True)
-            canonic_extr2 = ET.canonicalize(ET.tostring(tree_extr2.getroot()), strip_text=True)
+            if hasattr( ET, "canonicalize" ):
+                canonic_extr1 = ET.canonicalize(ET.tostring(tree_extr1.getroot()), strip_text=True)
+                canonic_extr2 = ET.canonicalize(ET.tostring(tree_extr2.getroot()), strip_text=True)
+            else:
+                LOGGER.warning("The old Python does not have ET.canonicalize(), skipping")
+                canonic_extr1 = ET.tostring(tree_extr1.getroot())
+                canonic_extr2 = ET.tostring(tree_extr2.getroot())
             assert canonic_extr1 == canonic_extr2, "Re-extracted XML different even after ordering ignore: {:s}".format(xml_fn)
             mismatch = [fn for fn in mismatch if not fn.endswith(xml_fn)]
 
