@@ -39,10 +39,11 @@ class FILE_FMT_TYPE(enum.Enum):
     Xcontrol = 11
     UsrIfaceResrc = 12
     RFilesService = 13
-    RFilesOld = 14
-    Subroutine = 15
-    VI = 16
-    Zero = 17
+    RFilesOld2 = 14
+    RFilesOld4 = 15
+    Subroutine = 16
+    VI = 17
+    Zero = 18
 
 
 class RSRCHeader(RSRCStructure):
@@ -86,7 +87,9 @@ class RSRCHeader(RSRCStructure):
             ret = False
         if bytes(self.rsrc_creator) == b'LBVW':
             pass
-        elif self.ftype == FILE_FMT_TYPE.RFilesOld and bytes(self.rsrc_creator) == b'ResC':
+        elif self.ftype == FILE_FMT_TYPE.RFilesOld2 and bytes(self.rsrc_creator) == b'ResC':
+            pass
+        elif self.ftype == FILE_FMT_TYPE.RFilesOld4 and bytes(self.rsrc_creator) == b'Doug':
             pass
         elif self.rsrc_fmtver <= 2 and bytes(self.rsrc_creator) == b'\0\0\0\0':
             # VI format from LV2.5
@@ -159,7 +162,8 @@ def getRsrcTypeForFileType(ftype):
         FILE_FMT_TYPE.LLB: b'LVAR',
         FILE_FMT_TYPE.MenuPalette: b'LMNU',
         FILE_FMT_TYPE.RFilesService: b'LVRS',
-        FILE_FMT_TYPE.RFilesOld: b'rsc ',
+        FILE_FMT_TYPE.RFilesOld2: b'rsc ',
+        FILE_FMT_TYPE.RFilesOld4: b'RSRC',
         FILE_FMT_TYPE.TemplateControl: b'sVCC',
         FILE_FMT_TYPE.TemplateVI: b'sVIN',
         FILE_FMT_TYPE.Xcontrol: b'LVXC',
