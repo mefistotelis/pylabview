@@ -612,6 +612,8 @@ class VI():
         section_names = bytearray()
 
         # First, let's store names section in proper order
+        # This implementation has a restriction: names for sections of different blocks cannot interleave,
+        # or in other words all names concerning one block are held together
         if True:
             if self.order_names is None:
                 all_blocks_for_names = all_blocks
@@ -620,7 +622,9 @@ class VI():
             else:
                 all_blocks_for_names = self.blkrefSortBlocks(all_blocks, self.order_names)
                 for block in all_blocks_for_names:
+                    # Get list of sections for the current block
                     sections_list = [ blkref[1] for blkref in self.order_names if block.ident == blkref[0] ]
+                    # Save the names for this section, providing order of items within
                     block.saveRSRCNames(section_names, order_list=sections_list)
 
         if isGreaterOrEqVersion(ver, 7,0,0):
