@@ -47,11 +47,56 @@ def test_readRSRC_repack_vi(rsrc_inp_fn):
     random values for padding, or LLB files) same as original on binary level. Extracting and
     re-packing such file should result in receiving a binary-identical copy of the file.
     """
+    # Most files we are able to recreate with full accuracy
+    expect_file_identical = True
+
     # Only some files can be successfully tested in Python < 3.8, as XML parser was
     # improved in that version to preserve order of attributes.
     if sys.version_info < (3,8) and (
-      rsrc_inp_fn.endswith("empty_vifile.vi")):
-        pytest.skip("this file will not produce identical binary in python <= 3.8")
+      re.match(r'^.*lv14f1[/\\]empty_vifile[.]vi$', rsrc_inp_fn)):
+        LOGGER.warning("Expected non-identical binary in python <= 3.8: {:s}".format(rsrc_inp_fn))
+        expect_file_identical = False
+    # Some files have strings in unpredicatable order, adjust for that.
+    if (
+      re.match(r'^.*lv040[/\\]lvstring[.]rsc$', rsrc_inp_fn) or
+      re.match(r'^.*lv040[/\\]menus[/\\]default[/\\]anmeas[.]mnu$', rsrc_inp_fn) or
+      False):
+        LOGGER.warning("Expected non-identical binary due to random strings order: {:s}".format(rsrc_inp_fn))
+        expect_file_identical = False
+    # Some files have some indexes in unpredicatable order, adjust for that.
+    if (
+      re.match(r'^.*lv100[/\\]menus[/\\]Controls[/\\]High Color[/\\]3dio[.]mnu$', rsrc_inp_fn) or
+      re.match(r'^.*lv100[/\\]menus[/\\]Controls[/\\]High Color[/\\]dir[.]mnu$', rsrc_inp_fn) or
+      re.match(r'^.*lv100[/\\]menus[/\\]Controls[/\\]Low Color[/\\]dir[.]mnu$', rsrc_inp_fn) or
+      re.match(r'^.*lv100[/\\]menus[/\\]Controls[/\\]Low Color[/\\]io[.]mnu$', rsrc_inp_fn) or
+      re.match(r'^.*lv100[/\\]menus[/\\]Controls[/\\]System[/\\]dir[.]mnu$', rsrc_inp_fn) or
+      False):
+        LOGGER.warning("Expected non-identical binary due to random indexes order: {:s}".format(rsrc_inp_fn))
+        expect_file_identical = False
+    # Some files have sections belonging to different blocks interleaved; the tool currently keeps all
+    # sections from a block together, so original order of sections cannot be preserved. It often concerns
+    # the ICON sections; anyway adjust for that.
+    if (
+      re.match(r'^.*lv040[/\\]user.lib[/\\]dir[.]mnu$', rsrc_inp_fn) or
+      re.match(r'^.*lv071[/\\]user.lib[/\\]dir[.]mnu$', rsrc_inp_fn) or
+      False):
+        LOGGER.warning("Expected non-identical binary due to sections interleaving: {:s}".format(rsrc_inp_fn))
+        expect_file_identical = False
+    # Some files have section data ordered with different rules than what the tool uses; not sure if the order is predictable.
+    if (
+      re.match(r'^.*lv100[/\\]menus[/\\]default[/\\]root[.]mnu$', rsrc_inp_fn) or
+      re.match(r'^.*lv100[/\\]menus[/\\]default[/\\]_shared[/\\]picture[.]mnu$', rsrc_inp_fn) or
+      False):
+        LOGGER.warning("Expected non-identical binary due to sections ordering rules: {:s}".format(rsrc_inp_fn))
+        expect_file_identical = False
+    # Some files have random values in padding. In re-created files, padding is always with zeros.
+    if (
+      re.match(r'^.*lv071[/\\]vi.lib[/\\]_probes[/\\]Pixmap Probe[.]vi$', rsrc_inp_fn) or # only 1 byte different
+      re.match(r'^.*lv071[/\\]vi.lib[/\\]express[/\\]express shared[/\\]ex_TableInputs[.]vi$', rsrc_inp_fn) or # 5 bytes different
+      re.match(r'^.*lv071[/\\]vi.lib[/\\]express[/\\]rvi[/\\]timing[/\\]WaitPropertyPage[.]vi$', rsrc_inp_fn) or # 1 byte different
+      False):
+        LOGGER.warning("Expected non-identical binary due to non-zeros in padding: {:s}".format(rsrc_inp_fn))
+        expect_file_identical = False
 
     rsrc_path, rsrc_filename = os.path.split(rsrc_inp_fn)
     rsrc_path = pathlib.Path(rsrc_path)
@@ -73,9 +118,16 @@ def test_readRSRC_repack_vi(rsrc_inp_fn):
     command = [os.path.join("pylabview", "readRSRC.py"), "-vv", "-c", "-m", os.sep.join([single_vi_path_extr1, xml_fn]), "-i", rsrc_out_fn]
     with patch.object(sys, 'argv', command):
         readRSRC_main()
-    # Compare repackaged file and the original
-    match =  filecmp.cmp(rsrc_inp_fn, rsrc_out_fn, shallow=False)
-    assert match, "Re-created file different: {:s}".format(rsrc_inp_fn)
+    if expect_file_identical:
+        # Compare repackaged file and the original byte-to-byte
+        match =  filecmp.cmp(rsrc_inp_fn, rsrc_out_fn, shallow=False)
+        assert match, "Re-created file different: {:s}".format(rsrc_inp_fn)
+    else:
+        # Check if repackaged file size roughly matches the original
+        rsrc_inp_fsize = os.path.getsize(rsrc_inp_fn)
+        rsrc_out_fsize = os.path.getsize(rsrc_out_fn)
+        assert rsrc_out_fsize >= int(rsrc_inp_fsize * 0.95), "Re-created file too small: {:s}".format(rsrc_inp_fn)
+        assert rsrc_out_fsize <= int(rsrc_inp_fsize * 1.05), "Re-created file too large: {:s}".format(rsrc_inp_fn)
 
 @pytest.mark.parametrize("rsrc_inp_fn", [fn for fn in itertools.chain.from_iterable([ glob.glob(e, recursive=True) for e in (
     './examples/**/*.llb',
