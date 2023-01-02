@@ -62,6 +62,21 @@ jobs:
         # depending on how it is run, pytest may be unable to locate the package if not installed
         pip install -e .
 
+    - name: Download more RSRC files to test on
+      # Instead of the usual actions/download-artifact, we are downloading from Mega
+      uses: Difegue/action-megacmd@master
+      with:
+        args: get https://mega.nz/file/tM8ywDra#jAwqJN3SP25U6PDn0DQMvY1zBuTal5qYna9f22Z6Pi8 ${{ env.GITHUB_WORKSPACE }}
+
+    - name: Set ownership for downloaded files
+      # downloaded files are owned by root; unzip has no permission
+      run: |
+        sudo chown -R $(id -u):$(id -g) lv-std-libs-v1.zip
+
+    - name: Extract downloaded files
+      run: |
+        unzip -q lv-std-libs-v1.zip -d examples/lv-std-libs
+
     - name: Test with pytest
       run: |
-        pytest
+        pytest tests -o log_cli=true
