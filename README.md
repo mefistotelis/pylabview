@@ -33,6 +33,8 @@ created in previous versions down to LabVIEW 8.6.
 But the actual development was made with LabVIEW 2014 in mind. Other versions may get
 less resources converted to XML, or may require some tweaks to work.
 
+# Python environment
+
 As for Python versions best suited to run these scripts - newer should be better.
 It is recommended to use at least Python 3.8, as XML parser is older versions does
 not preserve order of attributes. Without this feature the tool will still work
@@ -44,7 +46,7 @@ of attributes.
 
 # Verification
 
-If you want to verify whrther your specific file will be handled correctly by the tool, try:
+If you want to verify whether your specific file will be handled correctly by the tool, try:
 - extracting it to XML
 - re-creating it from the XML
 - checking whether oroginal and re-created file are binary identical, or load with all features in LabVIEW
@@ -61,7 +63,23 @@ A few example files are included in the project.
 
 # Tests
 
-The tool comes with a few simple tests. Run them from `bash`:
+The tool comes with a few tests, implemented to be used by [pytest](https://docs.pytest.org).
+To execute these, just run in home folder of the project:
+
+```
+pytest tests -o log_cli=true
+```
+
+These are the tests executed after each commit, providing Continous Integration
+for the project. Though there, additinal set of VI/LLB files is downloaded; you
+can fetch those files manually (the link is within `.github/workflows` scripts)
+and unzip them to the `./examples` folder. All files within that folder are used
+during `pytest` runs.
+
+The output files will be stored in `test_out` directory.
+
+There is also a second set of tests, implementing similar test cases as shell scripts.
+Run them from `bash`:
 
 ```
 cd tests
@@ -71,16 +89,6 @@ cd tests
 ```
 
 The output files and logs will be stored in `test_out` directory.
-
-There is also a second set of tests, implementing the same thing in [pytest](https://docs.pytest.org).
-To execute these, just run in home folder of the project:
-
-```
-pytest tests -o log_cli=true
-```
-
-These are the tests executed after each commit, providing Continous Integration
-for the project.
 
 # Use cases
 
