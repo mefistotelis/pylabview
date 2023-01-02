@@ -51,11 +51,19 @@ def test_readRSRC_repack_vi(rsrc_inp_fn):
     expect_file_identical = True
 
     # Only some files can be successfully tested in Python < 3.8, as XML parser was
-    # improved in that version to preserve order of attributes.
-    if sys.version_info < (3,8) and (
-      re.match(r'^.*lv14f1[/\\]empty_vifile[.]vi$', rsrc_inp_fn)):
-        LOGGER.warning("Expected non-identical binary in python <= 3.8: {:s}".format(rsrc_inp_fn))
-        expect_file_identical = False
+    # improved in that version to preserve order of attributes. Use whitelist.
+    if sys.version_info < (3,8):
+        if (
+          re.match(r'^.*lv14f1[/\\]empty_vifile[.]vi$', rsrc_inp_fn) or
+          re.match(r'^.*lv040[/\\]vi.lib[/\\]analysis[/\\]lvsb[/\\]log2[.]lsb$', rsrc_inp_fn) or
+          re.match(r'^.*lv025[/\\]vi.lib[/\\]analysis[/\\]lvsb[/\\]ave[.]lsb$', rsrc_inp_fn) or
+          re.match(r'^.*lv100[/\\]resource[/\\]provers[.]rsc$', rsrc_inp_fn) or
+          False):
+            expect_file_identical = True
+        else:
+            LOGGER.warning("Expected non-identical binary in python <= 3.8: {:s}".format(rsrc_inp_fn))
+            expect_file_identical = False
+
     # Some files have strings in unpredicatable order, adjust for that.
     if (
       re.match(r'^.*lv040[/\\]lvstring[.]rsc$', rsrc_inp_fn) or
