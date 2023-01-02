@@ -87,9 +87,9 @@ class RSRCHeader(RSRCStructure):
             ret = False
         if bytes(self.rsrc_creator) == b'LBVW':
             pass
-        elif self.ftype == FILE_FMT_TYPE.RFilesOld2 and bytes(self.rsrc_creator) == b'ResC':
+        elif self.ftype == FILE_FMT_TYPE.RFilesOld2 and bytes(self.rsrc_creator) == b'ResC': # LV 2.x and 3.x RSC files
             pass
-        elif self.ftype == FILE_FMT_TYPE.RFilesOld4 and bytes(self.rsrc_creator) == b'Doug':
+        elif self.ftype == FILE_FMT_TYPE.RFilesOld4 and bytes(self.rsrc_creator) == b'Doug': # LV 4.x RSC files
             pass
         elif self.rsrc_fmtver <= 2 and bytes(self.rsrc_creator) == b'\0\0\0\0':
             # VI format from LV2.5
@@ -520,11 +520,19 @@ class VI():
         rsrchead.rsrc_type = (c_ubyte * sizeof(rsrchead.rsrc_type)).from_buffer_copy(rsrc_type_id)
         if self.fmtver <= 2 and self.ftype == FILE_FMT_TYPE.VI:
             rsrchead.rsrc_creator = (c_ubyte * sizeof(rsrchead.rsrc_creator)).from_buffer_copy(b'\0\0\0\0')
+        elif self.fmtver <= 2 and self.ftype == FILE_FMT_TYPE.RFilesOld2:
+            rsrchead.rsrc_creator = (c_ubyte * sizeof(rsrchead.rsrc_creator)).from_buffer_copy(b'ResC')
+        elif self.fmtver == 3 and self.ftype == FILE_FMT_TYPE.RFilesOld4:
+            rsrchead.rsrc_creator = (c_ubyte * sizeof(rsrchead.rsrc_creator)).from_buffer_copy(b'Doug')
         self.rsrc_headers.append(rsrchead)
         rsrchead = RSRCHeader(self.po, fmtver=self.fmtver)
         rsrchead.rsrc_type = (c_ubyte * sizeof(rsrchead.rsrc_type)).from_buffer_copy(rsrc_type_id)
         if self.fmtver <= 2 and self.ftype == FILE_FMT_TYPE.VI:
             rsrchead.rsrc_creator = (c_ubyte * sizeof(rsrchead.rsrc_creator)).from_buffer_copy(b'\0\0\0\0')
+        elif self.fmtver <= 2 and self.ftype == FILE_FMT_TYPE.RFilesOld2:
+            rsrchead.rsrc_creator = (c_ubyte * sizeof(rsrchead.rsrc_creator)).from_buffer_copy(b'ResC')
+        elif self.fmtver == 3 and self.ftype == FILE_FMT_TYPE.RFilesOld4:
+            rsrchead.rsrc_creator = (c_ubyte * sizeof(rsrchead.rsrc_creator)).from_buffer_copy(b'Doug')
         self.rsrc_headers.append(rsrchead)
 
         self.binflsthead = BlockInfoListHeader(self.po)
