@@ -51,12 +51,13 @@ def test_readRSRC_repack_vi(rsrc_inp_fn):
     expect_file_identical = True
 
     # Only some files can be successfully tested in Python < 3.8, as XML parser was
-    # improved in that version to preserve order of attributes. Use whitelist.
+    # improved in that version to preserve order of attributes.
     if sys.version_info < (3,8):
         if (
-          re.match(r'^.*lv14f1[/\\]empty_vifile[.]vi$', rsrc_inp_fn) or
-          re.match(r'^.*lv040[/\\]vi.lib[/\\]analysis[/\\]lvsb[/\\]log2[.]lsb$', rsrc_inp_fn) or
-          re.match(r'^.*lv025[/\\]vi.lib[/\\]analysis[/\\]lvsb[/\\]ave[.]lsb$', rsrc_inp_fn) or
+          re.match(r'^.*lv071[/\\]vi.lib[/\\]express[/\\]rvi[/\\]timing[/\\]WaitPropertyPage[.]vi$', rsrc_inp_fn) or
+          False):
+            pytest.skip("this file will not produce comparable binary in python <= 3.8")
+        elif (
           re.match(r'^.*lv100[/\\]resource[/\\]provers[.]rsc$', rsrc_inp_fn) or
           False):
             expect_file_identical = True
@@ -148,6 +149,30 @@ def test_readRSRC_repack_llb(rsrc_inp_fn):
     padding is often filled with random data). So instead of comparing LLBs, compare the extracted
     files from first extraction and second extraction.
     """
+    # Only some files can be successfully tested in Python < 3.8, as XML parser was
+    # improved in that version to preserve order of attributes.
+    if sys.version_info < (3,8):
+        if (
+          re.match(r'^.*blank_project1_extr_from_exe_lv14f1[.]llb$', rsrc_inp_fn) or
+          re.match(r'^.*lv040[/\\]demos[.]llb$', rsrc_inp_fn) or
+          re.match(r'^.*lv040[/\\]startapp[.]llb$', rsrc_inp_fn) or
+          re.match(r'^.*lv100[/\\]vi.lib[/\\]express[/\\]express analysis[/\\]Convolution-CorrConfig[.]llb$', rsrc_inp_fn) or
+          re.match(r'^.*lv100[/\\]vi.lib[/\\]express[/\\]express analysis[/\\]ToneConfig[.]llb$', rsrc_inp_fn) or
+          re.match(r'^.*lv100[/\\]vi.lib[/\\]picture[/\\]3D Picture Control[/\\]Old 3D Toolkit[.]llb$', rsrc_inp_fn) or
+          re.match(r'^.*lv100[/\\]examples[/\\]measure[/\\]maxmpl[.]llb$', rsrc_inp_fn) or
+          re.match(r'^.*lv060[/\\]vi.lib[/\\]platform[/\\]_sersup[.]llb$', rsrc_inp_fn) or
+          re.match(r'^.*lv060[/\\]vi.lib[/\\]GMath[/\\]2dexplo[.]llb$', rsrc_inp_fn) or
+          re.match(r'^.*lv071[/\\]vi.lib[/\\]instr[/\\]_sersup[.]llb$', rsrc_inp_fn) or
+          re.match(r'^.*lv140[/\\]vi.lib[/\\]express[/\\]express analysis[/\\]Convolution-CorrConfig[.]llb$', rsrc_inp_fn) or
+          re.match(r'^.*lv140[/\\]vi.lib[/\\]express[/\\]express analysis[/\\]DistortionConfig[.]llb$', rsrc_inp_fn) or
+          re.match(r'^.*lv140[/\\]vi.lib[/\\]express[/\\]express analysis[/\\]MaskLimitConfig[.]llb$', rsrc_inp_fn) or
+          re.match(r'^.*lv140[/\\]vi.lib[/\\]Platform[/\\]lvScriptEngine[.]llb$', rsrc_inp_fn) or
+          re.match(r'^.*lv140[/\\]vi.lib[/\\]addons[/\\]internet[/\\]url[/\\]url[.]llb$', rsrc_inp_fn) or
+          False):
+            pass
+        else:
+            pytest.skip("this file will not produce comparable binary in python <= 3.8")
+
     rsrc_path, rsrc_filename = os.path.split(rsrc_inp_fn)
     rsrc_path = pathlib.Path(rsrc_path)
     rsrc_basename, rsrc_fileext = os.path.splitext(rsrc_filename)
