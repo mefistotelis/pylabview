@@ -24,6 +24,26 @@ from pylabview.LVmisc import *
 class VI_TYPE(enum.Enum):
     """ VI Type from LVSR/LVIN field
     """
+    Dialog = 0	# Dialog Box VI
+    Probe = 1 # Custom Probe VI
+    Standard = 2	# VI that contains a front panel and block diagram
+    Clipboard = 3	# Clipboard VI
+    Global = 4	# subVI generated when creating global variables
+    Hierarchy = 5 # Hierarchy VI
+    Control = 6	# subVI that defines a custom control or indicator
+    Config = 7	# Configuration VI
+    PxCaller = 8	# Proxy Caller VI
+    PxCallee = 9	# Proxy Callee VI
+    SubSystem = 10	# subVI that can be only placed on a simulation diagram
+    Polymorph = 11	# polymorphic VI, base one (instances are Standard)
+    Facade = 12	# subVI that represents a Facade ability, which defines the appearance of an XControl
+    Method = 13	# subVI added to the XControl Library for each XControl method
+    Statechart = 14	# subVI that you can place only on a statechart diagram
+
+
+class VI_SERVER_TYPE(enum.Enum):
+    """ VI Type VI Server Class
+    """
     Invalid = 0	# invalid VI type
     Standard = 1	# VI that contains a front panel and block diagram
     Control = 2	# subVI that defines a custom control or indicator
