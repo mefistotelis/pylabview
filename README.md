@@ -35,7 +35,8 @@ less resources converted to XML, or may require some tweaks to work.
 
 # Python environment
 
-As for Python versions best suited to run these scripts - newer should be better.
+As for [Python](https://en.wikipedia.org/wiki/Python_\(programming_language\)) versions
+best suited to run these scripts - newer should be better.
 It is recommended to use at least Python 3.8, as XML parser is older versions does
 not preserve order of attributes. Without this feature the tool will still work
 (down to 3.5), but generated binary data will be different due to reordering
@@ -43,6 +44,19 @@ of some tags. It is uncertain whether the different ordering has impact on stabi
 of the created binary files. Some fixes to the XML parser from Python 3.9 can also
 affect generated files, due to better handling of non-text ASCII codes within values
 of attributes.
+
+# Running
+
+To run the tools with your Python, use a shell like `bash` or `cmd`. You can have
+the scripts directly in the [CWD](https://en.wikipedia.org/wiki/Working_directory),
+or installed as a module. If you choose the direct CWD option, remember you need
+to have `pylabview` folder in the CWD for Python to find the accompanying files.
+
+Example command:
+
+```
+./pylabview/readRSRC.py --version
+```
 
 # Verification
 
