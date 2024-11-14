@@ -22,20 +22,20 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-18.04, ubuntu-latest]
-        python-version: ["3.5", "3.8", "3.10"]
-        # Test 3.5, as that's the oldest supported; works only on old enough Ubuntu
+        os: [ubuntu-20.04, ubuntu-latest]
+        python-version: ["3.8", "3.10", "3.12"]
+        # No test for 3.5, the oldest supported; it works only on old Ubuntu (18), no longer available in Github runners
         # Test 3.8, as that's the first which has XML parser updated, more tests will pass
         # Test latest, to make sure the script works on current version of Python
         # No need to test any python version on multiple Ubuntu versions, the Ubuntu version is
         # only to provide best matching environment for the Python.
         exclude:
           - os: ubuntu-latest
-            python-version: "3.5"
-          - os: ubuntu-18.04
-            python-version: "3.10"
-          - os: ubuntu-18.04
             python-version: "3.8"
+          - os: ubuntu-20.04
+            python-version: "3.10"
+          - os: ubuntu-20.04
+            python-version: "3.12"
     steps:
     - uses: actions/checkout@v3
 
