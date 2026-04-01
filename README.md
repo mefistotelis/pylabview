@@ -2,6 +2,22 @@
 
 Tools for extracting, changing, and re-creating LabVIEV RSRC files, like VIs or CTLs.
 
+Base concepts:
+
+* the input RSRC file is extracted to a collection of files that contain all the
+  information necessary to recreate the original file
+* the re-creation is made in a way which allows to output file identical to the
+  original on a binary level, unless there is a known and accepted reason for
+  binary divergence
+* one RSRC file is extracted into multiple files, usually one per block within the
+  source file, plus one main catalogue file listing the blocks
+* if extraction of a block to text form is not supported or just fails to create
+  file which would allow 1:1 binary recreation, then the block is extracted as
+  binary blob
+* extracted block files can be modified, and the reader tool will try to re-create
+  a correctly formatted RSRC file with these modifications
+* tools to modify the RSRC data use extracted RSRC file blocks as input
+
 # Motivation
 
 LabView environment is unneccessarily closed. Its mechanisms prevent the developers
