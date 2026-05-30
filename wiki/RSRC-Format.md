@@ -148,4 +148,4 @@ _Count_ of these:
 ### Other sources
 
 Findings in this document are based on work of @jcreigh and @tomsoftware. 
-See [VI Explorer Source](http://www.hmilch.net/hmilch.php/labview_source.php) and [Jessica's Wiki](https://github.com/jcreigh/pylabview/wiki) for more.
+See [VI Explorer Source](http://www.hmilch.net/hmilch.php/labview_source.php) and [Jessica's Wiki](https://web.archive.org/web/20201118033927/https://github.com/jcreigh/pylabview/wiki) for more.
