@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
+# flake8: noqa: E302
 
 """ LabView RSRC file format support.
 
-Miscelanous generic utilities.
+Miscellaneous generic utilities.
 """
 
 # Copyright (C) 2013 Jessica Creighton <jcreigh@femtobit.org>
@@ -16,14 +17,15 @@ import sys
 import enum
 import math
 
-from ctypes import *
+from ctypes import BigEndianStructure, Array, c_ubyte
 from collections import OrderedDict
+
 
 class RSRCStructure(BigEndianStructure):
     _pack_ = 1
 
     def dict_export(self):
-        class ExportDict(OrderedDict): pass
+        class ExportDict(OrderedDict): pass  # noqa: E701
         ExportDict.__name__ = self.__class__.__name__
         d = ExportDict()
         for (varkey, vartype) in self._fields_:
@@ -98,7 +100,6 @@ LABVIEW_COLOR_PALETTE_256 = [
 ]
 '''
 
-
 def get_labview_color_palette_256():
     """
     The 8-bit Mac OS palette.
@@ -118,7 +119,6 @@ def get_labview_color_palette_256():
     cmap = [(0xF1, 0xF1, 0xF1)] + cube_colors[1:-1] + linear_colors + [(0, 0, 0)]
     return [int.from_bytes(rgb, 'big') for rgb in cmap]
 
-
 LABVIEW_COLOR_PALETTE_256 = get_labview_color_palette_256()
 
 LABVIEW_COLOR_PALETTE_16 = [
@@ -131,7 +131,7 @@ LABVIEW_COLOR_PALETTE_2 = [
 ]
 
 CHAR_TO_WORD = {
-    '0': "zero", '1': "one", '2': "two", '3': "three", '4': "four", \
+    '0': "zero", '1': "one", '2': "two", '3': "three", '4': "four",
     '5': "five", '6': "six", '7': "seven", '8': "eight", '9': "nine",
 }
 
@@ -165,7 +165,8 @@ def getRsrcTypeFromPrettyStr(pretty_ident):
     rsrc_ident = str(pretty_ident).encode(encoding='ascii')
     if len(rsrc_ident) > 4:
         rsrc_ident = re.sub(b'spec', b'?', rsrc_ident)
-    while len(rsrc_ident) < 4: rsrc_ident += b' '
+    while len(rsrc_ident) < 4:
+        rsrc_ident += b' '
     rsrc_ident = rsrc_ident[:4]
     return rsrc_ident
 
@@ -200,10 +201,10 @@ def encodeVersion(ver):
 
     vcode |= ((ver['major'] // 10) & 0x0F) << 28
     vcode |= ((ver['major'] % 10) & 0x0F) << 24
-    vcode |= (ver['minor']  & 0x0F) << 20
-    vcode |= (ver['bugfix']  & 0x0F) << 16
-    vcode |= (ver['stage']  & 0x07) << 13
-    vcode |= ((ver['build']  // 1000) & 0x01) << 12
+    vcode |= (ver['minor'] & 0x0F) << 20
+    vcode |= (ver['bugfix'] & 0x0F) << 16
+    vcode |= (ver['stage'] & 0x07) << 13
+    vcode |= ((ver['build'] // 1000) & 0x01) << 12
     vcode |= ((ver['build'] // 100) & 0x0F) << 8
     vcode |= ((ver['build'] // 10) & 0x0F) << 4
     vcode |= ((ver['build'] % 10) & 0x0F) << 0
@@ -212,17 +213,17 @@ def encodeVersion(ver):
 def simpleVersionFromString(vstr):
     ver = {}
     vints = [int(s) for s in vstr.split('.')]
-    if len(vints) != 4: return None
-    for i,key in enumerate(('major', 'minor', 'bugfix', 'build',)):
+    if len(vints) != 4: return None  # noqa: E701
+    for i, key in enumerate(('major', 'minor', 'bugfix', 'build', )):
         ver[key] = vints[i]
     return ver
 
 def simpleVersionToString(ver):
-    vstr = ""
     vints = [ver[key] for key in ('major', 'minor', 'bugfix', 'build',)]
-    return '.'.join(str(val) for val in vints)
+    vstr = '.'.join(str(val) for val in vints)
+    return vstr
 
-def isGreaterOrEqVersion(ver, major, minor = None, bugfix = None, stage = None):
+def isGreaterOrEqVersion(ver, major, minor=None, bugfix=None, stage=None):  # noqa: C901
     """ Returns whether the version is higher or equal to given one
     """
     if major is not None:
@@ -267,20 +268,20 @@ def valFromEnumOrIntString(EnumClass, strval):
     return int(strval, 0)
 
 def getFirstSetBitPos(n):
-     return round(math.log2(n&-n)+1)
+    return round(math.log2(n & -n) + 1)
 
 def exportXMLBitfields(EnumClass, subelem, value, skip_mask=0):
     """ Export bitfields of an enum stored in int to ElementTree properties
     """
     for mask in EnumClass:
-        if ((mask.value & skip_mask) != 0): # Skip fields given as mask
+        if ((mask.value & skip_mask) != 0):  # Skip fields given as mask
             continue
         # Add only properties which have bit set or have non-default bit name
         addProperty = ((value & mask.value) != 0) or (not re.match("(^[A-Za-z]{0,3}Bit[0-9]+$)", mask.name))
         if not addProperty:
             continue
         nshift = getFirstSetBitPos(mask.value) - 1
-        subelem.set(mask.name, "{:d}".format( (value & mask.value) >> nshift))
+        subelem.set(mask.name, "{:d}".format((value & mask.value) >> nshift))
 
 def importXMLBitfields(EnumClass, subelem):
     """ Import bitfields of an enum from ElementTree properties to int
@@ -297,28 +298,27 @@ def importXMLBitfields(EnumClass, subelem):
         value |= ((propval << nshift) & mask.value)
     return value
 
+def _rol(val, l_bits, max_bits):
+    l_bits = l_bits % max_bits
+    return ((val & ((1 << max_bits-l_bits)-1)) << l_bits) | \
+        (val >> (max_bits-l_bits) & ((1 << max_bits)-1))
+
 def crypto_xor8320_decrypt(data):
-    rol = lambda val, l_bits, max_bits: \
-      ((val & ((1<<max_bits-(l_bits%max_bits))-1)) << l_bits%max_bits) | \
-      (val >> (max_bits-(l_bits%max_bits)) & ((1<<max_bits)-1))
     out = bytearray(data)
     key = 0xEDB88320
     for i in range(len(out)):
         nval = (key ^ out[i]) & 0xff
         out[i] = nval
-        key = nval ^ rol(key, 1, 32)
+        key = nval ^ _rol(key, 1, 32)
     return out
 
 def crypto_xor8320_encrypt(data):
-    rol = lambda val, l_bits, max_bits: \
-      ((val & ((1<<max_bits-(l_bits%max_bits))-1)) << l_bits%max_bits) | \
-      (val >> (max_bits-(l_bits%max_bits)) & ((1<<max_bits)-1))
     out = bytearray(data)
     key = 0xEDB88320
     for i in range(len(out)):
         nval = out[i]
         out[i] = (key ^ nval) & 0xff
-        key = nval ^ rol(key, 1, 32)
+        key = nval ^ _rol(key, 1, 32)
     return out
 
 def zcomp_zeromsk8_decompress(data, usize):
@@ -376,7 +376,7 @@ def readVariableSizeFieldU2p2(bldata):
     followed by actual data.
     """
     val = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
-    if (val & 0x8000) != 0: # 32-bit length
+    if (val & 0x8000) != 0:  # 32-bit length
         val = ((val & 0x7FFF) << 16)
         val |= int.from_bytes(bldata.read(2), byteorder='big', signed=False)
     return val
@@ -401,7 +401,8 @@ def readVariableSizeFieldS24(bldata):
 def prepareVariableSizeFieldS24(val):
     """ Prepares data for VI field which is either 16-bit or 16+32-bit signed int, depending on value
 
-    LV14: For some reason, the value of 0x7FFF is treated as too large even though it isn't. Not sure if this impacts all LV versions.
+    LV14: For some reason, the value of 0x7FFF is treated as too large even though it isn't. Not sure
+    if this impacts all LV versions.
     """
     if val >= 0x7FFF or val < -0x8000:
         return int(-0x8000).to_bytes(2, byteorder='big', signed=True) + int(val).to_bytes(4, byteorder='big', signed=True)
@@ -413,9 +414,9 @@ def readVariableSizeFieldS124(bldata):
     """ Reads VI field which is either 8, 8+16 or 8+32-bit signed int, depending on first byte
     """
     val = int.from_bytes(bldata.read(1), byteorder='big', signed=True)
-    if val == -128: # 0x80
+    if val == -128:  # 0x80
         val = int.from_bytes(bldata.read(2), byteorder='big', signed=True)
-    elif val == -127: # 0x81
+    elif val == -127:  # 0x81
         val = int.from_bytes(bldata.read(4), byteorder='big', signed=True)
     return val
 
@@ -457,7 +458,7 @@ def readQuadFloat(bldata):
     Uses Decimal module to achieve precision independent of local platform.
     """
     asint = int.from_bytes(bldata.read(16), byteorder='big', signed=False)
-    sign = (-1) ** (asint >> 127) # For some reason, having the value in brackets is very important
+    sign = (-1) ** (asint >> 127)  # For some reason, having the value in brackets is very important
     exponent = ((asint >> 112) & 0x7FFF) - 16383
     significand = (asint & ((1 << 112) - 1)) | (1 << 112)
     from decimal import Decimal, localcontext
@@ -514,27 +515,28 @@ def prepareQuadFloat(val):
 
     Uses Decimal module to achieve precision independent of local platform.
     """
-    from decimal import Decimal, localcontext
+    from decimal import localcontext
     with localcontext() as ctx:
         # quad float has up to 36 digits precision, plus few for partial and sci notation margin
         ctx.prec = 39
         mantissa, exponent = frexpQuadFloat(val)
         sign = -1 if mantissa < 0 else 1
         # Properly handle exponent on zero value
-        if mantissa == 0: exponent = -16382
+        if mantissa == 0: exponent = -16382  # noqa: E701
         # Shift by one bit - because we remove the highest one from QuadFloat representation
         exponent -= 1
         significand = int(abs(mantissa) * (2 ** 113))
     asint = ((1 << 127) if sign < 0 else 0) |\
-      (((exponent + 16383) & 0x7FFF) << 112) |\
-      significand & ((1 << 112) - 1)
+        (((exponent + 16383) & 0x7FFF) << 112) |\
+        significand & ((1 << 112) - 1)
     return int(asint).to_bytes(16, byteorder='big', signed=False)
 
 def readQualifiedName(bldata, po):
     count = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
     if count > po.typedesc_list_limit:
-        raise RuntimeError("Qualified name consists of {:d} string elements, limit is {:d}"\
-          .format(count,po.typedesc_list_limit))
+        raise RuntimeError(
+            "Qualified name consists of {:d} string elements, limit is {:d}"
+            .format(count, po.typedesc_list_limit))
     items = [None for _ in range(count)]
     for i in range(count):
         strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
@@ -552,7 +554,7 @@ def prepareQualifiedName(items, po):
 def readPStr(bldata, padto, po):
     strlen = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
     strval = bldata.read(strlen)
-    uneven_len = (strlen+1) % padto # Handle padding
+    uneven_len = (strlen+1) % padto  # Handle padding
     if uneven_len > 0:
         bldata.read(padto - uneven_len)
     return strval
@@ -562,7 +564,7 @@ def preparePStr(strval, padto, po):
     strlen = len(strval)
     data_buf += int(strlen).to_bytes(1, byteorder='big', signed=False)
     data_buf += bytes(strval)
-    uneven_len = (strlen+1) % padto # Handle padding
+    uneven_len = (strlen+1) % padto  # Handle padding
     if uneven_len > 0:
         data_buf += (b'\0' * (padto - uneven_len))
     return data_buf
@@ -572,7 +574,7 @@ def readLStr(bldata, padto, po):
     if strlen > 0x20000000:
         raise RuntimeError("Long string is suspiciously long")
     strval = bldata.read(strlen)
-    uneven_len = (strlen+4) % padto # Handle padding
+    uneven_len = (strlen+4) % padto  # Handle padding
     if uneven_len > 0:
         bldata.read(padto - uneven_len)
     return strval
@@ -582,7 +584,7 @@ def prepareLStr(strval, padto, po):
     strlen = len(strval)
     data_buf += int(strlen).to_bytes(4, byteorder='big', signed=False)
     data_buf += bytes(strval)
-    uneven_len = (strlen+4) % padto # Handle padding
+    uneven_len = (strlen+4) % padto  # Handle padding
     if uneven_len > 0:
         data_buf += (b'\0' * (padto - uneven_len))
     return data_buf
