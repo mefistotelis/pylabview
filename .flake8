@@ -1,0 +1,6 @@
+[flake8]
+per-file-ignores =
+    # Don't insist on blank lines in LVmisc.py (E302: expected 2 blank lines, found 1)
+    pylabview/LVmisc.py: E302
+    # Ignore tabs before '=' in tables (E221/E223: multiple spaces/tab before operator)
+    pylabview/LVcode.py: E223, E221
