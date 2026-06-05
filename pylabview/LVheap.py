@@ -54,6 +54,44 @@ class ENUM_TAGS(enum.Enum):
     def has_name(cls, name):
         return name in cls.__members__
 
+class Extend_ENUM_TAGS_Meta(type):
+    """ Metaclass to extend or modify an ENUM_TAGS class, as a substitute for inheritance
+    (which does not work for an immutable enum.Enum). It creates a new ENUM_TAGS subclass instead.
+
+    _EXTENDS_ = <parent ENUM_TAGS class>
+    [_DROP_ = <list of members to drop>]
+    """
+    def __new__(mcs, name, bases, classdict):
+        if "_EXTENDS_" not in classdict:
+            raise KeyError(f"Class '{name}' must define the '_EXTENDS_' configuration attribute.")
+        base_class = classdict["_EXTENDS_"]
+        if not isinstance(base_class, type) or not issubclass(base_class, ENUM_TAGS):
+            raise TypeError(f"Invalid configuration in class '{name}': _EXTENDS_ base class must be a subclass of ENUM_TAGS")
+
+        merged_members = {member.name: member.value for member in base_class}
+
+        dropped_names = {item.name for item in classdict.get("_DROP_", []) if isinstance(item, enum.Enum)}
+
+        for key, value in classdict.items():
+            if key.startswith("_") or callable(value):
+                continue
+
+            if isinstance(value, enum.Enum):
+                merged_members[key] = value.value  # Existing key
+            else:
+                merged_members[key] = value  # Newly added key
+
+        for target in dropped_names:
+            if target not in merged_members:
+                raise ValueError(f"Class '{name}': _DROP_ target '{target}' does not exist in {base_class.__name__}!")
+            merged_members.pop(target)
+
+        new_enum = ENUM_TAGS(name, merged_members)
+
+        if "__doc__" in classdict:
+            new_enum.__doc__ = classdict["__doc__"]
+
+        return new_enum
 
 class SL_SYSTEM_TAGS(ENUM_TAGS):
     SL__object = -3
