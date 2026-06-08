@@ -11,210 +11,146 @@
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
 
-from pylabview.LVheap import ENUM_TAGS
+from pylabview.LVheap import ENUM_TAGS, Extend_ENUM_TAGS_Meta
+
 
 class VICodePtrs_LV5(ENUM_TAGS):
     """ List of VI Code Pointers from LV5
 
     These callbacks can be set from InitCodePtrsProc within VI compiled code.
     """
-    GoProc		= 0
-    RetryProc	= 1
-    ResumeProc	= 2
-    ResetProc	= 3
-    DisposeProc	= 4
-    InitProc	= 5
-    LoadProc	= 6
-    SaveProc	= 7
-    ErrorStopProc = 8
-    ConstantProc = 9
-    RngChkProc	= 10
-    DCODfltProc	= 11
+    GoProc		    = 0
+    RetryProc	    = 1
+    ResumeProc	    = 2
+    ResetProc	    = 3
+    DisposeProc	    = 4
+    InitProc	    = 5
+    LoadProc	    = 6
+    SaveProc	    = 7
+    ErrorStopProc   = 8
+    ConstantProc    = 9
+    RngChkProc	    = 10
+    DCODfltProc	    = 11
     SetAllDfltsProc	= 12
-    DCOCopyProc	= 13
+    DCOCopyProc	    = 13
     DCOCopyToOpProc	= 14
     DCOCopyFrOpProc	= 15
-    RunCode		= 16
+    RunCode		    = 16
     InitCodePtrsProc = 17
     PrxyCallerInitCPProc = 18
-    ReInitProc	= 19
-    CRoutine	= 20
+    ReInitProc	    = 19
+    CRoutine	    = 20
 
 
-class VICodePtrs_LV6(ENUM_TAGS):
+class VICodePtrs_LV6(metaclass=Extend_ENUM_TAGS_Meta):
     """ List of VI Code Pointers from LV6 before LV6.1
 
     These callbacks can be set from InitCodePtrsProc within VI compiled code.
     Since LV6.1 this no longer applies as one of the callbacks was renamed.
     """
-    CRoutine		= 0
-    RetryProc		= 1
-    ResumeProc		= 2
-    ResetProc		= 3
-    DisposeProc		= 4
-    InitProc		= 5
-    LoadProc		= 6
-    SaveProc		= 7
-    ErrorStopProc	= 8
-    ConstantProc	= 9
-    RngChkProc		= 10
-    DCODefaultProc	= 11
-    SetAllDefaultProc = 12
-    DCOCopyProc		= 13
-    DCOCopyToOpProc = 14
-    DCOCopyFrOpProc = 15
-    RunProc			= 16
-    InitCodePtrsProc = 17
-    ReInitProc		= 18
-    GoProc			= 19
+    P = VICodePtrs_LV5  # Short parent alias
+    _EXTENDS_ = P
+    _DROP_ = (P.DCODfltProc, P.SetAllDfltsProc, P.RunCode, P.PrxyCallerInitCPProc,)
+
+    CRoutine        = 0                     # was 20 before
+    DCODefaultProc  = P.DCODfltProc         # = 11
+    SetAllDefaultProc = P.SetAllDfltsProc   # = 12
+    RunProc         = P.RunCode             # = 16
+    ReInitProc      = 18                    # was 19 before
+    GoProc          = 19                    # was 0 before
+
+    # Clean up the alias P
+    del P
 
 
-class VICodePtrs_LV7(ENUM_TAGS):
+class VICodePtrs_LV7(metaclass=Extend_ENUM_TAGS_Meta):
     """ List of VI Code Pointers from LV6.1-LV7
 
     These callbacks can be set from InitCodePtrsProc within VI compiled code.
     """
-    CRoutine		= 0
-    RetryProc		= 1
-    ResumeProc		= 2
-    ResetProc		= 3
-    DisposeProc		= 4
-    InitProc		= 5
-    LoadProc		= 6
-    SaveProc		= 7
-    ErrorStopProc	= 8
-    ConstantProc	= 9
-    RngChkProc		= 10
-    DCODefaultProc	= 11
-    SetAllDefaultProc = 12
-    DCOCopyProc		= 13
-    DCOCopyToOpProc = 14
-    DCOCopyFrOpProc = 15
-    RunProc			= 16
-    InitCodePtrsProc = 17
-    ReserveUnReserveProc = 18
-    GoProc			= 19
+    _EXTENDS_ = VICodePtrs_LV6
+    _DROP_ = (VICodePtrs_LV6.ReInitProc,)
+
+    ReserveUnReserveProc = VICodePtrs_LV6.ReInitProc  # = 18
 
 
-class VICodePtrs_LV8(ENUM_TAGS):
+class VICodePtrs_LV8(metaclass=Extend_ENUM_TAGS_Meta):
     """ List of VI Code Pointers from LV8-LV11
 
     These callbacks can be set from InitCodePtrsProc within VI compiled code.
     """
-    CRoutine		= 0
-    RetryProc		= 1
-    ResumeProc		= 2
-    ResetProc		= 3
-    DisposeProc		= 4
-    InitProc		= 5
-    LoadProc		= 6
-    SaveProc		= 7
-    ErrorStopProc	= 8
-    ConstantProc	= 9
-    CompareProc		= 10
-    DCODefaultProc	= 11
-    SetAllDefaultProc = 12
-    DCOCopyProc		= 13
-    DCOCopyToOpProc = 14
-    DCOCopyFrOpProc = 15
-    RunProc			= 16 # Calls the method received in parameter
-    InitCodePtrsProc = 17
-    ReserveUnReserveProc = 18
-    GoProc			= 19
-    AcquireDSProc	= 20 # The 4 entries added in LV10
-    ReleaseDSProc	= 21
-    AcquireDSStaticProc	= 22
-    ReleaseDSStaticProc	= 23
+    _EXTENDS_ = VICodePtrs_LV7
+    _DROP_ = (VICodePtrs_LV7.RngChkProc,)
+
+    CompareProc         = VICodePtrs_LV7.RngChkProc  # = 10
+
+    # New entries added in LV10
+    AcquireDSProc       = 20
+    ReleaseDSProc       = 21
+    AcquireDSStaticProc = 22
+    ReleaseDSStaticProc = 23
 
 
-class VICodePtrs_LV12(ENUM_TAGS):
+class VICodePtrs_LV12(metaclass=Extend_ENUM_TAGS_Meta):
     """ List of VI Code Pointers from LV12
 
     These callbacks can be set from InitCodePtrsProc within VI compiled code.
     Pointers are either 32-bit or 64-bit, depending on architecture.
     """
-    CRoutine		= 0
-    RetryProc		= 1
-    ResumeProc		= 2
-    ResetProc		= 3
-    DisposeProc		= 4
-    InitProc		= 5
-    LoadProc		= 6
-    SaveProc		= 7
-    ErrorStopProc	= 8
-    ConstantProc	= 9
-    CompareProc		= 10
-    DCODefaultProc	= 11
-    SetAllDefaultProc = 12
-    DCOCopyProc		= 13
-    DCOCopyToOpProc = 14
-    DCOCopyFrOpProc = 15
-    RunCodeProc		= 16 # Calls the method received in parameter
-    InitCodePtrsProc = 17
-    ReserveUnReserveProc = 18
-    GoProc			= 19
-    DSTMNeededProc	= 20
-    GetDataSpaceSizeProc = 21
-    InflateDataSpaceProc = 22
-    DeflateDataSpaceProc = 23
-    ShrinkDataSpaceProc = 24
-    UnflattenDefaultsProc = 25
-    CopyDefaultsProc = 26
-    CodeDebugProc	= 27
-    CodeErrHandlingProc = 28
+    P = VICodePtrs_LV8
+    _EXTENDS_ = P
+    _DROP_ = (P.RunProc, P.AcquireDSProc, P.ReleaseDSProc, P.AcquireDSStaticProc, P.ReleaseDSStaticProc,)
+
+    RunCodeProc             = P.RunProc  # = 16
+
+    # New entries added in LV12
+    DSTMNeededProc          = 20
+    GetDataSpaceSizeProc    = 21
+    InflateDataSpaceProc    = 22
+    DeflateDataSpaceProc    = 23
+    ShrinkDataSpaceProc     = 24
+    UnflattenDefaultsProc   = 25
+    CopyDefaultsProc        = 26
+    CodeDebugProc           = 27
+    CodeErrHandlingProc     = 28
+
+    del P
 
 
-class VICodePtrs_LV13(ENUM_TAGS):
+class VICodePtrs_LV13(metaclass=Extend_ENUM_TAGS_Meta):
     """ List of VI Code Pointers from LV13-LV20
 
     These callbacks can be set from InitCodePtrsProc within VI compiled code.
     Pointers are either 32-bit or 64-bit, depending on architecture.
     """
-    CRoutine		= 0
-    RetryProc		= 1
-    ResumeProc		= 2
-    ResetProc		= 3
-    DisposeProc		= 4
-    InitProc		= 5
-    LoadProc		= 6
-    SaveProc		= 7
-    ErrorStopProc	= 8
-    ConstantProc	= 9
-    CompareProc		= 10
-    DCODefaultProc	= 11
-    SetAllDefaultProc = 12
-    DCOCopyProc		= 13
-    DCOCopyToOpProc = 14
-    DCOCopyFrOpProc = 15
-    ReserveUnReserveProc = 16
-    GoProc			= 17
-    DSTMNeeded		= 18
-    GetDataSpaceSizeProc = 19
-    InflateDataSpaceProc = 20
-    DeflateDataSpaceProc = 21
-    ShrinkDataSpaceProc = 22
-    UnflattenDefaultsProc= 23
-    CopyDefaultsProc	= 24
-    CodeDebugProc	= 25
-    CodeErrHandlingProc = 26
-    CopyConvertProcs = 27
-    InitCodePtrsProc = 28
-    nRunProcs		= 29
-    RunProc			= 30
-    RunProc2		= 31
-    RunProc3		= 32
-    RunProc4		= 33
-    RunProc5		= 34
-    RunProc6		= 35
-    RunProc7		= 36
-    RunProc8		= 37
-    RunProc9		= 38
-    RunProc10		= 39
-    RunProc11		= 40
-    RunProc12		= 41
-    RunProc13		= 42
-    RunProc14		= 43
-    RunProc15		= 44
+    P = VICodePtrs_LV12
+    _EXTENDS_ = P
+    _DROP_ = (P.RunCodeProc, P.DSTMNeededProc,)
+
+    # LV12 entries 18 to 28 shift down by 2 positions
+    ReserveUnReserveProc    = P.ReserveUnReserveProc.value - 2      # = 16
+    GoProc                  = P.GoProc.value - 2                    # = 17
+    DSTMNeeded              = P.DSTMNeededProc.value - 2            # = 18
+    GetDataSpaceSizeProc    = P.GetDataSpaceSizeProc.value - 2      # = 19
+    InflateDataSpaceProc    = P.InflateDataSpaceProc.value - 2      # = 20
+    DeflateDataSpaceProc    = P.DeflateDataSpaceProc.value - 2      # = 21
+    ShrinkDataSpaceProc     = P.ShrinkDataSpaceProc.value - 2       # = 22
+    UnflattenDefaultsProc   = P.UnflattenDefaultsProc.value - 2     # = 23
+    CopyDefaultsProc        = P.CopyDefaultsProc.value - 2          # = 24
+    CodeDebugProc           = P.CodeDebugProc.value - 2             # = 25
+    CodeErrHandlingProc     = P.CodeErrHandlingProc.value - 2       # = 26
+
+    # New entries added in LV13 (and one relocated)
+    CopyConvertProcs        = 27
+    InitCodePtrsProc        = 28  # was at 17 before
+    nRunProcs               = 29
+    RunProc                 = 30
+
+    # Generate RunProc2 through RunProc15 (31 through 44)
+    for _i in range(2, 16):
+        locals()[f"RunProc{_i}"] = 29 + _i
+
+    del P
 
 
 class CodeArch(ENUM_TAGS):
