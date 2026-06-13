@@ -55,6 +55,46 @@ class ENUM_TAGS(enum.Enum):
         return name in cls.__members__
 
 
+def extend_ENUM_TAGS(parent_enum):
+    """Decorator to merge an existing ENUM_TAGS's members into a new ENUM_TAGS subclass."""
+    if not issubclass(parent_enum, ENUM_TAGS):
+        raise TypeError(f"Invalid parent class '{parent_enum.__name__}': must be a subclass of ENUM_TAGS")
+
+    def decorator(cls_def):
+        # Obtain name/value pairs from the parent
+        merged_members = {m.name: m.value for m in parent_enum}
+
+        # Add the new names/values from the definition class (cls_def)
+        for key, value in cls_def.__dict__.items():
+            if key.startswith("_") or callable(value):
+                continue
+            if value is None:
+                if key not in merged_members:
+                    raise KeyError(f"Key '{cls_def.__name__}.{key}' does not exist in parent '{parent_enum.__name__}'")
+                merged_members.pop(key)
+            else:
+                merged_members[key] = value
+
+        # Ensure that member values are unique
+        if len(merged_members.values()) != len(set(merged_members.values())):
+            raise ValueError(f"Duplicate enum integer values detected in '{cls_def.__name__}'")
+        
+        # Sort members
+        def sort_by_value(item): _key, value = item; return value
+        merged_members = dict(sorted(merged_members.items(), key=sort_by_value))
+            
+        # Dynamically construct a new ENUM_TAGS class
+        new_enum = ENUM_TAGS(cls_def.__name__, merged_members)
+
+        # Copy the docstring
+        if cls_def.__doc__:
+            new_enum.__doc__ = cls_def.__doc__
+
+        return new_enum
+    
+    return decorator
+
+
 class SL_SYSTEM_TAGS(ENUM_TAGS):
     SL__object = -3
     SL__array = -4
