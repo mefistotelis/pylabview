@@ -4512,8 +4512,8 @@ class BDPW(Block):
         salt = b''
         salt_source = "None"
         ver = self.vi.getFileVersion()
-            if (po.verbose > 0):
         if not isGreaterOrEqVersion(ver, 1,0):  # noqa: E231
+            if (po.verbose > 0):
                 eprint("{:s}: Warning: No version block found; assuming oldest format, with empty password salt"
                        .format(self.vi.src_fname))
             section.salt = salt
