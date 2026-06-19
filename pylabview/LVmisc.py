@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-# flake8: noqa: E302
 
 """ LabView RSRC file format support.
 
@@ -118,6 +117,7 @@ def get_labview_color_palette_256():
 
     cmap = [(0xF1, 0xF1, 0xF1)] + cube_colors[1:-1] + linear_colors + [(0, 0, 0)]
     return [int.from_bytes(rgb, 'big') for rgb in cmap]
+
 
 LABVIEW_COLOR_PALETTE_256 = get_labview_color_palette_256()
 
