@@ -2006,7 +2006,7 @@ class StringListBlock(SingleStringBlock):
     """
     def createSection(self):
         section = super().createSection()
-        del(section.eoln)  # we overload all the uses, and now store that within .content
+        del section.eoln  # we overload all the uses, and now store that within .content
         section.count_len = 2
         section.size_len = 1
         section.padding_len = 1
