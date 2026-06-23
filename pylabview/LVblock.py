@@ -969,7 +969,8 @@ class CompleteBlock(Block):
         except Exception as e:
             section.parse_failed = True
             if (self.po.verbose > 2):
-                import sys, traceback
+                import sys
+                import traceback
                 traceback.print_exc(file=sys.stdout)
             eprint("{:s}: Warning: Block {} section {} parse exception: {}."
                    .format(self.vi.src_fname, self.ident, section_num, str(e)))
@@ -1007,7 +1008,8 @@ class CompleteBlock(Block):
         except Exception as e:
             section.parse_failed = True
             if (self.po.verbose > 2):
-                import sys, traceback
+                import sys
+                import traceback
                 traceback.print_exc(file=sys.stdout)
             eprint("{:s}: Warning: Block {} section {} binary prepare exception: {}."
                    .format(self.vi.src_fname, self.ident, section_num, str(e)))
@@ -1159,7 +1161,8 @@ class CompleteBlock(Block):
                 raise NotImplementedError("Unknown block storage format")
         except Exception as e:
             if (self.po.verbose > 2):
-                import sys, traceback
+                import sys
+                import traceback
                 traceback.print_exc(file=sys.stdout)
             eprint("{:s}: Warning: Block {} section {} XML export exception: {}."
                    .format(self.vi.src_fname, self.ident, section_num, str(e)))
@@ -6626,7 +6629,8 @@ class VICD(CompleteBlock):
                 self.parseRSRCSectionLVRTPatches(section, section_num, patchesPos, archEndianness, archDependLen, bldata)
         except Exception as e:
             if (self.po.verbose > 2):
-                import sys, traceback
+                import sys
+                import traceback
                 traceback.print_exc(file=sys.stdout)
             eprint("{:s}: Warning: Block {} section {} patches parse exception: {}."
                    .format(self.vi.src_fname, self.ident, section_num, str(e)))
