@@ -2603,7 +2603,6 @@ class DFDS(CompleteBlock):
 
     def initWithXMLLate(self):
         super().initWithXMLLate()
-        ver = self.vi.getFileVersion()
         for snum in self.sections:
             section = self.sections[snum]
             df_idx = 0
@@ -2937,7 +2936,6 @@ class FTAB(CompleteBlock):
 
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
-        ver = self.vi.getFileVersion()
 
         if True:
             section.prop1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
@@ -2977,7 +2975,6 @@ class FTAB(CompleteBlock):
 
     def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
-        ver = self.vi.getFileVersion()
         data_buf = b''
 
         count = len(section.content)
@@ -6656,7 +6653,6 @@ class VICD(CompleteBlock):
         section.patches_raw = bldata.read(patchesTotLen)
 
     def parseRSRCSectionData(self, section_num, bldata):
-        ver = self.vi.getFileVersion()
         section = self.sections[section_num]
         section.ct_map = []
         section.patchFmtType = None
@@ -6696,7 +6692,6 @@ class VICD(CompleteBlock):
         self.addMapEntriesForSwitchArrays(section_num)
 
     def prepareRSRCData(self, section_num):
-        ver = self.vi.getFileVersion()
         section = self.sections[section_num]
         data_buf = b''
         archDependLen = 8 if self.isX64(section_num) else 4
