@@ -6711,7 +6711,7 @@ class VICD(CompleteBlock):
             else:
                 raise NotImplementedError("Unrecognized patches format type")
         else:
-                data_buf += section.patches_raw
+            data_buf += section.patches_raw
 
         data_buf += self.prepareRSRCSectionFoot(section, section_num, archEndianness, archDependLen)
         return data_buf
