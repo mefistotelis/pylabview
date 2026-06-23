@@ -3986,7 +3986,7 @@ class ImageBlock(CompleteBlock):
     def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
 
-        bldata = BytesIO()
+        bldata = io.BytesIO()
         section.image.save(bldata, format="PNG")
         bldata.seek(0)
         data_buf = bldata.read()
@@ -4510,7 +4510,7 @@ class BDPW(Block):
         salt_source = "None"
         ver = self.vi.getFileVersion()
         if not isGreaterOrEqVersion(ver, 1,0):  # noqa: E231
-            if (po.verbose > 0):
+            if (self.po.verbose > 0):
                 eprint("{:s}: Warning: No version block found; assuming oldest format, with empty password salt"
                        .format(self.vi.src_fname))
             section.salt = salt
