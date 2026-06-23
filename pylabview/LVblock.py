@@ -6331,7 +6331,8 @@ class VICD(CompleteBlock):
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.pTabOffset")
             section.codeFlags = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.codeFlags")
-            section.version = int.from_bytes(bldata.read(4), byteorder='big', signed=False)  # doesn't seem to really be version
+            # TODO: This doesn't seem to really be version:
+            section.version = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.version")
             section.verifier = bldata.read(4)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.verifier")
