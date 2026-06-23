@@ -5207,7 +5207,7 @@ class HeapVerb(CompleteBlock):
                 raise RuntimeError("Not enough raw data for complete heap")
             tot_len += entry_len
 
-        if parentNode != None:
+        if parentNode is not None:
             eprint("{}: Warning: In block {}, heap did not closed all tags"
                    .format(self.vi.src_fname, self.ident))
         pass
