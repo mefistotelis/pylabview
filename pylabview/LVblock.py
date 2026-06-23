@@ -1848,7 +1848,6 @@ class MItm(SingleStringBlock):
         return data_buf
 
     def expectedRSRCSize(self, section_num):
-        section = self.sections[section_num]
         exp_whole_len = 4
         exp_whole_len += 4
         exp_whole_len += super().expectedRSRCSize(section_num)
@@ -5177,7 +5176,6 @@ class HeapVerb(CompleteBlock):
 
         tagEn = LVheap.tagIdToEnum(tagId, parentNode)
 
-        i = len(section.objects)
         obj = LVheap.createObjectNode(self.vi, self.po, parentNode, tagEn, scopeInfo)
         section.objects.append(obj)
         if parentNode is not None:
@@ -6478,8 +6476,10 @@ class VICD(CompleteBlock):
 
     def parseRSRCSectionMCLVRTPatches(self, section, section_num, pos, archEndianness, archDependLen, bldata):
         section.patches = []
+        '''
         codeTotLen = section.codeEndOffset
         patchesTotLen = section.codeEndOffset - section.pTabOffset
+        '''
         bldata.seek(pos)
         # TODO parse the patches instead of just reading raw data
         raise NotImplementedError("No parsing made for MCLVRTPatches")
@@ -6531,7 +6531,6 @@ class VICD(CompleteBlock):
                 for i in range(bucketCount):
                     itmCount = int.from_bytes(bldata.read(2), byteorder=archEndianness, signed=False)
                     self.appendPrintMapEntry(section, bldata.tell(), 2, 1, "Patch[{}].Bucket[{}].itmCount".format(pidx, i))
-                    offsLowList = []
                     for k in range(itmCount):
                         offsLow = int.from_bytes(bldata.read(2), byteorder=archEndianness, signed=False)
                         self.appendPrintMapEntry(section, bldata.tell(), 2, 1,
@@ -6972,7 +6971,6 @@ class VICD(CompleteBlock):
                 procStart = i
                 break
         if procStart < len(relocs):
-            procIdx = 0
             procAddr = relocs[procStart] - (2+addrLen)
             # Check up to 31 relocation addresses
             for i in range(procStart, min(len(relocs), procStart+32)):
