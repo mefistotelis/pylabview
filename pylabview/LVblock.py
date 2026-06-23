@@ -1107,7 +1107,7 @@ class CompleteBlock(Block):
         storage_format = section.storage_format
         if section.parse_failed:
             storage_format = "raw"
-            print("{}: XXX parse_failed set block {} section {:d}"
+            print("{}: 'parse_failed' set for block {} section {:d}"
                   .format(self.vi.src_fname, self.ident, section_num))
 
         try:
