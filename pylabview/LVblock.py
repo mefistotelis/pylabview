@@ -6153,7 +6153,6 @@ class VCTP(TypeDescListBase):
     def initWithXMLSectionData(self, section, section_elem):
         section.content = []
         section.topLevel = []
-        blockref = (self.ident, section.start.section_idx,)
         for subelem in section_elem:
             if (subelem.tag == "NameObject"):
                 pass  # Items parsed somewhere else
@@ -6888,7 +6887,6 @@ class VICD(CompleteBlock):
 
     def initWithXMLSectionData(self, section, section_elem):
         section.content = b''
-        blockref = (self.ident, section.start.section_idx,)
         for subelem in section_elem:
             if (subelem.tag == "NameObject"):
                 pass  # Items parsed somewhere else
