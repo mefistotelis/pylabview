@@ -906,7 +906,7 @@ class Block(object):
             section = object.__getattribute__(self, 'sections')[section_num]
             if hasattr(section, name):
                 return getattr(section, name)
-        except:
+        except (AttributeError, IndexError, KeyError):
             pass
         return super().__getattr__(name)
 
@@ -919,7 +919,7 @@ class Block(object):
             if hasattr(section, name):
                 setattr(section, name, value)
                 return
-        except:
+        except (AttributeError, IndexError, KeyError):
             pass
         super().__setattr__(name, value)
 
