@@ -5342,12 +5342,12 @@ class HeapVerc(CompleteBlock):
         bldata.seek(content_len)
         data_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
-        data_start = content_len - data_len
-        container_len = content_len - data_len - container_start
+        data_start = content_len - data_len  # noqa F841  # may not be needed, see TODO below
+        container_len = content_len - data_len - container_start  # noqa F841  # see TODO below
 
-        # raw_subdata = bldata.read(data_len)
-        # blsubdata = io.BytesIO(raw_subdata)
-        # bldata.seek(container_start)
+        raw_subdata = bldata.read(data_len)
+        blsubdata = io.BytesIO(raw_subdata)  # noqa F841  # see TODO below
+        bldata.seek(container_start)
 
         section.objects = []
         # TODO parse heap data
