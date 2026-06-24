@@ -1,4 +1,7 @@
 [flake8]
+max-complexity = 10
+max-line-length = 127
+
 per-file-ignores =
     # Don't insist on blank lines in LVmisc.py (E302: expected 2 blank lines, found 1)
     pylabview/LVmisc.py: E302
