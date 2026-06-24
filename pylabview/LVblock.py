@@ -5339,15 +5339,18 @@ class HeapVerc(CompleteBlock):
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         container_start = bldata.tell()
 
+        '''
+        # TODO disabled as parsing HeapVerc is not fully implemented
         bldata.seek(content_len)
         data_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
         data_start = content_len - data_len
         container_len = content_len - data_len - container_start
 
-        # raw_subdata = bldata.read(data_len)
-        # blsubdata = io.BytesIO(raw_subdata)
-        # bldata.seek(container_start)
+        raw_subdata = bldata.read(data_len)
+        blsubdata = io.BytesIO(raw_subdata)
+        bldata.seek(container_start)
+        '''
 
         section.objects = []
         # TODO parse heap data
