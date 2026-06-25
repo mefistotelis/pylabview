@@ -386,8 +386,7 @@ class Block(object):
         expSize = 0
         for snum, section in self.sections.items():
             section.last_plain_data_size = self.expectedRSRCSize(section_num=snum)
-            sectSize += section.last_plain_data_size
-            expSize += sectSize
+            expSize += section.last_plain_data_size
         self.size = expSize
         if (self.po.verbose > 1):
             print("{:s}: Block {} max data size set to {:d} bytes".format(self.vi.src_fname, self.ident, self.size))
