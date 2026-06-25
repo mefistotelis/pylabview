@@ -21,6 +21,10 @@ import re
 import os
 import argparse
 
+if __name__ == "__main__":
+    # allow execution from CWD, without package install
+    sys.path.insert(0, './')
+
 import pylabview.LVxml as ET
 from pylabview.LVrsrcontainer import *
 from pylabview.LVmisc import eprint
