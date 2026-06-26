@@ -25,6 +25,10 @@ import copy
 from types import SimpleNamespace
 from PIL import Image
 
+if __name__ == "__main__":
+    # allow execution from CWD, without package install
+    sys.path.insert(0, './')
+
 import pylabview.LVparts as LVparts
 from pylabview.LVparts import PARTID, DSINIT
 import pylabview.LVxml as ET

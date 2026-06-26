@@ -396,8 +396,7 @@ class Block(object):
         expSize = 0
         for snum, section in self.sections.items():
             section.last_plain_data_size = self.expectedRSRCSize(section_num=snum)
-            sectSize += section.last_plain_data_size
-            expSize += sectSize
+            expSize += section.last_plain_data_size
         self.size = expSize
         if (self.po.verbose > 1):
             print("{:s}: Block {} max data size set to {:d} bytes".format(self.vi.src_fname, self.ident, self.size))
@@ -1119,7 +1118,7 @@ class CompleteBlock(Block):
         storage_format = section.storage_format
         if section.parse_failed:
             storage_format = "raw"
-            print("{}: 'parse_failed' set for block {} section {:d}"
+            print("{}: Parsing failed for block {} section {:d}, switched to raw"
                   .format(self.vi.src_fname, self.ident, section_num))
 
         try:
@@ -5347,6 +5346,8 @@ class HeapVerc(CompleteBlock):
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         container_start = bldata.tell()
 
+        '''
+        # TODO disabled as parsing HeapVerc is not fully implemented
         bldata.seek(content_len)
         data_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
@@ -5354,8 +5355,9 @@ class HeapVerc(CompleteBlock):
         container_len = content_len - data_len - container_start  # noqa F841  # see TODO below
 
         raw_subdata = bldata.read(data_len)
-        blsubdata = io.BytesIO(raw_subdata)  # noqa F841  # see TODO below
+        blsubdata = io.BytesIO(raw_subdata)
         bldata.seek(container_start)
+        '''
 
         section.objects = []
         # TODO parse heap data
