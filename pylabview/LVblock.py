@@ -12,6 +12,7 @@ Classes for interpreting content of specific block types within RSRC files.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
 import enum
+import struct
 import re
 import io
 import os
@@ -20,12 +21,21 @@ import zlib
 from PIL import Image
 from hashlib import md5
 from types import SimpleNamespace
+from ctypes import c_ubyte, c_uint32, c_int32, sizeof
 from ctypes import *
 
-from pylabview.LVmisc import *
+from pylabview.LVmisc import RSRCStructure, getPrettyStrFromRsrcType, getRsrcTypeFromPrettyStr
+from pylabview.LVmisc import eprint, preparePStr, readPStr, prepareLStr, readLStr
+from pylabview.LVmisc import isSmallerVersion, isGreaterOrEqVersion, readVariableSizeFieldU2p2, prepareVariableSizeFieldU2p2
+from pylabview.LVmisc import enumOrIntToName, valFromEnumOrIntString, stringFromValEnumOrInt
+from pylabview.LVmisc import zcomp_zeromsk8_decompress, zcomp_zeromsk8_compress, crypto_xor8320_decrypt, crypto_xor8320_encrypt
+from pylabview.LVmisc import importXMLBitfields, exportXMLBitfields, decodeVersion, encodeVersion
+from pylabview.LVmisc import LABVIEW_COLOR_PALETTE_256, LABVIEW_COLOR_PALETTE_16, LABVIEW_COLOR_PALETTE_2
 import pylabview.LVxml as ET
-from pylabview.LVdatatype import *
-from pylabview.LVinstrument import *
+from pylabview.LVdatatype import TM_FLAGS, TD_FULL_TYPE, TDObject, newTDObject, TYPEDESC_FLAGS
+from pylabview.LVdatatype import ctypeToFullTypeEnum
+from pylabview.LVinstrument import LVSRData, VI_TYPE, VI_EXEC_FLAGS
+from pylabview.LVinstrument import VI_BTN_HIDE_FLAGS, VI_IN_ST_FLAGS, VI_FP_FLAGS, VI_FLAGS0C, VI_FLAGS12, VI_FLAGS2
 import pylabview.LVclasses as LVclasses
 import pylabview.LVdatafill as LVdatafill
 import pylabview.LVlinkinfo as LVlinkinfo
@@ -969,7 +979,8 @@ class CompleteBlock(Block):
         except Exception as e:
             section.parse_failed = True
             if (self.po.verbose > 2):
-                import sys, traceback
+                import sys
+                import traceback
                 traceback.print_exc(file=sys.stdout)
             eprint("{:s}: Warning: Block {} section {} parse exception: {}."
                    .format(self.vi.src_fname, self.ident, section_num, str(e)))
@@ -1007,7 +1018,8 @@ class CompleteBlock(Block):
         except Exception as e:
             section.parse_failed = True
             if (self.po.verbose > 2):
-                import sys, traceback
+                import sys
+                import traceback
                 traceback.print_exc(file=sys.stdout)
             eprint("{:s}: Warning: Block {} section {} binary prepare exception: {}."
                    .format(self.vi.src_fname, self.ident, section_num, str(e)))
@@ -1159,7 +1171,8 @@ class CompleteBlock(Block):
                 raise NotImplementedError("Unknown block storage format")
         except Exception as e:
             if (self.po.verbose > 2):
-                import sys, traceback
+                import sys
+                import traceback
                 traceback.print_exc(file=sys.stdout)
             eprint("{:s}: Warning: Block {} section {} XML export exception: {}."
                    .format(self.vi.src_fname, self.ident, section_num, str(e)))
@@ -1847,7 +1860,6 @@ class MItm(SingleStringBlock):
         return data_buf
 
     def expectedRSRCSize(self, section_num):
-        section = self.sections[section_num]
         exp_whole_len = 4
         exp_whole_len += 4
         exp_whole_len += super().expectedRSRCSize(section_num)
@@ -5176,7 +5188,6 @@ class HeapVerb(CompleteBlock):
 
         tagEn = LVheap.tagIdToEnum(tagId, parentNode)
 
-        i = len(section.objects)
         obj = LVheap.createObjectNode(self.vi, self.po, parentNode, tagEn, scopeInfo)
         section.objects.append(obj)
         if parentNode is not None:
@@ -5340,8 +5351,8 @@ class HeapVerc(CompleteBlock):
         bldata.seek(content_len)
         data_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
-        data_start = content_len - data_len
-        container_len = content_len - data_len - container_start
+        data_start = content_len - data_len  # noqa F841  # may not be needed, see TODO below
+        container_len = content_len - data_len - container_start  # noqa F841  # see TODO below
 
         raw_subdata = bldata.read(data_len)
         blsubdata = io.BytesIO(raw_subdata)
@@ -6282,7 +6293,8 @@ class VICD(CompleteBlock):
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.pTabOffset")
             section.codeFlags = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.codeFlags")
-            section.version = int.from_bytes(bldata.read(4), byteorder='big', signed=False)  # doesn't seem to really be version
+            # TODO: This doesn't seem to really be version:
+            section.version = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.version")
             section.verifier = bldata.read(4)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.verifier")
@@ -6428,8 +6440,10 @@ class VICD(CompleteBlock):
 
     def parseRSRCSectionMCLVRTPatches(self, section, section_num, pos, archEndianness, archDependLen, bldata):
         section.patches = []
+        '''
         codeTotLen = section.codeEndOffset
         patchesTotLen = section.codeEndOffset - section.pTabOffset
+        '''
         bldata.seek(pos)
         # TODO parse the patches instead of just reading raw data
         raise NotImplementedError("No parsing made for MCLVRTPatches")
@@ -6481,7 +6495,6 @@ class VICD(CompleteBlock):
                 for i in range(bucketCount):
                     itmCount = int.from_bytes(bldata.read(2), byteorder=archEndianness, signed=False)
                     self.appendPrintMapEntry(section, bldata.tell(), 2, 1, "Patch[{}].Bucket[{}].itmCount".format(pidx, i))
-                    offsLowList = []
                     for k in range(itmCount):
                         offsLow = int.from_bytes(bldata.read(2), byteorder=archEndianness, signed=False)
                         self.appendPrintMapEntry(section, bldata.tell(), 2, 1,
@@ -6629,7 +6642,8 @@ class VICD(CompleteBlock):
                 self.parseRSRCSectionLVRTPatches(section, section_num, patchesPos, archEndianness, archDependLen, bldata)
         except Exception as e:
             if (self.po.verbose > 2):
-                import sys, traceback
+                import sys
+                import traceback
                 traceback.print_exc(file=sys.stdout)
             eprint("{:s}: Warning: Block {} section {} patches parse exception: {}."
                    .format(self.vi.src_fname, self.ident, section_num, str(e)))
@@ -6922,7 +6936,6 @@ class VICD(CompleteBlock):
                 procStart = i
                 break
         if procStart < len(relocs):
-            procIdx = 0
             procAddr = relocs[procStart] - (2+addrLen)
             # Check up to 31 relocation addresses
             for i in range(procStart, min(len(relocs), procStart+32)):
