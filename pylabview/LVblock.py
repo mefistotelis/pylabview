@@ -12,6 +12,7 @@ Classes for interpreting content of specific block types within RSRC files.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
 import enum
+import struct
 import re
 import io
 import os
@@ -22,10 +23,12 @@ from hashlib import md5
 from types import SimpleNamespace
 from ctypes import c_ubyte, c_uint32, c_int32, sizeof
 
-from pylabview.LVmisc import *
+import pylabview.LVmisc as LV
+from pylabview.LVmisc import eprint, isSmallerVersion, isGreaterOrEqVersion, RSRCStructure, \
+    getPrettyStrFromRsrcType, getRsrcTypeFromPrettyStr, importXMLBitfields, exportXMLBitfields
 import pylabview.LVxml as ET
-from pylabview.LVdatatype import *
-from pylabview.LVinstrument import *
+import pylabview.LVdatatype as LVdatatype
+import pylabview.LVinstrument as LVinstrument
 import pylabview.LVclasses as LVclasses
 import pylabview.LVdatafill as LVdatafill
 import pylabview.LVlinkinfo as LVlinkinfo
@@ -639,7 +642,7 @@ class Block(object):
                 raise IOError("Unable to decompress block {} section {}: "
                               "uncompress-size-error - size: {} - uncompress-size: {}"
                               .format(self.ident, section_num, size, usize))
-            data = io.BytesIO(zcomp_zeromsk8_decompress(data.read(size), usize))
+            data = io.BytesIO(LV.zcomp_zeromsk8_decompress(data.read(size), usize))
         elif use_coding == BLOCK_CODING.ZLIB:
             size = len(raw_data_section) - 4
             if size < 2:
@@ -656,7 +659,7 @@ class Block(object):
         elif use_coding == BLOCK_CODING.XOR:
             size = len(raw_data_section)
             usize = size
-            data = io.BytesIO(crypto_xor8320_decrypt(data.read(size)))
+            data = io.BytesIO(LV.crypto_xor8320_decrypt(data.read(size)))
         else:
             raise ValueError("Unsupported compression type")
         section = self.sections[section_num]
@@ -681,13 +684,13 @@ class Block(object):
         elif use_coding == BLOCK_CODING.COMP:
             size = len(data_buf)
             raw_data_section = int(size).to_bytes(4, byteorder='big')
-            raw_data_section += zcomp_zeromsk8_compress(data_buf)
+            raw_data_section += LV.zcomp_zeromsk8_compress(data_buf)
         elif use_coding == BLOCK_CODING.ZLIB:
             size = len(data_buf)
             raw_data_section = int(size).to_bytes(4, byteorder='big')
             raw_data_section += zlib.compress(data_buf)
         elif use_coding == BLOCK_CODING.XOR:
-            raw_data_section = crypto_xor8320_encrypt(data_buf)
+            raw_data_section = LV.crypto_xor8320_encrypt(data_buf)
         else:
             raise ValueError("Unsupported compression type")
 
@@ -731,7 +734,7 @@ class Block(object):
 
             if section.name_text is not None:
                 section.start.name_offset = len(section_names)
-                section_names.extend( preparePStr(section.name_text, 1, self.po) )  # noqa: E201,E202
+                section_names.extend( LV.preparePStr(section.name_text, 1, self.po) )  # noqa: E201,E202
             else:
                 section.start.name_offset = 0xFFFFFFFF
         pass
@@ -2285,7 +2288,7 @@ class LinkObjRefs(CompleteBlock):
         section.ident = bldata.read(4)
         self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "LinkObject[{}].Ident".format(0))
         if isSmallerVersion(ver, 14,0,0,3):  # noqa: E231
-            section.unk1 = readPStr(bldata, 2, self.po)
+            section.unk1 = LV.readPStr(bldata, 2, self.po)
             self.appendPrintMapEntry(section, bldata.tell(), 1+len(section.unk1), 2, "LinkObject[{}].Unk1".format(0))
             wordlen = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
             section.unk2 = bldata.read(2 * wordlen)
@@ -2329,7 +2332,7 @@ class LinkObjRefs(CompleteBlock):
         data_buf += int(1).to_bytes(2, byteorder='big', signed=False)  # nextLinkInfo
         data_buf += section.ident
         if isSmallerVersion(ver, 14,0,0,3):  # noqa: E231
-            data_buf += preparePStr(section.unk1, 2, self.po)
+            data_buf += LV.preparePStr(section.unk1, 2, self.po)
             data_buf += int(len(section.unk2)/2).to_bytes(2, byteorder='big', signed=False)
             data_buf += section.unk2
         data_buf += len(section.content).to_bytes(4, byteorder='big', signed=False)
@@ -2497,10 +2500,10 @@ class DFDS(CompleteBlock):
 
     def isSpecialDSTMCluster(self, tmEntry):
         return (tmEntry.flags & (
-            TM_FLAGS.TMFBit4 |
-            TM_FLAGS.TMFBit5 |
-            TM_FLAGS.TMFBit6 |
-            TM_FLAGS.TMFBit2)) != 0
+            LVdatatype.TM_FLAGS.TMFBit4 |
+            LVdatatype.TM_FLAGS.TMFBit5 |
+            LVdatatype.TM_FLAGS.TMFBit6 |
+            LVdatatype.TM_FLAGS.TMFBit2)) != 0
 
     def getTypeMapWithDefltData(self):
         TM = self.vi.get_one_of('TM80', 'DSTM')
@@ -2511,14 +2514,14 @@ class DFDS(CompleteBlock):
         elif isGreaterOrEqVersion(ver, 8,0,0,1):  # noqa: E231
             TypeMap = TM.getTypeMap()
             for tmEntry in TypeMap:
-                if (tmEntry.flags & TM_FLAGS.TMFBit3) != 0 or \
-                   (tmEntry.flags & TM_FLAGS.TMFBit11) != 0 or \
-                   (tmEntry.flags & TM_FLAGS.TMFBit10) != 0:
+                if (tmEntry.flags & LVdatatype.TM_FLAGS.TMFBit3) != 0 or \
+                   (tmEntry.flags & LVdatatype.TM_FLAGS.TMFBit11) != 0 or \
+                   (tmEntry.flags & LVdatatype.TM_FLAGS.TMFBit10) != 0:
                     continue
-                if (tmEntry.flags & TM_FLAGS.TMFBit13) != 0 or \
-                   (tmEntry.flags & TM_FLAGS.TMFBit0) != 0:
+                if (tmEntry.flags & LVdatatype.TM_FLAGS.TMFBit13) != 0 or \
+                   (tmEntry.flags & LVdatatype.TM_FLAGS.TMFBit0) != 0:
                     yield tmEntry, 0
-                elif tmEntry.td.fullType() == TD_FULL_TYPE.Cluster and self.isSpecialDSTMCluster(tmEntry):
+                elif tmEntry.td.fullType() == LVdatatype.TD_FULL_TYPE.Cluster and self.isSpecialDSTMCluster(tmEntry):
                     # This is Special DSTM Cluster
                     yield tmEntry, 1
                 else:
@@ -2543,7 +2546,7 @@ class DFDS(CompleteBlock):
                         df.initWithRSRC(bldata)
                     except Exception as e:
                         tdType = tmEntry.td.fullType()
-                        raise RuntimeError("Data type {}: {}".format(enumOrIntToName(tdType), str(e)))
+                        raise RuntimeError("Data type {}: {}".format(LV.enumOrIntToName(tdType), str(e)))
                     pass
                 elif defDataType == 1:
                     try:
@@ -2553,7 +2556,7 @@ class DFDS(CompleteBlock):
                         df.initWithRSRC(bldata)
                     except Exception as e:
                         tdType = tmEntry.td.fullType()
-                        raise RuntimeError("Special DSTM {}: {}".format(enumOrIntToName(tdType), str(e)))
+                        raise RuntimeError("Special DSTM {}: {}".format(LV.enumOrIntToName(tdType), str(e)))
                     pass
         else:
             raise NotImplementedError("No support for the LV7.1 default data format")
@@ -2969,7 +2972,7 @@ class FTAB(CompleteBlock):
             if nameOffs == 0:
                 continue
             bldata.seek(nameOffs)
-            fnEntry.name = readPStr(bldata, 1, self.po)
+            fnEntry.name = LV.readPStr(bldata, 1, self.po)
         # At the end of this function, we should place file pointer at end of the data.
         # Since font names seem to always be in order, this should be achieved already.
         pass
@@ -2997,7 +3000,7 @@ class FTAB(CompleteBlock):
                 nameOffsList.append(0)
             else:
                 nameOffsList.append(nameOffsStart+len(namesData))
-                namesData += preparePStr(fnEntry.name, 1, self.po)
+                namesData += LV.preparePStr(fnEntry.name, 1, self.po)
 
         for i, fnEntry in enumerate(section.content):
             nameOffs = nameOffsList[i]
@@ -3220,12 +3223,12 @@ class DTHP(CompleteBlock):
         section.content = []
 
         if isGreaterOrEqVersion(ver, 8,0,0,1):  # noqa: E231
-            section.tdCount = readVariableSizeFieldU2p2(bldata)
+            section.tdCount = LV.readVariableSizeFieldU2p2(bldata)
             # If there is no count provided, then there is no shift
             # LV14 writes it like this; though it doesn't support this while reading
             # it reads the non existing value anyway, which really reads padding
             if section.tdCount > 0:
-                section.indexShift = readVariableSizeFieldU2p2(bldata)
+                section.indexShift = LV.readVariableSizeFieldU2p2(bldata)
         else:
             # TODO make support for the 7.1 format
             raise NotImplementedError("Parsing the block from LV7.1 and older is not implemented")
@@ -3237,9 +3240,9 @@ class DTHP(CompleteBlock):
 
         data_buf = b''
         if isGreaterOrEqVersion(ver, 8,0,0,1):  # noqa: E231
-            data_buf += prepareVariableSizeFieldU2p2(section.tdCount)
+            data_buf += LV.prepareVariableSizeFieldU2p2(section.tdCount)
             if section.tdCount > 0:
-                data_buf += prepareVariableSizeFieldU2p2(section.indexShift)
+                data_buf += LV.prepareVariableSizeFieldU2p2(section.indexShift)
         else:
             # TODO make support for the 7.1 format
             raise NotImplementedError("Preparing binary data for LV7.1 and older is not implemented")
@@ -3284,7 +3287,7 @@ class DTHP(CompleteBlock):
                     td = VCTP.getTopType(tdIndex)
                 if td is not None:
                     comment_elem = ET.Comment(" Heap TypeID {:2d} = Consolidated TypeID {:2d}: {} "
-                                              .format(i+1, tdIndex, enumOrIntToName(td.fullType())))
+                                              .format(i+1, tdIndex, LV.enumOrIntToName(td.fullType())))
                 else:
                     comment_elem = ET.Comment(" Heap TypeID {:2d} = Consolidated TypeID {:2d} "
                                               .format(i+1, tdIndex))
@@ -3375,11 +3378,11 @@ class TM80(CompleteBlock):
         section = self.sections[section_num]
 
         section.content = []
-        count = readVariableSizeFieldU2p2(bldata)
+        count = LV.readVariableSizeFieldU2p2(bldata)
         if count > 0:
-            section.indexShift = readVariableSizeFieldU2p2(bldata)
+            section.indexShift = LV.readVariableSizeFieldU2p2(bldata)
         for i in range(count):
-            val = readVariableSizeFieldU2p2(bldata)
+            val = LV.readVariableSizeFieldU2p2(bldata)
             section.content.append(val)
         pass
 
@@ -3387,10 +3390,10 @@ class TM80(CompleteBlock):
         section = self.sections[section_num]
 
         data_buf = b''
-        data_buf += prepareVariableSizeFieldU2p2(len(section.content))
-        data_buf += prepareVariableSizeFieldU2p2(section.indexShift)
+        data_buf += LV.prepareVariableSizeFieldU2p2(len(section.content))
+        data_buf += LV.prepareVariableSizeFieldU2p2(section.indexShift)
         for val in section.content:
-            data_buf += prepareVariableSizeFieldU2p2(val)
+            data_buf += LV.prepareVariableSizeFieldU2p2(val)
         return data_buf
 
     def expectedRSRCSize(self, section_num):
@@ -3411,7 +3414,7 @@ class TM80(CompleteBlock):
             if (subelem.tag == "NameObject"):
                 pass  # Items parsed somewhere else
             elif (subelem.tag == "Client"):
-                val = importXMLBitfields(TM_FLAGS, subelem)
+                val = importXMLBitfields(LVdatatype.TM_FLAGS, subelem)
                 section.content.append(val)
             else:
                 raise AttributeError("Section contains unexpected tag")
@@ -3430,7 +3433,7 @@ class TM80(CompleteBlock):
                 td = VCTP.getTopType(tdIndex)
             if td is not None:
                 comment_elem = ET.Comment(" TypeID {:d}: {} "
-                                          .format(tdIndex, enumOrIntToName(td.fullType())))
+                                          .format(tdIndex, LV.enumOrIntToName(td.fullType())))
             else:
                 comment_elem = ET.Comment(" TypeID {:d} "
                                           .format(tdIndex))
@@ -3438,7 +3441,7 @@ class TM80(CompleteBlock):
 
             subelem = ET.SubElement(section_elem, "Client")
 
-            exportXMLBitfields(TM_FLAGS, subelem, val)
+            exportXMLBitfields(LVdatatype.TM_FLAGS, subelem, val)
 
         if len(section.content) == 0:
             comment_elem = ET.Comment("List of types is empty")
@@ -3533,7 +3536,7 @@ class LVSR(CompleteBlock):
     """
     def createSection(self):
         section = super().createSection()
-        section.version = decodeVersion(0x0)
+        section.version = LV.decodeVersion(0x0)
         section.execFlags = 0
         section.protected = False
         section.viFlags2 = 0
@@ -3574,14 +3577,14 @@ class LVSR(CompleteBlock):
 
         # Size of the data increases with further versions
         # Data before byte 68 does not move - so it's always safe to read
-        data = LVSRData(self.po)
+        data = LVinstrument.LVSRData(self.po)
         dataLen = bldata.readinto(data)
-        if dataLen not in [68, 96, 120, 136, 137, sizeof(LVSRData)]:
+        if dataLen not in [68, 96, 120, 136, 137, sizeof(LVinstrument.LVSRData)]:
             raise EOFError("Data block length {} too small for parsing {} data".format(dataLen, self.ident))
 
-        section.version = decodeVersion(data.version)
-        section.protected = ((data.execFlags & VI_EXEC_FLAGS.LibProtected.value) != 0)
-        section.execFlags = data.execFlags & (~VI_EXEC_FLAGS.LibProtected.value)
+        section.version = LV.decodeVersion(data.version)
+        section.protected = ((data.execFlags & LVinstrument.VI_EXEC_FLAGS.LibProtected.value) != 0)
+        section.execFlags = data.execFlags & (~LVinstrument.VI_EXEC_FLAGS.LibProtected.value)
         section.viFlags2 = int(data.viFlags2)
         section.field0C = int(data.field0C)
         section.flags10 = int(data.flags10)
@@ -3623,9 +3626,9 @@ class LVSR(CompleteBlock):
     def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
         data_buf = b''
-        data_buf += int(encodeVersion(section.version)).to_bytes(4, byteorder='big')
-        data_execFlags = (section.execFlags & (~VI_EXEC_FLAGS.LibProtected.value)) | \
-                         (VI_EXEC_FLAGS.LibProtected.value if section.protected else 0)
+        data_buf += int(LV.encodeVersion(section.version)).to_bytes(4, byteorder='big')
+        data_execFlags = (section.execFlags & (~LVinstrument.VI_EXEC_FLAGS.LibProtected.value)) | \
+                         (LVinstrument.VI_EXEC_FLAGS.LibProtected.value if section.protected else 0)
         data_buf += int(data_execFlags).to_bytes(4, byteorder='big')
         data_buf += int(section.viFlags2).to_bytes(4, byteorder='big')
         data_buf += int(section.field0C).to_bytes(4, byteorder='big')
@@ -3698,7 +3701,7 @@ class LVSR(CompleteBlock):
                 ver['build'] = int(subelem.get("Build"), 0)
                 section.version = ver
                 # the call below sets numeric 'stage' from text; we do not care for actual encoding
-                encodeVersion(section.version)
+                LV.encodeVersion(section.version)
             elif (subelem.tag == "Library"):
                 section.protected = int(subelem.get("Protected"), 0)
                 password_text = subelem.get("Password")
@@ -3714,23 +3717,23 @@ class LVSR(CompleteBlock):
                 section.execState = int(subelem.get("State"), 0)
                 section.execPrio = int(subelem.get("Priority"), 0)
                 section.prefExecSyst = int(subelem.get("PrefExecSyst"), 0)
-                section.execFlags = importXMLBitfields(VI_EXEC_FLAGS, subelem)
+                section.execFlags = importXMLBitfields(LVinstrument.VI_EXEC_FLAGS, subelem)
             elif (subelem.tag == "Execution2"):
-                section.viFlags2 = importXMLBitfields(VI_FLAGS2, subelem)
+                section.viFlags2 = importXMLBitfields(LVinstrument.VI_FLAGS2, subelem)
             elif (subelem.tag == "ButtonsHidden"):
-                section.buttonsHidden = importXMLBitfields(VI_BTN_HIDE_FLAGS, subelem)
+                section.buttonsHidden = importXMLBitfields(LVinstrument.VI_BTN_HIDE_FLAGS, subelem)
             elif (subelem.tag == "Instrument"):
-                section.viType = valFromEnumOrIntString(VI_TYPE, subelem.get("Type"))
+                section.viType = LV.valFromEnumOrIntString(LVinstrument.VI_TYPE, subelem.get("Type"))
                 tmphash = subelem.get("Signature")
                 section.viSignature = bytes.fromhex(tmphash)
-                section.instrState = importXMLBitfields(VI_IN_ST_FLAGS, subelem)
+                section.instrState = importXMLBitfields(LVinstrument.VI_IN_ST_FLAGS, subelem)
             elif (subelem.tag == "FrontPanel"):
                 section.ctrlIndStyle = int(subelem.get("CtrlIndStyle"), 0)
-                section.frontpFlags = importXMLBitfields(VI_FP_FLAGS, subelem)
+                section.frontpFlags = importXMLBitfields(LVinstrument.VI_FP_FLAGS, subelem)
             elif (subelem.tag == "Flags0C"):
-                section.field0C = importXMLBitfields(VI_FLAGS0C, subelem)
+                section.field0C = importXMLBitfields(LVinstrument.VI_FLAGS0C, subelem)
             elif (subelem.tag == "Flags12"):
-                section.field12 = importXMLBitfields(VI_FLAGS12, subelem)
+                section.field12 = importXMLBitfields(LVinstrument.VI_FLAGS12, subelem)
             elif (subelem.tag == "Unknown"):
                 section.flags10 = int(subelem.get("Flags10"), 0)
                 section.field28 = int(subelem.get("Field28"), 0)
@@ -3783,29 +3786,29 @@ class LVSR(CompleteBlock):
         subelem.set("State", "{:d}".format(section.execState))
         subelem.set("Priority", "{:d}".format(section.execPrio))
         subelem.set("PrefExecSyst", "{:d}".format(section.prefExecSyst))
-        exportXMLBitfields(VI_EXEC_FLAGS, subelem, section.execFlags,
-                           skip_mask=VI_EXEC_FLAGS.LibProtected.value)
+        exportXMLBitfields(LVinstrument.VI_EXEC_FLAGS, subelem, section.execFlags,
+                           skip_mask=LVinstrument.VI_EXEC_FLAGS.LibProtected.value)
 
         subelem = ET.SubElement(section_elem, "Execution2")
-        exportXMLBitfields(VI_FLAGS2, subelem, section.viFlags2)
+        exportXMLBitfields(LVinstrument.VI_FLAGS2, subelem, section.viFlags2)
 
         subelem = ET.SubElement(section_elem, "ButtonsHidden")
-        exportXMLBitfields(VI_BTN_HIDE_FLAGS, subelem, section.buttonsHidden)
+        exportXMLBitfields(LVinstrument.VI_BTN_HIDE_FLAGS, subelem, section.buttonsHidden)
 
         subelem = ET.SubElement(section_elem, "Instrument")
-        subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(VI_TYPE, section.viType)))
+        subelem.set("Type", "{:s}".format(LV.stringFromValEnumOrInt(LVinstrument.VI_TYPE, section.viType)))
         subelem.set("Signature", section.viSignature.hex())
-        exportXMLBitfields(VI_IN_ST_FLAGS, subelem, section.instrState)
+        exportXMLBitfields(LVinstrument.VI_IN_ST_FLAGS, subelem, section.instrState)
 
         subelem = ET.SubElement(section_elem, "FrontPanel")
         subelem.set("CtrlIndStyle", "{:d}".format(section.ctrlIndStyle))
-        exportXMLBitfields(VI_FP_FLAGS, subelem, section.frontpFlags)
+        exportXMLBitfields(LVinstrument.VI_FP_FLAGS, subelem, section.frontpFlags)
 
         subelem = ET.SubElement(section_elem, "Flags0C")
-        exportXMLBitfields(VI_FLAGS0C, subelem, section.field0C)
+        exportXMLBitfields(LVinstrument.VI_FLAGS0C, subelem, section.field0C)
 
         subelem = ET.SubElement(section_elem, "Flags12")
-        exportXMLBitfields(VI_FLAGS12, subelem, section.field12)
+        exportXMLBitfields(LVinstrument.VI_FLAGS12, subelem, section.field12)
 
         subelem = ET.SubElement(section_elem, "Unknown")
 
@@ -3860,7 +3863,7 @@ class vers(Block):
     def parseRSRCData(self, section_num, bldata):
         section = self.sections[section_num]
 
-        section.version = decodeVersion(int.from_bytes(bldata.read(4), byteorder='big', signed=False))
+        section.version = LV.decodeVersion(int.from_bytes(bldata.read(4), byteorder='big', signed=False))
         section.language = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
         version_info_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         section.version_info = bldata.read(version_info_len)
@@ -3875,10 +3878,10 @@ class vers(Block):
             section_num = self.active_section_num
         section = self.sections[section_num]
 
-        data_buf = int(encodeVersion(section.version)).to_bytes(4, byteorder='big')
+        data_buf = int(LV.encodeVersion(section.version)).to_bytes(4, byteorder='big')
         data_buf += section.language.to_bytes(2, byteorder='big')
-        data_buf += preparePStr(section.version_info, 1, self.po)
-        data_buf += preparePStr(section.comment, 1, self.po)
+        data_buf += LV.preparePStr(section.version_info, 1, self.po)
+        data_buf += LV.preparePStr(section.comment, 1, self.po)
 
         if len(data_buf) != 4 + 2 + 1+len(section.version_info) + 1+len(section.comment):
             raise RuntimeError("Block {} section {} generated binary data of invalid size"
@@ -3917,7 +3920,7 @@ class vers(Block):
                     section.comment = subelem.get("Comment").encode(self.vi.textEncoding)
                     section.version = ver
                     # the call below sets numeric 'stage' from text; we do not care for actual encoding
-                    encodeVersion(section.version)
+                    LV.encodeVersion(section.version)
                 else:
                     raise AttributeError("Section contains something else than 'Version'")
         else:
@@ -4087,11 +4090,11 @@ class RawImageBlock(ImageBlock):
         image = Image.new("P", (padded_width, height))
         img_palette = [0] * (3*256)
         if bpp == 8:
-            lv_color_palette = LABVIEW_COLOR_PALETTE_256
+            lv_color_palette = LV.LABVIEW_COLOR_PALETTE_256
         elif bpp == 4:
-            lv_color_palette = LABVIEW_COLOR_PALETTE_16
+            lv_color_palette = LV.LABVIEW_COLOR_PALETTE_16
         else:
-            lv_color_palette = LABVIEW_COLOR_PALETTE_2
+            lv_color_palette = LV.LABVIEW_COLOR_PALETTE_2
         for i, rgb in enumerate(lv_color_palette):
             img_palette[3*i+0] = (rgb >> 16) & 0xFF
             img_palette[3*i+1] = (rgb >>  8) & 0xFF  # noqa: E222
@@ -4537,7 +4540,7 @@ class BDPW(Block):
                         salt_td_flat_idx = iface_obj.index
                         salt_source = "CPC2"
             if salt_td_flat_idx is None:
-                interfaceEnumerate = self.vi.consolidatedTDEnumerate(fullType=TD_FULL_TYPE.Function)
+                interfaceEnumerate = self.vi.consolidatedTDEnumerate(fullType=LVdatatype.TD_FULL_TYPE.Function)
                 # Check if one of the interfaces is the source of salt; usually it's the last interface, so check in reverse
                 for i, iface_idx, iface_obj in reversed(interfaceEnumerate):
                     term_typedescs = VCTP.getClientTypeDescsByType(iface_obj)
@@ -4739,7 +4742,7 @@ class LIBN(CompleteBlock):
             raise RuntimeError("String list consists of {:d} tags, limit is {:d}"
                                .format(count, self.po.typedesc_list_limit))
         for i in range(count):
-            name = readPStr(bldata, 1, self.po)
+            name = LV.readPStr(bldata, 1, self.po)
             section.content.append(name)
         pass
 
@@ -4749,7 +4752,7 @@ class LIBN(CompleteBlock):
         data_buf = b''
         data_buf += int(len(section.content)).to_bytes(4, byteorder='big', signed=False)
         for name in section.content:
-            data_buf += preparePStr(name, 1, self.po)
+            data_buf += LV.preparePStr(name, 1, self.po)
         return data_buf
 
     def expectedRSRCSize(self, section_num):
@@ -5501,7 +5504,7 @@ class GCPR(CompleteBlock):
             client.prop2 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             client.prop3 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             client.prop4 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-            client.prop5 = readLStr(bldata, 1, self.po)
+            client.prop5 = LV.readLStr(bldata, 1, self.po)
             section.content.append(client)
         pass
 
@@ -5523,7 +5526,7 @@ class GCPR(CompleteBlock):
             data_buf += int(client.prop2).to_bytes(4, byteorder='big', signed=False)
             data_buf += int(client.prop3).to_bytes(4, byteorder='big', signed=False)
             data_buf += int(client.prop4).to_bytes(4, byteorder='big', signed=False)
-            data_buf += prepareLStr(client.prop5, 1, self.po)
+            data_buf += LV.prepareLStr(client.prop5, 1, self.po)
 
         return data_buf
 
@@ -5735,24 +5738,24 @@ class TypeDescListBase(CompleteBlock):
         section = self.sections[section_num]
 
         bldata.seek(pos)
-        obj_type, obj_flags, obj_len = TDObject.parseRSRCDataHeader(bldata)
+        obj_type, obj_flags, obj_len = LVdatatype.TDObject.parseRSRCDataHeader(bldata)
         if (self.po.verbose > 2):
             print("{:s}: Block {} TypeDesc {:d}, at 0x{:04x}, type 0x{:02x} flags 0x{:02x} len {:d}"
                   .format(self.vi.src_fname, self.ident, len(section.content), pos, obj_type, obj_flags, obj_len))
         blockref = (self.ident, section.start.section_idx,)
         # This block is typically compressed within RSRC file; add entries to RSRC map only if there is no compression
         if self.po.print_map is not None:
-            if obj_type not in set(item.value for item in TD_FULL_TYPE):
+            if obj_type not in set(item.value for item in LVdatatype.TD_FULL_TYPE):
                 obj_type_str = "Type_{}".format(obj_type)
             else:
-                obj_type_str = TD_FULL_TYPE(obj_type).name
+                obj_type_str = LVdatatype.TD_FULL_TYPE(obj_type).name
             self.appendPrintMapEntry(section, bldata.tell(), bldata.tell()-pos, 1,
                                      "TypeDesc[{}].{}.Header".format(td_idx, obj_type_str))
         if obj_len < 4:
             eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d} too small to be valid"
                    .format(self.vi.src_fname, len(section.content), obj_type, obj_len))
-            obj_type = TD_FULL_TYPE.Void
-        obj = newTDObject(self.vi, blockref, len(section.content), obj_flags, obj_type, self.po)
+            obj_type = LVdatatype.TD_FULL_TYPE.Void
+        obj = LVdatatype.newTDObject(self.vi, blockref, len(section.content), obj_flags, obj_type, self.po)
 
         clientTD = SimpleNamespace()
         clientTD.index = -1  # Nested clients have index -1
@@ -5782,21 +5785,21 @@ class TypeDescListBase(CompleteBlock):
     def parseRSRCTopTypesList(self, section_num, section, bldata):
         section.topLevel = []
         obj_pos = bldata.tell()
-        count = readVariableSizeFieldU2p2(bldata)
+        count = LV.readVariableSizeFieldU2p2(bldata)
         self.appendPrintMapEntry(section, bldata.tell(), bldata.tell()-obj_pos, 1, "TopTypesListCount")
         for i in range(count):
             obj_pos = bldata.tell()
-            val = readVariableSizeFieldU2p2(bldata)
+            val = LV.readVariableSizeFieldU2p2(bldata)
             self.appendPrintMapEntry(section, bldata.tell(), bldata.tell()-obj_pos, 1, "TypeDesc[{}].Index".format(i))
             section.topLevel.append(val)
         pass
 
     def initWithXMLTypeDesc(self, section, td_elem):
         obj_idx = len(section.content)
-        obj_type = valFromEnumOrIntString(TD_FULL_TYPE, td_elem.get("Type"))
-        obj_flags = importXMLBitfields(TYPEDESC_FLAGS, td_elem)
+        obj_type = LV.valFromEnumOrIntString(LVdatatype.TD_FULL_TYPE, td_elem.get("Type"))
+        obj_flags = importXMLBitfields(LVdatatype.TYPEDESC_FLAGS, td_elem)
         blockref = (self.ident, section.start.section_idx,)
-        obj = newTDObject(self.vi, blockref, obj_idx, obj_flags, obj_type, self.po)
+        obj = LVdatatype.newTDObject(self.vi, blockref, obj_idx, obj_flags, obj_type, self.po)
         clientTD = SimpleNamespace()
         clientTD.index = -1  # Nested clients have index -1
         clientTD.flags = 0  # Only Type Mapped entries have it non-zero
@@ -5864,14 +5867,14 @@ class TypeDescListBase(CompleteBlock):
             section_elem.append(comment_elem)
             subelem = ET.SubElement(section_elem, "TypeDesc")
 
-            subelem.set("Type", "{:s}".format(stringFromValEnumOrInt(TD_FULL_TYPE, clientTD.nested.otype)))
+            subelem.set("Type", "{:s}".format(LV.stringFromValEnumOrInt(LVdatatype.TD_FULL_TYPE, clientTD.nested.otype)))
 
             if not self.po.raw_connectors:
                 clientTD.nested.exportXML(subelem, "{:s}_td{:04d}".format(fname_base, i))
                 clientTD.nested.exportXMLFinish(subelem)
             else:
-                TDObject.exportXML(clientTD.nested, subelem, "{:s}_td{:04d}".format(fname_base, i))
-                TDObject.exportXMLFinish(clientTD.nested, subelem)
+                LVdatatype.TDObject.exportXML(clientTD.nested, subelem, "{:s}_td{:04d}".format(fname_base, i))
+                LVdatatype.TDObject.exportXMLFinish(clientTD.nested, subelem)
         pass
 
     def exportXMLTopTypesList(self, section_elem, section_num, section, fname_base):
@@ -5960,7 +5963,7 @@ class TypeDescListBase(CompleteBlock):
                     match = False
                     break
                 expectedCType = DCO._fields_[cli_idx][1]
-                expectedType = ctypeToFullTypeEnum(expectedCType)
+                expectedType = LVdatatype.ctypeToFullTypeEnum(expectedCType)
                 if expectedType is not None and td_obj.fullType() != expectedType:
                     match = False
                     break
@@ -6430,8 +6433,8 @@ class VICD(CompleteBlock):
 
     def parseRSRCSectionMCLVRTPatches(self, section, section_num, pos, archEndianness, archDependLen, bldata):
         section.patches = []
-        codeTotLen = section.codeEndOffset
-        patchesTotLen = section.codeEndOffset - section.pTabOffset
+        codeTotLen = section.codeEndOffset  # noqa F841  # may not be needed, see TODO below
+        patchesTotLen = section.codeEndOffset - section.pTabOffset  # noqa F841  # may not be needed, see TODO below
         bldata.seek(pos)
         # TODO parse the patches instead of just reading raw data
         raise NotImplementedError("No parsing made for MCLVRTPatches")
@@ -7037,13 +7040,13 @@ class VITS(CompleteBlock):
 
         for i in range(count):
             val = SimpleNamespace()
-            val.name = readLStr(bldata, 1, self.po)
+            val.name = LV.readLStr(bldata, 1, self.po)
             self.appendPrintMapEntry(section, bldata.tell(), 4+len(val.name), 1,
                                      "TagObject[{}].Name".format(len(section.content)))
             if isSmallerVersion(ver, 6,5,0,2):  # noqa: E231
                 bldata.read(4)
             obj_pos = bldata.tell()
-            val.obj = LVdatafill.newDataFillObject(self.vi, blockref, TD_FULL_TYPE.LVVariant, None, self.po)
+            val.obj = LVdatafill.newDataFillObject(self.vi, blockref, LVdatatype.TD_FULL_TYPE.LVVariant, None, self.po)
             val.obj.useConsolidatedTypes = False
             if val.name in (b'nirviModGen',):
                 # The content of this type is RSRC file - store it accordingly
@@ -7061,7 +7064,7 @@ class VITS(CompleteBlock):
         # Endianness was wrong in some versions
         data_buf += len(section.content).to_bytes(4, byteorder=section.endianness, signed=False)
         for val in section.content:
-            data_buf += prepareLStr(val.name, 1, self.po)
+            data_buf += LV.prepareLStr(val.name, 1, self.po)
             if isSmallerVersion(ver, 6,5,0,2):  # noqa: E231
                 data_buf += (b'\0' * 4)
             data_buf += val.obj.prepareRSRCData()
