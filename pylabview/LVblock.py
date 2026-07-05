@@ -3022,8 +3022,6 @@ class FTAB(CompleteBlock):
         return data_buf
 
     def initWithXMLSectionFont(self, section, font_elem):
-        section_num = section.start.section_idx
-
         fnEntry = self.newFontEntry()
         tmp = font_elem.get("Prop2")
         if tmp is not None:
@@ -3669,7 +3667,6 @@ class LVSR(CompleteBlock):
 
     def expectedRSRCSize(self, section_num):
         section = self.sections[section_num]
-        ver = self.vi.getFileVersion()
         exp_whole_len = 68
 
         if LV.isGreaterOrEqVersion(section.version, 7,0):  # noqa: E231
