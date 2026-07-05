@@ -20,7 +20,7 @@ import zlib
 from PIL import Image
 from hashlib import md5
 from types import SimpleNamespace
-from ctypes import *
+from ctypes import c_ubyte, c_uint32, c_int32, sizeof
 
 from pylabview.LVmisc import *
 import pylabview.LVxml as ET
@@ -390,7 +390,7 @@ class Block(object):
         self.size = expSize
         if (self.po.verbose > 1):
             print("{:s}: Block {} max data size set to {:d} bytes".format(self.vi.src_fname, self.ident, self.size))
-        return minSize
+        return expSize
 
     def readRawDataSections(self, section_count=None):
         """ Reads raw data of sections from input file, up to given number
@@ -427,7 +427,7 @@ class Block(object):
             # It seem to be always the case, though file format does not mandate that
             if section.start.data_offset + sizeof(BlockSectionData) > rsrc_data_size:
                 raise IOError("Requested {} section {:d} data offset exceeds size of data block ({} > {})"
-                      .format(self.ident, i, section.start.data_offset + sizeof(BlockSectionData), rsrc_data_size))
+                      .format(self.ident, snum, section.start.data_offset + sizeof(BlockSectionData), rsrc_data_size))
             if fh.readinto(blksect) != sizeof(blksect):
                 raise EOFError("Could not read BlockSectionData struct for block {} at {:d}"
                                .format(self.ident, section.block_pos))
@@ -3341,6 +3341,10 @@ class DSTM(CompleteBlock):
     def getMaxTypeId(self, section_num=None):
         """ Returns TypeID of first item above ones mapped in this section
         """
+        if section_num is None:
+            section_num = self.active_section_num
+        self.parseData(section_num=section_num)
+        section = self.sections[section_num]
         return 1+len(section.content)
 
     def getTypeEntry(self, tme_index, section_num=None):
@@ -3829,7 +3833,8 @@ class LVSR(CompleteBlock):
 
             part_fname = "{:s}_{:s}.{:s}".format(fname_base, subelem.tag, "bin")
             if (self.po.verbose > 1):
-                print("{}: Storing block {} section {:d} part in '{}'".format(self.vi.src_fname, self.ident, snum, part_fname))
+                print("{}: Storing block {} section {:d} part in '{}'"
+                      .format(self.vi.src_fname, self.ident, section_num, part_fname))
             with open(part_fname, "wb") as part_fh:
                 part_fh.write(section.field90)
             subelem.set("Format", "bin")
