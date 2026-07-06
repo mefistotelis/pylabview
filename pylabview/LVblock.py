@@ -3572,7 +3572,7 @@ class LVSR(CompleteBlock):
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
 
-        # Size of the data increses with further versions
+        # Size of the data increases with further versions
         # Data before byte 68 does not move - so it's always safe to read
         data = LVSRData(self.po)
         dataLen = bldata.readinto(data)
@@ -5338,7 +5338,6 @@ class HeapVerc(CompleteBlock):
         content_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
         container_start = bldata.tell()
 
-        '''
         # TODO disabled as parsing HeapVerc is not fully implemented
         bldata.seek(content_len)
         data_len = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
@@ -5347,9 +5346,8 @@ class HeapVerc(CompleteBlock):
         container_len = content_len - data_len - container_start  # noqa F841  # see TODO below
 
         raw_subdata = bldata.read(data_len)
-        blsubdata = io.BytesIO(raw_subdata)
+        blsubdata = io.BytesIO(raw_subdata)  # noqa F841  # may not be needed, see TODO below
         bldata.seek(container_start)
-        '''
 
         section.objects = []
         # TODO parse heap data
