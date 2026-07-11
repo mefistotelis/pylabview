@@ -24,6 +24,8 @@ from types import SimpleNamespace
 from ctypes import c_ubyte, c_uint32, c_int32, sizeof
 
 import pylabview.LVmisc as LV
+from pylabview.LVmisc import eprint, isSmallerVersion, isGreaterOrEqVersion, RSRCStructure, \
+    getPrettyStrFromRsrcType, getRsrcTypeFromPrettyStr, importXMLBitfields, exportXMLBitfields
 import pylabview.LVxml as ET
 import pylabview.LVdatatype as LVdatatype
 import pylabview.LVinstrument as LVinstrument
@@ -41,7 +43,7 @@ class BLOCK_CODING(enum.Enum):
     XOR = 3
 
 
-class BlockHeader(LV.RSRCStructure):
+class BlockHeader(RSRCStructure):
     _fields_ = [('ident', c_ubyte * 4),	 # 0 4-byte block identifier
                 ('count', c_uint32),	 # 4 Amount of sections for that block
                 ('offset', c_uint32),	 # 8 Offset to the array of BlockSectionStart structs
@@ -56,7 +58,7 @@ class BlockHeader(LV.RSRCStructure):
         return ret
 
 
-class BlockSectionStart(LV.RSRCStructure):
+class BlockSectionStart(RSRCStructure):
     """ Info Header of a section
 
         Stores location of its data, but also name offset and index
@@ -78,7 +80,7 @@ class BlockSectionStart(LV.RSRCStructure):
         return ret
 
 
-class BlockSectionData(LV.RSRCStructure):
+class BlockSectionData(RSRCStructure):
     """ Header for raw data of a section within a block
 
         Stores only size of the raw data which follows.
@@ -162,7 +164,7 @@ class Block(object):
         section_num = section.start.section_idx
         if self.po.print_map == "RSRC" and section.block_coding == BLOCK_CODING.NONE \
            or self.po.print_map == type(self).__name__:
-            pretty_ident = LV.getPrettyStrFromRsrcType(self.ident)
+            pretty_ident = getPrettyStrFromRsrcType(self.ident)
             if self.po.print_map == "RSRC":
                 print_map_base = self.getDataPosInContainer(section_num=section_num)
             else:
@@ -194,7 +196,7 @@ class Block(object):
             self.vi.binflsthead.blockinfo_offset + \
             self.header.offset
         if self.po.print_map == "RSRC":
-            pretty_ident = LV.getPrettyStrFromRsrcType(self.ident)
+            pretty_ident = getPrettyStrFromRsrcType(self.ident)
 
         fh = self.vi.rsrc_fh
         fh.seek(start_pos)
@@ -232,7 +234,7 @@ class Block(object):
         """
         fh = self.vi.rsrc_fh
         if self.po.print_map == "RSRC":
-            pretty_ident = LV.getPrettyStrFromRsrcType(self.ident)
+            pretty_ident = getPrettyStrFromRsrcType(self.ident)
         # After BlockSectionStart list, there is Block Section Names list; only some sections have a name
         names_start = self.vi.getPositionOfBlockSectionNames()
         names_end = self.vi.getPositionOfBlockInfoEnd()
@@ -291,7 +293,7 @@ class Block(object):
 
         At the point it is executed, other blocks and sections are inaccessible.
         """
-        self.ident = LV.getRsrcTypeFromPrettyStr(block_elem.tag)
+        self.ident = getRsrcTypeFromPrettyStr(block_elem.tag)
         self.header = BlockHeader(self.po)
         self.header.ident = (c_ubyte * 4).from_buffer_copy(self.ident)
         self.active_section_num = None
@@ -321,8 +323,8 @@ class Block(object):
                     section.name_obj = LVclasses.LVPath0(self.vi, blockref, self.po)
                     section.name_obj.initWithXML(subelem)
                     if section.name_text is not None:
-                        LV.eprint("{:s}: Warning: Block {} section {} has both 'Name' attrib and 'NameObject' tag."
-                                  .format(self.vi.src_fname, self.ident, i))
+                        eprint("{:s}: Warning: Block {} section {} has both 'Name' attrib and 'NameObject' tag."
+                               .format(self.vi.src_fname, self.ident, i))
                     section.name_text = section.name_obj.prepareRSRCData()
                     break
 
@@ -409,7 +411,7 @@ class Block(object):
 
         fh = self.vi.rsrc_fh
         if self.po.print_map == "RSRC":
-            pretty_ident = LV.getPrettyStrFromRsrcType(self.ident)
+            pretty_ident = getPrettyStrFromRsrcType(self.ident)
         for snum, section in sorted(self.sections.items()):
             if snum >= section_count:
                 break
@@ -792,7 +794,7 @@ class Block(object):
     def exportFilesBase(self, snum, section):
         """ Prepare a base for file names of any files created by data export
         """
-        pretty_ident = LV.getPrettyStrFromRsrcType(self.ident)
+        pretty_ident = getPrettyStrFromRsrcType(self.ident)
         block_fpath = os.path.dirname(self.po.xml)
 
         fname_base = self.po.filebase
@@ -830,7 +832,7 @@ class Block(object):
         """
         from pylabview.LVrsrcontainer import FILE_FMT_TYPE
         ver = self.vi.getFileVersion()
-        pretty_ident = LV.getPrettyStrFromRsrcType(self.ident)
+        pretty_ident = getPrettyStrFromRsrcType(self.ident)
 
         elem = ET.Element(pretty_ident)
         if len(self.full_name) > 0:
@@ -840,7 +842,7 @@ class Block(object):
             section_elem = ET.SubElement(elem, "Section")
             section_elem.set("Index", str(snum))
 
-            if self.vi.ftype == FILE_FMT_TYPE.LLB or LV.isSmallerVersion(ver, 8,0,0):  # noqa: E231
+            if self.vi.ftype == FILE_FMT_TYPE.LLB or isSmallerVersion(ver, 8,0,0):  # noqa: E231
                 # Vefied to be non-zero in LV7.1 files, is zero in LV8.6 files
                 block_int5 = section.start.int5
             else:
@@ -973,12 +975,12 @@ class CompleteBlock(Block):
                 import sys
                 import traceback
                 traceback.print_exc(file=sys.stdout)
-            LV.eprint("{:s}: Warning: Block {} section {} parse exception: {}."
-                      .format(self.vi.src_fname, self.ident, section_num, str(e)))
+            eprint("{:s}: Warning: Block {} section {} parse exception: {}."
+                   .format(self.vi.src_fname, self.ident, section_num, str(e)))
         if bldata.tell() < totlen:
             section.parse_failed = True
-            LV.eprint("{:s}: Warning: Block {} section {} size is {} and does not match parsed size {}"
-                      .format(self.vi.src_fname, self.ident, section_num, totlen, bldata.tell()))
+            eprint("{:s}: Warning: Block {} section {} size is {} and does not match parsed size {}"
+                   .format(self.vi.src_fname, self.ident, section_num, totlen, bldata.tell()))
         if section.parse_failed:
             bldata.seek(startpos)
             Block.parseRSRCData(self, section_num, bldata)
@@ -999,8 +1001,8 @@ class CompleteBlock(Block):
 
         # Do not re-create raw data if parsing failed and we still have the original
         if (section.parse_failed and self.hasRawData(section_num)):
-            LV.eprint("{:s}: Warning: Block {} section {} left in original raw form, without re-building"
-                      .format(self.vi.src_fname, self.ident, section_num))
+            eprint("{:s}: Warning: Block {} section {} left in original raw form, without re-building"
+                   .format(self.vi.src_fname, self.ident, section_num))
             return
 
         data_buf = b''
@@ -1012,8 +1014,8 @@ class CompleteBlock(Block):
                 import sys
                 import traceback
                 traceback.print_exc(file=sys.stdout)
-            LV.eprint("{:s}: Warning: Block {} section {} binary prepare exception: {}."
-                      .format(self.vi.src_fname, self.ident, section_num, str(e)))
+            eprint("{:s}: Warning: Block {} section {} binary prepare exception: {}."
+                   .format(self.vi.src_fname, self.ident, section_num, str(e)))
 
         # Do not re-create raw data if parsing failed and we still have the original
         if section.parse_failed:
@@ -1021,8 +1023,8 @@ class CompleteBlock(Block):
                 raise RuntimeError("Block {} section {} could not prepare binary data"
                                    .format(self.ident, section_num))
             else:
-                LV.eprint("{:s}: Warning: Block {} section {} left in original raw form, without re-building"
-                          .format(self.vi.src_fname, self.ident, section_num))
+                eprint("{:s}: Warning: Block {} section {} left in original raw form, without re-building"
+                       .format(self.vi.src_fname, self.ident, section_num))
             return
 
         exp_whole_len = self.expectedRSRCSize(section_num)
@@ -1165,8 +1167,8 @@ class CompleteBlock(Block):
                 import sys
                 import traceback
                 traceback.print_exc(file=sys.stdout)
-            LV.eprint("{:s}: Warning: Block {} section {} XML export exception: {}."
-                      .format(self.vi.src_fname, self.ident, section_num, str(e)))
+            eprint("{:s}: Warning: Block {} section {} XML export exception: {}."
+                   .format(self.vi.src_fname, self.ident, section_num, str(e)))
             Block.exportXMLSection(self, section_elem, section_num, section, fname_base)
             return
 
@@ -1199,7 +1201,7 @@ class VarCodingBlock(Block):
     def setDefaultEncoding(self, section_num):
         section = self.sections[section_num]
         ver = self.vi.getFileVersion()
-        if LV.isGreaterOrEqVersion(ver, 6,0,0):  # noqa: E231
+        if isGreaterOrEqVersion(ver, 6,0,0):  # noqa: E231
             section.block_coding = BLOCK_CODING.ZLIB
         else:
             section.block_coding = BLOCK_CODING.NONE
@@ -1336,7 +1338,7 @@ class FPTD(CompleteBlock):
         The block contains single TD index for LV 8.6.0, it does not for LV6.0.1
         """
         ver = self.vi.getFileVersion()
-        return LV.isGreaterOrEqVersion(ver, 7,0,0)  # noqa: E231
+        return isGreaterOrEqVersion(ver, 7,0,0)  # noqa: E231
 
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
@@ -1913,12 +1915,12 @@ class STR(SingleStringBlock):
     def isSingleShortString(self):
         from pylabview.LVrsrcontainer import FILE_FMT_TYPE
         ver = self.vi.getFileVersion()
-        return (self.vi.ftype == FILE_FMT_TYPE.LLB) or LV.isSmallerVersion(ver, 8,0,0)  # noqa: E231
+        return (self.vi.ftype == FILE_FMT_TYPE.LLB) or isSmallerVersion(ver, 8,0,0)  # noqa: E231
 
     def isSingleLVVariant(self):
         from pylabview.LVrsrcontainer import FILE_FMT_TYPE
         ver = self.vi.getFileVersion()
-        return (self.vi.ftype == FILE_FMT_TYPE.VI) and LV.isGreaterOrEqVersion(ver, 8,0,0)  # noqa: E231
+        return (self.vi.ftype == FILE_FMT_TYPE.VI) and isGreaterOrEqVersion(ver, 8,0,0)  # noqa: E231
 
     def parseRSRCSectionData(self, section_num, bldata):
         section = self.sections[section_num]
@@ -2163,7 +2165,7 @@ class STRG(StringListBlock):
         """ Properly sets storage mode based on LV version
         """
         ver = self.vi.getFileVersion()
-        if LV.isGreaterOrEqVersion(ver, 4,0,0):  # noqa: E231
+        if isGreaterOrEqVersion(ver, 4,0,0):  # noqa: E231
             section.count_len = 0
             section.size_len = 4
         else:  # Tested on LV2.5
@@ -2206,7 +2208,7 @@ class LSTsh(StringListBlock):
         if vers is None:
             return 1
         ver = self.vi.getFileVersion()
-        if LV.isSmallerVersion(ver, 11,0,0,0):  # noqa: E231
+        if isSmallerVersion(ver, 11,0,0,0):  # noqa: E231
             return 4
         return 1
 
@@ -2285,7 +2287,7 @@ class LinkObjRefs(CompleteBlock):
             raise AttributeError("List of LinkObjects incorrectly started with {}".format(nextLinkInfo))
         section.ident = bldata.read(4)
         self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "LinkObject[{}].Ident".format(0))
-        if LV.isSmallerVersion(ver, 14,0,0,3):  # noqa: E231
+        if isSmallerVersion(ver, 14,0,0,3):  # noqa: E231
             section.unk1 = LV.readPStr(bldata, 2, self.po)
             self.appendPrintMapEntry(section, bldata.tell(), 1+len(section.unk1), 2, "LinkObject[{}].Unk1".format(0))
             wordlen = int.from_bytes(bldata.read(2), byteorder='big', signed=False)
@@ -2329,7 +2331,7 @@ class LinkObjRefs(CompleteBlock):
         data_buf = b''
         data_buf += int(1).to_bytes(2, byteorder='big', signed=False)  # nextLinkInfo
         data_buf += section.ident
-        if LV.isSmallerVersion(ver, 14,0,0,3):  # noqa: E231
+        if isSmallerVersion(ver, 14,0,0,3):  # noqa: E231
             data_buf += LV.preparePStr(section.unk1, 2, self.po)
             data_buf += int(len(section.unk2)/2).to_bytes(2, byteorder='big', signed=False)
             data_buf += section.unk2
@@ -2345,7 +2347,7 @@ class LinkObjRefs(CompleteBlock):
         ver = self.vi.getFileVersion()
         exp_whole_len = 0
         exp_whole_len += 2 + 4
-        if LV.isSmallerVersion(ver, 14,0,0,3):  # noqa: E231
+        if isSmallerVersion(ver, 14,0,0,3):  # noqa: E231
             str_len = 1 + len(section.unk1)
             uneven_len = str_len % 2
             if uneven_len > 0:
@@ -2363,7 +2365,7 @@ class LinkObjRefs(CompleteBlock):
         return exp_whole_len
 
     def initWithXMLList(self, section, list_elem):
-        section.ident = LV.getRsrcTypeFromPrettyStr(list_elem.tag)
+        section.ident = getRsrcTypeFromPrettyStr(list_elem.tag)
         unk1 = list_elem.get("Unk1")
         if unk1 is not None:
             section.unk1 = unk1.encode(self.vi.textEncoding)
@@ -2372,7 +2374,7 @@ class LinkObjRefs(CompleteBlock):
             section.unk2 = bytes.fromhex(unk2)
         blockref = (self.ident, section.start.section_idx,)
         for subelem in list_elem:
-            lnkobj_ident = LV.getRsrcTypeFromPrettyStr(subelem.tag)
+            lnkobj_ident = getRsrcTypeFromPrettyStr(subelem.tag)
             client = LVlinkinfo.newLinkObject(self.vi, blockref, section.ident, lnkobj_ident, self.po)
             section.content.append(client)
             client.initWithXML(subelem)
@@ -2404,7 +2406,7 @@ class LinkObjRefs(CompleteBlock):
         pass
 
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
-        pretty_ident = LV.getPrettyStrFromRsrcType(section.ident)
+        pretty_ident = getPrettyStrFromRsrcType(section.ident)
         list_elem = ET.SubElement(section_elem, pretty_ident)
         if len(section.unk1) > 0 or len(section.unk2) > 0:
             list_elem.set("Unk1", section.unk1.decode(self.vi.textEncoding))
@@ -2491,7 +2493,7 @@ class DFDS(CompleteBlock):
         section = self.sections[section_num]
         ver = self.vi.getFileVersion()
         # Verified uncompressed in LV7.1.0, ZLIB compressed in LV8.6
-        if LV.isGreaterOrEqVersion(ver, 8,0,0):  # noqa: E231
+        if isGreaterOrEqVersion(ver, 8,0,0):  # noqa: E231
             section.block_coding = BLOCK_CODING.ZLIB
         else:
             section.block_coding = BLOCK_CODING.NONE
@@ -2509,7 +2511,7 @@ class DFDS(CompleteBlock):
 
         if TM is None:
             raise RuntimeError("No type map block to put default data into types")
-        elif LV.isGreaterOrEqVersion(ver, 8,0,0,1):  # noqa: E231
+        elif isGreaterOrEqVersion(ver, 8,0,0,1):  # noqa: E231
             TypeMap = TM.getTypeMap()
             for tmEntry in TypeMap:
                 if (tmEntry.flags & LVdatatype.TM_FLAGS.TMFBit3) != 0 or \
@@ -2532,7 +2534,7 @@ class DFDS(CompleteBlock):
         ver = self.vi.getFileVersion()
 
         section.content = []
-        if LV.isGreaterOrEqVersion(ver, 8,0,0,1):  # noqa: E231
+        if isGreaterOrEqVersion(ver, 8,0,0,1):  # noqa: E231
             blockref = (self.ident, section.start.section_idx,)
             for tmEntry, defDataType in self.getTypeMapWithDefltData():
                 df = None
@@ -3220,7 +3222,7 @@ class DTHP(CompleteBlock):
         section.tdCount = 0
         section.content = []
 
-        if LV.isGreaterOrEqVersion(ver, 8,0,0,1):  # noqa: E231
+        if isGreaterOrEqVersion(ver, 8,0,0,1):  # noqa: E231
             section.tdCount = LV.readVariableSizeFieldU2p2(bldata)
             # If there is no count provided, then there is no shift
             # LV14 writes it like this; though it doesn't support this while reading
@@ -3237,7 +3239,7 @@ class DTHP(CompleteBlock):
         ver = self.vi.getFileVersion()
 
         data_buf = b''
-        if LV.isGreaterOrEqVersion(ver, 8,0,0,1):  # noqa: E231
+        if isGreaterOrEqVersion(ver, 8,0,0,1):  # noqa: E231
             data_buf += LV.prepareVariableSizeFieldU2p2(section.tdCount)
             if section.tdCount > 0:
                 data_buf += LV.prepareVariableSizeFieldU2p2(section.indexShift)
@@ -3250,7 +3252,7 @@ class DTHP(CompleteBlock):
         section = self.sections[section_num]
         ver = self.vi.getFileVersion()
 
-        if LV.isGreaterOrEqVersion(ver, 8,0,0,1):  # noqa: E231
+        if isGreaterOrEqVersion(ver, 8,0,0,1):  # noqa: E231
             exp_whole_len = 0
             exp_whole_len += 2
             if section.tdCount > 0:
@@ -3274,7 +3276,7 @@ class DTHP(CompleteBlock):
     def exportXMLSectionData(self, section_elem, section_num, section, fname_base):
         ver = self.vi.getFileVersion()
 
-        if LV.isGreaterOrEqVersion(ver, 8,0,0,1):  # noqa: E231
+        if isGreaterOrEqVersion(ver, 8,0,0,1):  # noqa: E231
             # This is only for a comment, allowed to return None
             VCTP = self.vi.get('VCTP')
 
@@ -3327,7 +3329,7 @@ class DSTM(CompleteBlock):
         section = self.sections[section_num]
         ver = self.vi.getFileVersion()
         # Verified uncompressed in LV7.1.0, compressed in LV8.6
-        if LV.isGreaterOrEqVersion(ver, 8,0,0):  # noqa: E231
+        if isGreaterOrEqVersion(ver, 8,0,0):  # noqa: E231
             section.block_coding = BLOCK_CODING.ZLIB
         else:
             section.block_coding = BLOCK_CODING.NONE
@@ -3367,7 +3369,7 @@ class TM80(CompleteBlock):
     def setDefaultEncoding(self, section_num):
         section = self.sections[section_num]
         ver = self.vi.getFileVersion()
-        if LV.isGreaterOrEqVersion(ver, 10,0,0):  # noqa: E231
+        if isGreaterOrEqVersion(ver, 10,0,0):  # noqa: E231
             section.block_coding = BLOCK_CODING.ZLIB
         else:
             section.block_coding = BLOCK_CODING.NONE
@@ -3412,7 +3414,7 @@ class TM80(CompleteBlock):
             if (subelem.tag == "NameObject"):
                 pass  # Items parsed somewhere else
             elif (subelem.tag == "Client"):
-                val = LV.importXMLBitfields(LVdatatype.TM_FLAGS, subelem)
+                val = importXMLBitfields(LVdatatype.TM_FLAGS, subelem)
                 section.content.append(val)
             else:
                 raise AttributeError("Section contains unexpected tag")
@@ -3439,7 +3441,7 @@ class TM80(CompleteBlock):
 
             subelem = ET.SubElement(section_elem, "Client")
 
-            LV.exportXMLBitfields(LVdatatype.TM_FLAGS, subelem, val)
+            exportXMLBitfields(LVdatatype.TM_FLAGS, subelem, val)
 
         if len(section.content) == 0:
             comment_elem = ET.Comment("List of types is empty")
@@ -3462,8 +3464,8 @@ class TM80(CompleteBlock):
             tmEntry.flags = val
             tmEntry.td = VCTP.getTopType(tmEntry.index)
             if tmEntry.td is None:
-                LV.eprint("{:s}: Warning: Block {} section {} references VCTP type {}+{} which does not exist."
-                          .format(self.vi.src_fname, self.ident, section_num, section.indexShift, i))
+                eprint("{:s}: Warning: Block {} section {} references VCTP type {}+{} which does not exist."
+                       .format(self.vi.src_fname, self.ident, section_num, section.indexShift, i))
 
         return tmEntry
 
@@ -3502,8 +3504,8 @@ class TM80(CompleteBlock):
             tmEntry.flags = val
             tmEntry.td = VCTP.getTopType(tmEntry.index)
             if tmEntry.td is None:
-                LV.eprint("{:s}: Warning: Block {} section {} references VCTP type {}+{} which does not exist."
-                          .format(self.vi.src_fname, self.ident, section_num, section.indexShift, i))
+                eprint("{:s}: Warning: Block {} section {} references VCTP type {}+{} which does not exist."
+                       .format(self.vi.src_fname, self.ident, section_num, section.indexShift, i))
             else:
                 typeMap.append(tmEntry)
 
@@ -3601,22 +3603,22 @@ class LVSR(CompleteBlock):
         # Additional data, exists only in newer versions
         # sizeof(LVSR) per version: 6.0.1->68 7.1.0->96 8.6b7->120 9.0b25->120 9.0->120 10.0b84->120 10.0->136 11.0.1->136
         # 12.0->136 13.0->136 14.0->137
-        if LV.isGreaterOrEqVersion(section.version, 7,0):  # noqa: E231
+        if isGreaterOrEqVersion(section.version, 7,0):  # noqa: E231
             section.alignGridFP = int(data.alignGridFP)
             section.alignGridBD = int(data.alignGridBD)
             section.field4C = int(data.field4C)
             section.ctrlIndStyle = int(data.ctrlIndStyle)
             section.field50_md5 = bytes(data.field50_md5)
-        if LV.isGreaterOrEqVersion(section.version, 8,0):  # noqa: E231
+        if isGreaterOrEqVersion(section.version, 8,0):  # noqa: E231
             section.libpass_md5 = bytes(data.libpass_md5)
             section.libpass_text = None
             section.field70 = int(data.field70)
             section.field74 = int(data.field74)
-        if LV.isGreaterOrEqVersion(section.version, 10,0, stage='release'):  # noqa: E231
+        if isGreaterOrEqVersion(section.version, 10,0, stage='release'):  # noqa: E231
             section.field78_md5 = bytes(data.field78_md5)
-        if LV.isGreaterOrEqVersion(section.version, 14,0):  # noqa: E231
+        if isGreaterOrEqVersion(section.version, 14,0):  # noqa: E231
             section.inlineStg = int(data.inlineStg)
-        if LV.isGreaterOrEqVersion(section.version, 15,0):  # noqa: E231
+        if isGreaterOrEqVersion(section.version, 15,0):  # noqa: E231
             section.field8C = int(data.field8C)
         # Any data added in future versions
         section.field90 = bldata.read()
@@ -3643,23 +3645,23 @@ class LVSR(CompleteBlock):
         data_buf += int(section.field2C).to_bytes(4, byteorder='big')
         data_buf += int(section.field30).to_bytes(4, byteorder='big')
         data_buf += section.viSignature
-        if LV.isGreaterOrEqVersion(section.version, 7,0):  # noqa: E231
+        if isGreaterOrEqVersion(section.version, 7,0):  # noqa: E231
             data_buf += int(section.alignGridFP).to_bytes(4, byteorder='big')
             data_buf += int(section.alignGridBD).to_bytes(4, byteorder='big')
             data_buf += int(section.field4C).to_bytes(2, byteorder='big')
             data_buf += int(section.ctrlIndStyle).to_bytes(2, byteorder='big')
             data_buf += section.field50_md5
-        if LV.isGreaterOrEqVersion(section.version, 8,0):  # noqa: E231
+        if isGreaterOrEqVersion(section.version, 8,0):  # noqa: E231
             if section.libpass_text is not None:
                 pass  # TODO re-compute md5 from pass
             data_buf += section.libpass_md5
             data_buf += int(section.field70).to_bytes(4, byteorder='big')
             data_buf += int(section.field74).to_bytes(4, byteorder='big', signed=True)
-        if LV.isGreaterOrEqVersion(section.version, 10,0, stage='release'):  # noqa: E231
+        if isGreaterOrEqVersion(section.version, 10,0, stage='release'):  # noqa: E231
             data_buf += section.field78_md5
-        if LV.isGreaterOrEqVersion(section.version, 14,0):  # noqa: E231
+        if isGreaterOrEqVersion(section.version, 14,0):  # noqa: E231
             data_buf += int(section.inlineStg).to_bytes(1, byteorder='big')
-        if LV.isGreaterOrEqVersion(section.version, 15,0):  # noqa: E231
+        if isGreaterOrEqVersion(section.version, 15,0):  # noqa: E231
             data_buf += b'\0' * 3
             data_buf += int(section.field8C).to_bytes(4, byteorder='big')
         data_buf += section.field90
@@ -3669,15 +3671,15 @@ class LVSR(CompleteBlock):
         section = self.sections[section_num]
         exp_whole_len = 68
 
-        if LV.isGreaterOrEqVersion(section.version, 7,0):  # noqa: E231
+        if isGreaterOrEqVersion(section.version, 7,0):  # noqa: E231
             exp_whole_len += 28
-        if LV.isGreaterOrEqVersion(section.version, 8,0):  # noqa: E231
+        if isGreaterOrEqVersion(section.version, 8,0):  # noqa: E231
             exp_whole_len += 24
-        if LV.isGreaterOrEqVersion(section.version, 10,0, stage='release'):  # noqa: E231
+        if isGreaterOrEqVersion(section.version, 10,0, stage='release'):  # noqa: E231
             exp_whole_len += 16  # total 136
-        if LV.isGreaterOrEqVersion(section.version, 14,0):  # noqa: E231
+        if isGreaterOrEqVersion(section.version, 14,0):  # noqa: E231
             exp_whole_len += 1  # total 137
-        if LV.isGreaterOrEqVersion(section.version, 15,0):  # noqa: E231
+        if isGreaterOrEqVersion(section.version, 15,0):  # noqa: E231
             exp_whole_len += 3 + 4
         exp_whole_len += len(section.field90)
         return exp_whole_len
@@ -3715,23 +3717,23 @@ class LVSR(CompleteBlock):
                 section.execState = int(subelem.get("State"), 0)
                 section.execPrio = int(subelem.get("Priority"), 0)
                 section.prefExecSyst = int(subelem.get("PrefExecSyst"), 0)
-                section.execFlags = LV.importXMLBitfields(LVinstrument.VI_EXEC_FLAGS, subelem)
+                section.execFlags = importXMLBitfields(LVinstrument.VI_EXEC_FLAGS, subelem)
             elif (subelem.tag == "Execution2"):
-                section.viFlags2 = LV.importXMLBitfields(LVinstrument.VI_FLAGS2, subelem)
+                section.viFlags2 = importXMLBitfields(LVinstrument.VI_FLAGS2, subelem)
             elif (subelem.tag == "ButtonsHidden"):
-                section.buttonsHidden = LV.importXMLBitfields(LVinstrument.VI_BTN_HIDE_FLAGS, subelem)
+                section.buttonsHidden = importXMLBitfields(LVinstrument.VI_BTN_HIDE_FLAGS, subelem)
             elif (subelem.tag == "Instrument"):
                 section.viType = LV.valFromEnumOrIntString(LVinstrument.VI_TYPE, subelem.get("Type"))
                 tmphash = subelem.get("Signature")
                 section.viSignature = bytes.fromhex(tmphash)
-                section.instrState = LV.importXMLBitfields(LVinstrument.VI_IN_ST_FLAGS, subelem)
+                section.instrState = importXMLBitfields(LVinstrument.VI_IN_ST_FLAGS, subelem)
             elif (subelem.tag == "FrontPanel"):
                 section.ctrlIndStyle = int(subelem.get("CtrlIndStyle"), 0)
-                section.frontpFlags = LV.importXMLBitfields(LVinstrument.VI_FP_FLAGS, subelem)
+                section.frontpFlags = importXMLBitfields(LVinstrument.VI_FP_FLAGS, subelem)
             elif (subelem.tag == "Flags0C"):
-                section.field0C = LV.importXMLBitfields(LVinstrument.VI_FLAGS0C, subelem)
+                section.field0C = importXMLBitfields(LVinstrument.VI_FLAGS0C, subelem)
             elif (subelem.tag == "Flags12"):
-                section.field12 = LV.importXMLBitfields(LVinstrument.VI_FLAGS12, subelem)
+                section.field12 = importXMLBitfields(LVinstrument.VI_FLAGS12, subelem)
             elif (subelem.tag == "Unknown"):
                 section.flags10 = int(subelem.get("Flags10"), 0)
                 section.field28 = int(subelem.get("Field28"), 0)
@@ -3784,29 +3786,29 @@ class LVSR(CompleteBlock):
         subelem.set("State", "{:d}".format(section.execState))
         subelem.set("Priority", "{:d}".format(section.execPrio))
         subelem.set("PrefExecSyst", "{:d}".format(section.prefExecSyst))
-        LV.exportXMLBitfields(LVinstrument.VI_EXEC_FLAGS, subelem, section.execFlags,
-                              skip_mask=LVinstrument.VI_EXEC_FLAGS.LibProtected.value)
+        exportXMLBitfields(LVinstrument.VI_EXEC_FLAGS, subelem, section.execFlags,
+                           skip_mask=LVinstrument.VI_EXEC_FLAGS.LibProtected.value)
 
         subelem = ET.SubElement(section_elem, "Execution2")
-        LV.exportXMLBitfields(LVinstrument.VI_FLAGS2, subelem, section.viFlags2)
+        exportXMLBitfields(LVinstrument.VI_FLAGS2, subelem, section.viFlags2)
 
         subelem = ET.SubElement(section_elem, "ButtonsHidden")
-        LV.exportXMLBitfields(LVinstrument.VI_BTN_HIDE_FLAGS, subelem, section.buttonsHidden)
+        exportXMLBitfields(LVinstrument.VI_BTN_HIDE_FLAGS, subelem, section.buttonsHidden)
 
         subelem = ET.SubElement(section_elem, "Instrument")
         subelem.set("Type", "{:s}".format(LV.stringFromValEnumOrInt(LVinstrument.VI_TYPE, section.viType)))
         subelem.set("Signature", section.viSignature.hex())
-        LV.exportXMLBitfields(LVinstrument.VI_IN_ST_FLAGS, subelem, section.instrState)
+        exportXMLBitfields(LVinstrument.VI_IN_ST_FLAGS, subelem, section.instrState)
 
         subelem = ET.SubElement(section_elem, "FrontPanel")
         subelem.set("CtrlIndStyle", "{:d}".format(section.ctrlIndStyle))
-        LV.exportXMLBitfields(LVinstrument.VI_FP_FLAGS, subelem, section.frontpFlags)
+        exportXMLBitfields(LVinstrument.VI_FP_FLAGS, subelem, section.frontpFlags)
 
         subelem = ET.SubElement(section_elem, "Flags0C")
-        LV.exportXMLBitfields(LVinstrument.VI_FLAGS0C, subelem, section.field0C)
+        exportXMLBitfields(LVinstrument.VI_FLAGS0C, subelem, section.field0C)
 
         subelem = ET.SubElement(section_elem, "Flags12")
-        LV.exportXMLBitfields(LVinstrument.VI_FLAGS12, subelem, section.field12)
+        exportXMLBitfields(LVinstrument.VI_FLAGS12, subelem, section.field12)
 
         subelem = ET.SubElement(section_elem, "Unknown")
 
@@ -3867,9 +3869,9 @@ class vers(Block):
         section.version_info = bldata.read(version_info_len)
         comment_len = int.from_bytes(bldata.read(1), byteorder='big', signed=False)
         section.comment = bldata.read(comment_len)
-        if LV.isGreaterOrEqVersion(self.version, 8,6,0) and comment_len != 0:  # noqa: E231
-            LV.eprint("Warning: Block {} section {} comment length is {} instead of {}"
-                      .format(self.ident, section_num, comment_len, 0))
+        if isGreaterOrEqVersion(self.version, 8,6,0) and comment_len != 0:  # noqa: E231
+            eprint("Warning: Block {} section {} comment length is {} instead of {}"
+                   .format(self.ident, section_num, comment_len, 0))
 
     def updateSectionData(self, section_num=None):
         if section_num is None:
@@ -4382,7 +4384,7 @@ class BDPW(Block):
         Tested not to be there in LV7.1, is there in LV8.6b7
         """
         ver = self.vi.getFileVersion()
-        return LV.isGreaterOrEqVersion(ver, 8,0,0)  # noqa: E231
+        return isGreaterOrEqVersion(ver, 8,0,0)  # noqa: E231
 
     def parseRSRCData(self, section_num, bldata):
         section = self.sections[section_num]
@@ -4411,8 +4413,8 @@ class BDPW(Block):
 
         exp_whole_len = self.expectedRSRCSize(section_num)
         if (len(data_buf) != exp_whole_len):
-            LV.eprint("{:s}: Warning: Block {} section {} generated binary data of size {:d}, expected {:d}"
-                      .format(self.vi.src_fname, self.ident, section_num, len(data_buf), exp_whole_len))
+            eprint("{:s}: Warning: Block {} section {} generated binary data of size {:d}, expected {:d}"
+                   .format(self.vi.src_fname, self.ident, section_num, len(data_buf), exp_whole_len))
 
         self.setData(data_buf, section_num=section_num)
 
@@ -4428,8 +4430,8 @@ class BDPW(Block):
             self.recalculateHash1(section_num=snum, store=False)  # this is needed to find salt
             self.recognizePassword(section_num=snum)
         except Exception as e:
-            LV.eprint("{:s}: Warning: Block {} section {} could not be fully parametrized: {}"
-                      .format(self.vi.src_fname, self.ident, snum, str(e)))
+            eprint("{:s}: Warning: Block {} section {} could not be fully parametrized: {}"
+                   .format(self.vi.src_fname, self.ident, snum, str(e)))
             pass
 
         subelem = ET.SubElement(section_elem, "Password")
@@ -4513,13 +4515,13 @@ class BDPW(Block):
         salt = b''
         salt_source = "None"
         ver = self.vi.getFileVersion()
-        if not LV.isGreaterOrEqVersion(ver, 1,0):  # noqa: E231
+        if not isGreaterOrEqVersion(ver, 1,0):  # noqa: E231
             if (self.po.verbose > 0):
-                LV.eprint("{:s}: Warning: No version block found; assuming oldest format, with empty password salt"
-                          .format(self.vi.src_fname))
+                eprint("{:s}: Warning: No version block found; assuming oldest format, with empty password salt"
+                       .format(self.vi.src_fname))
             section.salt = salt
             return salt
-        if LV.isGreaterOrEqVersion(ver, 12,0):  # noqa: E231
+        if isGreaterOrEqVersion(ver, 12,0):  # noqa: E231
             # Figure out the salt
             salt_td_flat_idx = None
             VCTP = self.vi.get_or_raise('VCTP')
@@ -4877,7 +4879,7 @@ class PRT(CompleteBlock):
         section.field90 = b''
         # The size is 128 bytes for LV7.0 and older, and LV 14.0 and newer; but for some
         # versions between, there are additional 24 bytes in this block, zero-filled
-        if LV.isGreaterOrEqVersion(ver, 10,0,0,4):  # noqa: E231
+        if isGreaterOrEqVersion(ver, 10,0,0,4):  # noqa: E231
             section.field90 = bldata.read(24)
 
     def prepareRSRCData(self, section_num):
@@ -4917,7 +4919,7 @@ class PRT(CompleteBlock):
         data_buf += int(section.field84).to_bytes(4, byteorder='big', signed=False)
         data_buf += int(section.field88).to_bytes(4, byteorder='big', signed=False)
         data_buf += int(section.field8C).to_bytes(4, byteorder='big', signed=False)
-        if LV.isGreaterOrEqVersion(ver, 10,0,0,4):  # noqa: E231
+        if isGreaterOrEqVersion(ver, 10,0,0,4):  # noqa: E231
             data_buf += section.field90
         return data_buf
 
@@ -5211,8 +5213,8 @@ class HeapVerb(CompleteBlock):
             tot_len += entry_len
 
         if parentNode is not None:
-            LV.eprint("{}: Warning: In block {}, heap did not closed all tags"
-                      .format(self.vi.src_fname, self.ident))
+            eprint("{}: Warning: In block {}, heap did not closed all tags"
+                   .format(self.vi.src_fname, self.ident))
         pass
 
     def prepareRSRCData(self, section_num):
@@ -5283,8 +5285,8 @@ class HeapVerb(CompleteBlock):
             elif scopeInfo == LVheap.NODE_SCOPE.TagClose:
                 elem = parent_elems.pop()
                 if elem.tag != tagName:
-                    LV.eprint("{}: Warning: In block {}, closing tag {} instead of {}"
-                              .format(self.vi.src_fname, self.ident, tagName, elem.tag))
+                    eprint("{}: Warning: In block {}, closing tag {} instead of {}"
+                           .format(self.vi.src_fname, self.ident, tagName, elem.tag))
             else:
                 # Having two root items would crash here. And that's good, we can't have two roots.
                 elem = ET.SubElement(parent_elems[-1], tagName)
@@ -5295,8 +5297,8 @@ class HeapVerb(CompleteBlock):
                 parent_elems.append(elem)
 
         if len(parent_elems) > 0:
-            LV.eprint("{}: Warning: In block {}, heap structure is not a valid XML tree"
-                      .format(self.vi.src_fname, self.ident))
+            eprint("{}: Warning: In block {}, heap structure is not a valid XML tree"
+                   .format(self.vi.src_fname, self.ident))
         pass
 
     def initWithXMLLate(self):
@@ -5656,7 +5658,7 @@ class UCRF(VarCodingBlock):
                     snum_str = 'm' + str(-snum)
                 fname_base = "{:s}_{:s}".format(fname_base, snum_str)
         else:
-            pretty_ident = LV.getPrettyStrFromRsrcType(self.ident)
+            pretty_ident = getPrettyStrFromRsrcType(self.ident)
             if len(self.sections) == 1:
                 fname_base = "{:s}_{:s}".format(fname_base, pretty_ident)
             else:
@@ -5750,8 +5752,8 @@ class TypeDescListBase(CompleteBlock):
             self.appendPrintMapEntry(section, bldata.tell(), bldata.tell()-pos, 1,
                                      "TypeDesc[{}].{}.Header".format(td_idx, obj_type_str))
         if obj_len < 4:
-            LV.eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d} too small to be valid"
-                      .format(self.vi.src_fname, len(section.content), obj_type, obj_len))
+            eprint("{:s}: Warning: TypeDesc {:d} type 0x{:02x} data size {:d} too small to be valid"
+                   .format(self.vi.src_fname, len(section.content), obj_type, obj_len))
             obj_type = LVdatatype.TD_FULL_TYPE.Void
         obj = LVdatatype.newTDObject(self.vi, blockref, len(section.content), obj_flags, obj_type, self.po)
 
@@ -5795,7 +5797,7 @@ class TypeDescListBase(CompleteBlock):
     def initWithXMLTypeDesc(self, section, td_elem):
         obj_idx = len(section.content)
         obj_type = LV.valFromEnumOrIntString(LVdatatype.TD_FULL_TYPE, td_elem.get("Type"))
-        obj_flags = LV.importXMLBitfields(LVdatatype.TYPEDESC_FLAGS, td_elem)
+        obj_flags = importXMLBitfields(LVdatatype.TYPEDESC_FLAGS, td_elem)
         blockref = (self.ident, section.start.section_idx,)
         obj = LVdatatype.newTDObject(self.vi, blockref, obj_idx, obj_flags, obj_type, self.po)
         clientTD = SimpleNamespace()
@@ -5895,8 +5897,8 @@ class TypeDescListBase(CompleteBlock):
         for i, val in enumerate(section.topLevel):
             if val >= len(section.content):
                 if (self.po.verbose > 1):
-                    LV.eprint("{:s}: Warning: TopLevel index {:d} exceeds flat TD count {:d}"
-                              .format(self.vi.src_fname, i, len(section.content)))
+                    eprint("{:s}: Warning: TopLevel index {:d} exceeds flat TD count {:d}"
+                           .format(self.vi.src_fname, i, len(section.content)))
                 ret = False
         return ret
 
@@ -6213,7 +6215,7 @@ class VICD(CompleteBlock):
         section = self.sections[section_num]
         ver = self.vi.getFileVersion()
         # verified NONE in 5.1, ZLIB in 8.6
-        if LV.isGreaterOrEqVersion(ver, 8,0,0,3):  # noqa: E231
+        if isGreaterOrEqVersion(ver, 8,0,0,3):  # noqa: E231
             section.block_coding = BLOCK_CODING.ZLIB
         else:
             section.block_coding = BLOCK_CODING.NONE
@@ -6240,7 +6242,7 @@ class VICD(CompleteBlock):
     def parseRSRCSectionHead(self, section, section_num, bldata):
         ver = self.vi.getFileVersion()
 
-        if LV.isGreaterOrEqVersion(ver, 12,0,0,0):  # noqa: E231  # Should be False for LV 11,0,0,4, True for 14,0,0,3
+        if isGreaterOrEqVersion(ver, 12,0,0,0):  # noqa: E231  # Should be False for LV 11,0,0,4, True for 14,0,0,3
             initProcOffset = bldata.read(4)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.initProcOffset")
             section.codeID = bldata.read(4)
@@ -6269,7 +6271,7 @@ class VICD(CompleteBlock):
             self.appendPrintMapEntry(section, bldata.tell(), archDependLen, 1, "Head.codeEndOffset")
             section.signatureName = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.signatureName")
-        elif LV.isGreaterOrEqVersion(ver, 5,0,0,0):  # noqa: E231  # Lowest version tested with this is LV 6,0,0,2
+        elif isGreaterOrEqVersion(ver, 5,0,0,0):  # noqa: E231  # Lowest version tested with this is LV 6,0,0,2
             initProcOffset = bldata.read(4)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.initProcOffset")
             section.codeID = bldata.read(4)
@@ -6325,7 +6327,7 @@ class VICD(CompleteBlock):
         ver = self.vi.getFileVersion()
         data_buf = b''
 
-        if LV.isGreaterOrEqVersion(ver, 12,0,0,0):  # noqa: E231  # Should be False for LV 11,0,0,4, True for 14,0,0,3
+        if isGreaterOrEqVersion(ver, 12,0,0,0):  # noqa: E231  # Should be False for LV 11,0,0,4, True for 14,0,0,3
             data_buf += int(section.initProcOffset).to_bytes(4, byteorder=archEndianness, signed=False)
             data_buf += section.codeID[:4]
             data_buf += int(section.pTabOffset).to_bytes(4, byteorder=archEndianness, signed=False)
@@ -6337,7 +6339,7 @@ class VICD(CompleteBlock):
             data_buf += int(section.hostCodeEntryVI).to_bytes(4, byteorder=archEndianness, signed=False)
             data_buf += int(section.codeEndOffset).to_bytes(archDependLen, byteorder=archEndianness, signed=False)
             data_buf += int(section.signatureName).to_bytes(4, byteorder='big', signed=False)
-        elif LV.isGreaterOrEqVersion(ver, 5,0,0,0):  # noqa: E231
+        elif isGreaterOrEqVersion(ver, 5,0,0,0):  # noqa: E231
             data_buf += int(section.initProcOffset).to_bytes(4, byteorder=archEndianness, signed=False)
             data_buf += section.codeID[:4]
             data_buf += int(section.pTabOffset).to_bytes(4, byteorder=archEndianness, signed=False)
@@ -6361,7 +6363,7 @@ class VICD(CompleteBlock):
         archDependLen = 8 if self.isX64(section_num) else 4
 
         exp_whole_len = 0
-        if LV.isGreaterOrEqVersion(ver, 12,0,0,0):  # noqa: E231  # Should be False for LV 11,0,0,4, True for 14,0,0,3
+        if isGreaterOrEqVersion(ver, 12,0,0,0):  # noqa: E231  # Should be False for LV 11,0,0,4, True for 14,0,0,3
             exp_whole_len += 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + archDependLen + 4
         else:  # Lowest version tested with this is LV 6,0,0,2
             exp_whole_len += 4 + 4 + 4 + 4 + 4 + 4 + 4 + archDependLen + 4 + 4
@@ -6371,14 +6373,14 @@ class VICD(CompleteBlock):
         ver = self.vi.getFileVersion()
 
         # Oldest versions have no footer
-        if LV.isSmallerVersion(ver, 5,0,0,0):  # noqa: E231
+        if isSmallerVersion(ver, 5,0,0,0):  # noqa: E231
             return
 
         section.endVerifier = bldata.read(4)
         self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Foot.endVerifier")
         section.endProp1 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
 
-        if LV.isGreaterOrEqVersion(ver, 7,0,0,0):  # noqa: E231  # Should be False for LV 6,0,0,2, True for 7,1,0,3
+        if isGreaterOrEqVersion(ver, 7,0,0,0):  # noqa: E231  # Should be False for LV 6,0,0,2, True for 7,1,0,3
             # TODO inconsistency - signatureName doesn't have arch-dependant size
             section.endSignatureName = int.from_bytes(bldata.read(archDependLen), byteorder='big', signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), archDependLen, 1, "Foot.endSignatureName")
@@ -6389,7 +6391,7 @@ class VICD(CompleteBlock):
         section.endCodeEndOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
         self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Foot.endCodeEndOffset")
 
-        if LV.isGreaterOrEqVersion(ver, 13,0,0,0):  # noqa: E231  # Should be False for 12,0,0,4, True for 14,0,0,3
+        if isGreaterOrEqVersion(ver, 13,0,0,0):  # noqa: E231  # Should be False for 12,0,0,4, True for 14,0,0,3
             # TODO maybe for 64-bit arch it's a missing part of endCodeEndOffset?
             section.endProp5 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Foot.endProp5")
@@ -6400,19 +6402,19 @@ class VICD(CompleteBlock):
         data_buf = b''
 
         # Oldest versions have no footer
-        if LV.isSmallerVersion(ver, 5,0,0,0):  # noqa: E231
+        if isSmallerVersion(ver, 5,0,0,0):  # noqa: E231
             return data_buf
 
         data_buf += section.endVerifier[:4]
         data_buf += int(section.endProp1).to_bytes(4, byteorder='big', signed=False)
 
-        if LV.isGreaterOrEqVersion(ver, 7,0,0,0):  # noqa: E231
+        if isGreaterOrEqVersion(ver, 7,0,0,0):  # noqa: E231
             data_buf += int(section.endSignatureName).to_bytes(archDependLen, byteorder='big', signed=False)
             data_buf += int(section.endLocalLVRTCodeBlocks).to_bytes(archDependLen, byteorder='big', signed=False)
 
         data_buf += int(section.endCodeEndOffset).to_bytes(4, byteorder=archEndianness, signed=False)
 
-        if LV.isGreaterOrEqVersion(ver, 13,0,0,0):  # noqa: E231
+        if isGreaterOrEqVersion(ver, 13,0,0,0):  # noqa: E231
             data_buf += int(section.endProp5).to_bytes(4, byteorder='big', signed=False)
         return data_buf
 
@@ -6422,10 +6424,10 @@ class VICD(CompleteBlock):
 
         exp_whole_len = 0
         exp_whole_len += 4 + 4
-        if LV.isGreaterOrEqVersion(ver, 7,0,0,0):  # noqa: E231
+        if isGreaterOrEqVersion(ver, 7,0,0,0):  # noqa: E231
             exp_whole_len += archDependLen + archDependLen
         exp_whole_len += 4
-        if LV.isGreaterOrEqVersion(ver, 13,0,0,0):  # noqa: E231
+        if isGreaterOrEqVersion(ver, 13,0,0,0):  # noqa: E231
             exp_whole_len += 4
         return exp_whole_len
 
@@ -6459,10 +6461,10 @@ class VICD(CompleteBlock):
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Patch[{}].Ident".format(pidx))
 
             badOffset = False
-            if LV.isGreaterOrEqVersion(ver, 14,0,0,0):  # noqa: E231
+            if isGreaterOrEqVersion(ver, 14,0,0,0):  # noqa: E231
                 if patch.offs >= codeTotLen and patch.ident != 0x20000:
                     badOffset = True
-            elif LV.isGreaterOrEqVersion(ver, 6,0,0,0):  # noqa: E231
+            elif isGreaterOrEqVersion(ver, 6,0,0,0):  # noqa: E231
                 # Confirmed for LV6.0 and LV8.6 (though the format inside is different below 8.6)
                 if patch.offs >= codeTotLen and patch.ident != 0xffffffff:
                     badOffset = True
@@ -6474,8 +6476,8 @@ class VICD(CompleteBlock):
             patch.relocs = []
             section.patches.append(patch)
 
-            if (LV.isGreaterOrEqVersion(ver, 10,0,0,0) and (patch.ident == 0x20000 or patch.ident == 0x20007)) or \
-               (LV.isGreaterOrEqVersion(ver,  8,6,0,0) and (patch.ident == 0xffffffff)):  # noqa: E231
+            if (isGreaterOrEqVersion(ver, 10,0,0,0) and (patch.ident == 0x20000 or patch.ident == 0x20007)) or \
+               (isGreaterOrEqVersion(ver,  8,6,0,0) and (patch.ident == 0xffffffff)):  # noqa: E231
                 patch.field2 = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
                 self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Patch[{}].Field2".format(pidx))
                 bucketCount = int.from_bytes(bldata.read(2), byteorder=archEndianness, signed=False)
@@ -6493,7 +6495,7 @@ class VICD(CompleteBlock):
                 uneven_len = patchLen % 4  # Read padding
                 if uneven_len > 0:
                     bldata.read(4 - uneven_len)
-            elif LV.isGreaterOrEqVersion(ver, 6,0,0,0) and (patch.ident == 0xffffffff):  # noqa: E231
+            elif isGreaterOrEqVersion(ver, 6,0,0,0) and (patch.ident == 0xffffffff):  # noqa: E231
                 raise NotImplementedError("No XML export made for LV6 relocations")
             else:
                 pass
@@ -6520,8 +6522,8 @@ class VICD(CompleteBlock):
         for patch in section.patches:
             data_buf += int(patch.offs).to_bytes(4, byteorder=archEndianness, signed=False)
             data_buf += int(patch.ident).to_bytes(4, byteorder=archEndianness, signed=False)
-            if (LV.isGreaterOrEqVersion(ver, 10,0,0,0) and (patch.ident == 0x20000 or patch.ident == 0x20007)) or \
-               (LV.isGreaterOrEqVersion(ver,  8,6,0,0) and (patch.ident == 0xffffffff)):  # noqa: E231
+            if (isGreaterOrEqVersion(ver, 10,0,0,0) and (patch.ident == 0x20000 or patch.ident == 0x20007)) or \
+               (isGreaterOrEqVersion(ver,  8,6,0,0) and (patch.ident == 0xffffffff)):  # noqa: E231
                 data_buf += int(patch.field2).to_bytes(4, byteorder=archEndianness, signed=False)
                 relocs = patch.relocs  # no sorted() - preserve original order
                 bucket_idx = 0
@@ -6542,7 +6544,7 @@ class VICD(CompleteBlock):
                     bucket_idx += 1
                 data_buf += int(bucket_idx).to_bytes(2, byteorder=archEndianness, signed=False)
                 data_buf += bucket_buf
-            elif LV.isGreaterOrEqVersion(ver, 6,0,0,0) and (patch.ident == 0xffffffff):  # noqa: E231
+            elif isGreaterOrEqVersion(ver, 6,0,0,0) and (patch.ident == 0xffffffff):  # noqa: E231
                 raise NotImplementedError("No bin prepare made for LV6 relocations")
 
         patchesTotLen = section.codeEndOffset - section.pTabOffset
@@ -6634,8 +6636,8 @@ class VICD(CompleteBlock):
                 import sys
                 import traceback
                 traceback.print_exc(file=sys.stdout)
-            LV.eprint("{:s}: Warning: Block {} section {} patches parse exception: {}."
-                      .format(self.vi.src_fname, self.ident, section_num, str(e)))
+            eprint("{:s}: Warning: Block {} section {} patches parse exception: {}."
+                   .format(self.vi.src_fname, self.ident, section_num, str(e)))
             self.parseRSRCSectionRawPatches(section, section_num, patchesPos, archEndianness, archDependLen, bldata)
         self.appendPrintMapEntry(section, bldata.tell(), bldata.tell() - patchesPos, 1, "Patches")
 
@@ -6821,15 +6823,15 @@ class VICD(CompleteBlock):
         ver = self.vi.getFileVersion()
         subelem = ET.SubElement(section_elem, "General")
 
-        subelem.set("CodeID", LV.getPrettyStrFromRsrcType(section.codeID))
+        subelem.set("CodeID", getPrettyStrFromRsrcType(section.codeID))
         subelem.set("CodeFlags", "0x{:X}".format(section.codeFlags))
         subelem.set("Version", "0x{:X}".format(section.version))
         subelem.set("CompilerOptimizationLevel", "{:d}".format(section.compilerOptimizationLevel))
-        if LV.isGreaterOrEqVersion(ver, 5,0,0,0):  # noqa: E231
-            subelem.set("Verifier", LV.getPrettyStrFromRsrcType(section.verifier))
+        if isGreaterOrEqVersion(ver, 5,0,0,0):  # noqa: E231
+            subelem.set("Verifier", getPrettyStrFromRsrcType(section.verifier))
 
-        if LV.isGreaterOrEqVersion(ver, 5,0,0,0):  # noqa: E231
-            subelem.set("EndVerifier", LV.getPrettyStrFromRsrcType(section.endVerifier))
+        if isGreaterOrEqVersion(ver, 5,0,0,0):  # noqa: E231
+            subelem.set("EndVerifier", getPrettyStrFromRsrcType(section.endVerifier))
             subelem.set("EndProp1", "{:d}".format(section.endProp1))
             subelem.set("EndSignatureName", "{:d}".format(section.endSignatureName))
             subelem.set("EndLocalLVRTCodeBlocks", "{:d}".format(section.endLocalLVRTCodeBlocks))
@@ -6846,7 +6848,7 @@ class VICD(CompleteBlock):
                 pass  # Items parsed somewhere else
             elif (subelem.tag == "General"):
                 tmp = subelem.get("CodeID")
-                section.codeID = LV.getRsrcTypeFromPrettyStr(tmp)
+                section.codeID = getRsrcTypeFromPrettyStr(tmp)
                 tmp = subelem.get("CodeFlags")
                 section.codeFlags = int(tmp, 0)
                 tmp = subelem.get("Version")
@@ -6855,11 +6857,11 @@ class VICD(CompleteBlock):
                 section.compilerOptimizationLevel = int(tmp, 0)
                 tmp = subelem.get("Verifier")
                 if tmp is not None:
-                    section.verifier = LV.getRsrcTypeFromPrettyStr(tmp)
+                    section.verifier = getRsrcTypeFromPrettyStr(tmp)
 
                 tmp = subelem.get("EndVerifier")
                 if tmp is not None:
-                    section.endVerifier = LV.getRsrcTypeFromPrettyStr(tmp)
+                    section.endVerifier = getRsrcTypeFromPrettyStr(tmp)
                 tmp = subelem.get("EndProp1")
                 if tmp is not None:
                     section.endProp1 = int(tmp, 0)
@@ -6957,29 +6959,29 @@ class VICD(CompleteBlock):
         ret = True
         if section.initProcOffset >= section.pTabOffset:
             if (self.po.verbose > 1):
-                LV.eprint("{:s}: Warning: InitProcOffset 0x{:X} exceeds PTabOffset 0x{:X}"
-                          .format(self.vi.src_fname, section.initProcOffset, section.pTabOffset))
+                eprint("{:s}: Warning: InitProcOffset 0x{:X} exceeds PTabOffset 0x{:X}"
+                       .format(self.vi.src_fname, section.initProcOffset, section.pTabOffset))
             ret = False
-        if LV.isGreaterOrEqVersion(ver, 5,0,0,0):  # noqa: E231
+        if isGreaterOrEqVersion(ver, 5,0,0,0):  # noqa: E231
             if section.pTabOffset >= section.codeEndOffset:
                 if (self.po.verbose > 1):
-                    LV.eprint("{:s}: Warning: PTabOffset 0x{:X} exceeds CodeEndOffset 0x{:X}"
-                              .format(self.vi.src_fname, section.pTabOffset, section.codeEndOffset))
+                    eprint("{:s}: Warning: PTabOffset 0x{:X} exceeds CodeEndOffset 0x{:X}"
+                           .format(self.vi.src_fname, section.pTabOffset, section.codeEndOffset))
                 ret = False
             if section.codeEndOffset != section.endCodeEndOffset:
                 if (self.po.verbose > 1):
-                    LV.eprint("{:s}: Warning: Copies of CodeEndOffset are different (0x{:X} and 0x{:X})"
-                              .format(self.vi.src_fname, section.codeEndOffset, section.endCodeEndOffset))
+                    eprint("{:s}: Warning: Copies of CodeEndOffset are different (0x{:X} and 0x{:X})"
+                           .format(self.vi.src_fname, section.codeEndOffset, section.endCodeEndOffset))
                 ret = False
             if section.verifier not in (b'code',):
                 if (self.po.verbose > 1):
-                    LV.eprint("{:s}: Warning: Verifier property {} is not known"
-                              .format(self.vi.src_fname, section.verifier))
+                    eprint("{:s}: Warning: Verifier property {} is not known"
+                           .format(self.vi.src_fname, section.verifier))
                 ret = False
             if section.endVerifier not in (b'CODE',):
                 if (self.po.verbose > 1):
-                    LV.eprint("{:s}: Warning: EndVerifier property {} is not known"
-                              .format(self.vi.src_fname, section.endVerifier))
+                    eprint("{:s}: Warning: EndVerifier property {} is not known"
+                           .format(self.vi.src_fname, section.endVerifier))
                 ret = False
         else:  # Older versions lack many header fields
             pass
@@ -7022,7 +7024,7 @@ class VITS(CompleteBlock):
         section.endianness = 'big'
 
         # Get count of tags; endianness was wrong in some versions
-        if LV.isGreaterOrEqVersion(ver, 6,1,0,4):  # noqa: E231
+        if isGreaterOrEqVersion(ver, 6,1,0,4):  # noqa: E231
             count = int.from_bytes(bldata.read(4), byteorder=section.endianness, signed=False)
         else:
             # We can't be sure whether the enianness in this version is correct or not. We have to check that
@@ -7041,7 +7043,7 @@ class VITS(CompleteBlock):
             val.name = LV.readLStr(bldata, 1, self.po)
             self.appendPrintMapEntry(section, bldata.tell(), 4+len(val.name), 1,
                                      "TagObject[{}].Name".format(len(section.content)))
-            if LV.isSmallerVersion(ver, 6,5,0,2):  # noqa: E231
+            if isSmallerVersion(ver, 6,5,0,2):  # noqa: E231
                 bldata.read(4)
             obj_pos = bldata.tell()
             val.obj = LVdatafill.newDataFillObject(self.vi, blockref, LVdatatype.TD_FULL_TYPE.LVVariant, None, self.po)
@@ -7063,7 +7065,7 @@ class VITS(CompleteBlock):
         data_buf += len(section.content).to_bytes(4, byteorder=section.endianness, signed=False)
         for val in section.content:
             data_buf += LV.prepareLStr(val.name, 1, self.po)
-            if LV.isSmallerVersion(ver, 6,5,0,2):  # noqa: E231
+            if isSmallerVersion(ver, 6,5,0,2):  # noqa: E231
                 data_buf += (b'\0' * 4)
             data_buf += val.obj.prepareRSRCData()
         return data_buf
