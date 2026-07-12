@@ -463,9 +463,7 @@ class Block(object):
     def hasRawData(self, section_num=None):
         """ Returns whether given section has raw data set
         """
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
+        section = self.getSection(section_num)
         return (section.raw_data is not None)
 
     def getRawData(self, section_num=None):
@@ -513,6 +511,11 @@ class Block(object):
             raise IOError("Within block {} there is no section number {:d}"
                           .format(self.ident, section_num))
         return self.sections[section_num]
+
+    def getParsedSection(self, section_num):
+        self.parseData(section_num=section_num)
+        section = self.getSection(section_num)
+        return section
 
     def parseRSRCData(self, section_num, bldata):
         """ Implements setting block properties from Byte Stream of a section
@@ -571,10 +574,7 @@ class Block(object):
     def updateSectionData(self, section_num=None):
         """ Updates RAW data stored in given section to any changes in properties
         """
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-
+        section = self.getSection(section_num)
         if section.raw_data is None:
             raise RuntimeError("Block {} section {} has no raw data generation method".format(self.ident, section_num))
         pass
@@ -893,9 +893,7 @@ class Block(object):
         self.active_section_num = section_num
 
     def getDataPosInContainer(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
+        section = self.getSection(section_num)
         if section.block_pos is None:
             return None
         return section.block_pos + sizeof(BlockSectionData)
@@ -995,9 +993,7 @@ class CompleteBlock(Block):
         raise NotImplementedError("Re-creating binary is not implemented")
 
     def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
+        section = self.getSection(section_num)
 
         # Do not re-create raw data if parsing failed and we still have the original
         if (section.parse_failed and self.hasRawData(section_num)):
@@ -1173,18 +1169,14 @@ class CompleteBlock(Block):
             return
 
     def getData(self, section_num=None, use_coding=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
+        section = self.getSection(section_num)
         if use_coding is None:
             use_coding = section.block_coding
         bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
     def setData(self, data_buf, section_num=None, use_coding=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
+        section = self.getSection(section_num)
         if use_coding is None:
             use_coding = section.block_coding
         super().setData(data_buf, section_num=section_num, use_coding=use_coding)
@@ -1226,18 +1218,14 @@ class VarCodingBlock(Block):
         super().initWithXMLLate()
 
     def getData(self, section_num=None, use_coding=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
+        section = self.getSection(section_num)
         if use_coding is None:
             use_coding = section.block_coding
         bldata = super().getData(section_num=section_num, use_coding=use_coding)
         return bldata
 
     def setData(self, data_buf, section_num=None, use_coding=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
+        section = self.getSection(section_num)
         if use_coding is None:
             use_coding = section.block_coding
         super().setData(data_buf, section_num=section_num, use_coding=use_coding)
@@ -1282,10 +1270,7 @@ class SingleIntBlock(CompleteBlock):
         pass
 
     def getValue(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-        self.parseData(section_num=section_num)
+        section = self.getParsedSection(section_num)
         return section.value
 
 
@@ -1393,10 +1378,7 @@ class FPTD(CompleteBlock):
         pass
 
     def getValue(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-        self.parseData(section_num=section_num)
+        section = self.getParsedSection(section_num)
         return section.value
 
 
@@ -1507,10 +1489,7 @@ class CONP(CompleteBlock):
         pass
 
     def getValue(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-        self.parseData(section_num=section_num)
+        section = self.getParsedSection(section_num)
         return section.value
 
 
@@ -1769,10 +1748,7 @@ class SingleStringBlock(CompleteBlock):
         return data_buf
 
     def expectedRSRCSize(self, section_num):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-
+        section = self.getSection(section_num)
         exp_whole_len = section.size_len
         exp_whole_len += sum(len(chunk.content) for chunk in section.content)
         exp_whole_len += len(section.eoln) * max(len(section.content)-1, 0)
@@ -1951,10 +1927,7 @@ class STR(SingleStringBlock):
         return data_buf
 
     def expectedRSRCSize(self, section_num):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-
+        section = self.getSection(section_num)
         if self.isSingleShortString():
             exp_whole_len = super().expectedRSRCSize(section_num)
         elif self.isSingleLVVariant():
@@ -2080,9 +2053,7 @@ class StringListBlock(SingleStringBlock):
         return exp_whole_len
 
     def expectedRSRCSize(self, section_num):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
+        section = self.getSection(section_num)
         exp_whole_len = self.expectedRSRCStringListSize(section, section_num)
         return exp_whole_len
 
@@ -2652,22 +2623,14 @@ class DFDS(CompleteBlock):
         pass
 
     def getDataFill(self, df_idx, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        self.parseData(section_num=section_num)
-        section = self.sections[section_num]
-
+        section = self.getParsedSection(section_num)
         df = section.content[df_idx]
         return df
 
     def getDFForTD(self, td, section_num=None):
         """ Parses whole DF tree in search of one instantiating given TD
         """
-        if section_num is None:
-            section_num = self.active_section_num
-        self.parseData(section_num=section_num)
-        section = self.sections[section_num]
-
+        section = self.getParsedSection(section_num)
         for df in section.content:
             dfFound = df.findTD(td)
             if dfFound is not None:
@@ -2675,11 +2638,7 @@ class DFDS(CompleteBlock):
         return None
 
     def getDFForTypeId(self, tdIndex, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        self.parseData(section_num=section_num)
-        section = self.sections[section_num]
-
+        section = self.getParsedSection(section_num)
         for df in section.content:
             if df.index != tdIndex:
                 continue
@@ -3303,11 +3262,7 @@ class DTHP(CompleteBlock):
         pass
 
     def getHeapTD(self, heapTypeId, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        self.parseData(section_num=section_num)
-        section = self.sections[section_num]
-
+        section = self.getParsedSection(section_num)
         VCTP = self.vi.get('VCTP')
         if VCTP is None:
             return None
@@ -3342,10 +3297,7 @@ class DSTM(CompleteBlock):
     def getMaxTypeId(self, section_num=None):
         """ Returns TypeID of first item above ones mapped in this section
         """
-        if section_num is None:
-            section_num = self.active_section_num
-        self.parseData(section_num=section_num)
-        section = self.sections[section_num]
+        section = self.getParsedSection(section_num)
         return 1+len(section.content)
 
     def getTypeEntry(self, tme_index, section_num=None):
@@ -3449,11 +3401,7 @@ class TM80(CompleteBlock):
         pass
 
     def getTypeEntry(self, tme_index, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        self.parseData(section_num=section_num)
-        section = self.sections[section_num]
-
+        section = self.getParsedSection(section_num)
         VCTP = self.vi.get_or_raise('VCTP')
 
         if True:
@@ -3472,29 +3420,17 @@ class TM80(CompleteBlock):
     def getMinTypeId(self, section_num=None):
         """ Returns minimal TypeID mapped in this section
         """
-        if section_num is None:
-            section_num = self.active_section_num
-        self.parseData(section_num=section_num)
-        section = self.sections[section_num]
-
+        section = self.getParsedSection(section_num)
         return section.indexShift
 
     def getMaxTypeId(self, section_num=None):
         """ Returns TypeID of first item above ones mapped in this section
         """
-        if section_num is None:
-            section_num = self.active_section_num
-        self.parseData(section_num=section_num)
-        section = self.sections[section_num]
-
+        section = self.getParsedSection(section_num)
         return section.indexShift + len(section.content)
 
     def getTypeMap(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        self.parseData(section_num=section_num)
-        section = self.sections[section_num]
-
+        section = self.getParsedSection(section_num)
         VCTP = self.vi.get_or_raise('VCTP')
 
         typeMap = []
@@ -3842,10 +3778,7 @@ class LVSR(CompleteBlock):
         pass
 
     def getVersion(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-        self.parseData(section_num=section_num)
+        section = self.getParsedSection(section_num)
         return section.version
 
 
@@ -3874,9 +3807,7 @@ class vers(Block):
                    .format(self.ident, section_num, comment_len, 0))
 
     def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
+        section = self.getSection(section_num)
 
         data_buf = int(LV.encodeVersion(section.version)).to_bytes(4, byteorder='big')
         data_buf += section.language.to_bytes(2, byteorder='big')
@@ -3944,27 +3875,18 @@ class vers(Block):
         section_elem.set("Format", "inline")
 
     def getVersion(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-        self.parseData(section_num=section_num)
+        section = self.getParsedSection(section_num)
         return section.version
 
     def getVerText(self, section_num=None):
         return ""  # There never was a VerText
 
     def getVerLanguage(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-        self.parseData(section_num=section_num)
+        section = self.getParsedSection(section_num)
         return section.language
 
     def getVerInfo(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-        self.parseData(section_num=section_num)
+        section = self.getParsedSection(section_num)
         return section.version_info
 
 
@@ -4267,9 +4189,7 @@ class ICON(RawImageBlock):
         section.image = icon
 
     def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
+        section = self.getSection(section_num)
 
         data_buf = self.prepareRawImage(section.width, section.height, section.bpp, section.padding_w, section.image)
 
@@ -4397,9 +4317,7 @@ class BDPW(Block):
             section.hash_2 = b''
 
     def updateSectionData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
+        section = self.getSection(section_num)
 
         if True:
             self.recalculateHash1(section_num=section_num)
@@ -4610,10 +4528,7 @@ class BDPW(Block):
     def setPassword(self, section_num=None, password_text=None, password_md5=None, store=True):
         """ Sets new password, without recalculating hashes
         """
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-
+        section = self.getSection(section_num)
         if password_text is not None:
             if store:
                 section.password = password_text
@@ -4653,9 +4568,7 @@ class BDPW(Block):
             Supplying custom password on first run will lead to inability to find salt; fortunately,
             first run is quite early, during validation of parsed data.
         """
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
+        section = self.getSection(section_num)
 
         if password_md5 is None:
             password_md5 = section.password_md5
@@ -4693,9 +4606,7 @@ class BDPW(Block):
             Re-calculation is made using previously computed hash_1
             and BDH block if the VI file
         """
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
+        section = self.getSection(section_num)
 
         if md5_hash_1 is None:
             md5_hash_1 = section.hash_1
@@ -4787,10 +4698,7 @@ class LIBN(CompleteBlock):
         pass
 
     def getContent(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        self.parseData(section_num=section_num)
-        section = self.sections[section_num]
+        section = self.getParsedSection(section_num)
         return section.content
 
 
@@ -6023,10 +5931,7 @@ class TypeDescListBase(CompleteBlock):
         pass
 
     def getContent(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        self.parseData(section_num=section_num)
-        section = self.sections[section_num]
+        section = self.getParsedSection(section_num)
         return section.content
 
     def getClientTypeDescsByType(self, conn_obj):
@@ -6053,20 +5958,14 @@ class TypeDescListBase(CompleteBlock):
         functions are doing. But when we need a type from the underlying
         flat list, this is the function to use.
         """
-        if section_num is None:
-            section_num = self.active_section_num
-        self.parseData(section_num=section_num)
-        section = self.sections[section_num]
+        section = self.getParsedSection(section_num)
         clientTD = section.content[flatIdx]
         return clientTD.nested
 
     def getTopType(self, idx, section_num=None):
         """ Retrieves top type of given index
         """
-        if section_num is None:
-            section_num = self.active_section_num
-        self.parseData(section_num=section_num)
-        section = self.sections[section_num]
+        section = self.getParsedSection(section_num)
         if idx < 1:
             return None
         idx -= 1
@@ -6138,9 +6037,7 @@ class VCTP(TypeDescListBase):
         self.exportXMLTopTypesList(section_elem, section_num, section, fname_base)
 
     def parseData(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
+        section = self.getSection(section_num)
 
         # Besides the normal parsing, also parse sub-objects
         needTDParse = self.needParseData(section_num=section_num)
@@ -6154,10 +6051,7 @@ class VCTP(TypeDescListBase):
         self.commentSpecialTypes(section_num)
 
     def checkSanity(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
-
+        section = self.getSection(section_num)
         ret = self.checkTypeDescListSanity(section, section_num)
         return ret
 
@@ -6951,10 +6845,7 @@ class VICD(CompleteBlock):
 
     def checkSanity(self, section_num=None):
         ver = self.vi.getFileVersion()
-
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
+        section = self.getSection(section_num)
 
         ret = True
         if section.initProcOffset >= section.pTabOffset:
@@ -6988,22 +6879,16 @@ class VICD(CompleteBlock):
         return ret
 
     def isX64(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
+        section = self.getSection(section_num)
         return (section.codeID in (b'wx64', b'ux64', b'mx64',))
 
     def isLE(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
+        section = self.getSection(section_num)
         return (section.codeID in (b'i386', b'wx64', b'ux86', b'ux64', b'm386', b'mx64',
                                    b'PWNT', b'axwn', b'axlx', b'axdu', b'ARM ',))
 
     def isX86(self, section_num=None):
-        if section_num is None:
-            section_num = self.active_section_num
-        section = self.sections[section_num]
+        section = self.getSection(section_num)
         return (section.codeID in (b'i386', b'wx64', b'ux86', b'ux64', b'm386', b'mx64',))
 
 
