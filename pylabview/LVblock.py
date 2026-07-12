@@ -512,6 +512,11 @@ class Block(object):
                           .format(self.ident, section_num))
         return self.sections[section_num]
 
+    def getParsedSection(self, section_num):
+        self.parseData(section_num=section_num)
+        section = self.getSection(section_num)
+        return section
+
     def parseRSRCData(self, section_num, bldata):
         """ Implements setting block properties from Byte Stream of a section
 
@@ -1162,13 +1167,6 @@ class CompleteBlock(Block):
                    .format(self.vi.src_fname, self.ident, section_num, str(e)))
             Block.exportXMLSection(self, section_elem, section_num, section, fname_base)
             return
-
-    def getParsedSection(self, section_num):
-        if section_num is None:
-            section_num = self.active_section_num
-        self.parseData(section_num=section_num)
-        section = self.sections[section_num]
-        return section
 
     def getData(self, section_num=None, use_coding=None):
         section = self.getSection(section_num)
