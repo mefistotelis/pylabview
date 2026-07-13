@@ -99,7 +99,7 @@ class BlockSectionData(RSRCStructure):
 
 class Section(object):
     def __init__(self, vi, po):
-        """ Creates new Section object, represention one of possible contents of a Block.
+        """ Create new Section object, represention one of possible contents of a Block.
 
         Support of a section is mostly implemented in Block, so there isn't much here.
         """
@@ -147,7 +147,7 @@ class Block(object):
             self.full_name = ""
 
     def createSection(self):
-        """ Creates a new section, without adding it to block
+        """ Create a new section, without adding it to block
 
         To be overloaded for setting any initial properties, if neccessary.
         """
@@ -155,7 +155,7 @@ class Block(object):
         return section
 
     def appendPrintMapEntry(self, section, relative_end_pos, entry_len, entry_align, sub_name):
-        """ Adds entry to file map or block map, for a chunk of data within specific section
+        """ Add entry to file map or block map, for a chunk of data within specific section
 
         Entries for data outside of section data should not call this function; it is only for
         the data stored within block sections. It was introduced to limit copying of the same block
@@ -261,7 +261,7 @@ class Block(object):
                     section.name_obj.parseRSRCData(bldata)
 
     def initWithXMLSection(self, section, section_elem):
-        """ Imports section data from XML
+        """ Import section data from XML
 
             Generic code, used when section is stored as raw data.
             This can be overloaded to support actually parsed section formats.
@@ -396,7 +396,7 @@ class Block(object):
         return expSize
 
     def readRawDataSections(self, section_count=None):
-        """ Reads raw data of sections from input file, up to given number
+        """ Read raw data of sections from input file, up to given number
 
         :param int section_count: Limit of section_num values; only sections
             with number lower that given section_count parameter are affected.
@@ -461,13 +461,13 @@ class Block(object):
                 last_blksect_size += 4 - (last_blksect_size % 4)
 
     def hasRawData(self, section_num=None):
-        """ Returns whether given section has raw data set
+        """ Whether given section has raw data set
         """
         section = self.getSection(section_num)
         return (section.raw_data is not None)
 
     def getRawData(self, section_num=None):
-        """ Retrieves bytes object with raw data of given section
+        """ Retrieve bytes object with raw data of given section
 
             Reads the section from input stream if neccessary.
         """
@@ -484,7 +484,7 @@ class Block(object):
         return self.sections[section_num].raw_data
 
     def setRawData(self, raw_data_buf, section_num=None):
-        """ Sets given bytes object as section raw data
+        """ Set given bytes object as section raw data
 
             Extends the amount of sections if neccessary
         """
@@ -501,7 +501,7 @@ class Block(object):
         section.raw_data_updated = True
 
     def getSection(self, section_num=None):
-        """ Retrieves section of given number, or first one
+        """ Retrieve section of given number, or active one
 
             Does not force data read
         """
@@ -513,6 +513,12 @@ class Block(object):
         return self.sections[section_num]
 
     def getParsedSection(self, section_num):
+        """ Parse and retrieve section, either section of given number or active section
+
+        Forces data read, so the returned section is always parsed
+
+        :param int section_num: Section number to return. If not provided, active section is used.
+        """
         self.parseData(section_num=section_num)
         section = self.getSection(section_num)
         return section
@@ -572,7 +578,7 @@ class Block(object):
         pass
 
     def updateSectionData(self, section_num=None):
-        """ Updates RAW data stored in given section to any changes in properties
+        """ Update RAW data stored in given section to any changes in properties
         """
         section = self.getSection(section_num)
         if section.raw_data is None:
@@ -580,7 +586,7 @@ class Block(object):
         pass
 
     def updateData(self):
-        """ Updates RAW data stored in the block to any changes in properties
+        """ Update RAW data stored in the block to any changes in properties
 
         Updates raw data for all sections.
         """
@@ -590,7 +596,7 @@ class Block(object):
         pass
 
     def needParseData(self, section_num=None):
-        """ Returns if a section needs its data to be parsed
+        """ Whether a section needs its data to be parsed
 
             After a call to parseData(), or after filling the data manually, this should
             return True. Otherwise, False.
@@ -608,7 +614,7 @@ class Block(object):
         return section.raw_data_updated or section.parsed_data_updated
 
     def checkSanity(self):
-        """ Checks whether properties of this object and all sub-object are sane
+        """ Check whether properties of this object and all sub-object are sane
 
         Sane objects have values of properties within expected bounds.
         All the objects are expected to be already parsed during the call.
@@ -872,7 +878,7 @@ class Block(object):
         return elem
 
     def defaultSectionNumber(self):
-        """ Gives section index of a default section.
+        """ Give section index of a default section.
 
         Default section is the one with lowest index (its absolute value).
         That section is set as active, and its data is used to set properties
@@ -881,12 +887,12 @@ class Block(object):
         return min(self.sections.keys(), key=abs)
 
     def listSectionNumbers(self):
-        """ Lists all section numbers for existing sections.
+        """ List all section numbers for existing sections.
         """
         return self.sections.keys()
 
     def setActiveSectionNum(self, section_num):
-        """ Sets the currently active section.
+        """ Set the currently active section.
 
         The block will return properties of active section.
         """
@@ -1318,7 +1324,7 @@ class FPTD(CompleteBlock):
         return section
 
     def isSingleTDIndex(self):
-        """ Returns whether the block contains a single type index in consolidated list.
+        """ Whether the block contains a single type index in consolidated list.
 
         The block contains single TD index for LV 8.6.0, it does not for LV6.0.1
         """
@@ -2133,7 +2139,7 @@ class STRG(StringListBlock):
         return section
 
     def setStorageMode(self, section, section_num):
-        """ Properly sets storage mode based on LV version
+        """ Properly set storage mode based on LV version
         """
         ver = self.vi.getFileVersion()
         if isGreaterOrEqVersion(ver, 4,0,0):  # noqa: E231
@@ -2628,7 +2634,7 @@ class DFDS(CompleteBlock):
         return df
 
     def getDFForTD(self, td, section_num=None):
-        """ Parses whole DF tree in search of one instantiating given TD
+        """ Parse whole DF tree in search of one instantiating given TD
         """
         section = self.getParsedSection(section_num)
         for df in section.content:
@@ -3290,12 +3296,12 @@ class DSTM(CompleteBlock):
             section.block_coding = BLOCK_CODING.NONE
 
     def getMinTypeId(self, section_num=None):
-        """ Returns minimal TypeID mapped in this section
+        """ Return minimal TypeID mapped in this section
         """
         return 1
 
     def getMaxTypeId(self, section_num=None):
-        """ Returns TypeID of first item above ones mapped in this section
+        """ Return TypeID of first item above ones mapped in this section
         """
         section = self.getParsedSection(section_num)
         return 1+len(section.content)
@@ -3418,13 +3424,13 @@ class TM80(CompleteBlock):
         return tmEntry
 
     def getMinTypeId(self, section_num=None):
-        """ Returns minimal TypeID mapped in this section
+        """ Return minimal TypeID mapped in this section
         """
         section = self.getParsedSection(section_num)
         return section.indexShift
 
     def getMaxTypeId(self, section_num=None):
-        """ Returns TypeID of first item above ones mapped in this section
+        """ Return TypeID of first item above ones mapped in this section
         """
         section = self.getParsedSection(section_num)
         return section.indexShift + len(section.content)
@@ -3927,7 +3933,7 @@ class ImageBlock(CompleteBlock):
         section.image.save(block_fh, format="PNG")
 
     def loadImage(self):
-        """ Loads and returns the image stored in this block.
+        """ Load and return the image stored in this block.
 
         In case you modify that image, remeber to mark parsed_data_updated.
         """
@@ -4057,7 +4063,7 @@ class RawImageBlock(ImageBlock):
 
     @staticmethod
     def prepareRawImage(width, height, bpp, padding_w, image):
-        """ Prepares raw image data for given image
+        """ Prepare raw image data for given image
 
         @width - width of the image in RAW
         @height - height of the image in RAW
@@ -4299,7 +4305,7 @@ class BDPW(Block):
         return section
 
     def hasHash2(self):
-        """ Returns whether the block should have hash_2 stored.
+        """ Whether the block should have hash_2 stored.
 
         Tested not to be there in LV7.1, is there in LV8.6b7
         """
@@ -4526,7 +4532,7 @@ class BDPW(Block):
         return salt
 
     def setPassword(self, section_num=None, password_text=None, password_md5=None, store=True):
-        """ Sets new password, without recalculating hashes
+        """ Set new password, without recalculating hashes
         """
         section = self.getSection(section_num)
         if password_text is not None:
@@ -4544,7 +4550,7 @@ class BDPW(Block):
         return password_md5
 
     def recognizePassword(self, section_num, password_md5=None, store=True):
-        """ Gets password from MD5 hash, if the password is a common one
+        """ Get password from MD5 hash, if the password is a common one
         """
         section = self.sections[section_num]
 
@@ -4562,7 +4568,7 @@ class BDPW(Block):
         return found_pass
 
     def recalculateHash1(self, section_num=None, password_md5=None, store=True):
-        """ Calculates the value of hash_1, either stores it or only returns
+        """ Calculate the value of hash_1, either stores it or only returns
 
             Re-calculation is made using previously computed salt if available, or newly computed on first run.
             Supplying custom password on first run will lead to inability to find salt; fortunately,
@@ -4601,7 +4607,7 @@ class BDPW(Block):
         return md5_hash_1
 
     def recalculateHash2(self, section_num=None, md5_hash_1=None, store=True):
-        """ Calculates the value of hash_2, either stores it or only returns
+        """ Calculate the value of hash_2, either stores it or only returns
 
             Re-calculation is made using previously computed hash_1
             and BDH block if the VI file
@@ -5952,7 +5958,7 @@ class TypeDescListBase(CompleteBlock):
         return type_list
 
     def getFlatType(self, flatIdx, section_num=None):
-        """ Retrieves type of given flat list index
+        """ Retrieve type of given flat list index
 
         It is better to call types by their top index - this is how mosts
         functions are doing. But when we need a type from the underlying
@@ -5963,7 +5969,7 @@ class TypeDescListBase(CompleteBlock):
         return clientTD.nested
 
     def getTopType(self, idx, section_num=None):
-        """ Retrieves top type of given index
+        """ Retrieve top type of given index
         """
         section = self.getParsedSection(section_num)
         if idx < 1:
@@ -6116,13 +6122,13 @@ class VICD(CompleteBlock):
 
     @staticmethod
     def addMapEntry(section, eOffs, eSize, eName):
-        """ Adds element to a MAP array for the file.
+        """ Add element to a MAP array for the file.
         """
         section.ct_map.append((eOffs, eSize, eName,))
 
     @staticmethod
     def addMapEntryBeforeFH(section, fh, eSize, eName):
-        """ Adds element to a MAP array at offset before file handle pos.
+        """ Add element to a MAP array at offset before file handle pos.
         """
         VICD.addMapEntry(section, fh.tell()-eSize, eSize, eName)
 
