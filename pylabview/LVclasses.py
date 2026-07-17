@@ -481,7 +481,6 @@ class LVVariant(LVObject):
                 if clientTD.index != -1:
                     continue
                 exp_whole_len += clientTD.nested.expectedRSRCSize()
-            hasvaritem2 = self.hasvaritem2
             exp_whole_len += len(prepareVariableSizeFieldU2p2(self.hasvaritem2))
 
             if self.hasvaritem2 != 0:
