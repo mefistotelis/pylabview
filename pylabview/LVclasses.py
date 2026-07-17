@@ -90,7 +90,6 @@ class LVObject:
         return type(self).__name__ + pformat(d, indent=0, compact=True, width=512)
 
 
-
 class LVPath1(LVObject):
     """ Path object ver 1 and 2
     """
@@ -103,7 +102,7 @@ class LVPath1(LVObject):
     def parseRSRCData(self, bldata):
         self.ident = bldata.read(4)
         totlen = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
-        self.tpident = bldata.read(4) # one of 'unc ', '!pth', 'abs ', 'rel '
+        self.tpident = bldata.read(4)  # one of 'unc ', '!pth', 'abs ', 'rel '
         donelen = 4
         self.content = []
         while (donelen < totlen):
@@ -112,8 +111,8 @@ class LVPath1(LVObject):
             self.content.append(text_val)
             donelen += 2+text_len
         if donelen != totlen:
-            eprint("{:s}: Warning: {:s} has unexpected size, {} != {}"\
-              .format(self.vi.src_fname, type(self).__name__, donelen, totlen))
+            eprint("{:s}: Warning: {:s} has unexpected size, {} != {}"
+                   .format(self.vi.src_fname, type(self).__name__, donelen, totlen))
         pass
 
     def prepareRSRCData(self, avoid_recompute=False):
@@ -149,7 +148,7 @@ class LVPath1(LVObject):
         obj_elem.set("Ident",  getPrettyStrFromRsrcType(self.ident))
         obj_elem.set("TpIdent",  self.tpident.decode(encoding='ascii'))
         for text_val in self.content:
-            subelem = ET.SubElement(obj_elem,"String")
+            subelem = ET.SubElement(obj_elem, "String")
 
             pretty_string = text_val.decode(self.vi.textEncoding)
             subelem.text = pretty_string
@@ -185,18 +184,18 @@ class LVPath0(LVObject):
         ctlen = 4 + sum(1+len(text_val) for text_val in self.content)
         self.canZeroFill = (totlen == 0)
         if self.canZeroFill:
-             if (self.tpval == 0) and (len(self.content) == 0):
+            if (self.tpval == 0) and (len(self.content) == 0):
                 ctlen = 0
         if ctlen != totlen:
-            eprint("{:s}: Warning: {:s} has unexpected size, {} != {}"\
-              .format(self.vi.src_fname, type(self).__name__, ctlen, totlen))
+            eprint("{:s}: Warning: {:s} has unexpected size, {} != {}"
+                   .format(self.vi.src_fname, type(self).__name__, ctlen, totlen))
         pass
 
     def prepareRSRCData(self, avoid_recompute=False):
         data_buf = bytes(self.ident[:4])
         ctlen = 4 + sum(1+len(text_val) for text_val in self.content)
         if self.canZeroFill:
-             if (self.tpval == 0) and (len(self.content) == 0):
+            if (self.tpval == 0) and (len(self.content) == 0):
                 ctlen = 0
         data_buf += int(ctlen).to_bytes(4, byteorder='big')
         data_buf += int(self.tpval).to_bytes(2, byteorder='big')
@@ -231,7 +230,7 @@ class LVPath0(LVObject):
         if self.canZeroFill:
             obj_elem.set("ZeroFill", "True")
         for text_val in self.content:
-            subelem = ET.SubElement(obj_elem,"String")
+            subelem = ET.SubElement(obj_elem, "String")
 
             pretty_string = text_val.decode(self.vi.textEncoding)
             subelem.text = pretty_string
@@ -258,17 +257,17 @@ class LVVariant(LVObject):
         bldata.seek(pos)
         obj_type, obj_flags, obj_len = LVdatatype.TDObject.parseRSRCDataHeader(bldata)
         if (self.po.verbose > 2):
-            print("{:s}: {:s} {:d} sub-object {:d}, at 0x{:04x}, type 0x{:02x} flags 0x{:02x} len {:d}"\
-              .format(self.vi.src_fname, type(self).__name__, self.index, len(self.clients2), pos,\
-              obj_type, obj_flags, obj_len))
+            print("{:s}: {:s} {:d} sub-object {:d}, at 0x{:04x}, type 0x{:02x} flags 0x{:02x} len {:d}"
+                  .format(self.vi.src_fname, type(self).__name__, self.index, len(self.clients2), pos,
+                          obj_type, obj_flags, obj_len))
         if obj_len < 4:
-            eprint("{:s}: Warning: {:s} {:d} sub-object {:d} type 0x{:02x} data size {:d} too small to be valid"\
-              .format(self.vi.src_fname, type(self).__name__, self.index, len(self.clients2), obj_type, obj_len))
+            eprint("{:s}: Warning: {:s} {:d} sub-object {:d} type 0x{:02x} data size {:d} too small to be valid"
+                   .format(self.vi.src_fname, type(self).__name__, self.index, len(self.clients2), obj_type, obj_len))
             obj_type = LVdatatype.TD_FULL_TYPE.Void
         obj = LVdatatype.newTDObject(self.vi, self.blockref, obj_idx, obj_flags, obj_type, self.po)
         clientTD = SimpleNamespace()
-        clientTD.index = -1 # Nested clients have index -1
-        clientTD.flags = 0 # Only Type Mapped entries have it non-zero
+        clientTD.index = -1  # Nested clients have index -1
+        clientTD.flags = 0  # Only Type Mapped entries have it non-zero
         clientTD.nested = obj
         self.clients2.append(clientTD)
         bldata.seek(pos)
@@ -289,15 +288,17 @@ class LVVariant(LVObject):
             attrib.name = bldata.read(text_len)
             # And now - inception. LVVariant has attributes of type LVVariant. Hopefully won't loop forever.
             attrib.nested = LVdatatype.newTDObject(self.vi, self.blockref, -1, 0, LVdatatype.TD_FULL_TYPE.LVVariant, self.po)
-            # Note that we won't parse the type itself, it is generic and not stored with the attributes; just use it to make data
-            # We have type of the attribute, now read the value
-            attrib.value = LVdatafill.newDataFillObjectWithTD(self.vi, self.blockref, attrib.index, attrib.flags, attrib.nested, self.po)
+            # Note that we won't parse the type itself,
+            # it is generic and not stored with the attributes; just use it to make data.
+            # We have type of the attribute, now read the value:
+            attrib.value = LVdatafill.newDataFillObjectWithTD(self.vi, self.blockref,
+                                                              attrib.index, attrib.flags, attrib.nested, self.po)
             attrib.value.useConsolidatedTypes = self.useConsolidatedTypes
             attrib.value.initWithRSRC(bldata)
             if (self.po.verbose > 2):
-                print("{:s}: {:s} {:d} attribute {}: {} {}"\
-                  .format(self.vi.src_fname, type(self).__name__, self.index, attrib.name, attrib.nested, attrib.value))
-            attrs.append( attrib )
+                print("{:s}: {:s} {:d} attribute {}: {} {}"
+                      .format(self.vi.src_fname, type(self).__name__, self.index, attrib.name, attrib.nested, attrib.value))
+            attrs.append(attrib)
         return attrs
 
     def parseRSRCVariant(self, bldata):
@@ -310,58 +311,61 @@ class LVVariant(LVObject):
         self.hasvaritem2 = 0
         self.vartype2 = 0
         # If version information is too small, then it contains size instead of version - that was the case for LV7 and older
-        if isSmallerVersion(self.version, 1,0,0,1):
+        if isSmallerVersion(self.version, 1,0,0,1):  # noqa E231
             auto_ver = self.vi.getFileVersion()
-            if isGreaterOrEqVersion(auto_ver, 8,0,0,1):
+            if isGreaterOrEqVersion(auto_ver, 8,0,0,1):  # noqa E231
                 raise AttributeError("LVVariant has ver set to size=0x{:06X}, but file version is above LV8.0".format(varver))
             self.version = auto_ver.copy()
-        #TODO use LVdatatype.parseTDObject(self.vi, bldata, self.version, self.po) instead of doubling the implementation here
-        if self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):
+        # TODO use LVdatatype.parseTDObject(self.vi, bldata, self.version, self.po) instead of doubling the implementation here
+        if self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):  # noqa E231
             self.hasvaritem2 = 1
             self.vartype2 = readVariableSizeFieldU2p2(bldata)
             usesConsolidatedTD = True
-        elif isGreaterOrEqVersion(self.version, 8,0,0,1):
+        elif isGreaterOrEqVersion(self.version, 8,0,0,1):  # noqa E231
             varcount = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             if varcount > self.po.typedesc_list_limit:
-                raise AttributeError("{:s} {:d} ver 0x{:X} types count {:d} exceeds limit"\
-                  .format(type(self).__name__, self.index, encodeVersion(self.version), varcount))
+                raise AttributeError("{:s} {:d} ver 0x{:X} types count {:d} exceeds limit"
+                                     .format(type(self).__name__, self.index, encodeVersion(self.version), varcount))
             pos = bldata.tell()
             for i in range(varcount):
                 obj_idx, obj_len = self.parseRSRCTypeDef(bldata, i, pos)
                 pos += obj_len
                 if obj_len < 4:
-                    eprint("{:s}: Warning: {:s} {:d} data size too small for all clients"\
-                      .format(self.vi.src_fname, type(self).__name__, self.index))
+                    eprint("{:s}: Warning: {:s} {:d} data size too small for all clients"
+                           .format(self.vi.src_fname, type(self).__name__, self.index))
                     break
             bldata.seek(pos)
             self.hasvaritem2 = readVariableSizeFieldU2p2(bldata)
             if self.hasvaritem2 != 0:
                 self.vartype2 = readVariableSizeFieldU2p2(bldata)
             usesConsolidatedTD = False
-        elif isGreaterOrEqVersion(self.version, 4,0,0,0):
+        elif isGreaterOrEqVersion(self.version, 4,0,0,0):  # noqa E231
             varcount = 1
             pos = bldata.tell()
             for i in range(varcount):
                 obj_idx, obj_len = self.parseRSRCTypeDef(bldata, i, pos)
                 pos += obj_len
                 if obj_len < 4:
-                    eprint("{:s}: Warning: {:s} {:d} data size too small for all clients"\
-                      .format(self.vi.src_fname, type(self).__name__, self.index))
+                    eprint("{:s}: Warning: {:s} {:d} data size too small for all clients"
+                           .format(self.vi.src_fname, type(self).__name__, self.index))
                     break
             bldata.seek(pos)
             self.hasvaritem2 = self.allowFillValue
             self.vartype2 = varcount - 1
             usesConsolidatedTD = False
-            #raise NotImplementedError("Unsupported LVVariant ver=0x{:06X} older than LV8.0".format(varver))#TODO remove this line
+            # raise NotImplementedError("Unsupported LVVariant ver=0x{:06X} older than LV8.0"
+            #                           .format(varver))#TODO remove this line
         else:
-            raise NotImplementedError("Unsupported LVVariant ver=0x{:06X} older than LV4.0".format(encodeVersion(self.version)))
+            raise NotImplementedError("Unsupported LVVariant ver=0x{:06X} older than LV4.0"
+                                      .format(encodeVersion(self.version)))
         # Read fill of vartype2
         if self.allowFillValue:
             if not self.hasvaritem2:
                 raise NotImplementedError("Unsupported LVVariant type storage case with no hasvaritem2 but with DataFill")
             td = None
             if not usesConsolidatedTD:
-                # TODO the lack of use of ConsolidatedTD should be propagated.. now the types don't know they shouldn't use VCTP
+                # TODO the lack of use of ConsolidatedTD should be propagated...
+                # now the types don't know they shouldn't use VCTP
                 for client in self.clients2:
                     client.nested.parseData()
                 td = self.clients2[self.vartype2].nested
@@ -371,7 +375,8 @@ class LVVariant(LVObject):
 
             if td is None:
                 raise AttributeError("LVVariant has no linked TD  but is supposed to have DataFill")
-            df = LVdatafill.newDataFillObjectWithTD(self.vi, self.blockref, -1, 0, td, self.po, expectContentKind=self.expectContentKind)
+            df = LVdatafill.newDataFillObjectWithTD(self.vi, self.blockref,
+                                                    -1, 0, td, self.po, expectContentKind=self.expectContentKind)
             self.datafill.append(df)
             df.initWithRSRC(bldata)
             pass
@@ -399,7 +404,7 @@ class LVVariant(LVObject):
         varver = encodeVersion(self.version)
         data_buf = b''
 
-        if self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):
+        if self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):  # noqa E231
             data_buf += int(varver).to_bytes(4, byteorder='big', signed=False)
             data_buf += prepareVariableSizeFieldU2p2(self.vartype2)
             usesConsolidatedTD = True
@@ -409,9 +414,9 @@ class LVVariant(LVObject):
                     raise NotImplementedError("Unsupported LVVariant type storage case with no hasvaritem2 but with DataFill")
                 for df in self.datafill:
                     data_buf += df.prepareRSRCData(avoid_recompute=avoid_recompute)
-                    break # expecting one DataFill entry
+                    break  # expecting one DataFill entry
             data_buf += self.prepareRSRCAttribs(avoid_recompute=avoid_recompute)
-        elif isGreaterOrEqVersion(self.version, 8,0,0,1):
+        elif isGreaterOrEqVersion(self.version, 8,0,0,1):  # noqa E231
             data_buf += int(varver).to_bytes(4, byteorder='big', signed=False)
             varcount = sum(1 for client in self.clients2 if client.index == -1)
             data_buf += int(varcount).to_bytes(4, byteorder='big', signed=False)
@@ -431,9 +436,9 @@ class LVVariant(LVObject):
                     raise NotImplementedError("Unsupported LVVariant type storage case with no hasvaritem2 but with DataFill")
                 for df in self.datafill:
                     data_buf += df.prepareRSRCData(avoid_recompute=avoid_recompute)
-                    break # expecting one DataFill entry
+                    break  # expecting one DataFill entry
             data_buf += self.prepareRSRCAttribs(avoid_recompute=avoid_recompute)
-        elif isGreaterOrEqVersion(self.version, 4,0,0,0):
+        elif isGreaterOrEqVersion(self.version, 4,0,0,0):  # noqa E231
             td_buf = b''
             varcount = self.vartype2 + 1
             for clientTD in self.clients2:
@@ -448,14 +453,15 @@ class LVVariant(LVObject):
                     raise NotImplementedError("Unsupported LVVariant type storage case with no hasvaritem2 but with DataFill")
                 for df in self.datafill:
                     td_buf += df.prepareRSRCData(avoid_recompute=avoid_recompute)
-                    break # expecting one DataFill entry
+                    break  # expecting one DataFill entry
 
             td_buf += self.prepareRSRCAttribs(avoid_recompute=avoid_recompute)
 
             data_buf += int(4+len(td_buf)).to_bytes(4, byteorder='big', signed=False)
             data_buf += td_buf
         else:
-            raise NotImplementedError("Unsupported LVVariant ver=0x{:06X} older than LV4.0".format(encodeVersion(self.version)))
+            raise NotImplementedError("Unsupported LVVariant ver=0x{:06X} older than LV4.0"
+                                      .format(encodeVersion(self.version)))
 
         return data_buf
 
@@ -465,10 +471,10 @@ class LVVariant(LVObject):
     def expectedRSRCSize(self):
         exp_whole_len = 4
 
-        if isSmallerVersion(self.version, 8,0,0,1):
-            exp_whole_len += 0 # Unsupported
+        if isSmallerVersion(self.version, 8,0,0,1):  # noqa E231
+            exp_whole_len += 0  # Unsupported
             usesConsolidatedTD = False
-        elif self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):
+        elif self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):  # noqa E231
             exp_whole_len += len(prepareVariableSizeFieldU2p2(self.vartype2))
             usesConsolidatedTD = True
         else:
@@ -487,7 +493,7 @@ class LVVariant(LVObject):
         if self.allowFillValue:
             for df in self.datafill:
                 exp_whole_len += df.expectedRSRCSize()
-                break # expecting one DataFill entry
+                break  # expecting one DataFill entry
 
         # Attributes
         exp_whole_len += 4
@@ -503,7 +509,7 @@ class LVVariant(LVObject):
             self.vartype2 = int(vartype2, 0)
         autoVersion = (obj_elem.get("Version") == "auto")
         if autoVersion:
-            self.version["auto"] = True # Existence of this key marks the need to replace version
+            self.version["auto"] = True  # Existence of this key marks the need to replace version
         self.attrs = []
         self.datafill = []
         for subelem in obj_elem:
@@ -515,8 +521,8 @@ class LVVariant(LVObject):
                 ver['stage_text'] = subelem.get("Stage")
                 ver['build'] = int(subelem.get("Build"), 0)
                 if "auto" in self.version:
-                    eprint("{:s}: Warning: {:s} {:d} uses auto version but has <Version> tag"\
-                      .format(self.vi.src_fname, type(self).__name__, self.index))
+                    eprint("{:s}: Warning: {:s} {:d} uses auto version but has <Version> tag"
+                           .format(self.vi.src_fname, type(self).__name__, self.index))
                 self.version = ver
                 # the call below sets numeric 'stage' from text; we do not care for actual encoding
                 encodeVersion(self.version)
@@ -541,13 +547,16 @@ class LVVariant(LVObject):
                     attrib.index = -1
                     name_str = attr_elem.get("Name")
                     attrib.name = name_str.encode(encoding=self.vi.textEncoding)
-                    attrib.nested = LVdatatype.newTDObject(self.vi, self.blockref, -1, 0, LVdatatype.TD_FULL_TYPE.LVVariant, self.po)
-                    attrib.value = LVdatafill.newDataFillObjectWithTD(self.vi, self.blockref, attrib.index, attrib.flags, attrib.nested, self.po)
+                    attrib.nested = LVdatatype.newTDObject(self.vi, self.blockref,
+                                                           -1, 0, LVdatatype.TD_FULL_TYPE.LVVariant, self.po)
+                    attrib.value = LVdatafill.newDataFillObjectWithTD(self.vi, self.blockref,
+                                                                      attrib.index, attrib.flags, attrib.nested, self.po)
                     attrib.value.useConsolidatedTypes = self.useConsolidatedTypes
                     attrib.value.initWithXML(attr_elem)
                     if (self.po.verbose > 2):
-                        print("{:s}: {:s} {:d} attribute {}: {} {}"\
-                          .format(self.vi.src_fname, type(self).__name__, self.index, attrib.name, attrib.nested, attrib.value))
+                        print("{:s}: {:s} {:d} attribute {}: {} {}"
+                              .format(self.vi.src_fname, type(self).__name__, self.index,
+                                      attrib.name, attrib.nested, attrib.value))
                     self.attrs.append(attrib)
             elif (subelem.tag == "DataFill"):
                 for df_elem in subelem:
@@ -567,9 +576,9 @@ class LVVariant(LVObject):
         for attrib in self.attrs:
             attrib.value.initWithXMLLate()
 
-        if isSmallerVersion(self.version, 8,0,0,1):
+        if isSmallerVersion(self.version, 8,0,0,1):  # noqa E231
             usesConsolidatedTD = False
-        elif self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):
+        elif self.useConsolidatedTypes and isGreaterOrEqVersion(self.version, 8,6,0,1):  # noqa E231
             usesConsolidatedTD = True
         else:
             usesConsolidatedTD = False
@@ -588,12 +597,13 @@ class LVVariant(LVObject):
                 VCTP = self.vi.get_or_raise('VCTP')
                 td = VCTP.getTopType(self.vartype2)
             if td is None:
-                raise AttributeError("LVVariant cannot find TD object {}; usesConsolidatedTD={}".format(self.vartype2,usesConsolidatedTD))
+                raise AttributeError("LVVariant cannot find TD object {}; usesConsolidatedTD={}"
+                                     .format(self.vartype2, usesConsolidatedTD))
 
             if self.hasvaritem2 != 0:
                 if (self.po.verbose > 2):
-                    print("{:s}: {:s} {:d}: Setting DataFill type {}"\
-                      .format(self.vi.src_fname, type(self).__name__, self.index, td))
+                    print("{:s}: {:s} {:d}: Setting DataFill type {}"
+                          .format(self.vi.src_fname, type(self).__name__, self.index, td))
                 for df in self.datafill:
                     df.setTD(td, self.vartype2, 0)
             for df in self.datafill:
@@ -607,14 +617,14 @@ class LVVariant(LVObject):
             obj_elem.set("VarType2", "{:d}".format(self.vartype2))
         # Check whether we want to store version
         auto_ver = self.vi.getFileVersion()
-        if all(self.version[k] == auto_ver[k] for k in ('major','minor','bugfix','stage','build')):
+        if all(self.version[k] == auto_ver[k] for k in ('major', 'minor', 'bugfix', 'stage', 'build')):
             autoVersion = True
         else:
             autoVersion = False
         if autoVersion:
             obj_elem.set("Version", "{:s}".format("auto"))
         else:
-            subelem = ET.SubElement(obj_elem,"Version")
+            subelem = ET.SubElement(obj_elem, "Version")
             subelem.set("Major", "{:d}".format(self.version['major']))
             subelem.set("Minor", "{:d}".format(self.version['minor']))
             subelem.set("Bugfix", "{:d}".format(self.version['bugfix']))
@@ -626,7 +636,7 @@ class LVVariant(LVObject):
                 continue
             idx += 1
             fname_cli = "{:s}_{:04d}".format(fname_base, idx)
-            subelem = ET.SubElement(obj_elem,"DataType")
+            subelem = ET.SubElement(obj_elem, "DataType")
 
             subelem.set("Index", str(idx))
             subelem.set("Type", stringFromValEnumOrInt(LVdatatype.TD_FULL_TYPE, clientTD.nested.otype))
@@ -635,15 +645,15 @@ class LVVariant(LVObject):
             clientTD.nested.exportXMLFinish(subelem)
 
         if len(self.attrs) > 0:
-            attrs_elem = ET.SubElement(obj_elem,"Attributes")
+            attrs_elem = ET.SubElement(obj_elem, "Attributes")
             for attrib in self.attrs:
-                subelem = ET.SubElement(attrs_elem,"Object")
+                subelem = ET.SubElement(attrs_elem, "Object")
 
                 subelem.set("Name", attrib.name.decode(encoding=self.vi.textEncoding))
                 attrib.value.exportXML(subelem, fname_base)
 
         if self.allowFillValue and self.hasvaritem2 and len(self.datafill) > 0:
-            df_elem = ET.SubElement(obj_elem,"DataFill")
+            df_elem = ET.SubElement(obj_elem, "DataFill")
             for df in self.datafill:
                 df_subelem = ET.SubElement(df_elem, df.getXMLTagName())
 
@@ -688,7 +698,7 @@ class OleVariant(LVObject):
             20: 8,
             21: 8,
             0:  0,
-        }.get(vType, 0) # The 0 takes value from array
+        }.get(vType, 0)  # The 0 takes value from array
         return vSize
 
     def parseRSRCVariant(self, bldata):
@@ -707,7 +717,8 @@ class OleVariant(LVObject):
                 client.prop2 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
                 self.dimensions.append(client)
                 totlen *= client.prop2
-            if ndim == 0: totlen = 0
+            if ndim == 0:
+                totlen = 0
         else:
             totlen = 1
 
@@ -734,4 +745,3 @@ class OleVariant(LVObject):
     def parseRSRCData(self, bldata):
         self.parseRSRCVariant(bldata)
         pass
-
