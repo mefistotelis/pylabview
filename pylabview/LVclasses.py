@@ -11,14 +11,12 @@
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
 
-import enum
-
-from hashlib import md5
-from io import BytesIO
 from types import SimpleNamespace
-from ctypes import *
 
-from pylabview.LVmisc import *
+from pylabview.LVmisc import eprint, isSmallerVersion, isGreaterOrEqVersion, \
+    decodeVersion, encodeVersion, \
+    readVariableSizeFieldU2p2, prepareVariableSizeFieldU2p2
+import pylabview.LVmisc as LV
 import pylabview.LVxml as ET
 import pylabview.LVdatatype as LVdatatype
 import pylabview.LVdatafill as LVdatafill
@@ -132,7 +130,7 @@ class LVPath1(LVObject):
 
     def initWithXML(self, obj_elem):
         self.content = []
-        self.ident = getRsrcTypeFromPrettyStr(obj_elem.get("Ident"))
+        self.ident = LV.getRsrcTypeFromPrettyStr(obj_elem.get("Ident"))
         self.tpident = obj_elem.get("TpIdent").encode(encoding='ascii')
         for i, subelem in enumerate(obj_elem):
             if (subelem.tag == "String"):
@@ -145,8 +143,8 @@ class LVPath1(LVObject):
         pass
 
     def exportXML(self, obj_elem, fname_base):
-        obj_elem.set("Ident",  getPrettyStrFromRsrcType(self.ident))
-        obj_elem.set("TpIdent",  self.tpident.decode(encoding='ascii'))
+        obj_elem.set("Ident", LV.getPrettyStrFromRsrcType(self.ident))
+        obj_elem.set("TpIdent", self.tpident.decode(encoding='ascii'))
         for text_val in self.content:
             subelem = ET.SubElement(obj_elem, "String")
 
@@ -201,7 +199,7 @@ class LVPath0(LVObject):
         data_buf += int(self.tpval).to_bytes(2, byteorder='big')
         data_buf += len(self.content).to_bytes(2, byteorder='big')
         for text_val in self.content:
-            data_buf += preparePStr(text_val, 1, self.po)
+            data_buf += LV.preparePStr(text_val, 1, self.po)
         return data_buf
 
     def expectedRSRCSize(self):
@@ -211,7 +209,7 @@ class LVPath0(LVObject):
 
     def initWithXML(self, obj_elem):
         self.content = []
-        self.ident = getRsrcTypeFromPrettyStr(obj_elem.get("Ident"))
+        self.ident = LV.getRsrcTypeFromPrettyStr(obj_elem.get("Ident"))
         self.tpval = int(obj_elem.get("TpVal"), 0)
         self.canZeroFill = True if obj_elem.get("ZeroFill") == "True" else False
         for i, subelem in enumerate(obj_elem):
@@ -225,8 +223,8 @@ class LVPath0(LVObject):
         pass
 
     def exportXML(self, obj_elem, fname_base):
-        obj_elem.set("Ident",  getPrettyStrFromRsrcType(self.ident))
-        obj_elem.set("TpVal",  "{:d}".format(self.tpval))
+        obj_elem.set("Ident", LV.getPrettyStrFromRsrcType(self.ident))
+        obj_elem.set("TpVal", "{:d}".format(self.tpval))
         if self.canZeroFill:
             obj_elem.set("ZeroFill", "True")
         for text_val in self.content:
@@ -528,8 +526,8 @@ class LVVariant(LVObject):
                 encodeVersion(self.version)
             elif (subelem.tag == "DataType"):
                 obj_idx = int(subelem.get("Index"), 0)
-                obj_type = valFromEnumOrIntString(LVdatatype.TD_FULL_TYPE, subelem.get("Type"))
-                obj_flags = importXMLBitfields(LVdatatype.TYPEDESC_FLAGS, subelem)
+                obj_type = LV.valFromEnumOrIntString(LVdatatype.TD_FULL_TYPE, subelem.get("Type"))
+                obj_flags = LV.importXMLBitfields(LVdatatype.TYPEDESC_FLAGS, subelem)
                 obj = LVdatatype.newTDObject(self.vi, self.blockref, obj_idx, obj_flags, obj_type, self.po)
                 # Grow the list if needed (the connectors may be in wrong order)
                 clientTD = SimpleNamespace()
@@ -639,7 +637,7 @@ class LVVariant(LVObject):
             subelem = ET.SubElement(obj_elem, "DataType")
 
             subelem.set("Index", str(idx))
-            subelem.set("Type", stringFromValEnumOrInt(LVdatatype.TD_FULL_TYPE, clientTD.nested.otype))
+            subelem.set("Type", LV.stringFromValEnumOrInt(LVdatatype.TD_FULL_TYPE, clientTD.nested.otype))
 
             clientTD.nested.exportXML(subelem, fname_cli)
             clientTD.nested.exportXMLFinish(subelem)
@@ -732,7 +730,7 @@ class OleVariant(LVObject):
             for i in range(totlen):
                 # Getting recursive
                 client = SimpleNamespace()
-                client.obj = LVclasses.OleVariant(0, self.vi, self.po)
+                client.obj = OleVariant(0, self.vi, self.po)
                 client.obj.parseRSRCData(bldata)
                 self.vData.append(client)
         else:
