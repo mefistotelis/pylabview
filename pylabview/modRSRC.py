@@ -7185,7 +7185,7 @@ def icon_readImage(RSRC, icon_elem, fo, po):
         # As long as the file loads, we're good
         try:
             image = Image.open(icon_fname)
-            image.getdata() # to make sure the file gets loaded; everything is lazy nowadays
+            image.get_flattened_data() # to make sure the file gets loaded; everything is lazy nowadays
         except:
             fileOk = False
             image = None

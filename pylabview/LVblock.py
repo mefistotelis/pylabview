@@ -1080,7 +1080,7 @@ class CompleteBlock(Block):
                 bin_fname = section_elem.get("File")
             with open(bin_fname, "rb") as png_fh:
                 image = Image.open(png_fh)
-                image.getdata()  # to make sure the file gets loaded; everything is lazy nowadays
+                image.get_flattened_data()  # to make sure the file gets loaded; everything is lazy nowadays
                 self.initWithImageSectionData(section, section_elem, image, png_fh)
         else:
             section.parse_failed = True
@@ -3915,7 +3915,7 @@ class ImageBlock(CompleteBlock):
 
         image = Image.open(bldata)
         section.image = image
-        image.getdata()  # to make sure the file gets loaded; everything is lazy nowadays
+        image.get_flattened_data()  # to make sure the file gets loaded; everything is lazy nowadays
 
     def prepareRSRCData(self, section_num):
         section = self.sections[section_num]
@@ -4079,7 +4079,7 @@ class RawImageBlock(ImageBlock):
         if (padded_width % (8//bpp)) != 0:
             raise ValueError("Width padding incorrect for given BPP")
 
-        data_buf = bytes(image.getdata())
+        data_buf = bytes(image.get_flattened_data())
         line_len = (padded_width * bpp) // 8
         data_len = line_len * height
 
