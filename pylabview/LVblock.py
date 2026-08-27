@@ -5905,6 +5905,11 @@ class TypeDescListBase(CompleteBlock):
                  (dfDSInit.value[DSINIT.probeTableTMI].value & 0xFFFFFF)
         if probeTable_typeId is not None:
             tdProbeTable = self.getTopType(probeTable_typeId, section_num=section_num)
+        if tdProbeTable is not None and tdProbeTable.fullType() != TD_FULL_TYPE.RepeatedBlock:
+            if (self.po.verbose > 1):
+                eprint("{:s}: Warning: ProbeTable TD has unexpected type {:s}, treating as not found"
+                       .format(self.vi.src_fname, tdProbeTable.fullType().name))
+            tdProbeTable = None
         # Comment ProbeTable
         if tdProbeTable is not None:
             tdProbeTable.setPurposeText("Table of Probe Points")
