@@ -6170,10 +6170,13 @@ class VICD(CompleteBlock):
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.numberOfBasicBlocks")
             section.compilerOptimizationLevel = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.compilerOptimizationLevel")
-            section.hostCodeEntryVI = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.hostCodeEntryVI")
-            section.codeEndOffset = int.from_bytes(bldata.read(archDependLen), byteorder=archEndianness, signed=False)
-            self.appendPrintMapEntry(section, bldata.tell(), archDependLen, 1, "Head.codeEndOffset")
+            # In x64 files, codeEndOffset is the 4 bytes at offset 40 - that is where the footer starts in files
+            # of LV 16, 23 and 24. The 8 bytes before it are all zeros in these files, so reading them all as
+            # hostCodeEntryVI is an assumption (it may also be a 4-byte value followed by padding)
+            section.hostCodeEntryVI = int.from_bytes(bldata.read(archDependLen), byteorder=archEndianness, signed=False)
+            self.appendPrintMapEntry(section, bldata.tell(), archDependLen, 1, "Head.hostCodeEntryVI")
+            section.codeEndOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
+            self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.codeEndOffset")
             section.signatureName = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Head.signatureName")
         elif isGreaterOrEqVersion(ver, 5,0,0,0):  # noqa: E231  # Lowest version tested with this is LV 6,0,0,2
@@ -6241,8 +6244,8 @@ class VICD(CompleteBlock):
             data_buf += section.verifier[:4]
             data_buf += int(section.numberOfBasicBlocks).to_bytes(4, byteorder=archEndianness, signed=False)
             data_buf += int(section.compilerOptimizationLevel).to_bytes(4, byteorder=archEndianness, signed=False)
-            data_buf += int(section.hostCodeEntryVI).to_bytes(4, byteorder=archEndianness, signed=False)
-            data_buf += int(section.codeEndOffset).to_bytes(archDependLen, byteorder=archEndianness, signed=False)
+            data_buf += int(section.hostCodeEntryVI).to_bytes(archDependLen, byteorder=archEndianness, signed=False)
+            data_buf += int(section.codeEndOffset).to_bytes(4, byteorder=archEndianness, signed=False)
             data_buf += int(section.signatureName).to_bytes(4, byteorder='big', signed=False)
         elif isGreaterOrEqVersion(ver, 5,0,0,0):  # noqa: E231
             data_buf += int(section.initProcOffset).to_bytes(4, byteorder=archEndianness, signed=False)
@@ -6292,14 +6295,22 @@ class VICD(CompleteBlock):
             section.endLocalLVRTCodeBlocks = int.from_bytes(bldata.read(archDependLen), byteorder='big', signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), archDependLen, 1, "Foot.endLocalLVRTCodeBlocks")
 
-        # TODO inconsistency - codeEndOffset has arch-dependant size
-        section.endCodeEndOffset = int.from_bytes(bldata.read(4), byteorder=archEndianness, signed=False)
-        self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Foot.endCodeEndOffset")
+        # In x64 files of LV 16, 23 and 24, this copy of codeEndOffset takes 8 bytes (x64 files of LV 12-15 not tested)
+        endCodeEndLen = archDependLen if isGreaterOrEqVersion(ver, 12,0,0,0) else 4  # noqa: E231
+        section.endCodeEndOffset = int.from_bytes(bldata.read(endCodeEndLen), byteorder=archEndianness, signed=False)
+        self.appendPrintMapEntry(section, bldata.tell(), endCodeEndLen, 1, "Foot.endCodeEndOffset")
 
         if isGreaterOrEqVersion(ver, 13,0,0,0):  # noqa: E231  # Should be False for 12,0,0,4, True for 14,0,0,3
-            # TODO maybe for 64-bit arch it's a missing part of endCodeEndOffset?
             section.endProp5 = int.from_bytes(bldata.read(4), byteorder='big', signed=False)
             self.appendPrintMapEntry(section, bldata.tell(), 4, 1, "Foot.endProp5")
+
+        # If the footer is not where the header says, then the layout was not recognized. Such section must not
+        # be accepted as parsed, because re-creating it would write the offsets back at wrong positions
+        if section.endVerifier != b'CODE':
+            raise AttributeError("Footer verifier not found at CodeEndOffset 0x{:X}".format(section.codeEndOffset))
+        if section.endCodeEndOffset != section.codeEndOffset:
+            raise AttributeError("Copies of CodeEndOffset are different (0x{:X} and 0x{:X})"
+                                 .format(section.codeEndOffset, section.endCodeEndOffset))
         pass
 
     def prepareRSRCSectionFoot(self, section, section_num, archEndianness, archDependLen):
@@ -6317,7 +6328,8 @@ class VICD(CompleteBlock):
             data_buf += int(section.endSignatureName).to_bytes(archDependLen, byteorder='big', signed=False)
             data_buf += int(section.endLocalLVRTCodeBlocks).to_bytes(archDependLen, byteorder='big', signed=False)
 
-        data_buf += int(section.endCodeEndOffset).to_bytes(4, byteorder=archEndianness, signed=False)
+        endCodeEndLen = archDependLen if isGreaterOrEqVersion(ver, 12,0,0,0) else 4  # noqa: E231
+        data_buf += int(section.endCodeEndOffset).to_bytes(endCodeEndLen, byteorder=archEndianness, signed=False)
 
         if isGreaterOrEqVersion(ver, 13,0,0,0):  # noqa: E231
             data_buf += int(section.endProp5).to_bytes(4, byteorder='big', signed=False)
@@ -6331,7 +6343,7 @@ class VICD(CompleteBlock):
         exp_whole_len += 4 + 4
         if isGreaterOrEqVersion(ver, 7,0,0,0):  # noqa: E231
             exp_whole_len += archDependLen + archDependLen
-        exp_whole_len += 4
+        exp_whole_len += archDependLen if isGreaterOrEqVersion(ver, 12,0,0,0) else 4  # noqa: E231
         if isGreaterOrEqVersion(ver, 13,0,0,0):  # noqa: E231
             exp_whole_len += 4
         return exp_whole_len
